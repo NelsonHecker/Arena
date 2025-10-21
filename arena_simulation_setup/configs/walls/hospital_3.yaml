@@ -1,0 +1,17 @@
+main:
+  - material: Metal_Cast
+    height: 0.5
+    z: 1.5
+  - material: Bamboo_Planks
+    height: 1
+    z: 0
+  - material: Polyester_Crepe_de_Chine_Dark_Green
+    height: 0.5
+    z: 1
+  - tile:
+      - model: clock_1
+        orientation: 1.507 # rotate 90 degrees
+        y: 0.1
+        z: 0.75
+    every: 5
+    width: 3

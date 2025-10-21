@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+if [ -n "$ZSH_VERSION" ]; then
+    shell='zsh'
+    # shellcheck disable=SC2296
+    THIS_FILE="${(%):-%N}"
+else
+    shell='bash'
+    THIS_FILE="${BASH_SOURCE[0]}"
+fi
+export shell
+
+if [ -f "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}" ] ; then
+    . "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}"
+fi
+if [ -f install/local_setup.${shell} ] ; then
+    . "install/local_setup.${shell}"
+fi
+
+
+
+ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
+export ARENA_WS_DIR
+export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
+
+export INSTALLED="$ARENA_DIR/.installed"
+export TOOLS_DIR="$ARENA_DIR/_meta/tools"
+export ARENA_ASSETS_DIR="$ARENA_DIR/_assets/"
+
+export ARENA_ROS_DISTRO=${ARENA_ROS_DISTRO:-humble}
+
+# Set Gazebo version if not provided
+export GAZEBO_VERSION=${GAZEBO_VERSION:-harmonic}
+export GZ_VERSION=${GAZEBO_VERSION}
+
+export FASTRTPS_DEFAULT_PROFILES_FILE=~/.ros/fastdds.xml
+export ROS_DOMAIN_ID=1
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
+export INSTALLED="$ARENA_DIR/.installed"
+
+if [ -f "$INSTALLED" ] && grep -q "isaac.sh" "$INSTALLED"; then
+    if [ -z ${ISAAC_PATH+x} ] ; then
+        . "$HOME/isaacsim-4.2.0/setup.${shell}"
+        . "$HOME/isaacsim-4.2.0/setup.${shell}"
+    fi
+fi
+
+if [ -z ${ARENA_SOURCED+x} ] ; then
+
+    # stop rviz from flashing
+    export QT_SCREEN_SCALE_FACTORS=1
+    
+    # python env
+    pushd "$ARENA_DIR" > /dev/null || return 1
+        if [ ! -d "$ARENA_DIR/.venv" ] ; then
+            uv sync
+        fi
+        export VIRTUAL_ENV_DISABLE_PROMPT=1
+        venv_path="$(dirname "$(dirname "$(uv python find)")")"
+
+        # if [ "$venv_path" != "$VIRTUAL_ENV" ] ; then
+        . "$venv_path/bin/activate"
+        dirs=("$venv_path"/lib/*/site-packages)
+        _IFS=$IFS IFS=':'
+        export PYTHONPATH="${dirs[*]}:$PYTHONPATH"
+        IFS=$_IFS
+        unset _IFS
+        unset dirs
+        unset venv_path
+    popd > /dev/null || return 1
+    
+    
+    export ARENA_SOURCED=1
+    PS1_BACKUP=$PS1
+    export PS1="(Arena) $PS1"
+    echo 'sourced Arena environment'
+    
+    r2st(){ ros2 service call "$1" "$(ros2 service type "$1")";}
+    
+    arena(){
+        local verb="$1"
+        if [ -n "$verb" ] ; then
+            shift
+        fi
+
+        pushd "$ARENA_WS_DIR" > /dev/null || return $?
+        trap 'popd > /dev/null' EXIT
+        
+        case "$verb" in
+            build)
+                "${TOOLS_DIR}/colcon_build" "$@"
+                . "$THIS_FILE"
+                result=$?
+            ;;
+            update)
+                "${TOOLS_DIR}/pull" "$@"
+                result=$?
+            ;;
+            launch)
+                ros2 launch arena_bringup arena.launch.py "$@"
+                result=$?
+            ;;
+            deactivate)
+                deactivate || true
+                export PS1=$PS1_BACKUP
+                unset PS1_BACKUP
+                unset ARENA_SOURCED
+                unset -f arena
+                result=0
+            ;;
+            feature)
+                if [ $# -lt 1 ]; then
+                    echo "Usage: arena feature <name> <install|uninstall|...>"
+                    echo "Available packages: $(cd "$ARENA_DIR/_meta/installers" && ls *.sh | sed 's/\.sh$//' | paste -sd' ' -)"
+                    return 1
+                else
+                    package="$1"
+                    shift
+                    $SHELL "$ARENA_DIR/_meta/installers/${package}.sh" "$@"
+                    result=$?
+                fi
+            ;;
+            *)
+                echo 'Usage: arena <build|update|launch|deactivate|feature> [args...]'
+                result=1
+            ;;
+        esac
+
+        trap - EXIT
+        popd > /dev/null || return $?
+        return $result
+    }
+    
+    export -f arena
+fi

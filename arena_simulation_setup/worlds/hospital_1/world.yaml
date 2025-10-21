@@ -1,0 +1,514 @@
+zones:
+  - description: "Top hallway"
+    name: "top_hallway"
+    walls:
+      - start: { x: 0.025, y: 27.5 }
+        end: { x: 0.025, y: 22.5 }
+      - start: { x: 79.975, y: 22.5 }
+        end: { x: 79.975, y: 27.5 }
+
+    corners:
+      - [0.0, 22.5]
+      - [80.0, 22.5]
+      - [80.0, 27.5]
+      - [0.0, 27.5]
+
+    entities:
+      static:
+        - name: hospital_sign_2
+          model: hospital_sign
+          pose: [40.0, 25.0, 0.0]
+        - name: cart_1
+          model: Cart
+          pose: [10.0, 24.5, 1.57]
+        - name: water_dispenser_1
+          model: Water_Dispenser
+          pose: [70.0, 24.5, 0.0]
+
+  - description: "Patient Ward 1"
+    name: "patient_ward_1"
+    walls:
+      - start: { x: 0.025, y: 27.525 }
+        end: { x: 0.025, y: 45.975 }
+      - start: { x: 0.025, y: 45.975 }
+        end: { x: 24.475, y: 45.975 }
+      - start: { x: 24.475, y: 45.975 }
+        end: { x: 24.475, y: 27.525 }
+      - start: { x: 24.475, y: 27.525 }
+        end: { x: 18.4, y: 27.525 }
+      - start: { x: 15.9, y: 27.525 }
+        end: { x: 0.025, y: 27.525 }
+
+    corners:
+      - [0.025, 27.525]
+      - [0.025, 45.975]
+      - [24.475, 45.975]
+      - [24.475, 27.525]
+
+    doors:
+      - name: "patient_ward_1_door"
+        start: [15.9, 27.5]
+        end: [18.4, 27.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: patient_bed_1
+          model: patient_bed
+          pose: [5.0, 35.0, 0.0]
+        - name: patient_bed_2
+          model: patient_bed
+          pose: [5.0, 40.0, 0.0]
+        - name: bedside_table_1
+          model: Bed_Side_Table
+          pose: [8.0, 35.0, 0.0]
+        - name: bedside_table_2
+          model: Bed_Side_Table
+          pose: [8.0, 40.0, 0.0]
+        - name: medical_cabinet_1
+          model: Medical_Cabinet
+          pose: [20.0, 35.0, 1.57]
+        - name: iv_stand_1
+          model: IV_Stand
+          pose: [12.0, 35.0, 0.0]
+        - name: vital_signal_station_1
+          model: Vital_Signal_Station
+          pose: [20.0, 40.0, 3.14]
+
+  - description: "Examination Room"
+    name: "examination_room"
+    walls:
+      - start: { x: 24.525, y: 27.525 }
+        end: { x: 24.525, y: 36.675 }
+      - start: { x: 24.525, y: 36.675 }
+        end: { x: 32.275, y: 36.675 }
+      - start: { x: 32.275, y: 36.675 }
+        end: { x: 32.275, y: 27.525 }
+      - start: { x: 32.275, y: 27.525 }
+        end: { x: 29.8, y: 27.525 }
+      - start: { x: 27.3, y: 27.525 }
+        end: { x: 24.525, y: 27.525 }
+
+    corners:
+      - [24.525, 27.525]
+      - [24.525, 36.675]
+      - [32.275, 36.675]
+      - [32.275, 27.525]
+
+    doors:
+      - name: "examination_room_door"
+        start: [27.3, 27.5]
+        end: [29.8, 27.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: exam_table_1
+          model: Exam_Table
+          pose: [28.0, 32.0, 0.0]
+        - name: medical_stool_1
+          model: Medical_Stool
+          pose: [26.0, 30.0, 0.0]
+        - name: instrument_table_1
+          model: Instrument_Table
+          pose: [30.0, 34.0, 1.57]
+        - name: scale_1
+          model: Scale
+          pose: [25.5, 34.0, 0.0]
+
+  - description: "Operating Room"
+    name: "operating_room"
+    walls:
+      - start: { x: 32.325, y: 27.525 }
+        end: { x: 32.325, y: 37.175 }
+      - start: { x: 32.325, y: 37.175 }
+        end: { x: 43.775, y: 37.175 }
+      - start: { x: 43.775, y: 37.175 }
+        end: { x: 43.775, y: 27.525 }
+      - start: { x: 43.775, y: 27.525 }
+        end: { x: 41.1, y: 27.525 }
+      - start: { x: 38.6, y: 27.525 }
+        end: { x: 32.325, y: 27.525 }
+
+    corners:
+      - [32.325, 27.525]
+      - [32.325, 37.175]
+      - [43.775, 37.175]
+      - [43.775, 27.525]
+
+    doors:
+      - name: "operating_room_door"
+        start: [38.6, 27.5]
+        end: [41.1, 27.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: operating_table_1
+          model: Operating_Table
+          pose: [38.0, 32.0, 0.0]
+        - name: anesthesia_machine_1
+          model: Anesthesia_Machine
+          pose: [35.0, 32.0, 1.57]
+        - name: surgical_instrument_tray_1
+          model: Surgical_Instrument_Tray
+          pose: [40.0, 30.0, 0.0]
+        - name: defibrillator_1
+          model: Defibrillator
+          pose: [42.0, 34.0, 3.14]
+        - name: ventilator_1
+          model: Ventilator
+          pose: [33.5, 35.0, 0.0]
+
+  - description: "Laboratory"
+    name: "laboratory"
+    walls:
+      - start: { x: 43.825, y: 27.525 }
+        end: { x: 43.825, y: 39.575 }
+      - start: { x: 43.825, y: 39.575 }
+        end: { x: 52.975, y: 39.575 }
+      - start: { x: 52.975, y: 39.575 }
+        end: { x: 52.975, y: 27.525 }
+      - start: { x: 52.975, y: 27.525 }
+        end: { x: 49.4, y: 27.525 }
+      - start: { x: 46.9, y: 27.525 }
+        end: { x: 43.825, y: 27.525 }
+
+    corners:
+      - [43.825, 27.525]
+      - [43.825, 39.575]
+      - [52.975, 39.575]
+      - [52.975, 27.525]
+
+    doors:
+      - name: "laboratory_door"
+        start: [46.9, 27.5]
+        end: [49.4, 27.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: lab_bench_1
+          model: Lab_Bench
+          pose: [46.0, 35.0, 0.0]
+        - name: lab_bench_2
+          model: Lab_Bench
+          pose: [50.0, 35.0, 0.0]
+        - name: microscope_station_1
+          model: Microscope_Station
+          pose: [48.0, 38.0, 3.14]
+        - name: lab_stool_1
+          model: Lab_Stool
+          pose: [46.0, 32.0, 0.0]
+        - name: lab_stool_2
+          model: Lab_Stool
+          pose: [50.0, 32.0, 0.0]
+        - name: refrigerated_medicine_unit_1
+          model: Refrigerated_Medicine_Unit
+          pose: [52.0, 30.0, 1.57]
+
+  - description: "Waiting Area"
+    name: "waiting_area"
+    walls:
+      - start: { x: 53.025, y: 27.525 }
+        end: { x: 53.025, y: 45.675 }
+      - start: { x: 53.025, y: 45.675 }
+        end: { x: 80.075, y: 45.675 }
+      - start: { x: 80.075, y: 45.675 }
+        end: { x: 80.075, y: 27.525 }
+      - start: { x: 80.075, y: 27.525 }
+        end: { x: 75.1, y: 27.525 }
+      - start: { x: 72.6, y: 27.525 }
+        end: { x: 53.025, y: 27.525 }
+
+    corners:
+      - [53.025, 27.525]
+      - [53.025, 45.675]
+      - [80.075, 45.675]
+      - [80.075, 27.525]
+
+    doors:
+      - name: "waiting_area_door"
+        start: [72.6, 27.5]
+        end: [75.1, 27.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: waiting_room_sofa_1
+          model: Waiting_Room_Sofa
+          pose: [60.0, 35.0, 0.0]
+        - name: waiting_room_sofa_2
+          model: Waiting_Room_Sofa
+          pose: [65.0, 35.0, 0.0]
+        - name: waiting_room_chair_1
+          model: Waiting_Room_Chair
+          pose: [70.0, 35.0, 0.0]
+        - name: waiting_room_chair_2
+          model: Waiting_Room_Chair
+          pose: [72.0, 35.0, 0.0]
+        - name: waiting_room_bench_1
+          model: Waiting_Room_Bench
+          pose: [75.0, 40.0, 1.57]
+        - name: drinks_machine_1
+          model: Drinks_Machine
+          pose: [78.0, 30.0, 3.14]
+        - name: display_board_1
+          model: Display_Board
+          pose: [55.0, 42.0, 0.0]
+
+  - description: "Bottom hallway"
+    name: "bottom_hallway"
+    walls:
+      - start: { x: 0.025, y: 27.5 }
+        end: { x: 0.025, y: 22.5 }
+      - start: { x: 79.975, y: 22.5 }
+        end: { x: 79.975, y: 27.5 }
+
+    corners:
+      - [0.0, 22.5]
+      - [80.0, 22.5]
+      - [80.0, 27.5]
+      - [0.0, 27.5]
+
+    entities:
+      static:
+        - name: hospital_sign_1
+          model: hospital_sign
+          pose: [40.0, 25.0, 0.0]
+        - name: gurney_1
+          model: Gurney
+          pose: [20.0, 24.5, 1.57]
+        - name: wheel_chair_1
+          model: Wheel_Chair
+          pose: [60.0, 24.5, 0.0]
+
+  - description: "Patient Ward 2"
+    name: "patient_ward_2"
+    walls:
+      - start: { x: 0.025, y: 6.125 }
+        end: { x: 0.025, y: 22.475 }
+      - start: { x: 0.025, y: 22.475 }
+        end: { x: 15.5, y: 22.475 }
+      - start: { x: 18.0, y: 22.475 }
+        end: { x: 25.775, y: 22.475 }
+      - start: { x: 25.775, y: 22.475 }
+        end: { x: 25.775, y: 6.125 }
+      - start: { x: 25.775, y: 6.125 }
+        end: { x: 0.025, y: 6.125 }
+
+    corners:
+      - [0.025, 6.125]
+      - [0.025, 22.475]
+      - [25.775, 22.475]
+      - [25.775, 6.125]
+
+    doors:
+      - name: "patient_ward_2_door"
+        start: [15.5, 22.5]
+        end: [18.0, 22.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: patient_bed_3
+          model: patient_bed
+          pose: [8.0, 15.0, 0.0]
+        - name: patient_bed_4
+          model: patient_bed
+          pose: [18.0, 15.0, 0.0]
+        - name: bedside_cabinet_1
+          model: Bedside_Cabinet
+          pose: [8.0, 18.0, 0.0]
+        - name: bedside_cabinet_2
+          model: Bedside_Cabinet
+          pose: [18.0, 18.0, 0.0]
+        - name: patient_armchair_1
+          model: Patient_Armchair
+          pose: [12.0, 10.0, 1.57]
+        - name: iv_stand_2
+          model: IV_Stand
+          pose: [5.0, 15.0, 0.0]
+        - name: iv_stand_3
+          model: IV_Stand
+          pose: [21.0, 15.0, 0.0]
+
+  - description: "Pharmacy"
+    name: "pharmacy"
+    walls:
+      - start: { x: 25.825, y: 13.525 }
+        end: { x: 25.825, y: 22.475 }
+      - start: { x: 25.825, y: 22.475 }
+        end: { x: 28.9, y: 22.475 }
+      - start: { x: 31.4, y: 22.475 }
+        end: { x: 31.975, y: 22.475 }
+      - start: { x: 31.975, y: 22.475 }
+        end: { x: 31.975, y: 13.525 }
+      - start: { x: 31.975, y: 13.525 }
+        end: { x: 25.825, y: 13.525 }
+
+    corners:
+      - [25.825, 13.525]
+      - [25.825, 22.475]
+      - [31.975, 22.475]
+      - [31.975, 13.525]
+
+    doors:
+      - name: "pharmacy_door"
+        start: [28.9, 22.5]
+        end: [31.4, 22.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: pharmacy_shelf_1
+          model: Pharmacy_Shelf
+          pose: [29.0, 18.0, 0.0]
+        - name: med_shelf_1
+          model: Med_Shelf
+          pose: [27.0, 16.0, 1.57]
+        - name: supply_cart_a_1
+          model: Supply_Cart_A
+          pose: [30.0, 15.0, 0.0]
+
+  - description: "Reception"
+    name: "reception"
+    walls:
+      - start: { x: 32.025, y: 10.725 }
+        end: { x: 32.025, y: 22.475 }
+      - start: { x: 32.025, y: 22.475 }
+        end: { x: 34.7, y: 22.475 }
+      - start: { x: 37.2, y: 22.475 }
+        end: { x: 42.275, y: 22.475 }
+      - start: { x: 42.275, y: 22.475 }
+        end: { x: 42.275, y: 10.725 }
+      - start: { x: 42.275, y: 10.725 }
+        end: { x: 32.025, y: 10.725 }
+
+    corners:
+      - [32.025, 10.725]
+      - [32.025, 22.475]
+      - [42.275, 22.475]
+      - [42.275, 10.725]
+
+    doors:
+      - name: "reception_door"
+        start: [34.7, 22.5]
+        end: [37.2, 22.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: reception_counter_1
+          model: Reception_Counter
+          pose: [37.0, 16.0, 0.0]
+        - name: reception_desk_1
+          model: Reception_Desk
+          pose: [37.0, 18.5, 3.14]
+        - name: office_chair_1
+          model: office_chair
+          pose: [37.0, 19.5, 0.0]
+        - name: chart_rack_1
+          model: Chart_Rack
+          pose: [40.0, 12.0, 0.0]
+
+  - description: "Sterilization Room"
+    name: "sterilization_room"
+    walls:
+      - start: { x: 42.325, y: 10.025 }
+        end: { x: 42.325, y: 22.475 }
+      - start: { x: 42.325, y: 22.475 }
+        end: { x: 45.2, y: 22.475 }
+      - start: { x: 47.7, y: 22.475 }
+        end: { x: 52.075, y: 22.475 }
+      - start: { x: 52.075, y: 22.475 }
+        end: { x: 52.075, y: 10.025 }
+      - start: { x: 52.075, y: 10.025 }
+        end: { x: 42.325, y: 10.025 }
+
+    corners:
+      - [42.325, 10.025]
+      - [42.325, 22.475]
+      - [52.075, 22.475]
+      - [52.075, 10.025]
+
+    doors:
+      - name: "sterilization_room_door"
+        start: [45.2, 22.5]
+        end: [47.7, 22.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: autoclave_1
+          model: Autoclave
+          pose: [47.0, 18.0, 0.0]
+        - name: scrub_sink_1
+          model: Scrub_Sink
+          pose: [45.0, 15.0, 1.57]
+        - name: supply_cart_b_1
+          model: Supply_Cart_B
+          pose: [49.0, 12.0, 0.0]
+        - name: biohazard_container_1
+          model: Biohazard_Container
+          pose: [51.0, 20.0, 0.0]
+        - name: disposal_stand_1
+          model: Disposal_Stand
+          pose: [44.0, 11.0, 0.0]
+
+  - description: "Radiology Room"
+    name: "radiology_room"
+    walls:
+      - start: { x: 52.125, y: 6.225 }
+        end: { x: 52.125, y: 22.475 }
+      - start: { x: 52.125, y: 22.475 }
+        end: { x: 61.0, y: 22.475 }
+      - start: { x: 63.5, y: 22.475 }
+        end: { x: 79.775, y: 22.475 }
+      - start: { x: 79.775, y: 22.475 }
+        end: { x: 79.775, y: 6.225 }
+      - start: { x: 79.775, y: 6.225 }
+        end: { x: 52.125, y: 6.225 }
+
+    corners:
+      - [52.125, 6.225]
+      - [52.125, 22.475]
+      - [79.775, 22.475]
+      - [79.775, 6.225]
+
+    doors:
+      - name: "radiology_room_door"
+        start: [61.0, 22.5]
+        end: [63.5, 22.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: xray_light_box_1
+          model: Xray_Light_Box
+          pose: [70.0, 18.0, 0.0]
+        - name: exam_table_2
+          model: Exam_Table
+          pose: [65.0, 14.0, 0.0]
+        - name: medical_stool_2
+          model: Medical_Stool
+          pose: [62.0, 12.0, 0.0]
+        - name: instrument_table_2
+          model: Instrument_Table
+          pose: [68.0, 12.0, 1.57]
+        - name: medical_box_1
+          model: Medical_Box
+          pose: [75.0, 10.0, 0.0]
+        - name: medical_bag_1
+          model: Medical_Bag
+          pose: [77.0, 15.0, 0.0]

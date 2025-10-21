@@ -1,0 +1,32 @@
+import sys
+
+from . import WorldGenerator, WorldGeneratorType
+
+from arena_simulation_setup.worlds.world import World
+
+__all__ = ['WorldGenerator', 'WorldGeneratorType']
+
+
+def test_generate(out: str, name: str, config: dict) -> str:
+    gen = WorldGenerator(WorldGeneratorType(name), config)
+    world = World(out)
+    return world.save(gen.compute())
+
+
+def main(argv=sys.argv):
+    import json
+    import os
+
+    if len(argv) == 3:
+        result = test_generate(argv[1], argv[2], {})
+        print(f'Generated world saved to {result}')
+    elif len(argv) == 4:
+        result = test_generate(argv[1], argv[2], json.loads(argv[3]))
+        print(f'Generated world saved to {result}')
+    else:
+        print(f'usage: {os.path.basename(__file__)} <world_name> <generator> [<config>]')
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

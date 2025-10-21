@@ -1,0 +1,11 @@
+main:
+  - material: Mortar_White
+    height: 2
+    z: 0
+  - tile:
+      - model: wall_shelf
+        orientation: 0.0 # rotate 90 degrees
+        y: 0.1
+        z: 1
+    every: 5
+    width: 3

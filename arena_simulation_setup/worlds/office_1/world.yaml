@@ -1,0 +1,539 @@
+zones:
+  - description: "Main Hallway"
+    name: "main_hallway"
+    walls:
+      - start: { x: 0.0, y: 22.5 }
+        end: { x: 80.0, y: 22.5 }
+      - start: { x: 0.0, y: 27.5 }
+        end: { x: 80.0, y: 27.5 }
+
+    corners:
+      - [0.0, 22.5]
+      - [80.0, 22.5]
+      - [80.0, 27.5]
+      - [0.0, 27.5]
+
+    entities:
+      static:
+        - name: water_cooler_1
+          model: Water_Cooler
+          pose: [20.0, 25.0, 0]
+        - name: water_cooler_2
+          model: Water_Cooler
+          pose: [60.0, 25.0, 0]
+        - name: display_board_1
+          model: Display_Board
+          pose: [40.0, 27.0, 3.14]
+
+  - description: "Executive Office"
+    name: "executive_office"
+    walls:
+      - start: { x: 0.0, y: 27.5 }
+        end: { x: 0.0, y: 45.0 }
+      - start: { x: 0.0, y: 45.0 }
+        end: { x: 25.0, y: 45.0 }
+      - start: { x: 25.0, y: 45.0 }
+        end: { x: 25.0, y: 27.5 }
+      - start: { x: 18.0, y: 27.5 }
+        end: { x: 15.0, y: 27.5 }
+      - start: { x: 0.0, y: 27.5 }
+        end: { x: 15.0, y: 27.5 }
+
+    corners:
+      - [0.0, 27.5]
+      - [0.0, 45.0]
+      - [25.0, 45.0]
+      - [25.0, 27.5]
+
+    doors:
+      - name: "executive_office_door"
+        start: [15.0, 27.5]
+        end: [18.0, 27.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: executive_desk
+          model: office_long_table
+          pose: [12.5, 36.0, 0]
+        - name: executive_chair
+          model: Chair_Office
+          pose: [13.5, 38.0, 3.14]
+        - name: meeting_table
+          model: Wood_Rectangle_Table
+          pose: [20.0, 32.0, 0]
+        - name: chair1
+          model: Chair
+          pose: [18.0, 30.0, 0]
+        - name: chair2
+          model: Chair
+          pose: [22.0, 30.0, 0]
+        - name: chair3
+          model: Chair
+          pose: [18.0, 34.0, 3.14]
+        - name: chair4
+          model: Chair
+          pose: [22.0, 34.0, 3.14]
+        - name: bookshelf1
+          model: Shelf
+          pose: [1.0, 35.0, 1.57]
+        - name: bookshelf2
+          model: Shelf
+          pose: [1.0, 40.0, 1.57]
+        - name: cabinet1
+          model: Wood_Cabinet_Base
+          pose: [24.0, 35.0, 4.71]
+        - name: coffee_table
+          model: Coffee_Table_A
+          pose: [5.0, 32.0, 0]
+        - name: lounge_chair1
+          model: Lounge_Chair
+          pose: [3.0, 30.0, 0]
+        - name: lounge_chair2
+          model: Lounge_Chair
+          pose: [7.0, 30.0, 0]
+
+  - description: "Conference Room"
+    name: "conference_room"
+    walls:
+      - start: { x: 25.0, y: 30.0 }
+        end: { x: 25.0, y: 45.0 }
+      - start: { x: 25.0, y: 45.0 }
+        end: { x: 50.0, y: 45.0 }
+      - start: { x: 50.0, y: 45.0 }
+        end: { x: 50.0, y: 30.0 }
+      - start: { x: 42.0, y: 30.0 }
+        end: { x: 39.0, y: 30.0 }
+      - start: { x: 25.0, y: 30.0 }
+        end: { x: 39.0, y: 30.0 }
+
+    corners:
+      - [25.0, 30.0]
+      - [25.0, 45.0]
+      - [50.0, 45.0]
+      - [50.0, 30.0]
+
+    doors:
+      - name: "conference_room_door"
+        start: [39.0, 30.0]
+        end: [42.0, 30.0]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: conference_table
+          model: office_long_table
+          pose: [37.5, 37.5, 0]
+        - name: conf_chair1
+          model: Chair_Office
+          pose: [32.0, 35.0, 0]
+        - name: conf_chair2
+          model: Chair_Office
+          pose: [32.0, 37.5, 0]
+        - name: conf_chair3
+          model: Chair_Office
+          pose: [32.0, 40.0, 0]
+        - name: conf_chair4
+          model: Chair_Office
+          pose: [43.0, 35.0, 3.14]
+        - name: conf_chair5
+          model: Chair_Office
+          pose: [43.0, 37.5, 3.14]
+        - name: conf_chair6
+          model: Chair_Office
+          pose: [43.0, 40.0, 3.14]
+        - name: conf_chair7
+          model: Chair_Office
+          pose: [37.5, 32.5, 1.57]
+        - name: conf_chair8
+          model: Chair_Office
+          pose: [37.5, 42.5, 4.71]
+        - name: presentation_board
+          model: Display_Board
+          pose: [49.0, 37.5, 4.71]
+        - name: side_table
+          model: Side_Table
+          pose: [26.0, 42.0, 0]
+        - name: water_station
+          model: Water_Dispenser
+          pose: [26.0, 32.0, 0]
+
+  - description: "Open Office Area"
+    name: "open_office"
+    walls:
+      - start: { x: 50.0, y: 27.5 }
+        end: { x: 50.0, y: 45.0 }
+      - start: { x: 50.0, y: 45.0 }
+        end: { x: 80.0, y: 45.0 }
+      - start: { x: 80.0, y: 45.0 }
+        end: { x: 80.0, y: 27.5 }
+      - start: { x: 73.0, y: 27.5 }
+        end: { x: 70.0, y: 27.5 }
+      - start: { x: 50.0, y: 27.5 }
+        end: { x: 70.0, y: 27.5 }
+
+    corners:
+      - [50.0, 27.5]
+      - [50.0, 45.0]
+      - [80.0, 45.0]
+      - [80.0, 27.5]
+
+    doors:
+      - name: "open_office_door"
+        start: [70.0, 27.5]
+        end: [73.0, 27.5]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: desk1
+          model: office_desk
+          pose: [55.0, 35.0, 0]
+        - name: desk2
+          model: office_desk
+          pose: [55.0, 40.0, 0]
+        - name: desk3
+          model: office_desk
+          pose: [65.0, 35.0, 0]
+        - name: desk4
+          model: office_desk
+          pose: [65.0, 40.0, 0]
+        - name: desk5
+          model: office_desk
+          pose: [75.0, 35.0, 0]
+        - name: desk6
+          model: office_desk
+          pose: [75.0, 40.0, 0]
+        - name: office_chair1
+          model: office_chair
+          pose: [55.0, 32.0, 0]
+        - name: office_chair2
+          model: office_chair
+          pose: [55.0, 37.0, 0]
+        - name: office_chair3
+          model: office_chair
+          pose: [65.0, 32.0, 0]
+        - name: office_chair4
+          model: office_chair
+          pose: [65.0, 37.0, 0]
+        - name: office_chair5
+          model: office_chair
+          pose: [75.0, 32.0, 0]
+        - name: office_chair6
+          model: office_chair
+          pose: [75.0, 37.0, 0]
+        - name: printer_station
+          model: Steel_Table
+          pose: [52.0, 42.0, 0]
+        - name: storage_shelf
+          model: Shelf
+          pose: [79.0, 32.0, 4.71]
+        - name: filing_cabinet
+          model: Wood_Cabinet_Base
+          pose: [79.0, 38.0, 4.71]
+
+  - description: "Reception Area"
+    name: "reception_area"
+    walls:
+      - start: { x: 0.0, y: 10.0 }
+        end: { x: 0.0, y: 22.5 }
+      - start: { x: 0.0, y: 22.5 }
+        end: { x: 40.0, y: 22.5 }
+      - start: { x: 40.0, y: 22.5 }
+        end: { x: 40.0, y: 10.0 }
+      - start: { x: 40.0, y: 10.0 }
+        end: { x: 0.0, y: 10.0 }
+
+    corners:
+      - [0.0, 10.0]
+      - [0.0, 22.5]
+      - [40.0, 22.5]
+      - [40.0, 10.0]
+
+    entities:
+      static:
+        - name: reception_desk
+          model: Reception_Desk
+          pose: [20.0, 15.0, 0]
+        - name: reception_chair
+          model: Chair_Office
+          pose: [20.0, 17.0, 3.14]
+        - name: waiting_chair1
+          model: Chair
+          pose: [5.0, 12.0, 0]
+        - name: waiting_chair2
+          model: Chair
+          pose: [7.0, 12.0, 0]
+        - name: waiting_chair3
+          model: Chair
+          pose: [9.0, 12.0, 0]
+        - name: waiting_chair4
+          model: Chair
+          pose: [11.0, 12.0, 0]
+        - name: waiting_sofa
+          model: Sofa
+          pose: [30.0, 12.0, 0]
+        - name: coffee_table_reception
+          model: Coffee_Table_B
+          pose: [30.0, 14.5, 0]
+        - name: magazine_rack
+          model: Chart_Rack
+          pose: [35.0, 12.0, 0]
+
+  - description: "IT Department"
+    name: "it_department"
+    walls:
+      - start: { x: 40.0, y: 10.0 }
+        end: { x: 40.0, y: 22.5 }
+      - start: { x: 40.0, y: 22.5 }
+        end: { x: 65.0, y: 22.5 }
+      - start: { x: 65.0, y: 22.5 }
+        end: { x: 65.0, y: 10.0 }
+      - start: { x: 58.0, y: 10.0 }
+        end: { x: 55.0, y: 10.0 }
+      - start: { x: 40.0, y: 10.0 }
+        end: { x: 55.0, y: 10.0 }
+
+    corners:
+      - [40.0, 10.0]
+      - [40.0, 22.5]
+      - [65.0, 22.5]
+      - [65.0, 10.0]
+
+    doors:
+      - name: "it_department_door"
+        start: [55.0, 10.0]
+        end: [58.0, 10.0]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: server_rack1
+          model: Shelf_Set
+          pose: [62.0, 15.0, 0]
+        - name: server_rack2
+          model: Shelf_Set
+          pose: [62.0, 18.0, 0]
+        - name: workstation1
+          model: office_short_table
+          pose: [45.0, 18.0, 0]
+        - name: workstation2
+          model: office_short_table
+          pose: [50.0, 18.0, 0]
+        - name: it_chair1
+          model: office_chair
+          pose: [45.0, 20.0, 3.14]
+        - name: it_chair2
+          model: office_chair
+          pose: [50.0, 20.0, 3.14]
+        - name: equipment_table
+          model: Steel_Table
+          pose: [42.0, 12.0, 0]
+        - name: storage_cabinet
+          model: Wood_Cabinet_Base
+          pose: [64.0, 12.0, 4.71]
+
+  - description: "Break Room"
+    name: "break_room"
+    walls:
+      - start: { x: 65.0, y: 10.0 }
+        end: { x: 65.0, y: 22.5 }
+      - start: { x: 65.0, y: 22.5 }
+        end: { x: 80.0, y: 22.5 }
+      - start: { x: 80.0, y: 22.5 }
+        end: { x: 80.0, y: 10.0 }
+      - start: { x: 80.0, y: 10.0 }
+        end: { x: 65.0, y: 10.0 }
+
+    corners:
+      - [65.0, 10.0]
+      - [65.0, 22.5]
+      - [80.0, 22.5]
+      - [80.0, 10.0]
+
+    entities:
+      static:
+        - name: dining_table
+          model: Wood_Round_Table
+          pose: [72.5, 16.0, 0]
+        - name: break_chair1
+          model: Wood_Chair
+          pose: [70.0, 14.0, 0]
+        - name: break_chair2
+          model: Wood_Chair
+          pose: [75.0, 14.0, 0]
+        - name: break_chair3
+          model: Wood_Chair
+          pose: [70.0, 18.0, 3.14]
+        - name: break_chair4
+          model: Wood_Chair
+          pose: [75.0, 18.0, 3.14]
+        - name: microwave_stand
+          model: Side_Table
+          pose: [67.0, 20.0, 0]
+        - name: refrigerator
+          model: Refrigerators
+          pose: [66.0, 12.0, 1.57]
+        - name: coffee_machine
+          model: Drinks_Machine
+          pose: [79.0, 16.0, 4.71]
+        - name: sink_cabinet
+          model: Cabinet_Base_Sink
+          pose: [79.0, 20.0, 4.71]
+
+  - description: "Storage Room"
+    name: "storage_room"
+    walls:
+      - start: { x: 0.0, y: 0.0 }
+        end: { x: 0.0, y: 10.0 }
+      - start: { x: 0.0, y: 10.0 }
+        end: { x: 25.0, y: 10.0 }
+      - start: { x: 25.0, y: 10.0 }
+        end: { x: 25.0, y: 0.0 }
+      - start: { x: 25.0, y: 0.0 }
+        end: { x: 0.0, y: 0.0 }
+
+    corners:
+      - [0.0, 0.0]
+      - [0.0, 10.0]
+      - [25.0, 10.0]
+      - [25.0, 0.0]
+
+    doors:
+      - name: "storage_room_door"
+        start: [12.0, 10.0]
+        end: [15.0, 10.0]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: supply_shelf1
+          model: Shelf
+          pose: [5.0, 2.0, 0]
+        - name: supply_shelf2
+          model: Shelf
+          pose: [10.0, 2.0, 0]
+        - name: supply_shelf3
+          model: Shelf
+          pose: [15.0, 2.0, 0]
+        - name: supply_shelf4
+          model: Shelf
+          pose: [20.0, 2.0, 0]
+        - name: supply_cabinet1
+          model: Wood_Cabinet_Base
+          pose: [5.0, 8.0, 0]
+        - name: supply_cabinet2
+          model: Wood_Cabinet_Base
+          pose: [10.0, 8.0, 0]
+        - name: supply_cabinet3
+          model: Wood_Cabinet_Base
+          pose: [15.0, 8.0, 0]
+        - name: supply_cabinet4
+          model: Wood_Cabinet_Base
+          pose: [20.0, 8.0, 0]
+        - name: supply_cart
+          model: Cart
+          pose: [2.0, 5.0, 0]
+
+  - description: "Archive Room"
+    name: "archive_room"
+    walls:
+      - start: { x: 25.0, y: 0.0 }
+        end: { x: 25.0, y: 10.0 }
+      - start: { x: 25.0, y: 10.0 }
+        end: { x: 50.0, y: 10.0 }
+      - start: { x: 50.0, y: 10.0 }
+        end: { x: 50.0, y: 0.0 }
+      - start: { x: 50.0, y: 0.0 }
+        end: { x: 25.0, y: 0.0 }
+
+    corners:
+      - [25.0, 0.0]
+      - [25.0, 10.0]
+      - [50.0, 10.0]
+      - [50.0, 0.0]
+
+    doors:
+      - name: "archive_room_door"
+        start: [37.0, 10.0]
+        end: [40.0, 10.0]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: file_shelf1
+          model: Shelf_Set
+          pose: [30.0, 2.0, 0]
+        - name: file_shelf2
+          model: Shelf_Set
+          pose: [30.0, 5.0, 0]
+        - name: file_shelf3
+          model: Shelf_Set
+          pose: [30.0, 8.0, 0]
+        - name: file_shelf4
+          model: Shelf_Set
+          pose: [40.0, 2.0, 0]
+        - name: file_shelf5
+          model: Shelf_Set
+          pose: [40.0, 5.0, 0]
+        - name: file_shelf6
+          model: Shelf_Set
+          pose: [40.0, 8.0, 0]
+        - name: archive_desk
+          model: Desk
+          pose: [45.0, 5.0, 0]
+        - name: archive_chair
+          model: Chair
+          pose: [45.0, 7.0, 3.14]
+
+  - description: "Utility Room"
+    name: "utility_room"
+    walls:
+      - start: { x: 50.0, y: 0.0 }
+        end: { x: 50.0, y: 10.0 }
+      - start: { x: 50.0, y: 10.0 }
+        end: { x: 80.0, y: 10.0 }
+      - start: { x: 80.0, y: 10.0 }
+        end: { x: 80.0, y: 0.0 }
+      - start: { x: 80.0, y: 0.0 }
+        end: { x: 50.0, y: 0.0 }
+
+    corners:
+      - [50.0, 0.0]
+      - [50.0, 10.0]
+      - [80.0, 10.0]
+      - [80.0, 0.0]
+
+    doors:
+      - name: "utility_room_door"
+        start: [62.0, 10.0]
+        end: [65.0, 10.0]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: utility_shelf1
+          model: Shelf
+          pose: [55.0, 2.0, 0]
+        - name: utility_shelf2
+          model: Shelf
+          pose: [60.0, 2.0, 0]
+        - name: utility_cabinet
+          model: Wood_Cabinet_Base
+          pose: [75.0, 2.0, 0]
+        - name: cleaning_cart
+          model: Cart
+          pose: [70.0, 5.0, 0]
+        - name: mop_station
+          model: Mop_Set
+          pose: [52.0, 8.0, 0]
+        - name: trash_bin
+          model: Trashcan
+          pose: [78.0, 8.0, 0]

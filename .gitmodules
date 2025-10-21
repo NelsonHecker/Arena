@@ -1,0 +1,9 @@
+[submodule "arena_tools"]
+	path = arena_tools
+	url = https://github.com/voshch/arena-tools.git
+[submodule "arena_isaac"]
+	path = arena_isaac
+	url = https://github.com/Arena-Rosnav/arena-isaac
+[submodule "arena_evaluation"]
+	path = arena_evaluation
+	url = https://github.com/voshch/arena-evaluation.git

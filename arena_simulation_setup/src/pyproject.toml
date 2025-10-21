@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arena_simulation_setup"
+version = "0.1.0"
+description = "Non-ROS simulation setup headers for the arena project"
+authors = [
+    { name="voshch", email="dev@voshch.dev" }
+]
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = [
+    "shapely>=2.0.6",
+    "numpy>=1.25.4",
+    "attrs>=24.2.0",
+    "PyYAML>=6.0",
+    "cattrs>=25.1.1",
+    "pydantic>=2.11.5",
+    "pillow>=11.2.1",
+    "lxml>=4.9.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/voshch/arena_simulation_setup"
+Repository = "https://github.com/voshch/arena_simulation_setup"
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["arena_simulation_setup*"]

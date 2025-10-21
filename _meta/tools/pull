@@ -1,0 +1,58 @@
+#! /usr/bin/bash
+
+set -e
+
+pushd "$ARENA_DIR" > /dev/null
+trap 'popd > /dev/null' EXIT
+
+_PYTHON=${PYTHON:-1}
+_GIT=${GIT:-1}
+_ROSDEP=${ROSDEP:-1}
+
+export ROSDEP_EXCLUDES='libignition-gazebo6-dev gazebo_dev gazebo_ros gazebo_plugins gazebo_ros2_control'
+
+# update vcstool
+echo updating vcstool...
+python -m pip install git+https://github.com/voshch/vcstool.git || echo 'failed vcstool upgrade, ignoring'
+
+#update repos
+if [ $_GIT -eq 1 ] ; then
+    echo updating Arena...
+    git pull --ff-only --autostash && git submodule update --recursive
+
+    # re-source
+    . "$ARENA_DIR/_meta/tools/source"
+
+    vcs import --input "$ARENA_DIR/_meta/repos/arena.repos" --recursive --ff --add-existing "$ARENA_WS_DIR/src"
+
+    if [ -f "$INSTALLED" ] ; then
+        while read -r name; do 
+            if [ -f "$ARENA_DIR/_meta/repos/${name}.repos" ] ; then
+                vcs import --input "$ARENA_DIR/_meta/repos/${name}.repos" --shallow --recursive --ff --add-existing "$ARENA_WS_DIR/src"
+            fi
+        done < "$INSTALLED"
+    fi
+fi
+
+if [ $_ROSDEP -eq 1 ] ; then
+    # shellcheck disable=SC2016
+    rosdep update --rosdistro "$ARENA_ROS_DISTRO" \
+        && rosdep install --from-paths "$ARENA_WS_DIR/src" --ignore-src -r -y --skip-keys "$ROSDEP_EXCLUDES" \
+    || echo "rosdep failed to install all dependencies"
+fi
+
+if [ $_PYTHON -eq 1 ] ; then
+    echo updating python deps...
+    uv pip install -r pyproject.toml
+fi
+
+# update links
+echo 'Updating links...'
+"$ARENA_DIR/_meta/tools/create_links"
+
+echo -e '\033[0;31m'
+echo "don't forget to rebuild!"
+echo -e '\033[0m'
+
+trap - EXIT
+popd > /dev/null

@@ -1,0 +1,17 @@
+main:
+  - material: Mortar_White
+    height: 0.2
+    z: 1.8
+  - material: Cotton_Single_Jersey_Mint
+    height: 0.9
+    z: 0
+  - material: Cashmere_Wool_Suiting_Champagne
+    height: 0.9
+    z: 0.9
+  - tile:
+      - model: wall_mirror
+        orientation: 3.14 # rotate 90 degrees
+        y: 0.1
+        z: 1
+    every: 5
+    width: 3
