@@ -7,12 +7,12 @@ import traceback
 import typing
 
 import arena_people_msgs.msg
-import arena_simulation_setup.entities.robot
+import arena_simulation_setup.tree.Robot
 import attrs
 import numpy as np
 import rclpy
 import rclpy.client
-from geometry_msgs.msg import Point
+import isaacsim_msgs.msg
 from isaacsim_msgs.msg import (
     Door,
     Elevator,
@@ -38,6 +38,7 @@ from isaacsim_msgs.srv import (
     SpawnWalls,
 )
 from std_msgs.msg import String as StdString
+
 from task_generator.shared import (
     DynamicObstacle,
     ModelType,
@@ -46,6 +47,13 @@ from task_generator.shared import (
     Robot,
 )
 from task_generator.simulators.sim import BaseSim, NodeInterface
+
+
+def material_to_msg(material: arena_simulation_setup.tree.assets.Material.Material) -> isaacsim_msgs.msg.Material:
+    return Material(
+        name=material.name,
+        path=material.path,
+    )
 
 
 @attrs.define()
@@ -118,14 +126,14 @@ class IsaacSimulator(BaseSim):
                 )
 
                 if model.type == ModelType.URDF:
-                    robot_params = arena_simulation_setup.entities.robot.Robot(robot.model.name).model_params
+                    robot_params = arena_simulation_setup.tree.Robot.Robot(robot.model.name).model_params
 
                     fq_name = self._NS_ROBOT(robot.name)
 
                     self._services.SpawnUrdf.client.call(
                         SpawnUrdf.Request(
                             name=fq_name,
-                            urdf_path=model.path,
+                            urdf_path=str(model.path),
                             robot_model=robot.model.name,
                             localization=True,
                             tf_prefix=robot.name,
@@ -176,7 +184,7 @@ class IsaacSimulator(BaseSim):
                 results[i] = False
                 continue
             prim = Prim()
-            prim.usd_path = model.path
+            prim.usd_path = str(model.path)
             prim.name = self._NS_PRIM(obstacle.name)
             prim.pose = obstacle.pose.to_msg()
             req.prims.append(prim)
@@ -238,7 +246,7 @@ class IsaacSimulator(BaseSim):
                             name=self._NS_WALL(wall_name),
                             start=segment.start.to_msg(),
                             end=end,
-                            material=Material(**segment.material.load(default=segment.material.DEFAULT().load()).asdict()),
+                            material=material_to_msg(segment.material.load(default=segment.material.DEFAULT().load())),
                             thickness=segment.width,
                         )
                     )
@@ -255,7 +263,7 @@ class IsaacSimulator(BaseSim):
                     if model.type is ModelType.UNKNOWN:
                         continue
                     prim = Prim()
-                    prim.usd_path = model.path
+                    prim.usd_path = str(model.path)
                     prim.name = self._NS_WALL(prim_name)
                     prim.pose = obstacle.pose.to_msg()
                     prims_req.prims.append(prim)
@@ -284,7 +292,7 @@ class IsaacSimulator(BaseSim):
                         x_length=floor.x_length,
                         y_length=floor.y_length,
                         pos=floor.pos.to_msg(),
-                        material=Material(**floor.material.load(default=floor.material.DEFAULT().load()).asdict()),
+                        material=material_to_msg(floor.material.load(default=floor.material.DEFAULT().load())),
                     )
                 )
 
@@ -308,7 +316,7 @@ class IsaacSimulator(BaseSim):
                         name=self._NS_DOOR(door.name),
                         start=door.start.to_msg(),
                         end=end,
-                        material=Material(**door.material.load(default=door.material.DEFAULT().load()).asdict()),
+                        material=material_to_msg(door.material.load(default=door.material.DEFAULT().load())),
                         thickness=0.1,
                         kind=door.kind,
                     )
@@ -340,7 +348,7 @@ class IsaacSimulator(BaseSim):
                         size=size,
                         height_min=elevator.height_min,
                         height_max=elevator.height_max,
-                        material=Material(**elevator.material.load(default=elevator.material.DEFAULT().load()).asdict()),
+                        material=material_to_msg(elevator.material.load(default=elevator.material.DEFAULT().load())),
                     )
                 )
             except Exception as e:

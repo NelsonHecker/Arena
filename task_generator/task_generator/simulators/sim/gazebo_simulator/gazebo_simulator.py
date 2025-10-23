@@ -3,7 +3,7 @@ import math
 import time
 import traceback
 
-import arena_simulation_setup.entities.robot
+import arena_simulation_setup.tree.Robot
 import launch
 import launch_ros
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
@@ -353,7 +353,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
             )
         )
 
-        robot_config = arena_simulation_setup.entities.robot.Robot(robot.model.name)
+        robot_config = arena_simulation_setup.tree.Robot.Robot(robot.model.name)
 
         mappings = BridgeConfiguration.from_file(
             robot_config.mappings
@@ -452,7 +452,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
 
             odom_frame = 'odom'
 
-            odom_frame = arena_simulation_setup.entities.robot.Robot(robot.model.name).model_params.odom_frame
+            odom_frame = arena_simulation_setup.tree.Robot.Robot(robot.model.name).model_params.odom_frame
 
             qx, qy, qz, qw = robot.pose.orientation.x, robot.pose.orientation.y, robot.pose.orientation.z, robot.pose.orientation.w
             transform_pub_node = launch_ros.actions.Node(
@@ -467,7 +467,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
                 ],
                 parameters=[{'use_sim_time': True}],
             )
-            self.node.do_launch(transform_pub_node)
+            self.node.do_launch(launch.LaunchDescription([transform_pub_node]))
             # time.sleep(1)
             # self.node.get_logger().info("Destroying the static_transform_publisher node after 3 seconds.")
             # transform_pub_node.destroy_node() # won't work like this, a topic/service to trigger self-destruction

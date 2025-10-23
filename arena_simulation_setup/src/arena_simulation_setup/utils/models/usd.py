@@ -4,19 +4,19 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from collections.abc import Collection
+from pathlib import Path
 
-
-from . import ModelProvider, Model, ModelType
+from . import Model, ModelProvider, ModelType
 
 
 class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
     @classmethod
     def load(cls, model_dir, model, loader_args):
         model_paths = (
-            os.path.join(model_dir, model, "usd", f"{model}.usdz"),
-            os.path.join(model_dir, model, "usd", f"{model}.usd"),
-            os.path.join(model_dir, model, "usd", f"{model}.usda"),
-            os.path.join(model_dir, model, "usd", f"{model}.usdc"),
+            model_dir / f"{model}.usdz",
+            model_dir / f"{model}.usd",
+            model_dir / f"{model}.usda",
+            model_dir / f"{model}.usdc",
         )
 
         def load_model(model_path) -> Model | None:
@@ -41,12 +41,12 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
         return (ModelType.SDF,)
 
     @classmethod
-    def convert(cls, model_dir: str, model: Model, loader_args) -> Model | None:
+    def convert(cls, model_dir, model, loader_args) -> Model | None:
         if model.type == ModelType.SDF:
             try:
                 # print(model_dir)
                 model_path = model.path
-                model_dir = os.path.dirname(model_path)
+                model_dir = model_path.parent
                 tree = ET.parse(model_path)
                 root = tree.getroot()
                 # First pass: resolve package:// URIs
@@ -61,15 +61,13 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                             remaining_path = match.group(2)
                             # Get the absolute path for the package share directory.
                             # Replace the package URI with the resolved directory plus remaining path.
-                            new_uri = os.path.join(model_dir, remaining_path)
+                            new_uri = model_dir / remaining_path
                             print(new_uri)
                             # uri_elem.text = new_uri
-                            if (new_uri.endswith('.dae') or new_uri.endswith('.DAE')) and os.path.exists(new_uri):
-                                new_dae_path = process_dae(new_uri, model_dir)
-                                uri_elem.text = new_dae_path
-                            elif new_uri.endswith('.obj') and os.path.exists(new_uri):
-                                new_obj_path = process_obj(new_uri, model_dir)
-                                uri_elem.text = new_obj_path
+                            if str(new_uri).lower().endswith('.dae') and new_uri.is_file():
+                                uri_elem.text = str(process_dae(new_uri, model_dir))
+                            elif str(new_uri).lower().endswith('.obj') and new_uri.is_file():
+                                uri_elem.text = str(process_obj(new_uri, model_dir))
                         else:
                             match = package_uri_pattern.match(text)
                             if match:
@@ -77,18 +75,16 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                                 remaining_path = match.group(2)
                                 # Get the absolute path for the package share directory.
                                 # Replace the package URI with the resolved directory plus remaining path.
-                                new_uri = os.path.join(model_dir, remaining_path)
+                                new_uri = model_dir / remaining_path
                                 print(new_uri)
-                                if (new_uri.endswith('.dae') or new_uri.endswith('.DAE')) and os.path.exists(new_uri):
-                                    new_dae_path = process_dae(new_uri, model_dir)
-                                    uri_elem.text = new_dae_path
-                                elif new_uri.endswith('.obj') and os.path.exists(new_uri):
-                                    new_obj_path = process_obj(new_uri, model_dir)
-                                    uri_elem.text = new_obj_path
-                model_path = os.path.join(model_dir, model.name, "usd", f"{model.name}.usd")
-                os.makedirs(os.path.dirname(model_path), exist_ok=True)
-                if os.path.islink(model_path) and not os.path.exists(model_path):  # broken symlink
-                    os.unlink(model_path)
+                                if str(new_uri).lower().endswith('.dae') and new_uri.is_file():
+                                    uri_elem.text = str(process_dae(new_uri, model_dir))
+                                elif str(new_uri).lower().endswith('.obj') and new_uri.is_file():
+                                    uri_elem.text = str(process_obj(new_uri, model_dir))
+                model_path = model_dir / model.name / "usd" / f"{model.name}.usd"
+                model_path.parent.mkdir(parents=True, exist_ok=True)
+                if model_path.is_symlink() and not model_path.exists():  # broken symlink
+                    model_path.unlink()
 
                 import arena_bringup
                 ARENA_DIR = arena_bringup.get_arena_dir()
@@ -132,7 +128,7 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
         return None
 
 
-def process_dae(dae_file, package_dir):
+def process_dae(dae_file, package_dir) -> Path:
     """
     Load a .dae file, update its <init_from> elements by replacing any leading
     '../' with the package_dir, then write to a temporary file and return its path.
@@ -158,13 +154,12 @@ def process_dae(dae_file, package_dir):
         # Write the XML tree to the temporary file.
         tree.write(tmp_file, pretty_print=True, xml_declaration=True, encoding="UTF-8")
         temp_filename = tmp_file.name
-    print(temp_filename)
-    return temp_filename
+    return Path(temp_filename)
 
     # Write the updated .dae file to a temporary file
 
 
-def process_obj(obj_file, package_dir):
+def process_obj(obj_file, package_dir) -> Path:
     """
     Read an .obj file as text and update any .png file references.
     For any found relative .png path (e.g. starting with "../"), remove the
@@ -199,5 +194,4 @@ def process_obj(obj_file, package_dir):
     with tempfile.NamedTemporaryFile(delete=False, suffix='.obj', mode='w', encoding='utf-8') as temp_file:
         temp_file.write(new_content)
         temp_filename = temp_file.name
-    print(temp_filename)
-    return temp_filename
+    return Path(temp_filename)

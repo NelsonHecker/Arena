@@ -8,7 +8,30 @@ else
     shell='bash'
     THIS_FILE="${BASH_SOURCE[0]}"
 fi
+export SOURCE_FILE="$THIS_FILE"
 export shell
+
+
+ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
+
+export ARENA_WS_DIR
+export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
+
+export INSTALLED="$ARENA_DIR/.installed"
+export TOOLS_DIR="$ARENA_DIR/_meta/tools"
+export ARENA_ASSETS_DIR="$ARENA_DIR/_assets/"
+export ARENA_ASSETS_DIR_LOCAL="$ARENA_ASSETS_DIR/_local"
+
+export ARENA_ROS_DISTRO=humble
+
+export GAZEBO_VERSION=harmonic
+export GZ_VERSION=${GAZEBO_VERSION}
+
+export FASTRTPS_DEFAULT_PROFILES_FILE=${FASTRTPS_DEFAULT_PROFILES_FILE:-~/.ros/fastdds.xml}
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
+export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
+export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
 
 if [ -f "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}" ] ; then
     . "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}"
@@ -16,28 +39,16 @@ fi
 if [ -f install/local_setup.${shell} ] ; then
     . "install/local_setup.${shell}"
 fi
+if [ -f "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}" ] ; then
+    . "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}"
+fi
 
 
-
-ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
-export ARENA_WS_DIR
-export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
-
-export INSTALLED="$ARENA_DIR/.installed"
-export TOOLS_DIR="$ARENA_DIR/_meta/tools"
-export ARENA_ASSETS_DIR="$ARENA_DIR/_assets/"
-
-export ARENA_ROS_DISTRO=${ARENA_ROS_DISTRO:-humble}
-
-# Set Gazebo version if not provided
-export GAZEBO_VERSION=${GAZEBO_VERSION:-harmonic}
-export GZ_VERSION=${GAZEBO_VERSION}
-
-export FASTRTPS_DEFAULT_PROFILES_FILE=~/.ros/fastdds.xml
-export ROS_DOMAIN_ID=1
-export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
-export INSTALLED="$ARENA_DIR/.installed"
+if [ -f "$ARENA_WS_DIR/.env" ] ; then
+    set -a
+    . "$ARENA_WS_DIR/.env"
+    set +a
+fi
 
 if [ -f "$INSTALLED" ] && grep -q "isaac.sh" "$INSTALLED"; then
     if [ -z ${ISAAC_PATH+x} ] ; then
@@ -90,7 +101,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
         case "$verb" in
             build)
                 "${TOOLS_DIR}/colcon_build" "$@"
-                . "$THIS_FILE"
+                . "$SOURCE_FILE"
                 result=$?
             ;;
             update)

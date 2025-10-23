@@ -1,6 +1,7 @@
 import io
 import os
 import typing
+from pathlib import Path
 
 import PIL.Image
 import PIL.ImageDraw
@@ -10,20 +11,20 @@ import yaml
 
 
 class Map:
-    def __init__(self, path: str):
+    def __init__(self, path: Path):
         self._path = path
 
     @property
-    def path(self) -> str:
+    def path(self) -> Path:
         return self._path
 
     @property
-    def map_yaml(self) -> str:
-        return os.path.join(self.path, 'map.yaml')
+    def map_yaml(self) -> Path:
+        return self.path / 'map.yaml'
 
     @property
-    def map_png(self) -> str:
-        return os.path.join(self.path, 'map.png')
+    def map_png(self) -> Path:
+        return self.path / 'map.png'
 
     @classmethod
     def generate_png(
@@ -54,7 +55,7 @@ class Map:
 
         def tf(shape):
             shape = shapely.affinity.translate(shape, min_x, -min_y)
-            shape = shapely.affinity.scale(shape, scaling_factor, -scaling_factor, origin=(0, 0))
+            shape = shapely.affinity.scale(shape, scaling_factor, -scaling_factor, origin=(0, 0))  # type: ignore
             shape = shapely.affinity.translate(shape, 0, height * scaling_factor)
             shape = shapely.set_precision(shape, 0.01)
             shape = shapely.make_valid(shape)

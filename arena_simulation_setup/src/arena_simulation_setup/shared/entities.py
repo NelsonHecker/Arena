@@ -6,11 +6,11 @@ import warnings
 
 import attrs
 
-from arena_simulation_setup.entities.obstacles.dynamic import (
-    loader as DynamicObstacleLoader,
+from arena_simulation_setup.tree.assets.Pedestrian import (
+    loader as PedestrianLoader,
 )
-from arena_simulation_setup.entities.obstacles.static import loader as ObstacleLoader
-from arena_simulation_setup.entities.robot import loader as RobotLoader
+from arena_simulation_setup.tree.assets.Object import loader as ObjectLoader
+from arena_simulation_setup.tree.Robot import loader as RobotLoader
 from arena_simulation_setup.utils.cattrs import (
     Parseable,
     converter,
@@ -61,13 +61,13 @@ converter.register_structure_hook(
 
 @attrs.define
 class Obstacle(Entity):
-    model: ModelWrapper = attrs.field(converter=model_parse(ObstacleLoader))
+    model: ModelWrapper = attrs.field(converter=model_parse(ObjectLoader))
     # type_: str = attrs.field(converter=str)
 
 
 @attrs.define
 class DynamicObstacle(Obstacle):
-    model: ModelWrapper = attrs.field(converter=model_parse(DynamicObstacleLoader, overrides=(ObstacleLoader,)))
+    model: ModelWrapper = attrs.field(converter=model_parse(PedestrianLoader, overrides=(ObjectLoader,)))
     waypoints: list[Position]
     velocity: float = attrs.field(converter=float, default=1.0)  # m/s
 

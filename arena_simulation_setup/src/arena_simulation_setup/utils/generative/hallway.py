@@ -7,7 +7,7 @@ import shapely
 from arena_simulation_setup.shared import Door, Position, Wall
 
 from . import BaseConfiguration, WorldDescription, WorldGeneratorImpl
-from .utils import line_pairs, to_corners, to_walls
+from .utils import to_corners, to_walls
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class WorldGeneratorHallway(WorldGeneratorImpl):
         hallway_height: float = 5.0
 
         # Room parameters (for each side)
-        rooms_per_side: int = 5
+        rooms_per_side: int = 7
 
         # For "big" rooms (first and last)
         big_min_width: float = 18.0

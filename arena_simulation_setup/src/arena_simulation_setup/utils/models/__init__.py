@@ -3,16 +3,15 @@ from __future__ import annotations
 import abc
 import enum
 import functools
-import itertools
-import os
 import sys
 from collections.abc import Callable, Collection, Set
+from pathlib import Path
 from typing import Optional, Type, overload
 
 import attrs
 
-from arena_simulation_setup import Sources
-from arena_simulation_setup.utils.cattrs import converter, Serializable
+from arena_simulation_setup.tree import ProviderProtocol
+from arena_simulation_setup.utils.cattrs import Serializable, converter
 
 # TODO deprecate this in favor of Model.EMPTY
 
@@ -20,7 +19,7 @@ from arena_simulation_setup.utils.cattrs import converter, Serializable
 def _EMPTY_LOADER(*_, **__) -> Model:
 
     return Model(
-        type=ModelType.UNKNOWN, name="", description="", path=""
+        type=ModelType.UNKNOWN, name="", description="", path=Path('/dev/null')
     )
 
 
@@ -40,7 +39,7 @@ class Model:
     type: ModelType
     name: str
     description: str
-    path: str
+    path: Path
 
     @property
     def mapper(self) -> Callable[[Model], Model]:
@@ -70,10 +69,12 @@ class ModelProvider(abc.ABC):
         """
 
     @classmethod
-    def load(cls, model_dir: str, model: str, loader_args: dict | None) -> Model | None:
+    @abc.abstractmethod
+    def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model | None:
         return None
 
     @classmethod
+    @abc.abstractmethod
     def convertable(cls) -> Collection[ModelType]:
         """
         return collection of model types convertable
@@ -81,14 +82,12 @@ class ModelProvider(abc.ABC):
         return ()
 
     @classmethod
-    def convert(cls, model_dir: str, model: Model, loader_args: dict) -> Model | None:
+    @abc.abstractmethod
+    def convert(cls, model_dir: Path, model: Model, loader_args: dict | None) -> Model | None:
         return None
 
 
 class ModelWrapper(Serializable):
-
-    def serialize(self) -> str:
-        return self.name
 
     _get: Callable[[Collection[ModelType], dict], Model]
     _name: str
@@ -201,6 +200,11 @@ class ModelWrapper(Serializable):
         if only is None:
             only = self._override.keys()
 
+        if loader_args is None:
+            loader_args = {}
+
+        args: LoaderArgs = LoaderArgs(loader_args)  # make hashable
+
         if isinstance(only, ModelType):
             return self.get([only])
 
@@ -211,9 +215,9 @@ class ModelWrapper(Serializable):
                 if noload:
                     return mapper(EMPTY_LOADER())
 
-                return mapper(self._get([model_type], loader_args), **kwargs)
+                return mapper(self._get([model_type], args), **kwargs)
 
-        return self._get(only, loader_args)
+        return self._get(only, args)
 
     @property
     def name(self) -> str:
@@ -263,7 +267,7 @@ class ModelWrapper(Serializable):
 converter.register_unstructure_hook(ModelWrapper, ModelWrapper.serialize)
 
 
-class LoadersT(tuple[Type[ModelProvider]]):
+class LoadersT(tuple[Type[ModelProvider], ...]):
     def __hash__(self) -> int:
         return hash(tuple(map(id, self)))
 
@@ -275,18 +279,18 @@ class LoaderArgs(dict):
 
 class ModelLoader:
 
-    def __init__(self, sources: Sources, loaders: Collection[Type[ModelProvider]]) -> None:
-        self.__sources: Sources = sources
+    def __init__(self, provider: Type[ProviderProtocol], loaders: Collection[Type[ModelProvider]]) -> None:
+        self.__provider: Type[ProviderProtocol] = provider
         self.__loaders: LoadersT = LoadersT(loaders)
 
     @functools.cache
     @staticmethod
     def _match_loaders(loaders: LoadersT, model_type: ModelType) -> LoadersT:
-        return tuple(loader for loader in loaders if model_type == loader.type())
+        return LoadersT(loader for loader in loaders if model_type == loader.type())
 
     @property
     def models(self) -> Set[str]:
-        return set(itertools.chain(*map(lambda x: next(os.walk(x), (x, (), ()))[1], self.__sources)))
+        return set(self.__provider.list())
 
     def bind(self, model: str) -> ModelWrapper:
         return ModelWrapper(
@@ -297,36 +301,36 @@ class ModelLoader:
 
     @functools.lru_cache(maxsize=128)
     @staticmethod
-    def _load_cached(loaders: LoadersT, sources: Sources, model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
+    def _load_cached(loaders: LoadersT, provider: Type[ProviderProtocol], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
         for loader in ModelLoader._match_loaders(loaders, model_type):
-            for source in sources:
-                if (hit := loader.load(source, model, loader_args)) is not None:
-                    return hit
+            model_dir = provider(model).resolve(model)
+            if (hit := loader.load(model_dir, model, loader_args)) is not None:
+                return hit
         return None
 
     @functools.lru_cache(maxsize=128)
     @staticmethod
-    def _convert_cached(loaders: LoadersT, sources: Sources, model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
+    def _convert_cached(loaders: LoadersT, provider: Type[ProviderProtocol], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
         for loader in ModelLoader._match_loaders(loaders, model_type):
             for convertable in loader.convertable():
-                for source in sources:
-                    if (base := ModelLoader._load_cached(loaders, sources, model, convertable, loader_args)) is not None:
-                        if (hit := loader.convert(source, base, loader_args)) is not None:
-                            return hit
+                model_dir = provider(model).resolve(model)
+                if (base := ModelLoader._load_cached(loaders, provider, model, convertable, loader_args)) is not None:
+                    if (hit := loader.convert(model_dir, base, loader_args)) is not None:
+                        return hit
         return None
 
     def _load(self, model: str, only: Collection[ModelType], loader_args: dict | None) -> Model | None:
         if not only:
-            only = self.__loaders.keys()
+            only = [loader.type() for loader in self.__loaders]
         if loader_args:
             loader_args = LoaderArgs(loader_args)  # hashable
 
         for model_type in only:  # try to load
-            if (hit := ModelLoader._load_cached(self.__loaders, self.__sources, model, model_type, loader_args)) is not None:
+            if (hit := ModelLoader._load_cached(self.__loaders, self.__provider, model, model_type, loader_args)) is not None:
                 return hit
 
         for model_type in only:  # try to convert
-            if (hit := ModelLoader._convert_cached(self.__loaders, self.__sources, model, model_type, loader_args)) is not None:
+            if (hit := ModelLoader._convert_cached(self.__loaders, self.__provider, model, model_type, loader_args)) is not None:
                 return hit
 
         return None
@@ -336,10 +340,10 @@ class ModelLoader:
         if loaded is not None:
             return loaded
 
-        print(f"no model {model} among {only} found in {self.__sources} and could not be converted", file=sys.stderr)
+        print(f"no model {model} among {only} found in {self.__provider(model).path} and could not be converted", file=sys.stderr)
         return Model(
             type=ModelType.UNKNOWN,
             name=model,
             description="",
-            path="",
+            path=Path("/dev/null"),
         )

@@ -1,16 +1,16 @@
 import sys
+from pathlib import Path
+
+from arena_simulation_setup.tree.World import World
 
 from . import WorldGenerator, WorldGeneratorType
-
-from arena_simulation_setup.worlds.world import World
 
 __all__ = ['WorldGenerator', 'WorldGeneratorType']
 
 
-def test_generate(out: str, name: str, config: dict) -> str:
+def test_generate(out: str, name: str, config: dict) -> Path:
     gen = WorldGenerator(WorldGeneratorType(name), config)
-    world = World(out)
-    return world.save(gen.compute())
+    return World(out).save(gen.compute())
 
 
 def main(argv=sys.argv):

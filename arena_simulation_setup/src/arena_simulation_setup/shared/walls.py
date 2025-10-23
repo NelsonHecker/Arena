@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import attrs
 
-from arena_simulation_setup.entities.walls import WallRealization, WallDescription
-from arena_simulation_setup.entities.walls import loader as WallLoader
+from arena_simulation_setup.tree.assets.Material import MaterialLoader
+from arena_simulation_setup.tree.Wall import WallDescription, WallRealization
+from arena_simulation_setup.tree.Wall import loader as WallLoader
 from arena_simulation_setup.utils.geometry import Position
 
 
@@ -20,7 +21,7 @@ class Wall:
         if self.kind:
             self._description = WallLoader(self.kind).load()
         else:
-            self._description = WallDescription.simple(material=self.material or None)
+            self._description = WallDescription.simple(material=MaterialLoader(self.material) or None)
         _ = self.assets  # trigger the cached property
 
     def assets(self) -> WallRealization:

@@ -5,9 +5,9 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 
-from arena_simulation_setup.entities.obstacles.static import ObstacleModel
-from arena_simulation_setup.entities.obstacles.dynamic import DynamicObstacleModel
-from arena_simulation_setup.entities.robot import Robot
+from arena_simulation_setup.tree.assets.Object import Object
+from arena_simulation_setup.tree.assets.Pedestrian import Pedestrian
+from arena_simulation_setup.tree.Robot import Robot
 
 package_name = 'arena_simulation_setup'
 
@@ -50,18 +50,14 @@ def main(install_dir: str):
 
     base_dir = get_package_share_directory(package_name)
 
-    for name in ObstacleModel.list():
-        handler.add_to_staging(ObstacleModel(name).path, name)
+    for name in Object.list():
+        handler.add_to_staging(Object(name).path, name)
 
-    for name in DynamicObstacleModel.list():
-        handler.add_to_staging(DynamicObstacleModel(name).path, name)
+    for name in Pedestrian.list():
+        handler.add_to_staging(Pedestrian(name).path, name)
 
     for name in Robot.list():
         handler.add_to_staging(Robot(name).path, name)
-
-    for model in os.listdir(models_dir := os.path.join(base_dir, 'gazebo_models')):
-        if not model.startswith('.'):
-            handler.add_to_staging(os.path.join(models_dir, model))
 
     colcon_deps_file = os.path.join(base_dir, '..', 'colcon-core', 'packages', package_name)
     if os.path.isfile(colcon_deps_file):

@@ -1,10 +1,12 @@
 import math
 
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.configs.parametrized import (Parametrized,
-                                                         ParametrizedConfig)
+from arena_simulation_setup.tree.configs.parametrized import (
+    Parametrized,
+    ParametrizedConfig,
+)
 
-from task_generator.shared import DynamicObstacle, Obstacle, Pose, Orientation
+from task_generator.shared import DynamicObstacle, Obstacle, Orientation, Pose
 from task_generator.tasks.obstacles import TM_Obstacles
 
 

@@ -1,6 +1,7 @@
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.worlds.scenario import RobotGoal
-from arena_simulation_setup.worlds.world import World
+from arena_simulation_setup.tree.World import World
+from arena_simulation_setup.tree.World.Scenario import RobotGoal
+
 from task_generator.shared import PositionRadius
 from task_generator.tasks.robots import TM_Robots
 

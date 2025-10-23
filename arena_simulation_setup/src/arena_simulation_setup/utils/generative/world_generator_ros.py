@@ -1,6 +1,7 @@
 import json
 import sys
 
+from arena_simulation_setup.tree.World.World import World
 import std_srvs.srv
 from arena_rclpy_mixins.ServiceNamespace import ServiceNamespace
 
@@ -20,7 +21,7 @@ class WorldGeneratorROS(WorldGenerator, ServiceNamespace):
     def _cb_generate(self, request: std_srvs.srv.Trigger.Request, response: std_srvs.srv.Trigger.Response) -> std_srvs.srv.Trigger.Response:
         try:
             self.update_generator(*self._get_parameters())
-            self.compute().save_to('.generated')
+            World('.generated').save(self.compute())
             response.success = True
         except BaseException as e:
             response.success = False

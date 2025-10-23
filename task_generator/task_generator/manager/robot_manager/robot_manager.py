@@ -3,9 +3,8 @@ import typing
 
 import action_msgs.msg
 import ament_index_python
-import arena_simulation_setup.entities.robot
+import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
 import geometry_msgs.msg as geometry_msgs
-import launch
 import launch_ros
 import lifecycle_msgs.msg
 import nav_msgs.msg as nav_msgs
@@ -14,26 +13,31 @@ import rclpy.client
 import rclpy.publisher
 import rclpy.timer
 from arena_rclpy_mixins.shared import Namespace
+from arena_simulation_setup.tree.Robot import Robot as RobotDescription
+from arena_simulation_setup.tree.Robot import RobotProvider
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
 
-import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
+import launch
 import task_generator.utils.arena as Utils
 from task_generator import NodeInterface
 from task_generator.constants import Constants
-from task_generator.simulators.human import BaseHumanSimulator
-from task_generator.simulators.human.utils import YAMLUtil
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import ModelType, Orientation, Pose, Position, Robot
+from task_generator.simulators.human.utils import YAMLUtil
 
 
 class RobotManager(NodeInterface):
     """
     The robot manager manages the goal and start
     position of a robot for all task modes.
+
+    Args:
+        namespace (Namespace): The namespace for the robot.
+        environment_manager (EnvironmentManager): The environment manager.
+        robot (Robot): The robot instance.
     """
 
     _namespace: Namespace
-    _entity_manager: BaseHumanSimulator
     _environment_manager: EnvironmentManager
     _start_pos: Pose
     _goal_pos: Pose
@@ -48,34 +52,47 @@ class RobotManager(NodeInterface):
     _clear_costmap_around_robot_srv: rclpy.client.Client
     _is_goal_reached: bool
     _rate_setup: rclpy.timer.Rate
-    _config: arena_simulation_setup.entities.robot.Robot
+    _config: RobotProvider
 
     @property
     def robot(self) -> Robot:
+        """Get the robot instance.
+
+        Returns:
+            Robot: The robot instance.
+        """
         return self._robot
 
     @property
     def start_pos(self) -> Pose:
+        """Get the start position.
+
+        Returns:
+            Pose: The start position.
+        """
         return self._start_pos
 
     @property
     def goal_pos(self) -> Pose:
+        """Get the goal position.
+
+        Returns:
+            Pose: The goal position.
+        """
         return self._goal_pos
 
     def __init__(
         self,
         namespace: Namespace,
-        entity_manager: BaseHumanSimulator,
         environment_manager: EnvironmentManager,
         robot: Robot,
     ):
         NodeInterface.__init__(self)
         self._rate_setup = self.node.create_rate(.1)
 
-        self._config = arena_simulation_setup.entities.robot.Robot(robot.model.name)
+        self._config = RobotDescription(robot.model.name)
 
         self._namespace = namespace
-        self._entity_manager = entity_manager
         self._environment_manager = environment_manager
 
         self._start_pos = Pose()
@@ -100,22 +117,28 @@ class RobotManager(NodeInterface):
         self._goal_timer = None
 
     def _odom_base_transform(self):
+        """Launch a static transform publisher for odometry to base frame.
+        """
         self.node.do_launch(
-            launch_ros.actions.Node(
-                package="tf2_ros",
-                executable="static_transform_publisher",
-                name="odom_to_baseframe_publisher",
-                arguments=[
-                    "0", "0", "0",
-                    "0", "0", "0", "1",
-                    self.frame(self._config.model_params.odom_frame),
-                    self.frame(self._config.model_params.base_frame),
-                ],
-                parameters=[{'use_sim_time': True}],
-            )
+            launch.LaunchDescription([
+                launch_ros.actions.Node(
+                    package="tf2_ros",
+                    executable="static_transform_publisher",
+                    name="odom_to_baseframe_publisher",
+                    arguments=[
+                        "0", "0", "0",
+                        "0", "0", "0", "1",
+                        self.frame(self._config.model_params.odom_frame),
+                        self.frame(self._config.model_params.base_frame),
+                    ],
+                    parameters=[{'use_sim_time': True}],
+                )
+            ])
         )
 
     def set_up_robot(self):
+        """Set up the robot by configuring its model and spawning it in the environment.
+        """
         self._robot.model = self._robot.model.override(
             model_type=ModelType.YAML,
             override=lambda model: model.replace(
@@ -162,22 +185,47 @@ class RobotManager(NodeInterface):
 
     @property
     def safe_distance(self) -> float:
+        """Get the safe distance for the robot.
+
+        Returns:
+            float: The safe distance for the robot.
+        """
         return self._robot_radius + self._safety_distance
 
     @property
     def model_name(self) -> str:
+        """Get the model name of the robot.
+
+        Returns:
+            str: The model name of the robot.
+        """
         return self._robot.model.name
 
     @property
     def name(self) -> str:
+        """Get the name of the robot.
+
+        Returns:
+            str: The name of the robot.
+        """
         return self._robot.name
 
     @property
     def frame(self) -> Namespace:
+        """Get the tf2 frame of the robot.
+
+        Returns:
+            Namespace: The tf2 frame of the robot.
+        """
         return self._robot.frame
 
     @property
     def namespace(self) -> Namespace:
+        """Get the ROS2 namespace of the robot.
+
+        Returns:
+            Namespace: The ROS2 namespace of the robot.
+        """
         if Utils.get_arena_type() == Constants.ArenaType.TRAINING:
             return Namespace(
                 f"{self._namespace}{self._namespace}_{self.model_name}"
@@ -187,21 +235,34 @@ class RobotManager(NodeInterface):
 
     @property
     def is_done(self) -> bool:
+        """Check if the robot has reached its goal.
+
+        Returns:
+            bool: True if the goal is reached, False otherwise.
+        """
         return self._is_goal_reached
 
     def move_robot_to_pos(self, pose: Pose):
+        """Move the robot to the specified pose.
+
+        Args:
+            pose(Pose): The target pose for the robot.
+        """
         pose.position.z += self._config.model_params.z_offset
         self.robot.pose = pose
-        self._entity_manager.move_robot((self.robot,))
+        self._environment_manager.move_robot((self.robot,))
         import time
         time.sleep(0.001)  # wait for the robot to move
         self._clear_local_costmap(-1)
 
     def _clear_local_costmap(self, reset_distance: float = -1) -> bool:
-        """
-        Clear the local costmap around the robot.
-        If reset_distance is -1, the entire costmap will be cleared.
-        If reset_distance is >= 0, only the costmap around the robot will be cleared.
+        """Clear the local costmap around the robot.
+
+        Args:
+            reset_distance(float, optional): The distance to reset the costmap. Defaults to - 1. If reset_distance is -1, the entire costmap will be cleared. If reset_distance is >= 0, only the costmap around the robot will be cleared.
+
+        Returns:
+            bool: True if the costmap was cleared successfully, False otherwise.
         """
         node_name = self.node.service_namespace(self.name, 'local_costmap/local_costmap')
 
@@ -241,7 +302,16 @@ class RobotManager(NodeInterface):
         self,
         start_pos: typing.Optional[Pose],
         goal_pos: typing.Optional[Pose],
-    ):
+    ) -> tuple[Pose, Pose]:
+        """Reset the robot's position and / or goal.
+
+        Args:
+            start_pos(typing.Optional[Pose]): The new starting position of the robot.
+            goal_pos(typing.Optional[Pose]): The new goal position of the robot.
+
+        Returns:
+            tuple[Pose, Pose]: The new starting and goal positions of the robot.
+        """
         if start_pos is not None:
             self._start_pos = self._environment_manager.realize(start_pos)
             self.move_robot_to_pos(start_pos)
@@ -249,7 +319,7 @@ class RobotManager(NodeInterface):
             if self._robot.record_data_dir:
                 self.node.rosparam[list[float]].set(
                     self.namespace.robot_ns.ParamNamespace()("start"),
-                    [self.start_pos.x, self.start_pos.y, self.start_pos.orientation]
+                    [self.start_pos.position.x, self.start_pos.position.y, self.start_pos.orientation.to_yaw()]
                 )
         if goal_pos is not None:
             self._goal_pos = self._environment_manager.realize(goal_pos)
@@ -258,12 +328,13 @@ class RobotManager(NodeInterface):
             if self._robot.record_data_dir:
                 self.node.rosparam[list[float]].set(
                     self.namespace.robot_ns.ParamNamespace()("goal"),
-                    [self.goal_pos.x, self.goal_pos.y,
-                        self.goal_pos.orientation]
+                    [self.goal_pos.position.x, self.goal_pos.position.y, self.goal_pos.orientation.to_yaw()]
                 )
         return self._pose, self._goal_pos
 
     def _publish_goal_callback(self):
+        """Callback to publish the goal periodically.
+        """
         from geometry_msgs.msg import PoseStamped
         current_time = self.node.get_clock().now().nanoseconds / 1e9
         if (current_time - self._goal_start_time) >= 60.0:
@@ -289,6 +360,8 @@ class RobotManager(NodeInterface):
         self._goal_pub.publish(goal_msg)
 
     def _publish_goal(self, goal: Pose):
+        """Publish the goal to the robot.
+        """
         # only way to circumvent amcl absolutely trolling us is to create this loop
         from geometry_msgs.msg import PoseStamped
         self._logger.info(
@@ -313,6 +386,8 @@ class RobotManager(NodeInterface):
         )
 
     def _launch_robot(self):
+        """Launch the robot external nodes.
+        """
         self._logger.warn(f"START WITH MODEL {self.name}")
 
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
@@ -363,6 +438,11 @@ class RobotManager(NodeInterface):
                 self._rate_setup.sleep()  # we love race conditions
 
     def _robot_pos_callback(self, data: nav_msgs.Odometry):
+        """Callback for robot position updates.
+
+        Args:
+            data(nav_msgs.Odometry): The odometry data containing the robot's position.
+        """
         current_position = data.pose.pose
         quat = current_position.orientation
 
@@ -375,21 +455,24 @@ class RobotManager(NodeInterface):
         )
 
     def _goal_status_callback(self, data: action_msgs.msg.GoalStatusArray):
+        """Callback for goal status updates.
+
+        Args:
+            data(action_msgs.msg.GoalStatusArray): The goal status data.
+        """
         last_goal = next(reversed(data.status_list), None)
-        self._is_goal_reached = last_goal and last_goal.status == action_msgs.msg.GoalStatus.STATUS_SUCCEEDED
+        self._is_goal_reached = (last_goal is not None) and last_goal.status == action_msgs.msg.GoalStatus.STATUS_SUCCEEDED
 
     def update(self):
-        """
-        Live-update some kwargs of robot
+        """Live - update some kwargs of robot
         """
         # TODO implement record data dir
 
     def destroy(self):
-        """
-        Destroy robot and remove from simulation and navigation stack.
+        """Destroy robot and remove from simulation and navigation stack.
         """
         if self._goal_timer is not None:
             self._goal_timer.cancel()
             self._goal_timer.destroy()
-        self._entity_manager.remove_robot(self.name)
+        self._environment_manager.remove_robot((self.robot,))
         # TODO kill node in navigation stack

@@ -223,7 +223,7 @@ zones:
           y: 30.0
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 14.5
           y: 30.0
@@ -233,7 +233,7 @@ zones:
           y: 30.0
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 20.6
           y: 30.0
@@ -243,7 +243,7 @@ zones:
           y: 49.5
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 20.6
           y: 49.5
@@ -253,7 +253,7 @@ zones:
           y: 49.5
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 2.5
           y: 49.5
@@ -263,7 +263,7 @@ zones:
           y: 30.0
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
     mat: ""
     entities:
       static: []
@@ -293,7 +293,7 @@ zones:
           y: 30.0
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 30.1
           y: 30.0
@@ -303,7 +303,7 @@ zones:
           y: 30.0
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 31.1
           y: 30.0
@@ -313,7 +313,7 @@ zones:
           y: 42.6
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 31.1
           y: 42.6
@@ -323,7 +323,7 @@ zones:
           y: 42.6
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
       - start:
           x: 20.6
           y: 42.6
@@ -333,7 +333,7 @@ zones:
           y: 30.0
           z: 0.0
         height: 2.0
-        kind: hospital_with_painting.yaml
+        kind: painting
     mat: ""
     entities:
       static: []
@@ -1403,7 +1403,7 @@ zones:
 #       y: 0.0
 #       z: 0.0
 #     height: 2.0
-#     kind: hospital_with_painting.yaml
+#     kind: painting
 #   - start:
 #       x: 90.0
 #       y: 0.0
@@ -1413,7 +1413,7 @@ zones:
 #       y: 60.0
 #       z: 0.0
 #     height: 2.0
-#     kind: hospital_with_painting.yaml
+#     kind: painting
 #   - start:
 #       x: 90.0
 #       y: 60.0
@@ -1423,7 +1423,7 @@ zones:
 #       y: 60.0
 #       z: 0.0
 #     height: 2.0
-#     kind: hospital_with_painting.yaml
+#     kind: painting
 #   - start:
 #       x: 0.0
 #       y: 60.0
@@ -1433,7 +1433,7 @@ zones:
 #       y: 0.0
 #       z: 0.0
 #     height: 2.0
-#     kind: hospital_with_painting.yaml
+#     kind: painting
 #   mat: ''
 #   entities:
 #     static: []

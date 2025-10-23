@@ -1,5 +1,3 @@
-import os
-
 from . import ModelProvider, Model, ModelType
 
 
@@ -7,7 +5,7 @@ class ModelProvider_SDF(ModelProvider.provides(ModelType.SDF)):
 
     @classmethod
     def load(cls, model_dir, model, loader_args):
-        model_path = os.path.join(model_dir, model, "sdf", f"{model}.sdf")
+        model_path = model_dir / model / f"{model}.sdf"
         try:
             with open(model_path) as f:
                 return Model(

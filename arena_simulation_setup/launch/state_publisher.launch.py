@@ -10,7 +10,7 @@ import launch.actions
 
 
 def generate_launch_description():
-    ss_root = FindPackageShare('arena_simulation_setup')
+    robots_root = FindPackageShare('arena_robots')
 
     namespace = LaunchArgument('namespace')
     frame = LaunchArgument('frame')
@@ -18,18 +18,14 @@ def generate_launch_description():
 
     control_yaml = YAMLFileSubstitution(
         PathJoinSubstitution([
-            ss_root,
-            'entities',
-            'robots',
+            robots_root,
             robot.substitution,
             'control.yaml',
         ])
     )
 
     urdf_path = PathJoinSubstitution([
-        ss_root,
-        'entities',
-        'robots',
+        robots_root,
         robot.substitution,
         'urdf',
         PythonExpression(['"', robot.substitution, '.urdf"']),

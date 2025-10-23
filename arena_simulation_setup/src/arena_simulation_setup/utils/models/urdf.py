@@ -4,11 +4,12 @@ import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any
 
 import attrs
 
-from . import ModelProvider, Model, ModelType
+from . import Model, ModelProvider, ModelType
 
 
 class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
@@ -19,31 +20,32 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
         if loader_args is None:
             loader_args = {}
 
-        base_path = os.path.join(model_dir, model, "urdf")
-        xacro_path = os.path.join(base_path, f"{model}.urdf.xacro")
-        model_path = os.path.join(base_path, f"{model}.urdf")
+        base_path = model_dir / "urdf"
+        xacro_path = base_path / f"{model}.urdf.xacro"
+        model_path = base_path / f"{model}.urdf"
 
-        if not os.path.isfile(xacro_path):
+        if not xacro_path.is_file():
             return None
 
+        def to_string(v: Any) -> str:
+            if attrs.has(type(v)):
+                v = repr(attrs.asdict(v))
+            if isinstance(v, dict):
+                return repr(json.dumps(v))
+            return repr(str(v))
         try:
-            def to_string(v: Any) -> str:
-                if attrs.has(type(v)):
-                    v = attrs.asdict(v)
-                if isinstance(v, dict):
-                    return json.dumps(v)
-                return str(v)
 
             model_desc = subprocess.check_output([
                 "ros2",
                 "run",
                 "xacro",
                 "xacro",
-                xacro_path,
+                str(xacro_path),
                 *(
                     f"{k}:={to_string(v)}"
                     for k, v
                     in loader_args.items()
+                    if v is not None
                 ),
             ]).decode("utf-8")
 
@@ -82,7 +84,7 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                 type=ModelType.URDF,
                 name=model,
                 description=model_desc,
-                path=temp_filepath
+                path=Path(temp_filepath)
             )
 
         except subprocess.CalledProcessError as e:

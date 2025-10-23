@@ -35,6 +35,10 @@ repositories:
     type: git
     url: git@github.com:Arena-Rosnav/arena-models
     version: staging/python311
+  deps/robots:
+    type: git
+    url: git@github.com:voshch/robots
+    version: master
 
   # deps/xacro:
   #   type: git
@@ -67,11 +71,6 @@ repositories:
     url: https://github.com/SteveMacenski/slam_toolbox.git
     version: humble
 
-  deps/robots/jackal:
-    type: git
-    url: https://github.com/jackal/jackal.git
-    version: foxy-devel
-
   deps/hunav/hunav_sim:
     type: git
     url: https://github.com/voshch/hunav_sim.git
@@ -81,11 +80,6 @@ repositories:
     url: https://github.com/wg-perception/people.git
     version: ros2@0ae47f6
   
-  deps/robots/irobot_create:
-    type: git
-    url: https://github.com/iRobotEducation/create3_sim.git
-    version: humble
-
   gazebo/turtlebot4_simulator:
     type: git
     url: https://github.com/turtlebot/turtlebot4_simulator.git

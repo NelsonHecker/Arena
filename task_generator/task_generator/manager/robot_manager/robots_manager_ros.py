@@ -2,20 +2,30 @@ import abc
 import re
 import typing
 
+import arena_simulation_setup.tree.configs.robot_setup as robot_setup
 import attrs
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_rclpy_mixins.shared import Namespace
+
 from task_generator import NodeInterface
-from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import Pose, Position, Robot
-import arena_simulation_setup.configs.robot_setup
 
 from .robot_manager import RobotManager
 
 
 def _initialpose_generator(x: float, y: float, d: float):
+    """Generate initial poses for the robot.
+
+    Args:
+        x (float): The initial x position.
+        y (float): The initial y position.
+        d (float): The distance between poses.
+
+    Yields:
+        Pose: The initial pose for the robot.
+    """
     while True:
         yield Pose(Position(x=x, y=y))
         y += d
@@ -23,32 +33,42 @@ def _initialpose_generator(x: float, y: float, d: float):
 
 @attrs.frozen
 class _RobotDiff:
+    """Change to robot configurations to execute.
+    """
     to_remove: list[str] = attrs.field(factory=list)
     to_add: dict[str, Robot] = attrs.field(factory=dict)
     to_update: dict[str, Robot] = attrs.field(factory=dict)
 
 
 class RobotsManager(abc.ABC):
+    """Abstract base class for managing multiple robots.
+    """
 
     @property
     def robot_managers(self) -> dict[str, RobotManager]:
+        """Get the robot managers.
+
+        Returns:
+            dict[str, RobotManager]: The robot managers.
+        """
         return self._robot_managers
 
     @abc.abstractmethod
     def set_up(self):
-        ...
+        """Set up the robot managers.
+        """
 
-    def __init__(self, entity_manager: BaseHumanSimulator, environment_manager: EnvironmentManager) -> None:
-        self._entity_manager: BaseHumanSimulator = entity_manager
+    def __init__(self, environment_manager: EnvironmentManager) -> None:
         self._environment_manager: EnvironmentManager = environment_manager
         self._robot_managers: dict[str, RobotManager] = {}
 
 
 class RobotsManagerROS(NodeInterface, RobotsManager):
-    """
-    ROS interface for dynamically loading multiple robots.
-    """
+    """ROS interface for dynamically loading multiple robots.
 
+    Args:
+        environment_manager (EnvironmentManager): The environment manager.
+    """
     _initialpose: typing.Generator
     _robot_configurations: ROSParamT[_RobotDiff]
     _diff: _RobotDiff
@@ -57,6 +77,17 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         self,
         v: typing.Any
     ) -> _RobotDiff:
+        """Parse robot configurations from the given value.
+
+        Args:
+            v (typing.Any): The value to parse.
+
+        Raises:
+            RuntimeError: If the parsing fails.
+
+        Returns:
+            _RobotDiff: The RobotDiff to execute.
+        """
 
         robot_arg: list[str] = list(filter(len, str(v).split(',')))
 
@@ -82,7 +113,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         for arg in robot_arg:
             if arg.endswith('.yaml'):
                 # load robot_setup_file from arena_bringup/configs/robot_setup
-                for addition in arena_simulation_setup.configs.robot_setup.RobotSetup(arg).load():
+                for addition in robot_setup.RobotSetup(arg).load():
                     add(addition)
             elif (match := re.match(r'(.*)\[(\d+)\]', arg)):
                 # multi-instantiations via model[count]
@@ -159,7 +190,6 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         return self._diff
 
     def set_up(self):
-
         for robot_name in self._diff.to_remove:
             self._robot_managers.pop(robot_name).destroy()
         self._diff.to_remove.clear()
@@ -177,7 +207,6 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
                 namespace=Namespace(self.node.get_namespace())(
                     self.node.get_name(),
                 ),
-                entity_manager=self._entity_manager,
                 environment_manager=self._environment_manager,
                 robot=config
             )
@@ -187,9 +216,9 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
 
         self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self._robot_managers.values()])
 
-    def __init__(self, entity_manager: BaseHumanSimulator, environment_manager: EnvironmentManager) -> None:
+    def __init__(self, environment_manager: EnvironmentManager) -> None:
         NodeInterface.__init__(self)
-        RobotsManager.__init__(self, entity_manager=entity_manager, environment_manager=environment_manager)
+        RobotsManager.__init__(self, environment_manager=environment_manager)
         self._initialpose = _initialpose_generator(-10, -10, -5)
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](

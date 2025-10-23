@@ -3,23 +3,22 @@ from __future__ import annotations
 import abc
 import itertools
 import math
-import os
 import typing
 from collections.abc import Iterable
 
 import attrs
 import yaml
 
-from arena_simulation_setup import ProviderBase, ass_sources
-from arena_simulation_setup.entities.materials import (
-    MaterialProvider,
-    MaterialLoader,
-)
-from arena_simulation_setup.entities.obstacles.static import (
-    loader as ObstacleModelLoader,
-)
 from arena_simulation_setup.shared.entities import Obstacle
 from arena_simulation_setup.shared.utils import model_parse
+from arena_simulation_setup.tree import AssetType, DynamicProvider, Resolver, Resolvers
+from arena_simulation_setup.tree.assets.Material import (
+    MaterialLoader,
+    MaterialProvider,
+)
+from arena_simulation_setup.tree.assets.Object import (
+    loader as ObjectLoader,
+)
 from arena_simulation_setup.utils.cattrs import Parseable, converter
 from arena_simulation_setup.utils.geometry import Orientation, Pose, Position
 from arena_simulation_setup.utils.models import ModelWrapper
@@ -128,7 +127,7 @@ class PlaceObstacleAsset(SubWall):
     """
     Place a single obstacle.
     """
-    model: ModelWrapper = attrs.field(converter=model_parse(ObstacleModelLoader))  # model
+    model: ModelWrapper = attrs.field(converter=model_parse(ObjectLoader))  # model
 
     at: PositionalNumber = PositionalNumber.parse('50%')  # place at position along the wall
     orientation: Orientation = attrs.field(factory=Orientation.identity)  # interior orientation
@@ -223,10 +222,13 @@ class WallDescription:
         )
 
 
-class WallProvider(ProviderBase):
+class WallProvider(DynamicProvider):
     def load(self) -> WallDescription:
-        with open(self.path) as f:
+        with open(self.path / f'{self.path.name}.yaml') as f:
             return converter.structure(yaml.safe_load(f), WallDescription)
 
 
-loader = WallProvider.bind(ass_sources('entities', 'walls'))
+WallResolver = Resolver(AssetType.WALL)
+Resolvers.register(WallResolver)
+
+loader = WallProvider.bind(WallResolver)

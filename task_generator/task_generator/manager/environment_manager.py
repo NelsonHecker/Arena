@@ -5,7 +5,7 @@ from typing import Any
 
 import attrs
 from arena_simulation_setup.shared import Elevator
-from arena_simulation_setup.worlds.world import WorldDescription
+from arena_simulation_setup.tree.World import WorldDescription
 
 from task_generator import NodeInterface
 from task_generator.shared import (
@@ -223,6 +223,14 @@ class EnvironmentManager(NodeInterface, _Realizer):
         for robot in robots:
             robot.pose = self._realize_pose(robot.pose)
         self._human_simulator.move_robot(robots)
+
+    def remove_robot(self, robots: Sequence[Robot]):
+        """
+        Deletes given robot
+        """
+        for robot in robots:
+            robot.name = self._prefix(robot.name)
+        self._human_simulator.remove_robot(robots)
 
     def respawn(self, callback: Callable[[], Any]):
         """

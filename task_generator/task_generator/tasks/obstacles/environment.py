@@ -2,7 +2,7 @@ import math
 import random
 from collections import defaultdict
 
-import arena_simulation_setup.configs.environment
+import arena_simulation_setup.tree.configs.environment
 import attrs
 import numpy as np
 import shapely
@@ -364,7 +364,7 @@ class TM_Environment(TM_Obstacles):
 
     def _parse_environment(self, environment_file: str) -> _ParsedConfig:
 
-        environment = arena_simulation_setup.configs.environment.Environment(environment_file).load()
+        environment = arena_simulation_setup.tree.configs.environment.Environment(environment_file).load()
 
         static_obstacles: list[Obstacle] = []
         dynamic_obstacles: list[DynamicObstacle] = []

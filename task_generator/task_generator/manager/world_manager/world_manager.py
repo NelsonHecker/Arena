@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 import scipy.signal
-from arena_simulation_setup.worlds.world import WorldDescription
+import arena_simulation_setup.tree.World as World
 
 from task_generator import NodeInterface
 from task_generator.shared import Position, PositionRadius, Wall
@@ -20,7 +20,7 @@ class WorldManager(NodeInterface):
     obstacle positions.
     """
 
-    _world: WorldDescription
+    _world: World.WorldDescription
     _map: WorldMap
     _classic_forbidden_zones: list[PositionRadius]
 
@@ -32,7 +32,7 @@ class WorldManager(NodeInterface):
         self._classic_forbidden_zones = []
 
     @property
-    def world(self) -> WorldDescription:
+    def world(self) -> World.WorldDescription:
         return self._world
 
     @property
@@ -65,7 +65,7 @@ class WorldManager(NodeInterface):
     def update_world(
         self,
         world_map: WorldMap,
-        world_description: WorldDescription,
+        world_description: World.WorldDescription,
     ):
         self._detected_walls = None
         self._map = world_map

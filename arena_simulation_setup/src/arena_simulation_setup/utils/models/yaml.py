@@ -1,17 +1,16 @@
 import os
 
-from . import Model, ModelType, _ModelLoader
+from . import Model, ModelType, ModelProvider
 
 # raise RuntimeError('YAML models are not supported anymore')
 
 
-@_ModelLoader.model(ModelType.YAML)
-class ModelLoader_YAML(_ModelLoader):
+class ModelProvider_YAML(ModelProvider.provides(ModelType.YAML)):
 
     @classmethod
     def load(cls, model_dir, model, loader_args):
 
-        model_path = os.path.join(model_dir, model, "yaml", f"{model}.yaml")
+        model_path = model_dir / f"{model}.yaml"
 
         try:
             with open(model_path) as f:

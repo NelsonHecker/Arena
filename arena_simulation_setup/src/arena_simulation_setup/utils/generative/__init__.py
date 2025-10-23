@@ -4,7 +4,7 @@ import typing
 
 import pydantic
 
-from arena_simulation_setup.worlds.world import WorldDescription
+from arena_simulation_setup.tree.World import WorldDescription
 
 
 class WorldGeneratorType(enum.Enum):

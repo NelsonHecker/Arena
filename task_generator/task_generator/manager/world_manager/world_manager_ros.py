@@ -3,10 +3,9 @@ import os
 import tempfile
 import time
 import typing
+from pathlib import Path
 
-import arena_simulation_setup
-import arena_simulation_setup.worlds
-import launch
+import arena_simulation_setup.tree.World as World
 import launch.actions
 import lifecycle_msgs.msg
 import nav2_msgs.srv
@@ -18,7 +17,9 @@ import rclpy.client
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_simulation_setup.shared import Position
+from arena_simulation_setup.tree import Resolvers
 
+import launch
 from task_generator import NodeInterface
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.utils.time import Time
@@ -50,9 +51,11 @@ _DUMMY_MAP = nav_msgs.msg.OccupancyGrid(
 
 
 class MapServerHandler(NodeInterface):
+    """Handler functions for the map server lifecycle.
+    """
+
     def restart_map_server(self):
-        """
-        Relaunch the map server if it is not active.
+        """Restart the map server if it is not active.
         """
         self._logger.warn('shutting down map server...')
 
@@ -86,8 +89,14 @@ class MapServerHandler(NodeInterface):
         self._logger.warn('map server relaunched.')
 
     def check_map_server(self, timeout: float = 10.0, period: float = 1.0) -> bool:
-        """
-        Wait for the the map server to be active.
+        """Check if the map server is active.
+
+        Args:
+            timeout (float, optional): Time to wait for the map server to become active. Defaults to 10.0.
+            period (float, optional): Time to wait between checks. Defaults to 1.0.
+
+        Returns:
+            bool: True if the map server is active, False otherwise.
         """
         while self.node.get_lifecycle_state(
             self.node.service_namespace('map_server'),
@@ -102,6 +111,11 @@ class MapServerHandler(NodeInterface):
 
 
 class WorldManagerROS(MapServerHandler, WorldManager):
+    """Initialize the WorldManager.
+
+    Args:
+        environment_manager (EnvironmentManager): The environment manager instance.
+    """
 
     _environment_manager: EnvironmentManager
 
@@ -110,15 +124,20 @@ class WorldManagerROS(MapServerHandler, WorldManager):
     _map_name: str | None
     _callbacks: list[typing.Callable[[], None]]
 
-    def _shift_map(self, map_dir: str) -> tempfile.TemporaryDirectory:
+    def _shift_map(self, map_dir: Path) -> tempfile.TemporaryDirectory:
+        """Shift the map to the correct origin.
+
+        Args:
+            map_dir (Path): The directory containing the map files.
+
+        Returns:
+            tempfile.TemporaryDirectory: A temporary directory containing the shifted map files.
         """
-        Create tmpdir with origin-shifted map.
-        """
-        map_dir = os.path.abspath(map_dir)
+        map_dir = map_dir.resolve()
         map_tmpdir = tempfile.TemporaryDirectory()
 
         # create shifted yaml
-        target = os.path.join(map_dir, 'map.yaml')
+        target = map_dir / 'map.yaml'
         with open(target, 'r') as f:
             map_yaml = yaml.safe_load(f)
             assert isinstance(map_yaml, dict), "map.yaml must be a dictionary"
@@ -126,25 +145,37 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         shifted_origin = self._environment_manager.realize(
             Position(
                 x=origin[0],
-                y=origin[1]
+                y=origin[1],
             )
         )
         origin[0] = shifted_origin.x
         origin[1] = shifted_origin.y
         map_yaml['origin'] = origin
-        with open(os.path.join(map_tmpdir.name, 'map.yaml'), 'w') as f:
+        with open(Path(map_tmpdir.name) / 'map.yaml', 'w') as f:
             yaml.safe_dump(map_yaml, f)
 
         # symlink all non-targets
         for item in os.listdir(map_dir):
-            base = os.path.join(map_dir, item)
+            base = map_dir / item
             if base == target:
                 continue
-            os.symlink(base, os.path.join(map_tmpdir.name, item))
+            os.symlink(base, Path(map_tmpdir.name) / item)
 
         return map_tmpdir
 
     def _world_callback(self, value: typing.Any) -> bool:
+        """Handle world change events.
+
+        Args:
+            value (typing.Any): The new world value.
+
+        Raises:
+            RuntimeError: If the world cannot be changed.
+            RuntimeError: If the world is not valid.
+
+        Returns:
+            bool: True if the world was changed successfully, False otherwise.
+        """
         world_name = str(value)
 
         # if world_name != self._world_name and \
@@ -156,7 +187,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._world_name = world_name
 
         tmp_map = self._shift_map(
-            arena_simulation_setup.worlds.World(world_name).map.path
+            World.World(world_name).map.path
         )
         map_yaml = os.path.join(
             tmp_map.name,
@@ -181,15 +212,20 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         return True
 
     def _map_callback(self, costmap: nav_msgs.msg.OccupancyGrid):
+        """Handle incoming map updates.
+
+        Args:
+            costmap (nav_msgs.msg.OccupancyGrid): The updated costmap.
+        """
         if self._map.time <= costmap.info.map_load_time:
 
-            world = arena_simulation_setup.worlds.World(self.world_name)
+            world = World.World(self.world_name)
 
+            Resolvers.set_world_dir(world.path)
             self.update_world(
                 world_map=WorldMap.from_costmap(costmap),
                 world_description=world.load()
             )
-            arena_simulation_setup.set_world_dir(world.path)
 
             self._map_name = self.world_name
 
@@ -203,6 +239,8 @@ class WorldManagerROS(MapServerHandler, WorldManager):
                     traceback.print_exc(file=sys.stderr)
 
     def _setup_world_callbacks(self):
+        """Set up callbacks for world events.
+        """
 
         # retrieving map from map_server
         self.node.create_subscription(
@@ -229,6 +267,11 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         )
 
     def on_world_change(self, callback: typing.Callable[[], None]):
+        """Register a callback to be called when the world changes.
+
+        Args:
+            callback (typing.Callable[[], None]): The callback to register.
+        """
         self._callbacks.append(callback)
 
     def __init__(self, environment_manager: EnvironmentManager) -> None:
@@ -236,14 +279,24 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._environment_manager = environment_manager
 
         self._callbacks = []
-        self.update_world(world_map=WorldMap.from_costmap(_DUMMY_MAP), world_description=arena_simulation_setup.worlds.world.WorldDescription())
+        self.update_world(world_map=WorldMap.from_costmap(_DUMMY_MAP), world_description=World.WorldDescription())
         self._world_name = ''
         self._map_name = None
 
     def start(self):
+        """Start the world manager.
+        """
         self._setup_world_callbacks()
 
     def sync(self, timeout: float = -1) -> bool:
+        """Synchronize the world and map names.
+
+        Args:
+            timeout (float, optional): The maximum time to wait for synchronization. Defaults to -1.
+
+        Returns:
+            bool: True if synchronization was successful, False otherwise.
+        """
         if timeout < 0:
             timeout = float('inf')
         while self._map_name != self._world_name:
@@ -255,8 +308,18 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
     @property
     def world_name(self) -> str:
+        """Get the current world name.
+
+        Returns:
+            str: The current world name.
+        """
         return self._world_name
 
     @property
-    def world(self) -> arena_simulation_setup.worlds.world.WorldDescription:
+    def world(self) -> World.WorldDescription:
+        """Get the current world description.
+
+        Returns:
+            World.WorldDescription: The current world description.
+        """
         return self._world

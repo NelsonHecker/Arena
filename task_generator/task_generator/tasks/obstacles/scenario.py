@@ -1,6 +1,7 @@
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.worlds.world import World
-from arena_simulation_setup.worlds.scenario import Scenario
+from arena_simulation_setup.tree.World import World
+from arena_simulation_setup.tree.World.Scenario import Scenario
+
 from task_generator.tasks.obstacles import Obstacles, TM_Obstacles
 
 

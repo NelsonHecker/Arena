@@ -1,7 +1,7 @@
 import itertools
 import json
-import os
 import math
+import os
 import tempfile
 import time
 import xml.etree.ElementTree as ET
@@ -12,8 +12,8 @@ import chromadb
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
+from arena_simulation_setup.tree.World import WorldDescription
 from arena_simulation_setup.utils.cattrs import converter
-from arena_simulation_setup.worlds.world import WorldDescription
 from google import genai
 
 from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle

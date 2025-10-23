@@ -97,11 +97,14 @@ EOF
     echo "Completed Isaac Sim download"
     echo 'yes' > "$ARENA_DIR/.venv/lib/python3.10/site-packages/omni/EULA_ACCEPTED"
 
+    pushd "$ARENA_DIR" > /dev/null
+        git submodule update --init arena_isaac
+    popd > /dev/null
+    
     if ! grep -q "$name" "$INSTALLED" 2>/dev/null; then
         echo "$name" >> "$INSTALLED"
     fi
 
-    git submodule update --init arena_isaac
     arena update
     arena build
 
@@ -111,6 +114,7 @@ EOF
 uninstall(){
     #TODO
     echo not implemented, but unsetting flag
+    git submodule deinit -f arena_isaac
     sed -i "/$name/d" "$INSTALLED"
 }
 

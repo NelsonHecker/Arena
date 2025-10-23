@@ -2,12 +2,12 @@ import io
 import os
 import tarfile
 import typing
+from pathlib import Path
 
 import attrs
 import yaml
 
-from arena_simulation_setup import ProviderBase, SourcesContainer, ass_sources
-from arena_simulation_setup.entities.materials import (
+from arena_simulation_setup.tree.assets.Material import (
     MaterialLoader,
     MaterialProvider,
 )
@@ -19,11 +19,14 @@ from arena_simulation_setup.shared import (
     Obstacle,
     Wall,
 )
+
+from arena_simulation_setup import ASS_DIR
+from arena_simulation_setup.tree import StaticProvider
 from arena_simulation_setup.utils.cattrs import converter
 from arena_simulation_setup.utils.geometry import Position
 
-from .map import Map
-from .scenario import ScenarioProvider
+from .Map import Map
+from .Scenario import ScenarioProvider
 
 
 @attrs.define
@@ -129,27 +132,23 @@ class WorldDescription:
         return tarball
 
 
-class WorldProvider(ProviderBase):
+class WorldProvider(StaticProvider):
 
     @classmethod
     def list(cls):
         return ('.generated', *super().list())
 
-    @classmethod
-    def resolve(cls, path: str) -> str:
-        return os.path.join(cls._sources.global_dir, path)
-
     @property
     def scenario(self):
-        return ScenarioProvider.bind(ass_sources.override(**{SourcesContainer.Keys.WORLD.value: self.path})('scenarios'))
+        return ScenarioProvider.bind(self.path / 'scenarios')
 
     @property
     def map(self):
-        return Map(os.path.join(self.path, 'map'))
+        return Map(self.path / 'map')
 
     @property
-    def world_path(self) -> str:
-        return os.path.join(self.path, 'world.yaml')
+    def world_path(self) -> Path:
+        return self.path / 'world.yaml'
 
     def load(self) -> WorldDescription:
         with open(self.world_path) as f:
@@ -158,11 +157,11 @@ class WorldProvider(ProviderBase):
                 WorldDescription
             )
 
-    def save(self, world: WorldDescription, **kwargs) -> str:
+    def save(self, world: WorldDescription, **kwargs) -> Path:
         os.makedirs(self.path, exist_ok=True)
         tarball = world.export(**kwargs)
         tarball.extractall(self.path, filter='data')
         return self.path
 
 
-World = WorldProvider.bind(ass_sources('worlds'))
+World = WorldProvider.bind(ASS_DIR / 'worlds')

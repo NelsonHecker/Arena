@@ -16,6 +16,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     ss_root = FindPackageShare('arena_simulation_setup')
+    robots_root = FindPackageShare('arena_robots')
     pkg_nav2_bringup = FindPackageShare('nav2_bringup')
 
     ld_items = []
@@ -43,9 +44,7 @@ def generate_launch_description():
         ),
         YAMLFileSubstitution(
             PathJoinSubstitution([
-                ss_root,
-                'entities',
-                'robots',
+                robots_root,
                 robot.substitution,
                 'model_params.yaml'
             ])

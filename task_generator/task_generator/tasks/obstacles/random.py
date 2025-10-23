@@ -7,10 +7,10 @@ import attrs
 import numpy as np
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.entities.obstacles.dynamic import \
-    loader as DYNAMIC_OBSTACLE_LOADER
-from arena_simulation_setup.entities.obstacles.static import \
-    loader as OBSTACLE_LOADER
+from arena_simulation_setup.tree.assets.Object import loader as object_loader
+from arena_simulation_setup.tree.assets.Pedestrian import (
+    loader as pedestrian_loader,
+)
 from arena_simulation_setup.utils.models.model_loader import ModelLoader
 
 from task_generator.shared import DynamicObstacle, Obstacle, Orientation, Pose
@@ -250,18 +250,18 @@ class TM_Random(TM_Obstacles):
                 self.namespace(STATIC, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, OBSTACLE_LOADER)
+                parse=functools.partial(param_to_modellist, object_loader)
             ),
             MODELS_INTERACTIVE_OBSTACLES=self.node.ROSParam[list[str]](
                 self.namespace(INTERACTIVE, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, OBSTACLE_LOADER)
+                parse=functools.partial(param_to_modellist, object_loader)
             ),
             MODELS_DYNAMIC_OBSTACLES=self.node.ROSParam[list[str]](
                 self.namespace(DYNAMIC, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, DYNAMIC_OBSTACLE_LOADER)
+                parse=functools.partial(param_to_modellist, pedestrian_loader)
             ),
         )

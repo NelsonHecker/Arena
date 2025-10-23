@@ -5,7 +5,7 @@ import typing
 import attrs
 
 from arena_simulation_setup.utils.geometry import Pose, Position
-from arena_simulation_setup.entities.materials import MaterialProvider, MaterialLoader
+from arena_simulation_setup.tree.assets.Material import MaterialProvider, MaterialLoader
 
 
 @attrs.define

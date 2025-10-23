@@ -3,7 +3,8 @@ from typing import Optional
 
 import attrs
 
-from arena_simulation_setup import ProviderBase, ab_dir, Sources
+from arena_simulation_setup import AB_DIR
+from arena_simulation_setup.tree import StaticProvider
 
 
 def _get_attrib(
@@ -39,7 +40,7 @@ class ParametrizedConfig:
     DYNAMIC: list[ObstacleConfig]
 
 
-class ParametrizedProvider(ProviderBase):
+class ParametrizedProvider(StaticProvider):
     def load(self) -> ParametrizedConfig:
         tree = ET.parse(self.path)
         root = tree.getroot()
@@ -62,4 +63,4 @@ class ParametrizedProvider(ProviderBase):
         )
 
 
-Parametrized = ParametrizedProvider.bind(Sources(ab_dir)('configs', 'parametrized'))
+Parametrized = ParametrizedProvider.bind(AB_DIR / 'configs' / 'parametrized')

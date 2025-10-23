@@ -31,6 +31,9 @@
 		{
 			"name": "evaluation",
 			"path": "src/Arena/arena_evaluation"
+		},
+		{
+			"path": "src/deps/arena_models"
 		}
 	],
 	"settings": {

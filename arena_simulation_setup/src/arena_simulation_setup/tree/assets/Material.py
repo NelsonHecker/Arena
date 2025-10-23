@@ -5,22 +5,22 @@ import typing
 
 import attrs
 
-from arena_simulation_setup import ProviderBase, ass_sources
+from arena_simulation_setup.tree import AssetType, DynamicProvider, NetResolver, Resolvers
 from arena_simulation_setup.utils.cattrs import Serializable
 
 
 @attrs.define
 class Material:
-    path: str  # TODO rename to path
+    path: str
     name: str
 
-    DEFAULT: typing.ClassVar[str] = "PCB_Copper"
+    DEFAULT: typing.ClassVar[str] = "Marble"
 
     def asdict(self) -> dict:
         return attrs.asdict(self)
 
 
-class MaterialProvider(ProviderBase, Serializable):
+class MaterialProvider(DynamicProvider, Serializable):
     _path: typing.ClassVar[str]
 
     @classmethod
@@ -28,7 +28,7 @@ class MaterialProvider(ProviderBase, Serializable):
         return cls(Material.DEFAULT)
 
     def load(self, *, default: Material | None = None) -> Material:
-        resolved = self.resolve(self.name, fn=os.path.isdir)
+        resolved = self._resolver.resolve(self.name)
         if resolved is None:
             if default is not None:
                 return default
@@ -42,4 +42,7 @@ class MaterialProvider(ProviderBase, Serializable):
         return self.name
 
 
-MaterialLoader = MaterialProvider.bind(ass_sources('entities', 'materials'))
+MaterialResolver = NetResolver(AssetType.MATERIAL)
+Resolvers.register(MaterialResolver)
+
+MaterialLoader = MaterialProvider.bind(MaterialResolver)

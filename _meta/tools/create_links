@@ -21,4 +21,4 @@ create_link(){
 
 create_link "$ARENA_DIR/_meta/tools/source" "arena"
 create_link "$ARENA_DIR/_meta/tools/Arena.code-workspace" "ws-arena.code-workspace"
-create_link "$ARENA_DIR/simulation_setup/assets" "$ARENA_ASSETS_DIR/_local"
+create_link "$ARENA_DIR/arena_simulation_setup/assets" "$ARENA_ASSETS_DIR_LOCAL"
