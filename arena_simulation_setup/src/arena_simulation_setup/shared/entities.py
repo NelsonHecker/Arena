@@ -10,7 +10,7 @@ from arena_simulation_setup.tree.assets.Pedestrian import (
     loader as PedestrianLoader,
 )
 from arena_simulation_setup.tree.assets.Object import loader as ObjectLoader
-from arena_simulation_setup.tree.Robot import loader as RobotLoader
+from arena_robots.Robot import loader as RobotLoader
 from arena_simulation_setup.utils.cattrs import (
     Parseable,
     converter,

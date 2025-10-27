@@ -3,13 +3,14 @@ import math
 import time
 import traceback
 
-import arena_simulation_setup.tree.Robot
-import launch
+import arena_robots.Robot
 import launch_ros
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from ros_gz_interfaces.msg import Entity as EntityMsg
 from ros_gz_interfaces.msg import EntityFactory, WorldControl
 from ros_gz_interfaces.srv import ControlWorld, DeleteEntity, SetEntityPose, SpawnEntity
+
+import launch
 from task_generator.shared import (
     Entity,
     Model,
@@ -353,7 +354,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
             )
         )
 
-        robot_config = arena_simulation_setup.tree.Robot.Robot(robot.model.name)
+        robot_config = arena_robots.Robot.Robot(robot.model.name)
 
         mappings = BridgeConfiguration.from_file(
             robot_config.mappings
@@ -452,7 +453,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
 
             odom_frame = 'odom'
 
-            odom_frame = arena_simulation_setup.tree.Robot.Robot(robot.model.name).model_params.odom_frame
+            odom_frame = arena_robots.Robot.Robot(robot.model.name).model_params.odom_frame
 
             qx, qy, qz, qw = robot.pose.orientation.x, robot.pose.orientation.y, robot.pose.orientation.z, robot.pose.orientation.w
             transform_pub_node = launch_ros.actions.Node(

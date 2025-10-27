@@ -7,12 +7,12 @@ import traceback
 import typing
 
 import arena_people_msgs.msg
-import arena_simulation_setup.tree.Robot
+import arena_robots.Robot
 import attrs
+import isaacsim_msgs.msg
 import numpy as np
 import rclpy
 import rclpy.client
-import isaacsim_msgs.msg
 from isaacsim_msgs.msg import (
     Door,
     Elevator,
@@ -126,7 +126,7 @@ class IsaacSimulator(BaseSim):
                 )
 
                 if model.type == ModelType.URDF:
-                    robot_params = arena_simulation_setup.tree.Robot.Robot(robot.model.name).model_params
+                    robot_params = arena_robots.Robot.Robot(robot.model.name).model_params
 
                     fq_name = self._NS_ROBOT(robot.name)
 

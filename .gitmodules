@@ -7,3 +7,6 @@
 [submodule "arena_evaluation"]
 	path = arena_evaluation
 	url = https://github.com/voshch/arena-evaluation.git
+[submodule "arena_robots"]
+	path = arena_robots
+	url = https://github.com/voshch/robots.git

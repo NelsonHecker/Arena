@@ -13,8 +13,8 @@ import rclpy.client
 import rclpy.publisher
 import rclpy.timer
 from arena_rclpy_mixins.shared import Namespace
-from arena_simulation_setup.tree.Robot import Robot as RobotDescription
-from arena_simulation_setup.tree.Robot import RobotProvider
+from arena_robots.Robot import Robot as RobotDescription
+from arena_robots.Robot import RobotProvider
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
 
 import launch

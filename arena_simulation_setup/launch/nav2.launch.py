@@ -45,6 +45,7 @@ def generate_launch_description():
         YAMLFileSubstitution(
             PathJoinSubstitution([
                 robots_root,
+                'robots',
                 robot.substitution,
                 'model_params.yaml'
             ])

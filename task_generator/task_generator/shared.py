@@ -7,6 +7,7 @@ import attrs
 import rclpy
 import rclpy.node
 from arena_rclpy_mixins.shared import Namespace
+from arena_robots.SetupFile import Config as RobotSetupConfig
 from arena_simulation_setup.shared import (  # noqa
     CustomDynamicObstacle,
     Door,
@@ -78,6 +79,19 @@ class Robot(Robot_):
         if not self.name:
             return Namespace('')
         return Namespace(self.name)
+
+    @classmethod
+    def from_setup(cls, setup: RobotSetupConfig) -> Robot:
+        dict_value = {}
+        dict_value['model'] = setup.robot
+        if setup.behavior is not None:
+            dict_value['inter_planner'] = setup.behavior
+        if setup.controller is not None:
+            dict_value['local_planner'] = setup.controller
+        if setup.planner is not None:
+            dict_value['global_planner'] = setup.planner
+        dict_value.update(setup.extra)
+        return cls.parse(dict_value)
 
     @classmethod
     def parse(cls, value: dict) -> "Robot":

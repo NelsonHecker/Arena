@@ -40,12 +40,12 @@ setup(
     license='MIT',
     scripts=[
         'scripts/download_assets',
+        'scripts/model_staging',
     ],
     entry_points={
         'console_scripts': [
             f'generate_world = {package_name}.utils.generative.world_generator:main',
             f'world_generator = {package_name}.utils.generative.world_generator_ros:main',
-            f'model_staging = {package_name}.model_staging:main',
         ],
     },
 )

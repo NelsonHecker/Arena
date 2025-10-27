@@ -1,8 +1,9 @@
 import abc
+import os
 import re
 import typing
 
-import arena_simulation_setup.tree.configs.robot_setup as robot_setup
+import arena_robots.SetupFile as robot_setup
 import attrs
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
@@ -94,9 +95,9 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         parsed_explicit: dict[str, Robot] = {}
         parsed_anonymous: dict[str, list[Robot]] = {}
 
-        def add(base: dict):
-            name = base.get('name')
-            config = Robot.parse(base)
+        def add(base: robot_setup.Config):
+            name = base.name
+            config = Robot.from_setup(base)
 
             if name is None:  # anon
                 parsed_anonymous.setdefault(
@@ -112,16 +113,15 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
 
         for arg in robot_arg:
             if arg.endswith('.yaml'):
-                # load robot_setup_file from arena_bringup/configs/robot_setup
                 for addition in robot_setup.RobotSetup(arg).load():
                     add(addition)
             elif (match := re.match(r'(.*)\[(\d+)\]', arg)):
                 # multi-instantiations via model[count]
                 for _ in range(int(match.group(2))):
-                    add(dict(model=match.group(1)))
+                    add(robot_setup.Config(robot=match.group(1)))
             else:
-                # just model
-                add(dict(model=arg))
+                # just robot
+                add(robot_setup.Config(robot=arg))
 
         existing = {
             k: v.robot

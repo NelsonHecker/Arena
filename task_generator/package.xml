@@ -16,6 +16,8 @@
   <depend>std_msgs</depend>
 
   <exec_depend>arena_bringup</exec_depend>
+  <exec_depend>arena_robots</exec_depend>
+  <exec_depend>arena_simulation_setup</exec_depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>
   <export>

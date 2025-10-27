@@ -35,7 +35,7 @@ def generate_launch_description():
     # Set environment variables
     package_root = get_package_share_directory('arena_bringup')
     ss_root = get_package_share_directory('arena_simulation_setup')
-    ss_models = os.path.join(ss_root, '../..', 'models')
+    robots_root = get_package_share_directory('arena_robots')
 
     # Set paths for Gazebo, Physics Engine, and Resource
 
@@ -56,6 +56,7 @@ def generate_launch_description():
 
     GZ_SIM_RESOURCE_PATHS = [
         os.path.join(staging_path),
+        robots_root
     ]
 
     deps_file = os.path.join(staging_path, 'deps')

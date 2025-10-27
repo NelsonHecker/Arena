@@ -34,6 +34,10 @@
 		},
 		{
 			"path": "src/deps/arena_models"
+		},
+		{
+			"name": "robots",
+			"path": "src/Arena/arena_robots/arena_robots"
 		}
 	],
 	"settings": {
@@ -132,6 +136,7 @@
 			"${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
 			"${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
 			"${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
+			"${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
 			"${workspaceFolder:Arena}/../../build/ament_index_python",
 			"${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
 			"${workspaceFolder:Arena}/../../build/hunav_msgs/",
@@ -151,6 +156,7 @@
 			"${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
 			"${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
 			"${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
+			"${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
 			"${workspaceFolder:Arena}/../../build/ament_index_python",
 			"${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
 			"${workspaceFolder:Arena}/../../build/hunav_msgs/",

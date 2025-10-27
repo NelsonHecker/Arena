@@ -1,32 +1,30 @@
 import typing
 
+import arena_robots.Robot
+import arena_simulation_setup.tree.assets.Material
+import arena_simulation_setup.tree.assets.Object
+import arena_simulation_setup.tree.assets.Pedestrian
 import arena_simulation_setup.tree.configs.environment
 import arena_simulation_setup.tree.configs.parametrized
-import arena_simulation_setup.tree.assets.Object
-import arena_simulation_setup.tree.assets.Material
-import arena_simulation_setup.tree.assets.Pedestrian
-import arena_simulation_setup.tree.Robot
 import arena_simulation_setup.tree.World as World
-import launch
 import rclpy
 import std_srvs.srv as std_srvs
-from task_generator.simulators.human.utils import ObstacleLayer
 import task_generator_msgs.srv
 from arena_rclpy_mixins.shared import Namespace
 from std_msgs.msg import Empty, Int16
 from std_srvs.srv import Empty as EmptySrv
 
+import launch
 from task_generator.constants import Constants
 from task_generator.constants.runtime import Configuration
-from task_generator.simulators.human import (BaseHumanSimulator,
-                                             EntityManagerRegistry)
-from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.robot_manager import RobotsManagerROS
-from task_generator.manager.robot_manager.robots_manager_ros import \
-    RobotsManager
-from task_generator.manager.world_manager.world_manager_ros import \
-    WorldManagerROS as WorldManager
+from task_generator.manager.robot_manager.robots_manager_ros import RobotsManager
+from task_generator.manager.world_manager.world_manager_ros import (
+    WorldManagerROS as WorldManager,
+)
+from task_generator.simulators.human import BaseHumanSimulator, EntityManagerRegistry
+from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim, SimulatorRegistry
 from task_generator.tasks import Task
 from task_generator.tasks.task_factory import TaskFactory
@@ -254,7 +252,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         request: task_generator_msgs.srv.GetRobots.Request,
         response: task_generator_msgs.srv.GetRobots.Response,
     ):
-        response.robots = arena_simulation_setup.tree.Robot.Robot.list()
+        response.robots = arena_robots.Robot.Robot.list()
         return response
 
     def _set_up_services(self):
