@@ -7,6 +7,7 @@ import attrs
 import rclpy
 import rclpy.node
 from arena_rclpy_mixins.shared import Namespace
+from arena_robots.Robot import loader as RobotLoader
 from arena_robots.SetupFile import Config as RobotSetupConfig
 from arena_simulation_setup.shared import (  # noqa
     CustomDynamicObstacle,
@@ -17,7 +18,7 @@ from arena_simulation_setup.shared import (  # noqa
     Obstacle,
     Wall,
 )
-from arena_simulation_setup.shared import Robot as Robot_
+from arena_simulation_setup.shared.utils import model_parse
 from arena_simulation_setup.utils.geometry import (  # noqa
     Orientation,
     Pose,
@@ -57,8 +58,9 @@ def rosparam_set(
     return _node.rosparam.set(param_name, value)
 
 
-@attrs.define()
-class Robot(Robot_):
+@attrs.define
+class Robot(Entity):
+    model: ModelWrapper = attrs.field(converter=model_parse(RobotLoader))
     inter_planner: str
     local_planner: str
     global_planner: str

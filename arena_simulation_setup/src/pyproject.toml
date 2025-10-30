@@ -23,8 +23,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/voshch/arena_simulation_setup"
-Repository = "https://github.com/voshch/arena_simulation_setup"
+Homepage = "https://github.com/voshch/Arena"
+Repository = "https://github.com/voshch/Arena"
 
 
 [tool.setuptools.packages.find]

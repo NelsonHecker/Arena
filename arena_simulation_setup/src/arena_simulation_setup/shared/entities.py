@@ -10,7 +10,6 @@ from arena_simulation_setup.tree.assets.Pedestrian import (
     loader as PedestrianLoader,
 )
 from arena_simulation_setup.tree.assets.Object import loader as ObjectLoader
-from arena_robots.Robot import loader as RobotLoader
 from arena_simulation_setup.utils.cattrs import (
     Parseable,
     converter,
@@ -109,8 +108,3 @@ class CustomDynamicObstacle(DynamicObstacle):
         value = obj.asdict(True)
 
         return converter.structure(value, cls)
-
-
-@attrs.define
-class Robot(Entity):
-    model: ModelWrapper = attrs.field(converter=model_parse(RobotLoader))
