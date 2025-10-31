@@ -13,7 +13,7 @@ requires-python = ">=3.8"
 license = { text = "MIT" }
 dependencies = [
     "shapely>=2.0.6",
-    "numpy>=1.25.4",
+    "numpy>=1.24",
     "attrs>=24.2.0",
     "PyYAML>=6.0",
     "cattrs>=25.1.1",
