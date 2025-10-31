@@ -33,8 +33,8 @@ repositories:
   # internal management
   deps/arena_models:
     type: git
-    url: git@github.com:Arena-Rosnav/arena-models
-    version: staging/python311
+    url: https://github.com/voshch/arena-models
+    version: master
   deps/robots:
     type: git
     url: git@github.com:voshch/robots
