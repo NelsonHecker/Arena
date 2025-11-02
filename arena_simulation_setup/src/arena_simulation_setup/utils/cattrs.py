@@ -7,7 +7,57 @@ from copy import deepcopy
 
 import cattrs
 
-converter = cattrs.Converter()
+
+class ArenaConverter(cattrs.Converter):
+    """Custom converter for Arena types that exposes an API for retrieving registered structure and unstructure hooks.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._encoders: typing.Dict[typing.Type, typing.Callable] = {}
+        self._decoders: typing.List[typing.Tuple[typing.Callable[[typing.Type], bool], typing.Callable]] = []
+
+    @property
+    def type_encoders(self) -> typing.Dict[typing.Type, typing.Callable]:
+        """
+        Get the registered type encoders.
+
+        Returns:
+            Dict[Type, Callable]: A dictionary mapping types to their corresponding encoder functions.
+        """
+        return self._encoders
+
+    @property
+    def type_decoders(self) -> typing.List[typing.Tuple[typing.Callable[[typing.Type], bool], typing.Callable]]:
+        """
+        Get the registered type decoders.
+
+        Returns:
+            List[Tuple[Callable[[Type], bool], Callable]]: A list of tuples containing predicates and their corresponding decoder functions.
+        """
+        return self._decoders
+
+    def register_unstructure_hook(self, cl, *args, **kwargs):
+        """
+        Register an unstructure hook for a given type.
+        """
+        if args:
+            func = args[0]
+            self._encoders[cl] = func
+        return super().register_unstructure_hook(cl, *args, **kwargs)
+
+    def register_structure_hook(self, cl, *args, **kwargs):
+        """
+        Register a structure hook for a given type.
+        """
+        if args:
+            def predicate(t, c=cl): return issubclass(t, c)
+            func = args[0]
+            self._decoders.append((predicate, func))
+        return super().register_structure_hook(cl, *args, **kwargs)
+
+
+converter = ArenaConverter()
 
 
 class Idempotent:
@@ -18,7 +68,7 @@ class Idempotent:
     @classmethod
     def converter(cls, *args, **kwargs):
         """
-        If the value is already an instance of the class, return it.
+        If the value is already an instance of the class , return it.
         Otherwise, create a new instance of the class with the value.
         """
         if args and isinstance(args[0], cls):
@@ -28,8 +78,8 @@ class Idempotent:
     @classmethod
     def converter_clone(cls, *args, **kwargs):
         """
-        If the value is already an instance of the class, return a deepcopy of it.
-        If not, create a new instance of the class with the value.
+        If the value is already an instance of the class , return a deepcopy of it.
+        If not , create a new instance of the class with the value.
         """
         if args and isinstance(args[0], cls):
             return deepcopy(args[0])
@@ -39,7 +89,7 @@ class Idempotent:
 T = typing.TypeVar('T')
 
 
-def idempotent(cls: typing.Type[T]) -> typing.Type[Idempotent, T]:
+def idempotent(cls: typing.Type[T]):
     """
     Make class idempotent.
     """
@@ -66,10 +116,12 @@ class Serializable(abc.ABC):
     def serialize(self) -> typing.Any:
         """
         Define the custom serialization logic for this object.
-        The return value should be a primitive type (dict, list, str, int, etc.).
+        The return value should be a primitive type(dict, list, str, int, etc.).
         """
         raise NotImplementedError
 
+
+converter.register_unstructure_hook(Serializable, lambda obj: obj.serialize())
 
 ParseableT = typing.TypeVar('ParseableT', bound='Parseable')
 
