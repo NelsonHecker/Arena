@@ -95,6 +95,28 @@ class WorldDescription:
     def all_dynamic_entities(self) -> typing.Iterable[Obstacle]:
         return (entity for zone in self.zones for entity in zone.entities.dynamic)
 
+    def render(
+        self,
+        resolution: float = 0.05,
+    ) -> typing.Tuple[bytes, tuple[float, float]]:
+        """Render the world description to a PNG image
+
+        Args:
+            resolution (float): The resolution of the rendered image [m/px]
+
+        Returns:
+            typing.Tuple[bytes, tuple[float, float]]: The rendered image and its origin
+        """
+        import shapely
+
+        png, origin = Map.generate_png(
+            rooms=shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
+            walls=shapely.MultiLineString(list(self.all_walls)),
+            resolution=resolution,
+            padding=5,
+        )
+        return png, origin
+
     def export(
         self,
         resolution: float = 0.05,
@@ -103,7 +125,6 @@ class WorldDescription:
         """
         Export the world description to world.yaml, map.png, map.yaml
         """
-        import shapely
 
         if extra_files is None:
             extra_files = {}
@@ -111,12 +132,7 @@ class WorldDescription:
 
         files['world.yaml'] = typing.cast(bytes, yaml.safe_dump(converter.unstructure(self), encoding='utf-8'))
 
-        files['map/map.png'], origin = Map.generate_png(
-            rooms=shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
-            walls=shapely.MultiLineString(list(self.all_walls)),
-            resolution=resolution,
-            padding=5,
-        )
+        files['map/map.png'], origin = self.render(resolution=resolution)
 
         files['map/map.yaml'] = Map.generate_map_yaml(resolution=resolution, filename='map.png', origin=origin).encode('utf-8')
 
@@ -128,8 +144,6 @@ class WorldDescription:
                     tarball.addfile(tarinfo=info, fileobj=io.BytesIO(content))
             tar_stream.seek(0)
             return tarfile.open(fileobj=io.BytesIO(tar_stream.getvalue()))
-
-        return tarball
 
 
 class WorldProvider(StaticProvider):
