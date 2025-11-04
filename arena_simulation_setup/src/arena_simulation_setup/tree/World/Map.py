@@ -54,7 +54,7 @@ class Map:
         scaling_factor = 1 / resolution
 
         def tf(shape):
-            shape = shapely.affinity.translate(shape, min_x, -min_y)
+            shape = shapely.affinity.translate(shape, -min_x, -min_y)
             shape = shapely.affinity.scale(shape, scaling_factor, -scaling_factor, origin=(0, 0))  # type: ignore
             shape = shapely.affinity.translate(shape, 0, height * scaling_factor)
             shape = shapely.set_precision(shape, 0.01)
