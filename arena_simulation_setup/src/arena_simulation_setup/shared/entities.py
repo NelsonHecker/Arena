@@ -27,7 +27,7 @@ EntityT = typing.TypeVar("EntityT", bound="Entity")
 class Entity(Parseable):
     pose: Pose = attrs.field(converter=Pose.converter)
     name: str = attrs.field(converter=lambda s: Entity.sanitize_name(str(s)))
-    model: ModelWrapper
+    model: ModelWrapper = attrs.field(converter=ModelWrapper.EMPTY)
 
     extra: dict = attrs.field(factory=dict, kw_only=True)
     path: str = attrs.field(repr=False, default='', kw_only=True)
@@ -60,7 +60,7 @@ converter.register_structure_hook(
 
 @attrs.define
 class Obstacle(Entity):
-    model: ModelWrapper = attrs.field(converter=model_parse(ObjectLoader))
+    model: ModelWrapper
     # type_: str = attrs.field(converter=str)
 
 

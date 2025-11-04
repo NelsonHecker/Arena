@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import typing
+
 import attrs
 
 from arena_simulation_setup.tree.assets.Material import MaterialLoader
@@ -15,20 +17,15 @@ class Wall:
     kind: str = ''
     material: str = ''
 
-    _description: WallDescription = attrs.field(init=False)
-
-    def __attrs_post_init__(self):
-        if self.kind:
-            self._description = WallLoader(self.kind).load()
-        else:
-            self._description = WallDescription.simple(material=MaterialLoader(self.material) or None)
-        _ = self.assets  # trigger the cached property
-
     def assets(self) -> WallRealization:
         """
         Get sub-assets that make up the wall.
         """
-        return self._description.realize(self.start, self.end)
+        if self.kind:
+            _description = WallLoader(self.kind).load()
+        else:
+            _description = WallDescription.simple(material=MaterialLoader(self.material) if self.material else None)
+        return _description.realize(self.start, self.end)
 
     def __iter__(self):
         yield self.start

@@ -16,10 +16,25 @@ from arena_simulation_setup import (
     ARENA_ASSETS_DIR,
     DOMAIN_DEFAULT,
 )
-from arena_simulation_setup.utils.cattrs import Idempotent
+from arena_simulation_setup.utils.cattrs import Idempotent, Parseable, Serializable
 
 
-class ProviderProtocol(abc.ABC):
+ProviderT = typing.TypeVar('ProviderT', bound='ProviderBase')
+
+
+class ProviderBase(Parseable, Serializable, abc.ABC):
+
+    # mixins for cattrs
+    @classmethod
+    def parse(cls: typing.Type[ProviderT], value: typing.Any) -> ProviderT:
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, str):
+            raise TypeError(f'Expected value to be str, got {type(value)}')
+        return cls(value)
+
+    def serialize(self) -> typing.Any:
+        return self.name
 
     # Class Methods: Provider
     @classmethod
@@ -61,10 +76,7 @@ class ProviderProtocol(abc.ABC):
         self._name = str(name)
 
 
-ProviderT = typing.TypeVar('ProviderT', bound='ProviderProtocol')
-
-
-class StaticProvider(ProviderProtocol, Idempotent):
+class StaticProvider(ProviderBase, Idempotent):
 
     _path: typing.ClassVar[Path]
 
@@ -335,7 +347,7 @@ class _Resolvers:
 Resolvers = _Resolvers()
 
 
-class DynamicProvider(ProviderProtocol, Idempotent):
+class DynamicProvider(ProviderBase, Idempotent):
     """
     Dynamic provider base class
     """

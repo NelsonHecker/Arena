@@ -7,11 +7,12 @@ import sys
 from collections.abc import Callable, Collection, Set
 from pathlib import Path
 from typing import Optional, Type, overload
+import typing
 
 import attrs
 
-from arena_simulation_setup.tree import ProviderProtocol
-from arena_simulation_setup.utils.cattrs import Serializable, converter
+from arena_simulation_setup.tree import ProviderBase
+from arena_simulation_setup.utils.cattrs import Parseable, Serializable, converter
 
 # TODO deprecate this in favor of Model.EMPTY
 
@@ -87,7 +88,7 @@ class ModelProvider(abc.ABC):
         return None
 
 
-class ModelWrapper(Serializable):
+class ModelWrapper(Parseable, Serializable):
 
     _get: Callable[[Collection[ModelType], dict], Model]
     _name: str
@@ -99,6 +100,14 @@ class ModelWrapper(Serializable):
 
     def __repr__(self) -> str:
         return f"ModelWrapper(name={self.name}, loader={self._loader})"
+
+    @classmethod
+    def parse(cls, value: typing.Any) -> ModelWrapper:
+        if isinstance(value, str):
+            return cls.EMPTY(value)
+        if isinstance(value, cls):
+            return value
+        raise TypeError(f"Cannot parse ModelWrapper from {value!r}")
 
     def serialize(self) -> str:
         return self.name
@@ -226,8 +235,8 @@ class ModelWrapper(Serializable):
         """
         return self._name
 
-    @staticmethod
-    def Constant(name: str, models: dict[ModelType, Model]) -> ModelWrapper:
+    @classmethod
+    def Constant(cls, name: str, models: dict[ModelType, Model]) -> ModelWrapper:
         """
         Create new ModelWrapper from a dict of already existing models
         @name: name of model
@@ -247,8 +256,8 @@ class ModelWrapper(Serializable):
 
         return ModelWrapper(name, get)
 
-    @staticmethod
-    def from_model(model: Model) -> ModelWrapper:
+    @classmethod
+    def from_model(cls, model: Model) -> ModelWrapper:
         """
         Create new ModelWrapper containing a single existing Model
         @model: Model to wrap
@@ -258,9 +267,9 @@ class ModelWrapper(Serializable):
             models={model.type: model}
         )
 
-    @staticmethod
-    def EMPTY() -> ModelWrapper:
-        wrapper = ModelWrapper("__EMPTY", EMPTY_LOADER)
+    @classmethod
+    def EMPTY(cls, name="__EMPTY") -> ModelWrapper:
+        wrapper = ModelWrapper(name, EMPTY_LOADER)
         return wrapper
 
 
@@ -279,8 +288,8 @@ class LoaderArgs(dict):
 
 class ModelLoader:
 
-    def __init__(self, provider: Type[ProviderProtocol], loaders: Collection[Type[ModelProvider]]) -> None:
-        self.__provider: Type[ProviderProtocol] = provider
+    def __init__(self, provider: Type[ProviderBase], loaders: Collection[Type[ModelProvider]]) -> None:
+        self.__provider: Type[ProviderBase] = provider
         self.__loaders: LoadersT = LoadersT(loaders)
 
     @functools.cache
@@ -301,7 +310,7 @@ class ModelLoader:
 
     @functools.lru_cache(maxsize=128)
     @staticmethod
-    def _load_cached(loaders: LoadersT, provider: Type[ProviderProtocol], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
+    def _load_cached(loaders: LoadersT, provider: Type[ProviderBase], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
         for loader in ModelLoader._match_loaders(loaders, model_type):
             model_dir = provider(model).resolve(model)
             if (hit := loader.load(model_dir, model, loader_args)) is not None:
@@ -310,7 +319,7 @@ class ModelLoader:
 
     @functools.lru_cache(maxsize=128)
     @staticmethod
-    def _convert_cached(loaders: LoadersT, provider: Type[ProviderProtocol], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
+    def _convert_cached(loaders: LoadersT, provider: Type[ProviderBase], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
         for loader in ModelLoader._match_loaders(loaders, model_type):
             for convertable in loader.convertable():
                 model_dir = provider(model).resolve(model)

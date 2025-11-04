@@ -51,9 +51,13 @@ class ArenaConverter(cattrs.Converter):
         Register a structure hook for a given type.
         """
         if args:
-            def predicate(t, c=cl): return issubclass(t, c)
+            def predicate(t, c=cl):
+                try:
+                    return isinstance(t, type) and issubclass(t, c)
+                except TypeError:
+                    return False
             func = args[0]
-            self._decoders.append((predicate, func))
+            self._decoders.insert(0, (predicate, func))
         return super().register_structure_hook(cl, *args, **kwargs)
 
 
@@ -116,12 +120,9 @@ class Serializable(abc.ABC):
     def serialize(self) -> typing.Any:
         """
         Define the custom serialization logic for this object.
-        The return value should be a primitive type(dict, list, str, int, etc.).
         """
         raise NotImplementedError
 
-
-converter.register_unstructure_hook(Serializable, lambda obj: obj.serialize())
 
 ParseableT = typing.TypeVar('ParseableT', bound='Parseable')
 
@@ -135,23 +136,23 @@ class Parseable(abc.ABC):
         super().__init_subclass__(**kwargs)
 
         if not getattr(cls, "__abstractmethods__", set()):
-            def try_parse(data):
-                if isinstance(data, cls):
-                    return data
+            def try_parse(target_type, value):
                 try:
-                    return converter.structure_attrs_fromdict(deepcopy(data), cls)
-                except Exception:
-                    return cls.parse(data)
+                    if isinstance(value, target_type):
+                        return value
+                except TypeError:
+                    # not a class type
+                    pass
+                return target_type.parse(value)
 
             converter.register_structure_hook(
                 cls,
-                lambda data, _: try_parse(data)
+                try_parse
             )
 
     @classmethod
-    @abc.abstractmethod
     def parse(cls: typing.Type[ParseableT], value: typing.Any) -> ParseableT:
-        raise NotImplementedError
+        return converter.structure_attrs_fromdict(deepcopy(value), cls)
 
 
 __all__ = [
@@ -159,4 +160,6 @@ __all__ = [
     "Parseable",
     "converter",
     "Idempotent",
+
+
 ]

@@ -190,7 +190,7 @@ class WallSegment:
     end: Position
     height: float
     width: float
-    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=MaterialLoader.DEFAULT)
+    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=lambda: MaterialLoader.DEFAULT('wall'))
 
 
 WallRealization = tuple[Iterable[WallSegment], Iterable[Obstacle]]

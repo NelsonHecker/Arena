@@ -54,7 +54,7 @@ class WorldDescription:
         walls: list[Wall] = attrs.field(factory=list)
         doors: list[Door] = attrs.field(factory=list)
         elevators: list[Elevator] = attrs.field(factory=list)
-        material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=MaterialLoader.DEFAULT)
+        material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=lambda: MaterialLoader.DEFAULT('floor'))
         entities: WorldEntities = attrs.field(factory=WorldEntities)
         description: str = ''
 

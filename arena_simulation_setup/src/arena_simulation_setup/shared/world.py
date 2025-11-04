@@ -15,7 +15,7 @@ class Elevator:
     size: list[float] = attrs.field(factory=lambda: [2.0, 2.0, 0.2])
     height_min: float = 0.0
     height_max: float = 3.0
-    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=MaterialLoader.DEFAULT)
+    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=lambda: MaterialLoader.DEFAULT('elevator'))
     destination: str = attrs.field(default="")
 
 
@@ -27,7 +27,7 @@ class Door:
     kind: typing.Literal['sliding'] = 'sliding'
     pose: Pose = attrs.field(factory=Pose, converter=Pose.converter)
     height: float = attrs.field(default=2.0)
-    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=MaterialLoader.DEFAULT)
+    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=lambda: MaterialLoader.DEFAULT('door'))
 
 
 @attrs.define
@@ -35,4 +35,4 @@ class Floor:
     pos: Position = attrs.field(converter=Position.converter)
     x_length: float = attrs.field(converter=float, default=20.)
     y_length: float = attrs.field(converter=float, default=20.)
-    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=MaterialLoader.DEFAULT)
+    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=lambda: MaterialLoader.DEFAULT('floor'))
