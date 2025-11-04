@@ -24,12 +24,14 @@ if [ $_GIT -eq 1 ] ; then
     # re-source
     . "$ARENA_DIR/_meta/tools/source"
 
-    vcs import --input "$ARENA_DIR/_meta/repos/arena.repos" --recursive --ff --add-existing "$ARENA_WS_DIR/src"
+    vcs import --input "$ARENA_DIR/_meta/repos/arena.repos" --recursive --ff --add-existing "$ARENA_WS_DIR/src"\
+        || echo "failed to pull all arena repos, ignoring"
 
     if [ -f "$INSTALLED" ] ; then
         while read -r name; do 
             if [ -f "$ARENA_DIR/_meta/repos/${name}.repos" ] ; then
-                vcs import --input "$ARENA_DIR/_meta/repos/${name}.repos" --shallow --recursive --ff --add-existing "$ARENA_WS_DIR/src"
+                vcs import --input "$ARENA_DIR/_meta/repos/${name}.repos" --shallow --recursive --ff --add-existing "$ARENA_WS_DIR/src"  \
+                || echo "failed to pull all $name repos, ignoring"
             fi
         done < "$INSTALLED"
     fi
