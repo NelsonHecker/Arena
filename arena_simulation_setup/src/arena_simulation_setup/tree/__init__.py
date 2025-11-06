@@ -229,6 +229,10 @@ class ProviderBase(Parseable, Serializable, Idempotent, abc.ABC, typing.Generic[
 
     # Instance Methods: Providee
 
+    @abc.abstractmethod
+    def __init__(self, identifier: typing.Any) -> None:
+        ...
+
     @property
     @abc.abstractmethod
     def name(self) -> str:
@@ -237,8 +241,13 @@ class ProviderBase(Parseable, Serializable, Idempotent, abc.ABC, typing.Generic[
     @property
     @abc.abstractmethod
     def path(self) -> Path:
-        ...
+        """Get the path to the asset.
 
+        Returns:
+            Path: The path to the asset.
+        """
+
+    @abc.abstractmethod
     def load(self, *args, **kwargs) -> T:
         """
         Load the asset.
@@ -255,7 +264,7 @@ class DynamicProvider(ProviderBase[T], typing.Generic[T]):
     _resolver: typing.ClassVar[Resolver]
 
     @classmethod
-    def parse(cls: typing.Type[DynamicProvider], value: typing.Any) -> DynamicProviderT:
+    def parse(cls: typing.Type[DynamicProviderT], value: typing.Any) -> DynamicProviderT:
         if isinstance(value, cls):
             return value
         if not isinstance(value, str):
@@ -358,12 +367,12 @@ class StaticProvider(ProviderBase[T], typing.Generic[T]):
     def path(self) -> Path:
         return self._path / self._name
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, identifier: str) -> None:
         if hasattr(self, '_name'):
             return
-        if not isinstance(name, str):
-            raise TypeError(f'Expected name to be str, got {type(name)}')
-        self._name = name
+        if not isinstance(identifier, str):
+            raise TypeError(f'Expected name to be str, got {type(identifier)}')
+        self._name = identifier
 
 
 # IDENTIFIERS
@@ -403,6 +412,8 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         Returns:
             Identifier: The parsed Identifier object.
         """
+        if isinstance(value, Identifier):
+            return value
         parts = list(reversed(value.split('/', 2)))
 
         name = parts[0]
@@ -425,7 +436,7 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         return super().instance_or(cls.parse)(*args, **kwargs)
 
     # Class Methods
-    _providers: typing.ClassVar[list[typing.Type[ProviderBase[T]]]] = []
+    _providers: typing.ClassVar[list[typing.Type[ProviderBase[T]]]] = []  # type: ignore
 
     @classmethod
     def provide(cls, *providers: typing.Type[ProviderBase[T]]):

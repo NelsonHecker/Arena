@@ -94,7 +94,7 @@ class WorldDescription:
         return (entity for zone in self.zones for entity in zone.entities.static)
 
     @property
-    def all_dynamic_entities(self) -> typing.Iterable[Obstacle]:
+    def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
         return (entity for zone in self.zones for entity in zone.entities.dynamic)
 
     def render(
@@ -166,7 +166,7 @@ class WorldProvider(StaticProvider[WorldDescription]):
     def world_path(self) -> Path:
         return self.path / 'world.yaml'
 
-    def load(self) -> WorldDescription:
+    def load(self, *args, **kwargs) -> WorldDescription:
         with open(self.world_path) as f:
             return converter.structure(
                 yaml.safe_load(f),
