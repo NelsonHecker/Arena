@@ -25,7 +25,7 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
         model_path = base_path / f"{model}.urdf"
 
         if not xacro_path.is_file():
-            return None
+            raise FileNotFoundError(f"Xacro file for model {model} not found at {xacro_path}")
 
         def to_string(v: Any) -> str:
             if attrs.has(type(v)):
@@ -33,21 +33,24 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
             if isinstance(v, dict):
                 return repr(json.dumps(v))
             return repr(str(v))
+
+        cmd = [
+            "ros2",
+            "run",
+            "xacro",
+            "xacro",
+            str(xacro_path),
+            *(
+                f"{k}:={to_string(v)}"
+                for k, v
+                in loader_args.items()
+                if v is not None
+            ),
+        ]
+
         try:
 
-            model_desc = subprocess.check_output([
-                "ros2",
-                "run",
-                "xacro",
-                "xacro",
-                str(xacro_path),
-                *(
-                    f"{k}:={to_string(v)}"
-                    for k, v
-                    in loader_args.items()
-                    if v is not None
-                ),
-            ]).decode("utf-8")
+            model_desc = subprocess.check_output(cmd).decode("utf-8")
 
             with open(model_path, 'w') as f:
                 f.write(model_desc)
@@ -92,5 +95,6 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                 f"error processing model {model} URDF file {xacro_path}. refusing to load.\n{e}\n{e.output.decode('utf-8')}",
                 file=sys.stderr
             )
+            print(f"Command executed: {' '.join(cmd)}", file=sys.stderr)
+
             raise
-            return None

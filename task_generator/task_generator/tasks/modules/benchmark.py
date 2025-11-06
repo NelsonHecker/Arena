@@ -203,22 +203,28 @@ class Mod_Benchmark(TM_Module):
     _headless: int
     _config_class: typing.Any
     _primary_node: str
-    _logger_object: logging.Logger = None
+    _logger_object: logging.Logger = None  # type: ignore
 
     @classmethod
     def _load_config(cls) -> _Config:
         with open(cls.DIR / "config.yaml") as f:
-            return _Config.parse(yaml.safe_load(f))
+            config = yaml.safe_load(f)
+            assert isinstance(config, dict), "expected a dict in config.yaml"
+            return _Config.parse(config)
 
     @classmethod
     def _load_contest(cls, contest: str) -> Contest:
         with open(cls.DIR / "contests" / contest) as f:
-            return Contest.parse(pathlib.Path(contest).name.strip(".yaml"), yaml.safe_load(f))
+            config = yaml.safe_load(f)
+            assert isinstance(config, dict), "expected a dict in contest.yaml"
+            return Contest.parse(pathlib.Path(contest).name.strip(".yaml"), config)
 
     @classmethod
     def _load_suite(cls, suite: str, config_class):
         with open(cls.DIR / "suites" / suite) as f:
-            return Suite.parse(pathlib.Path(suite).name.strip(".yaml"), yaml.safe_load(f), config_class)
+            config = yaml.safe_load(f)
+            assert isinstance(config, dict), "expected a dict in suite.yaml"
+            return Suite.parse(pathlib.Path(suite).name.strip(".yaml"), config, config_class)
 
     @classmethod
     def _resume(cls):
@@ -245,8 +251,8 @@ class Mod_Benchmark(TM_Module):
         try:
             future = describe_client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future, timeout_sec=self.PARAM_SET_TIMEOUT)
-            if future.result():
-                valid_params = [desc.name for desc in future.result().descriptors]
+            if (result := future.result()):
+                valid_params = [desc.name for desc in result.descriptors]
                 logger.debug(f"Valid parameters for {clean_node_name}: {valid_params}")
                 return valid_params
             else:
@@ -264,8 +270,8 @@ class Mod_Benchmark(TM_Module):
         Only touches parameters that actually need to change.
         Returns True on success, False on error.
         """
-        logger   = self._logger
-        updated  = False
+        logger = self._logger
+        updated = False
 
         # Task-mode enums (robots / obstacles)
         new_tm_r = Constants.TaskMode.TM_Robots(suite_config.tm_robots).value
@@ -299,8 +305,8 @@ class Mod_Benchmark(TM_Module):
                 try:
                     self.node.set_parameters([
                         Parameter("task.scenario.file",
-                                Parameter.Type.STRING,
-                                scenario_file)
+                                  Parameter.Type.STRING,
+                                  scenario_file)
                     ])
                     logger.info(f"[Benchmark] Scenario file → {scenario_file}")
                     updated = True
@@ -408,7 +414,7 @@ class Mod_Benchmark(TM_Module):
         self._TASK.reset()
 
     @property
-    def _logger(self) -> logging.Logger:
+    def _logger(self) -> logging.Logger:  # type: ignore
         if self._logger_object is None:
             handler = FileHandler(self.LOG_DIR / f"{self._runid}.log")
             handler.setFormatter(Formatter("%(asctime)s: %(levelname)s: %(message)s"))

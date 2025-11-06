@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import typing
-
 import attrs
 
 from arena_simulation_setup.tree.assets.Material import MaterialLoader

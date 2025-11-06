@@ -224,8 +224,8 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         request: task_generator_msgs.srv.GetObstacles.Request,
         response: task_generator_msgs.srv.GetObstacles.Response,
     ):
-        response.models_static_obstacles = arena_simulation_setup.tree.assets.Object.Object.list()
-        response.models_dynamic_obstacles = arena_simulation_setup.tree.assets.Pedestrian.Pedestrian.list()
+        response.models_static_obstacles = arena_simulation_setup.tree.assets.Object.ObjectLoader.list()
+        response.models_dynamic_obstacles = arena_simulation_setup.tree.assets.Pedestrian.PedestrianLoader.list()
 
         return response
 
@@ -252,7 +252,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         request: task_generator_msgs.srv.GetRobots.Request,
         response: task_generator_msgs.srv.GetRobots.Response,
     ):
-        response.robots = arena_robots.Robot.Robot.list()
+        response.robots = arena_robots.Robot.RobotLoader.list()
         return response
 
     def _set_up_services(self):

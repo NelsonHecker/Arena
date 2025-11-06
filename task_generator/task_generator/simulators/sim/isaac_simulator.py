@@ -8,6 +8,7 @@ import typing
 
 import arena_people_msgs.msg
 import arena_robots.Robot
+import arena_simulation_setup.tree.assets.Material
 import attrs
 import isaacsim_msgs.msg
 import numpy as np
@@ -44,6 +45,7 @@ from task_generator.shared import (
     ModelType,
     Namespace,
     Obstacle,
+    Pose,
     Robot,
 )
 from task_generator.simulators.sim import BaseSim, NodeInterface
@@ -118,15 +120,16 @@ class IsaacSimulator(BaseSim):
     def robot_spawn(self, robots):
         def impl(robot: Robot) -> bool:
             try:
-                model = robot.model.get(
+                model = robot.model.load().get(
                     (
                         ModelType.URDF,
                         # ModelType.USD
-                    )
+                    ),
+                    loader_args=robot.asdict()
                 )
 
                 if model.type == ModelType.URDF:
-                    robot_params = arena_robots.Robot.Robot(robot.model.name).model_params
+                    robot_params = arena_robots.Robot.RobotLoader(robot.model.name).model_params
 
                     fq_name = self._NS_ROBOT(robot.name)
 
@@ -152,7 +155,7 @@ class IsaacSimulator(BaseSim):
                     # Publish registration message so DoorManager in IsaacSim process
                     # registers the robot. This avoids cross-process direct calls.
                     try:
-                        if getattr(self, '_reg_pub', None) is not None:
+                        if self._reg_pub:
                             self._reg_pub.publish(StdString(data=f"robot|{robot_prim_path}"))
                             self._logger.debug(f"Published registration for robot: {robot_prim_path}")
                         else:
@@ -179,7 +182,7 @@ class IsaacSimulator(BaseSim):
         results = [True] * len(obstacles)
 
         for i, obstacle in enumerate(obstacles):
-            model = obstacle.model.get([ModelType.USD])
+            model = obstacle.model.load().get([ModelType.USD])
             if model.type is ModelType.UNKNOWN:
                 results[i] = False
                 continue
@@ -187,7 +190,7 @@ class IsaacSimulator(BaseSim):
             prim.usd_path = str(model.path)
             prim.name = self._NS_PRIM(obstacle.name)
             prim.pose = obstacle.pose.to_msg()
-            req.prims.append(prim)
+            req.prims.append(prim)  # type: ignore
 
         response = self._services.SpawnPrims.client.call(req)
         response_iter = iter(response.ret)
@@ -200,7 +203,7 @@ class IsaacSimulator(BaseSim):
         return tuple(map(move_obstacle, obstacles))
 
     def pedestrian_move(self, pedestrians):
-        def move_pedestrian(pedestrian: Pedestrian) -> bool:
+        def move_pedestrian(pedestrian: DynamicObstacle) -> bool:
             return self._move_entity(self._NS_PEDESTRIAN(pedestrian.name), pedestrian.pose)
         return tuple(map(move_pedestrian, pedestrians))
 
@@ -241,12 +244,12 @@ class IsaacSimulator(BaseSim):
                 end.z += segment.height
                 try:
                     wall_name = self.node._environment_manager.realize(f"wall_{next(self.wall_counter)}")
-                    walls_req.walls.append(
+                    walls_req.walls.append(  # type: ignore
                         Wall(
                             name=self._NS_WALL(wall_name),
                             start=segment.start.to_msg(),
                             end=end,
-                            material=material_to_msg(segment.material.load(default=segment.material.DEFAULT().load())),
+                            material=material_to_msg(segment.material.load()),
                             thickness=segment.width,
                         )
                     )
@@ -259,14 +262,14 @@ class IsaacSimulator(BaseSim):
             for obstacle in obstacles:
                 try:
                     prim_name = self.node._environment_manager.realize(f"obstacle_{next(self.wall_counter)}")
-                    model = obstacle.model.get(ModelType.USD)
+                    model = obstacle.model.load().get(ModelType.USD)
                     if model.type is ModelType.UNKNOWN:
                         continue
                     prim = Prim()
                     prim.usd_path = str(model.path)
                     prim.name = self._NS_WALL(prim_name)
                     prim.pose = obstacle.pose.to_msg()
-                    prims_req.prims.append(prim)
+                    prims_req.prims.append(prim)  # type: ignore
 
                 except Exception as e:
                     self._logger.error("Failed to spawn wall obstacle")
@@ -286,13 +289,13 @@ class IsaacSimulator(BaseSim):
         for floor in floors:
             try:
                 i = next(self.floor_counter)
-                req.floors.append(
+                req.floors.append(  # type: ignore
                     Floor(
                         name=self._NS_FLOOR(f"floor_{i}"),
                         x_length=floor.x_length,
                         y_length=floor.y_length,
                         pos=floor.pos.to_msg(),
-                        material=material_to_msg(floor.material.load(default=floor.material.DEFAULT().load())),
+                        material=material_to_msg(floor.material.load()),
                     )
                 )
 
@@ -311,12 +314,12 @@ class IsaacSimulator(BaseSim):
             try:
                 end = door.end.to_msg()
                 end.z += door.height
-                req.doors.append(
+                req.doors.append(  # type: ignore
                     Door(
                         name=self._NS_DOOR(door.name),
                         start=door.start.to_msg(),
                         end=end,
-                        material=material_to_msg(door.material.load(default=door.material.DEFAULT().load())),
+                        material=material_to_msg(door.material.load()),
                         thickness=0.1,
                         kind=door.kind,
                     )
@@ -341,14 +344,14 @@ class IsaacSimulator(BaseSim):
                 pos = elevator.position
                 size = elevator.size
                 size = Scale(x=size[0], y=size[1], z=size[2])
-                req.elevators.append(
+                req.elevators.append(  # type: ignore
                     Elevator(
                         name=elevator.name,
                         position=pos,
                         size=size,
                         height_min=elevator.height_min,
                         height_max=elevator.height_max,
-                        material=material_to_msg(elevator.material.load(default=elevator.material.DEFAULT().load())),
+                        material=material_to_msg(elevator.material.load()),
                     )
                 )
             except Exception as e:
@@ -410,7 +413,7 @@ class IsaacSimulator(BaseSim):
             ped.pose = pedestrian.pose.to_msg()
             ped.controller_stats = False
 
-            req.pedestrians.append(ped)
+            req.pedestrians.append(ped)  # type: ignore
             on_success.append((pedestrian.name, model_name))
 
         res = self._services.SpawnPedestrians.client.call(req)
@@ -436,7 +439,7 @@ class IsaacSimulator(BaseSim):
     def pedestrian_update(self, pedestrians):
         req = NavigatePedestrians.Request()
 
-        def impl(ped: DynamicObstacle) -> bool:
+        def impl(ped: arena_people_msgs.msg.Pedestrian) -> bool:
             name = ped.name
             if not name in self.ped_dict:
                 self._logger.warning(f"Pedestrian {name} not found in ped_dict: {list(self.ped_dict.keys())}")
@@ -446,7 +449,7 @@ class IsaacSimulator(BaseSim):
             goal.name = self._NS_PEDESTRIAN(name, "ManRoot", self.ped_dict[name])
             goal.position = ped.pose.position
             goal.velocity = np.linalg.norm([ped.twist.linear.x, ped.twist.linear.y])
-            req.goals.append(goal)
+            req.goals.append(goal)  # type: ignore
             return True
 
         preflight = tuple(map(impl, pedestrians.pedestrians))
@@ -474,7 +477,7 @@ class IsaacSimulator(BaseSim):
 
         return res.ret[0]
 
-    def _move_entity(self, name, pose):
+    def _move_entity(self, name: str, pose: Pose) -> bool:
         self._logger.debug(f"Attempting to move entity: {name}")
         self._logger.debug(f"position: {pose.position.x,pose.position.y}")
         self._logger.debug(f"orientation: {pose.orientation}")

@@ -1,4 +1,6 @@
+import functools
 import os
+from pathlib import Path
 import time
 import traceback
 
@@ -110,14 +112,14 @@ class _PedestrianHelper:
         return Obstacle(
             name="hunav_plugin",
             pose=Pose(Position(x=0.0, y=0.0, z=-1.0)),
-            model=ModelWrapper.Constant("hunav_plugin", {
-                ModelType.SDF: Model(
+            model=ModelWrapper.from_model(
+                Model(
                     type=ModelType.SDF,
                     name="hunav_plugin",
                     description=sdf_content,
-                    path="",
+                    path=Path(''),
                 )
-            })
+            )
         )
 
     @classmethod
@@ -148,14 +150,14 @@ class _PedestrianHelper:
         return Obstacle(
             name="human_plugin",
             pose=Pose(Position(x=0.0, y=0.0, z=-1.0)),
-            model=ModelWrapper.Constant("human_plugin", {
-                ModelType.SDF: Model(
+            model=ModelWrapper.from_model(
+                Model(
                     type=ModelType.SDF,
                     name="human_plugin",
                     description=sdf_content,
-                    path="",
+                    path=Path(""),
                 )
-            })
+            )
         )
 
     @classmethod
@@ -525,13 +527,13 @@ class HunavHumanSimulator(DummyHumanSimulator):
                 agent_msg = self._create_agent_msg(hunav_obstacle)
 
                 # Add to container - NO ComputeAgents call here!
-                self._get_agents_container.agents.append(agent_msg)
-                self._agents_container.agents.append(agent_msg)
+                self._get_agents_container.agents.append(agent_msg)  # type: ignore
+                self._agents_container.agents.append(agent_msg)  # type: ignore
                 # self._logger.error(f"spawn_dynamic_obstacle_agents_container {self._agents_container}")
 
                 # Create separate arena pedestrian
                 arena_pedestrian = self._create_arena_pedestrian(hunav_obstacle, unique_id)
-                self._arena_pedestrians_container.pedestrians.append(arena_pedestrian)
+                self._arena_pedestrians_container.pedestrians.append(arena_pedestrian)  # type: ignore
                 self._logger.debug(f"Added arena pedestrian {arena_pedestrian.name} - Total: {len(self._arena_pedestrians_container.pedestrians)}")
 
                 # Store in pedestrians dictionary
@@ -555,7 +557,8 @@ class HunavHumanSimulator(DummyHumanSimulator):
                     sdf = _PedestrianHelper.create_sdf(hunav_obstacle)
                     obstacle.model = obstacle.model.override(
                         ModelType.SDF,
-                        lambda model: model.replace(description=sdf), noload=True
+                        functools.partial(lambda desc, model: model.load(desc), sdf),
+                        noload=True
                     )
                     obstacle.pose.orientation = Orientation.from_yaw(hunav_obstacle.yaw)
                     self._logger.info(f"Created SDF and loaded System Plugin for: {agent_msg.name}")
@@ -618,7 +621,7 @@ class HunavHumanSimulator(DummyHumanSimulator):
         v = (end - start).normalized()
         for i in np.arange(0, (end - start).norm(), spacing):
             points.append(start + v * i)
-        points.append(end)
+        points.append(end.to_msg())
         return points
 
     def _spawn_walls_impl(self, walls) -> bool:
@@ -720,8 +723,8 @@ class HunavHumanSimulator(DummyHumanSimulator):
         self._pedestrians.clear()
 
         # Clear agents container (if not already done)
-        self._agents_container.agents.clear()
-        self._arena_pedestrians_container.pedestrians.clear()
+        self._agents_container.agents.clear()  # type: ignore
+        self._arena_pedestrians_container.pedestrians.clear()  # type: ignore
 
         self._last_updated_agents = None
         self._last_smooth_yaws = {}

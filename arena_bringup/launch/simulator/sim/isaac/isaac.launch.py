@@ -12,7 +12,7 @@ def generate_launch_description():
             description="Logging level",
         ),
         Node(
-            package='ros2isaacsim',
+            package='arena_isaac',
             executable='run_isaacsim',
             # output='screen',
             # arguments=['--ros-args', '--log-level', logger]

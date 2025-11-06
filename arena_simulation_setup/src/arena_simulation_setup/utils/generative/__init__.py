@@ -55,7 +55,7 @@ class WorldGenerator:
         return self._active.compute()
 
     def update_generator(self, generator: WorldGeneratorType, configuration: dict):
-        if not generator in self.__registry:
+        if generator not in self.__registry:
             raise ValueError(f"Generator {generator} has no implementation")
         self._active: WorldGeneratorImpl = self.__registry[generator]()(configuration)
 

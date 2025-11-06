@@ -3,8 +3,6 @@ import typing
 from collections.abc import Sequence
 
 from arena_rclpy_mixins.shared import Namespace
-from isaacsim_msgs.msg import Person
-from isaacsim_msgs.srv import Pedestrian
 
 from task_generator.shared import DynamicObstacle, ModelWrapper
 from task_generator.simulators.human.dummy import DummyHumanSimulator

@@ -236,6 +236,7 @@ class TM_Environment(TM_Obstacles):
     def visualize_rooms(self, walls, rooms, bounds=None):
 
         import matplotlib as mpl
+        import matplotlib.patches as patches
         import matplotlib.pyplot as plt
         """Visualize walls and detected rooms"""
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -248,8 +249,7 @@ class TM_Environment(TM_Obstacles):
 
         # Draw rooms with transparency
         for i, room in enumerate(rooms):
-            polygon = mpl.patches.Polygon(room, closed=True, alpha=0.3,
-                                          edgecolor='blue', facecolor=f'C{i%10}')
+            polygon = patches.Polygon(room, closed=True, alpha=0.3, edgecolor='blue', facecolor=f'C{i%10}')
             ax.add_patch(polygon)
             # Add room number annotation
             center_x = sum(p[0] for p in room) / 4
@@ -428,7 +428,7 @@ class TM_Environment(TM_Obstacles):
                             rotation_deg = self.node.conf.General.RNG.value.choice(group.get('rotations', [0]))
 
                             group_static_entities = group.get("entities", {}).get('static', [])
-                            group_dynamic_entites = group.get('entities', {}).get('dynamic', [])
+                            group_dynamic_entities = group.get('entities', {}).get('dynamic', [])
                             for j, entity in enumerate(group_static_entities):
                                 ex_off, ey_off, e_theta = entity["position"]
 
@@ -451,7 +451,7 @@ class TM_Environment(TM_Obstacles):
                                     extra={},
                                 )
                                 static_obstacles.append(new_obstacle)
-                            for g, entity in enumerate(group_dynamic_entites):
+                            for g, entity in enumerate(group_dynamic_entities):
                                 ex_off, ey_off, e_theta = entity["position"]
                                 print(entity['model'])
                                 radians = math.radians(rotation_deg)
@@ -462,7 +462,7 @@ class TM_Environment(TM_Obstacles):
                                 obstacle_x = x + rot_x
                                 obstacle_y = y + rot_y
 
-                                obs_name = f"G_{group_name}_{idx}_{n_groups}_{entity['model']}_{j}"
+                                obs_name = f"G_{group_name}_{idx}_{n_groups}_{entity['model']}_{g}"
                                 new_obstacle = DynamicObstacle(
                                     name=obs_name,
                                     pose=Pose(

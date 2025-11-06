@@ -1,5 +1,6 @@
 import enum
 import os
+from pathlib import Path
 import typing
 import xml.etree.ElementTree as ET
 from io import StringIO
@@ -24,7 +25,7 @@ class SDFUtil:
     def parse(sdf: str) -> ET.ElementTree:
         file = StringIO(sdf)
         xml = ET.parse(file)
-        return xml
+        return xml  # type: ignore
 
     @staticmethod
     def serialize(sdf: ET.ElementTree) -> str:
@@ -33,9 +34,9 @@ class SDFUtil:
         return file.getvalue()
 
     @staticmethod
-    def get_model_root(sdf: ET.ElementTree,
-                       tag="model") -> Union[ET.Element, None]:
+    def get_model_root(sdf: ET.ElementTree, tag="model") -> Union[ET.Element, None]:
         root = sdf.getroot()
+        assert isinstance(root, ET.Element)
         if root.tag != tag:
             root = root.find(tag)
 
@@ -302,7 +303,7 @@ def walls_to_obstacle(world_map: WorldMap, height: float = 3) -> Obstacle:
                 type=ModelType.SDF,
                 name=model_name,
                 description=sdf_description,
-                path="",
+                path=Path(""),
             )
         },
     )

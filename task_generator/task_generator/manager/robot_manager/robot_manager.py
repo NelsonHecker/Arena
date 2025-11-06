@@ -13,8 +13,7 @@ import rclpy.client
 import rclpy.publisher
 import rclpy.timer
 from arena_rclpy_mixins.shared import Namespace
-from arena_robots.Robot import Robot as RobotDescription
-from arena_robots.Robot import RobotProvider
+from arena_robots.Robot import RobotLoader, RobotProvider
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
 
 import launch
@@ -90,7 +89,7 @@ class RobotManager(NodeInterface):
         NodeInterface.__init__(self)
         self._rate_setup = self.node.create_rate(.1)
 
-        self._config = RobotDescription(robot.model.name)
+        self._config = RobotLoader(robot.model.name)
 
         self._namespace = namespace
         self._environment_manager = environment_manager
@@ -139,17 +138,7 @@ class RobotManager(NodeInterface):
     def set_up_robot(self):
         """Set up the robot by configuring its model and spawning it in the environment.
         """
-        self._robot.model = self._robot.model.override(
-            model_type=ModelType.YAML,
-            override=lambda model: model.replace(
-                description=YAMLUtil.serialize(
-                    YAMLUtil.update_plugins(
-                        namespace=self.namespace,
-                        description=YAMLUtil.parse_yaml(model.description),
-                    )
-                )
-            ),
-        )
+
         self._robot.pose.position.z += self._config.model_params.z_offset
         self._robot = self._environment_manager.spawn_robot((self._robot,))[0]
 

@@ -58,4 +58,4 @@ class Mod_OverrideRobot(TM_Module):
         )
 
     def _cb_new_scenario(self, *args, **kwargs):
-        self._TASK.force_reset()
+        self._TASK.force_reset()  # type: ignore

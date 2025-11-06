@@ -60,9 +60,6 @@ zones:
     mat: ""
     entities:
       static:
-      - name: shelf_0
-        model: shelf
-        pose: [5,5,0]
       - name: table_0
-        model: table_local # showcase local
+        model: table # showcase local
         pose: [7,5,0]

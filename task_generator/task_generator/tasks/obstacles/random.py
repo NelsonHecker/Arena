@@ -7,11 +7,9 @@ import attrs
 import numpy as np
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.tree.assets.Object import loader as object_loader
-from arena_simulation_setup.tree.assets.Pedestrian import (
-    loader as pedestrian_loader,
-)
-from arena_simulation_setup.utils.models.model_loader import ModelLoader
+from arena_simulation_setup.tree.assets.Object import ObjectLoader
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianLoader
+from arena_simulation_setup.tree import DynamicProvider
 
 from task_generator.shared import DynamicObstacle, Obstacle, Orientation, Pose
 from task_generator.tasks.obstacles import Obstacles, TM_Obstacles
@@ -220,10 +218,10 @@ class TM_Random(TM_Obstacles):
             lo, hi = min(lo, hi), max(lo, hi)
             return lo, hi
 
-        def param_to_modellist(loader: ModelLoader, v: typing.Any) -> list[str]:
+        def param_to_modellist(loader: typing.Type[DynamicProvider], v: typing.Any) -> list[str]:
             if len(v):
                 return v
-            return list(loader.models)
+            return [identifier.name for identifier in loader.list()]
 
         STATIC = 'static'
         INTERACTIVE = 'interactive'
@@ -250,18 +248,18 @@ class TM_Random(TM_Obstacles):
                 self.namespace(STATIC, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, object_loader)
+                parse=functools.partial(param_to_modellist, ObjectLoader)
             ),
             MODELS_INTERACTIVE_OBSTACLES=self.node.ROSParam[list[str]](
                 self.namespace(INTERACTIVE, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, object_loader)
+                parse=functools.partial(param_to_modellist, ObjectLoader)
             ),
             MODELS_DYNAMIC_OBSTACLES=self.node.ROSParam[list[str]](
                 self.namespace(DYNAMIC, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, pedestrian_loader)
+                parse=functools.partial(param_to_modellist, PedestrianLoader)
             ),
         )

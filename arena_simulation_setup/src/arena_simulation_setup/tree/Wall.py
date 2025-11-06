@@ -10,19 +10,13 @@ import attrs
 import yaml
 
 from arena_simulation_setup.shared.entities import Obstacle
-from arena_simulation_setup.shared.utils import model_parse
 from arena_simulation_setup.tree import AssetType, DynamicProvider, Resolver, Resolvers
-from arena_simulation_setup.tree.assets.Material import (
-    MaterialLoader,
-    MaterialProvider,
-)
-from arena_simulation_setup.tree.assets.Object import (
-    loader as ObjectLoader,
-)
+from arena_simulation_setup.tree.assets.Material import MaterialIdentifier
+from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.utils.cattrs import Parseable, converter
 from arena_simulation_setup.utils.geometry import Orientation, Pose, Position
-from arena_simulation_setup.utils.models import ModelWrapper
 
+from arena_simulation_setup.tree.assets.Material import Material
 ###
 # Parsing wall description
 ###
@@ -127,7 +121,7 @@ class PlaceObstacleAsset(SubWall):
     """
     Place a single obstacle.
     """
-    model: ModelWrapper = attrs.field(converter=model_parse(ObjectLoader))  # model
+    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)  # model
 
     at: PositionalNumber = PositionalNumber.parse('50%')  # place at position along the wall
     orientation: Orientation = attrs.field(factory=Orientation.identity)  # interior orientation
@@ -156,7 +150,10 @@ class PlaceWallSegmentAsset(SubWall):
     """
     Place a single wall segment.
     """
-    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=MaterialLoader.DEFAULT)
+    material: MaterialIdentifier = attrs.field(
+        converter=MaterialIdentifier.converter,
+        default=Material.default('wall')
+    )
     height: float = attrs.field(converter=float, default=2.0)
     width: float = attrs.field(converter=float, default=0.05)
     name: str = ""
@@ -190,7 +187,9 @@ class WallSegment:
     end: Position
     height: float
     width: float
-    material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=lambda: MaterialLoader.DEFAULT('wall'))
+    material: MaterialIdentifier = attrs.field(
+        default=Material.default('wall')
+    )
 
 
 WallRealization = tuple[Iterable[WallSegment], Iterable[Obstacle]]
@@ -210,19 +209,19 @@ class WallDescription:
         return (r_walls, r_obstacles)
 
     @classmethod
-    def simple(cls, material: typing.Optional[MaterialProvider] = None) -> WallDescription:
+    def simple(cls, material: typing.Optional[Material] = None) -> WallDescription:
         if material is None:
             return cls(main=[PlaceWallSegmentAsset()])
         return cls(
             main=[
                 PlaceWallSegmentAsset(
-                    material=material
+                    material=material.name
                 )
             ]
         )
 
 
-class WallProvider(DynamicProvider):
+class WallProvider(DynamicProvider[WallDescription]):
     def load(self) -> WallDescription:
         with open(self.path / f'{self.path.name}.yaml') as f:
             return converter.structure(yaml.safe_load(f), WallDescription)

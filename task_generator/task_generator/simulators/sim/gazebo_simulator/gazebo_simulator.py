@@ -2,9 +2,11 @@ import itertools
 import math
 import time
 import traceback
+from pathlib import Path
 
 import arena_robots.Robot
 import launch_ros
+from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from ros_gz_interfaces.msg import Entity as EntityMsg
 from ros_gz_interfaces.msg import EntityFactory, WorldControl
@@ -21,12 +23,11 @@ from task_generator.shared import (
     Wall,
 )
 from task_generator.simulators.sim import BaseSim
-from task_generator.simulators.sim.dummy_simulator import DummySimulator
 
 from .robot_bridge import BridgeConfiguration
 
 
-class GazeboSimulator(DummySimulator, BaseSim):
+class GazeboSimulator(BaseSim):
 
     def __init__(self, namespace):
         super().__init__(namespace=namespace)
@@ -68,7 +69,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
         success = tuple(map(self._spawn_entity, robots))
         for robot, succeeded in zip(robots, success):
             if succeeded:
-                model = robot.model.get(ModelType.URDF)
+                model = robot.model.load().get(ModelType.URDF, loader_args=robot.asdict())
                 if model.type is ModelType.UNKNOWN:
                     continue
                 model_description = model.description
@@ -112,6 +113,11 @@ class GazeboSimulator(DummySimulator, BaseSim):
         del doors
         return True
 
+    def spawn_elevators(self, elevators):
+        # Gazebo does not support spawning elevators
+        del elevators
+        return True
+
     # IMPL
 
     def _move_entity(self, entity: Entity):
@@ -144,7 +150,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
             traceback.print_exc()
             return False
 
-    def _spawn_entity(self, entity):
+    def _spawn_entity(self, entity: Entity) -> bool:
         try:
             # Create spawn request
             request = SpawnEntity.Request()
@@ -152,7 +158,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
             request.entity_factory.name = entity.name
 
             # Get model description
-            model = entity.model.get((ModelType.SDF, ModelType.URDF))
+            model = entity.model.load().get((ModelType.SDF, ModelType.URDF))
 
             if model.type is ModelType.UNKNOWN:
                 return False
@@ -191,7 +197,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
     def _delete_entity(self, name: str):
         self._logger.debug(f"Attempting to delete entity: {name}")
 
-        if not name in self.entities:
+        if name not in self.entities:
             return False
 
         self._logger.debug(f"Attempting to delete entity: {name}")
@@ -288,7 +294,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
             return False
 
     def _publish_goal(self, goal: Pose):
-        self._logger.info(f"Publishing goal: x={goal.x}, y={goal.y}, orientation={goal.orientation}")
+        self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation}")
         goal_msg = PoseStamped()
         goal_msg.header.stamp = self.node.get_clock().now().to_msg()
         goal_msg.header.frame_id = "map"
@@ -321,12 +327,14 @@ class GazeboSimulator(DummySimulator, BaseSim):
 
             entity = Entity(
                 pose=Pose(),
-                model=ModelWrapper.from_model(
-                    Model(
-                        type=ModelType.SDF,
-                        name=wall_name,
-                        description=wall_sdf,
-                        path='',
+                model=ObjectIdentifier.inline(
+                    ModelWrapper.from_model(
+                        Model(
+                            type=ModelType.SDF,
+                            name=wall_name,
+                            description=wall_sdf,
+                            path=Path(''),
+                        )
                     )
                 ),
                 name=wall_name,
@@ -354,7 +362,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
             )
         )
 
-        robot_config = arena_robots.Robot.Robot(robot.model.name)
+        robot_config = arena_robots.Robot.RobotLoader(robot.model.name)
 
         mappings = BridgeConfiguration.from_file(
             robot_config.mappings
@@ -417,8 +425,8 @@ class GazeboSimulator(DummySimulator, BaseSim):
         ).publish(pose)
 
     def _robot_move(self, robot: Robot) -> bool:
+        name = robot.name
         try:
-            name = robot.name
 
             self._robot_initialpose(robot)
 
@@ -453,7 +461,7 @@ class GazeboSimulator(DummySimulator, BaseSim):
 
             odom_frame = 'odom'
 
-            odom_frame = arena_robots.Robot.Robot(robot.model.name).model_params.odom_frame
+            odom_frame = arena_robots.Robot.RobotLoader(robot.model.name).model_params.odom_frame
 
             qx, qy, qz, qw = robot.pose.orientation.x, robot.pose.orientation.y, robot.pose.orientation.z, robot.pose.orientation.w
             transform_pub_node = launch_ros.actions.Node(
@@ -543,69 +551,65 @@ def _generate_wall_sdf(
     """
     Generate an SDF string for a wall structure based on given parameters and base position.
     """
-    try:
-        sdf_template = """
-            <sdf version="1.6">
-                <model name="{name}">
-                    <pose>{base_x} {base_y} {base_z} 0 0 0</pose>
-                    {links}
-                    <static>true</static>
-                </model>
-            </sdf>
-            """
-        link_template = """
-            <link name="wall_segment_{index}">
-                <visual name="visual">
-                    <geometry>
-                        <box>
-                            <size>{length} {thickness} {height}</size>
-                        </box>
-                    </geometry>
-                    <material>
-                        <ambient>0.7 0.7 0.7 1</ambient>
-                    </material>
-                </visual>
-                <collision name="collision">
-                    <geometry>
-                        <box>
-                            <size>{length} {thickness} {height}</size>
-                        </box>
-                    </geometry>
-                </collision>
-                <pose>{x} {y} {z} 0 0 {orientation}</pose>
-            </link>
-            """
-        links = []
-        base_x, base_y, base_z = base_position
-        z = height / 2.0  # Center the wall height relative to the base
+    sdf_template = """
+        <sdf version="1.6">
+            <model name="{name}">
+                <pose>{base_x} {base_y} {base_z} 0 0 0</pose>
+                {links}
+                <static>true</static>
+            </model>
+        </sdf>
+        """
+    link_template = """
+        <link name="wall_segment_{index}">
+            <visual name="visual">
+                <geometry>
+                    <box>
+                        <size>{length} {thickness} {height}</size>
+                    </box>
+                </geometry>
+                <material>
+                    <ambient>0.7 0.7 0.7 1</ambient>
+                </material>
+            </visual>
+            <collision name="collision">
+                <geometry>
+                    <box>
+                        <size>{length} {thickness} {height}</size>
+                    </box>
+                </geometry>
+            </collision>
+            <pose>{x} {y} {z} 0 0 {orientation}</pose>
+        </link>
+        """
+    links = []
+    base_x, base_y, base_z = base_position
+    z = height / 2.0  # Center the wall height relative to the base
 
-        for i, w in enumerate(walls):
-            x1, y1, x2, y2 = w.start.x, w.start.y, w.end.x, w.end.y
-            length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
-            orientation = math.atan2(y2 - y1, x2 - x1)
-            x = (x1 + x2) / 2 + base_x
-            y = (y1 + y2) / 2 + base_y
+    for i, w in enumerate(walls):
+        x1, y1, x2, y2 = w.start.x, w.start.y, w.end.x, w.end.y
+        length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+        orientation = math.atan2(y2 - y1, x2 - x1)
+        x = (x1 + x2) / 2 + base_x
+        y = (y1 + y2) / 2 + base_y
 
-            links.append(
-                link_template.format(
-                    index=i,
-                    length=length,
-                    thickness=thickness,
-                    height=height,
-                    x=x,
-                    y=y,
-                    z=z + base_z,
-                    orientation=orientation
-                )
+        links.append(
+            link_template.format(
+                index=i,
+                length=length,
+                thickness=thickness,
+                height=height,
+                x=x,
+                y=y,
+                z=z + base_z,
+                orientation=orientation
             )
-
-        return sdf_template.format(
-            name=name,
-            base_x=base_x,
-            base_y=base_y,
-            base_z=base_z,
-            links="\n".join(links)
         )
 
-    except Exception:
-        return None
+    return sdf_template.format(
+        name=name,
+        base_x=base_x,
+        base_y=base_y,
+        base_z=base_z,
+        links="\n".join(links)
+    )

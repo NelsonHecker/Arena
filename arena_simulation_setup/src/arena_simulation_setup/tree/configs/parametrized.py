@@ -41,7 +41,7 @@ class ParametrizedConfig:
 
 
 class ParametrizedProvider(StaticProvider):
-    def load(self) -> ParametrizedConfig:
+    def load(self, *args, **kwargs) -> ParametrizedConfig:
         tree = ET.parse(self.path)
         root = tree.getroot()
 

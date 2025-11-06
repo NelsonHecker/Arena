@@ -39,7 +39,7 @@ class WorldGeneratorROS(WorldGenerator, ServiceNamespace):
         WorldGenerator.__init__(self, *self._get_parameters())
 
         self.set_up_services()
-        self.get_logger().info(f'initialized')
+        self.get_logger().info('initialized')
 
     def set_up_services(self):
         self.create_service(std_srvs.srv.Trigger, self.service_namespace('generate_world'), self._cb_generate)

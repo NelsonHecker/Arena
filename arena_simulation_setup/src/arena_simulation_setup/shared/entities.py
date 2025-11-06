@@ -6,19 +6,15 @@ import warnings
 
 import attrs
 
-from arena_simulation_setup.tree.assets.Pedestrian import (
-    loader as PedestrianLoader,
-)
-from arena_simulation_setup.tree.assets.Object import loader as ObjectLoader
+from arena_simulation_setup.tree import Identifier
+from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.utils.cattrs import (
     Parseable,
     converter,
 )
-from arena_simulation_setup.utils.models import ModelWrapper
-
 from arena_simulation_setup.utils.geometry import Pose, Position
-
-from .utils import model_parse
+from arena_simulation_setup.utils.models import ModelWrapper
 
 EntityT = typing.TypeVar("EntityT", bound="Entity")
 
@@ -27,7 +23,7 @@ EntityT = typing.TypeVar("EntityT", bound="Entity")
 class Entity(Parseable):
     pose: Pose = attrs.field(converter=Pose.converter)
     name: str = attrs.field(converter=lambda s: Entity.sanitize_name(str(s)))
-    model: ModelWrapper = attrs.field(converter=ModelWrapper.EMPTY)
+    model: Identifier[ModelWrapper]
 
     extra: dict = attrs.field(factory=dict, kw_only=True)
     path: str = attrs.field(repr=False, default='', kw_only=True)
@@ -53,20 +49,14 @@ class Entity(Parseable):
         return converter.structure_attrs_fromdict(value, cls)
 
 
-converter.register_structure_hook(
-    Entity, lambda data, _: Entity.parse(data)
-)
-
-
 @attrs.define
 class Obstacle(Entity):
-    model: ModelWrapper
-    # type_: str = attrs.field(converter=str)
+    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
 
 
 @attrs.define
-class DynamicObstacle(Obstacle):
-    model: ModelWrapper = attrs.field(converter=model_parse(PedestrianLoader, overrides=(ObjectLoader,)))
+class DynamicObstacle(Entity):
+    model: PedestrianIdentifier = attrs.field(converter=PedestrianIdentifier.converter)
     waypoints: list[Position]
     velocity: float = attrs.field(converter=float, default=1.0)  # m/s
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import enum
 import os
-import re
 import subprocess
 import typing
 from collections.abc import Sequence
@@ -18,88 +17,6 @@ from arena_simulation_setup import (
 )
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable, Serializable
 
-
-ProviderT = typing.TypeVar('ProviderT', bound='ProviderBase')
-
-
-class ProviderBase(Parseable, Serializable, abc.ABC):
-
-    # mixins for cattrs
-    @classmethod
-    def parse(cls: typing.Type[ProviderT], value: typing.Any) -> ProviderT:
-        if isinstance(value, cls):
-            return value
-        if not isinstance(value, str):
-            raise TypeError(f'Expected value to be str, got {type(value)}')
-        return cls(value)
-
-    def serialize(self) -> typing.Any:
-        return self.name
-
-    # Class Methods: Provider
-    @classmethod
-    def _listdir(cls, path: Path) -> Sequence[str]:
-        if not path.exists():
-            return ()
-        return tuple(sorted(str(f.relative_to(path)) for f in path.iterdir() if not f.name.startswith('.')))
-
-    @classmethod
-    @abc.abstractmethod
-    def list(cls) -> Sequence[str]:
-        """
-        List all assets provided by the provider.
-        """
-
-    @classmethod
-    @abc.abstractmethod
-    def resolve(cls, name: str) -> Path:
-        """
-        Resolve the given asset name to an absolute path.
-        """
-
-    # Instance Methods: Providee
-    _name: str
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def path(self) -> Path:
-        return self.resolve(self.name)
-
-    def __init__(self, name: str) -> None:
-        if hasattr(self, '_name'):
-            return
-        if not isinstance(name, str):
-            raise TypeError(f'Expected name to be str, got {type(name)}')
-        self._name = str(name)
-
-
-class StaticProvider(ProviderBase, Idempotent):
-
-    _path: typing.ClassVar[Path]
-
-    @classmethod
-    def bind(cls: typing.Type[ProviderT], path: Path) -> typing.Type[ProviderT]:
-        return typing.cast(
-            typing.Type[ProviderT],
-            type('Bound' + cls.__name__, (cls,), dict(_path=path))
-        )
-
-    @classmethod
-    def list(cls):
-        return cls._listdir(cls._path)
-
-    @classmethod
-    def base_dir(cls) -> Path:
-        return cls._path
-
-    @classmethod
-    def resolve(cls, name: str) -> Path:
-        return cls._path / Path(name)
-
-
 NETWORK_PROVIDERS: Sequence[str] = os.environ.get('ASSET_BUCKETS', 'default').split(',')
 ANNOTATION_MARKER = 'annotation.yaml'
 
@@ -113,58 +30,10 @@ class AssetType(str, enum.Enum):
     WALL = 'Wall'  # Wall Description
 
 
-@attrs.define
-class Identifier:
-    """Represents an identifier referencing an asset.
-    """
-    type_: AssetType
-    domain: str
-    name: str
+T = typing.TypeVar('T')
 
-    @property
-    def path(self) -> Path:
-        """Get the path representation of the identifier.
 
-        Returns:
-            Path: The path of the identifier relative to a repository.
-        """
-        return Path(self.domain) / self.type_.value / self.name
-
-    @property
-    def canonical(self) -> str:
-        """Get the canonical representation of the identifier for use in hashing.
-
-        Returns:
-            str: The canonical representation of the identifier.
-        """
-        return f'{self.type_.value}:{self.domain}:{self.name}'
-
-    def __hash__(self) -> int:
-        return hash(Path(self.domain) / self.name)
-
-    @classmethod
-    def parse(cls, identifier: str, *, default_target: AssetType, default_domain: str) -> Identifier:
-        """Parse path of the form [type:][domain:]name into an Identifier.
-
-        Args:
-            identifier (str): The identifier string to parse.
-            default_target (AssetType): The default target type if not specified.
-            default_domain (str): The default domain if not specified.
-
-        Returns:
-            Identifier: The parsed Identifier object.
-        """
-        parts = list(reversed(identifier.split('/', 2)))
-
-        name = parts[0]
-        domain = parts[1] if len(parts) > 1 else default_domain
-        type_ = AssetType(parts[2]) if len(parts) > 2 else default_target
-
-        return cls(
-            type_=type_,
-            domain=domain,
-            name=name,
-        )
+# RESOLVERS
 
 
 class Resolver:
@@ -197,7 +66,7 @@ class Resolver:
         else:
             self._dirs.pop(extra, None)
 
-    def _check_exists(self, identifier: Identifier) -> Optional[Path]:
+    def _check_exists(self, identifier: Identifier, type_: AssetType) -> Optional[Path]:
         """Check if the asset exists in local sources.
 
         Args:
@@ -212,33 +81,32 @@ class Resolver:
         else:
             globbed_arenadir = arena_dir.glob('*')
         for local_source in (*globbed_arenadir, *self._dirs.values()):
-            candidate = local_source / identifier.path
+            candidate = local_source / identifier.path(type_)
             if candidate.exists():
                 return candidate
         return None
 
-    def resolve(self, name: str) -> Optional[Path]:
+    def resolve(self, identifier: Identifier) -> Optional[Path]:
         """
-        Resolve the given name.
+        Resolve the given identifier.
         """
-        identifier = Identifier.parse(name, default_target=self._asset_type, default_domain=DOMAIN_DEFAULT)
-        if name not in self._cache:
-            target = self._check_exists(identifier)
+        if identifier not in self._cache:
+            target = self._check_exists(identifier, self._asset_type)
             if target is not None:
                 self._cache[identifier] = target
         return self._cache.get(identifier, None)
 
-    def list_cached(self) -> Sequence[str]:
+    def list_cached(self) -> Sequence[Identifier]:
         """
         List all cached assets.
         """
-        return [str(key.path) for key in self._cache]
+        return list(self._cache.keys())
 
-    def list_local(self) -> Sequence[str]:
+    def list_local(self) -> Sequence[Identifier]:
         """
         List all local assets available. Builds the cache in the process.
         """
-        found: list[str] = []
+        found: list[Identifier] = []
         for local_source in self._dirs.values():
             for root, _, files in os.walk(local_source):
                 if self._asset_type != Path(root).parts[0]:
@@ -247,9 +115,9 @@ class Resolver:
                     if not file == ANNOTATION_MARKER:
                         continue
                     relpath = Path(root).relative_to(local_source)
-                    identifier = Identifier(type_=self._asset_type, domain=relpath.parts[0], name=str(relpath.relative_to(relpath.parts[0])))
-                    self._cache[identifier] = identifier.path
-                    found.append(identifier.canonical)
+                    identifier = Identifier(domain=relpath.parts[0], name=str(relpath.relative_to(relpath.parts[0])))
+                    self._cache[identifier] = identifier.path(self._asset_type)
+                    found.append(identifier)
                     _.clear()
 
         return found
@@ -265,9 +133,9 @@ class NetResolver(Resolver):
     """
 
     def _network_fetch(self, provider: str, identifier: Identifier) -> Optional[Path]:
-        target_path = identifier.path
+        target_path = identifier.path(self._asset_type)
         try:
-            if (subprocess.check_output(sp := [
+            if (subprocess.check_output([
                 'ros2',
                 'run',
                 'arena_models',
@@ -303,12 +171,11 @@ class NetResolver(Resolver):
                 return target
         return None
 
-    def resolve(self, name):
+    def resolve(self, identifier):
         """
         Resolve the given name.
         """
-        local = super().resolve(name)
-        identifier = Identifier.parse(name, default_target=self._asset_type, default_domain=DOMAIN_DEFAULT)
+        local = super().resolve(identifier)
         if local is None:
             net_result = self._check_exists_network(identifier)
             if net_result is not None:
@@ -347,26 +214,260 @@ class _Resolvers:
 Resolvers = _Resolvers()
 
 
-class DynamicProvider(ProviderBase, Idempotent):
+# PROVIDERS
+
+
+class ProviderBase(Parseable, Serializable, Idempotent, abc.ABC, typing.Generic[T]):
+
+    # Class Methods: Provider
+
+    @classmethod
+    def _listdir(cls, path: Path) -> Sequence[str]:
+        if not path.exists():
+            return ()
+        return tuple(sorted(str(f.relative_to(path)) for f in path.iterdir() if not f.name.startswith('.')))
+
+    # Instance Methods: Providee
+
+    @property
+    @abc.abstractmethod
+    def name(self) -> str:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def path(self) -> Path:
+        ...
+
+    def load(self, *args, **kwargs) -> T:
+        """
+        Load the asset.
+        """
+
+
+DynamicProviderT = typing.TypeVar('DynamicProviderT', bound='DynamicProvider')
+
+
+class DynamicProvider(ProviderBase[T], typing.Generic[T]):
     """
     Dynamic provider base class
     """
     _resolver: typing.ClassVar[Resolver]
 
     @classmethod
-    def bind(cls: typing.Type[ProviderT], resolver: Resolver) -> typing.Type[ProviderT]:
+    def parse(cls: typing.Type[DynamicProvider], value: typing.Any) -> DynamicProviderT:
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, str):
+            raise TypeError(f'Expected value to be str, got {type(value)}')
+        return cls(value)
+
+    def serialize(self) -> typing.Any:
+        return self.identifier
+
+    @classmethod
+    def bind(cls: typing.Type[DynamicProviderT], resolver: Resolver) -> typing.Type[DynamicProviderT]:
         return typing.cast(
-            typing.Type[ProviderT],
+            typing.Type[DynamicProviderT],
             type('Bound' + cls.__name__, (cls,), dict(_resolver=resolver))
         )
 
     @classmethod
-    def list(cls):
+    def list(cls) -> Sequence[Identifier]:
         return cls._resolver.list_local()
 
     @classmethod
-    def resolve(cls, name: str):
-        result = cls._resolver.resolve(name)
+    def resolve(cls, identifier: Identifier[T]):
+        result = cls._resolver.resolve(identifier)
         if result is None:
-            raise FileNotFoundError(f"Asset '{name}' not found in {cls._resolver}")
+            raise FileNotFoundError(f"Asset '{identifier}' not found in {cls._resolver}")
         return result
+
+    # Instance Methods
+    _identifier: Identifier
+
+    @property
+    def name(self) -> str:
+        return self._identifier.name
+
+    @property
+    def identifier(self) -> Identifier:
+        return self._identifier
+
+    @property
+    def path(self) -> Path:
+        return self.resolve(self._identifier)
+
+    def __init__(self, identifier: Identifier | str) -> None:
+        if hasattr(self, '_identifier'):
+            return
+        if isinstance(identifier, str):
+            identifier = Identifier.parse(identifier)
+        if not isinstance(identifier, Identifier):
+            raise TypeError(f'Expected identifier to be Identifier, got {type(identifier)}')
+        self._identifier = identifier
+
+
+StaticProviderT = typing.TypeVar('StaticProviderT', bound='StaticProvider')
+
+
+class StaticProvider(ProviderBase[T], typing.Generic[T]):
+    """Static provider base class.
+    """
+
+    _path: typing.ClassVar[Path]
+
+    @classmethod
+    def parse(cls: typing.Type[StaticProviderT], value: typing.Any) -> StaticProviderT:
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, str):
+            raise TypeError(f'Expected value to be str, got {type(value)}')
+        return cls(value)
+
+    def serialize(self) -> typing.Any:
+        return self.name
+
+    @classmethod
+    def bind(cls: typing.Type[StaticProviderT], path: Path) -> typing.Type[StaticProviderT]:
+        return typing.cast(
+            typing.Type[StaticProviderT],
+            type('Bound' + cls.__name__, (cls,), dict(_path=path))
+        )
+
+    @classmethod
+    def list(cls) -> Sequence[str]:
+        return cls._listdir(cls._path)
+
+    @classmethod
+    def base_dir(cls) -> Path:
+        return cls._path
+
+    @classmethod
+    def resolve(cls, name: str) -> Path:
+        return cls._path / name
+
+    # Instance Methods
+    _name: str
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def path(self) -> Path:
+        return self._path / self._name
+
+    def __init__(self, name: str) -> None:
+        if hasattr(self, '_name'):
+            return
+        if not isinstance(name, str):
+            raise TypeError(f'Expected name to be str, got {type(name)}')
+        self._name = name
+
+
+# IDENTIFIERS
+
+@attrs.define(eq=False, hash=False)
+class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
+    """Represents an identifier referencing an asset.
+    """
+    name: str
+    domain: str = attrs.field(default=DOMAIN_DEFAULT)
+
+    def path(self, type_: AssetType) -> Path:
+        """Get the path representation of the identifier.
+
+        Returns:
+            Path: The path of the identifier relative to a repository.
+        """
+        return Path(self.domain) / type_.value / self.name
+
+    def __hash__(self) -> int:
+        return hash((self.domain, self.name))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Identifier):
+            return False
+        return self.domain == other.domain and self.name == other.name
+
+    @classmethod
+    def parse(cls, value: str | Identifier) -> Identifier:
+        """Parse path of the form [type:][domain:]name into an Identifier.
+
+        Args:
+            identifier (str): The identifier string to parse.
+            default_target (AssetType): The default target type if not specified.
+            default_domain (str): The default domain if not specified.
+
+        Returns:
+            Identifier: The parsed Identifier object.
+        """
+        parts = list(reversed(value.split('/', 2)))
+
+        name = parts[0]
+        domain = parts[1] if len(parts) > 1 else None
+
+        if domain:
+            return cls(
+                domain=domain,
+                name=name,
+            )
+        return cls(
+            name=name
+        )
+
+    def serialize(self) -> str:
+        return f'{self.domain}:{self.name}'
+
+    @classmethod
+    def converter(cls, *args, **kwargs):
+        return super().instance_or(cls.parse)(*args, **kwargs)
+
+    # Class Methods
+    _providers: typing.ClassVar[list[typing.Type[ProviderBase[T]]]] = []
+
+    @classmethod
+    def provide(cls, *providers: typing.Type[ProviderBase[T]]):
+        if '_providers' not in cls.__dict__:
+            cls._providers = []
+        cls._providers.extend(providers)
+
+    def load(self) -> T:
+        last_error: Optional[Exception] = None
+        for provider_cls in self._providers:
+            provider = provider_cls(self)
+            try:
+                return provider.load()
+            except Exception as e:
+                last_error = e
+        raise RuntimeError(f'Failed to load asset {self}') from last_error
+
+    @classmethod
+    def inline(cls, data: T, name: str = '') -> InlineIdentifier[T]:
+        """Create an InlineIdentifier containing the given data.
+
+        Args:
+            data (T): The asset data.
+            name (str, optional): The name of the asset. Defaults to ''.
+
+        Returns:
+            InlineIdentifier[T]: The created InlineIdentifier.
+        """
+        return InlineIdentifier(data=data, name=name)
+
+
+class InlineIdentifier(Identifier[T], typing.Generic[T]):
+    """An identifier that directly contains the asset data.
+    """
+    _data: T
+
+    def __init__(self, data: T, name: str = '') -> None:
+        super().__init__(name=name, domain='')
+        self._data = data
+
+    def serialize(self) -> str:
+        raise TypeError('InlineIdentifier cannot be serialized')
+
+    def load(self) -> T:
+        return self._data

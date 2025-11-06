@@ -10,37 +10,40 @@ import numpy as np
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable
 
 try:
-    import geometry_msgs.msg  # type: ignore # noqa: F401
+    import geometry_msgs
+    import geometry_msgs.msg
 except ImportError:
-    class _uninstanceable(object):
-        """
-        class that cannot be instantiated
-        """
+    if not typing.TYPE_CHECKING:
+        class _uninstanceable(object):
+            """
+            class that cannot be instantiated
+            """
 
-        def __new__(cls, *args, **kwargs):
-            raise TypeError(f"installation of geometry_msgs is required to use {cls.__name__}")
+            def __new__(cls, *args, **kwargs):
+                raise TypeError(f"installation of geometry_msgs is required to use {cls.__name__}")
 
-        def __init__(self, *args, **kwargs):
-            raise TypeError(f"installation of geometry_msgs is required to use {self.__class__.__name__}")
+            def __init__(self, *args, **kwargs):
+                raise TypeError(f"installation of geometry_msgs is required to use {self.__class__.__name__}")
 
-        def __getattribute__(self, name: str):
-            raise TypeError(f"installation of geometry_msgs is required to use {self.__class__.__name__}.{name}")
+            def __getattribute__(self, name: str):
+                raise TypeError(f"installation of geometry_msgs is required to use {self.__class__.__name__}.{name}")
 
-    class geometry_msgs:
-        """
-        polyfill geometry_msgs.msg
-        """
+        class geometry_msgs:
+            """
+            polyfill geometry_msgs.msg
+            """
 
-        class msg:
-            class Point(_uninstanceable):
-                ...
+            class msg:
+                class Point(_uninstanceable):
+                    ...
 
-            class Quaternion(_uninstanceable):
-                ...
+                class Quaternion(_uninstanceable):
+                    ...
 
-            class Pose(_uninstanceable):
-                ...
+                class Pose(_uninstanceable):
+                    ...
 
+assert geometry_msgs  # type: ignore
 
 EulerOrder = typing.Literal['xyz', 'xzy', 'yxz', 'yzx', 'zxy', 'zyx']
 _EulerIndices: dict[str, tuple[int, int, int]] = {
@@ -353,7 +356,7 @@ class Pose(Parseable, Idempotent):
                 )
 
         # split sequence
-        if len(value) == 2 and all(isinstance(v, Sequence) for v in value) and all(isinstance(n, (int, float)) for v in value for n in v):
+        if len(value) == 2 and all(isinstance(v, Sequence) and all(isinstance(n, (int, float)) for n in v) for v in value):
             value = typing.cast(typing.Sequence[typing.Sequence[float]], value)
             return cls(
                 position=Position.parse(value[0]),

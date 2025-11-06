@@ -149,7 +149,7 @@ class EnvironmentManager(NodeInterface, _Realizer):
         self._simulator = simulator
         self._human_simulator = entity_manager
 
-        ref_x, ref_y = self.node.rosparam[tuple[float, float]].get('reference', [0.0, 0.0])
+        ref_x, ref_y = self.node.rosparam[tuple[float, float]].get('reference', (0.0, 0.0))
         prefix = self.node.rosparam[str].get('prefix', '')
         self._config = self._Configuration(
             x=ref_x,
@@ -169,7 +169,7 @@ class EnvironmentManager(NodeInterface, _Realizer):
         doors = world.all_doors
         floors = list(world.all_floors)
 
-        realized_doors = tuple(map(self._realize_door, doors))
+        realized_doors = list(map(self._realize_door, doors))
         if realized_doors:
             self._simulator.spawn_doors(realized_doors)
 

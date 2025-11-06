@@ -1,4 +1,5 @@
 import math
+import typing
 
 from task_generator.utils.time import Time
 
@@ -62,7 +63,7 @@ class TM_Explore(TM_Random):
         Args:
             robot (str): The name of the robot.
         """
-        self._timeouts[robot] = self._PROPS.clock.clock
+        self._timeouts[robot] = typing.cast(Time, self._PROPS.clock.clock)
 
     def _set_position(self, name: str, pose: Pose):
         """

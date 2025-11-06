@@ -58,10 +58,13 @@ class ArenaConverter(cattrs.Converter):
                     return False
             func = args[0]
             self._decoders.insert(0, (predicate, func))
+            # return super().register_structure_hook_func(predicate, func)
         return super().register_structure_hook(cl, *args, **kwargs)
 
 
 converter = ArenaConverter()
+
+IdempotentT = typing.TypeVar('IdempotentT', bound='Idempotent')
 
 
 class Idempotent:
@@ -70,23 +73,41 @@ class Idempotent:
     """
 
     @classmethod
-    def converter(cls, *args, **kwargs):
+    def _compatible(cls: typing.Type[IdempotentT], obj: typing.Any) -> typing.Optional[IdempotentT]:
+        """
+        Check if the object is compatible with the class.
+        """
+        if isinstance(obj, cls) or issubclass(type(obj), cls) or typing.get_origin(type(obj)) is cls:
+            return obj
+        return None
+
+    @classmethod
+    def instance_or(cls: typing.Type[IdempotentT], *chain: typing.Callable):
+        def inner(v: typing.Any) -> IdempotentT:
+            for fn in (cls._compatible, *chain):
+                if (inst := fn(v)) is not None:
+                    return inst
+            raise ValueError(f'Cannot convert {v} to {cls}')
+        return inner
+
+    @classmethod
+    def converter(cls: typing.Type[IdempotentT], *args, **kwargs) -> IdempotentT:
         """
         If the value is already an instance of the class , return it.
         Otherwise, create a new instance of the class with the value.
         """
-        if args and isinstance(args[0], cls):
-            return args[0]
+        if args and (inst := cls._compatible(args[0])):
+            return inst
         return cls(*args, **kwargs)
 
     @classmethod
-    def converter_clone(cls, *args, **kwargs):
+    def converter_clone(cls: typing.Type[IdempotentT], *args, **kwargs) -> IdempotentT:
         """
         If the value is already an instance of the class , return a deepcopy of it.
         If not , create a new instance of the class with the value.
         """
-        if args and isinstance(args[0], cls):
-            return deepcopy(args[0])
+        if args and (inst := cls._compatible(args[0])):
+            return deepcopy(inst)
         return cls(*args, **kwargs)
 
 
@@ -136,14 +157,30 @@ class Parseable(abc.ABC):
         super().__init_subclass__(**kwargs)
 
         if not getattr(cls, "__abstractmethods__", set()):
-            def try_parse(target_type, value):
+
+            def try_parse(value, target_type):
+                errors = []
+                # check idempotence
                 try:
                     if isinstance(value, target_type):
                         return value
-                except TypeError:
-                    # not a class type
-                    pass
-                return target_type.parse(value)
+                except TypeError as e:
+                    errors.append(e)
+
+                # try Parseable.parse
+                try:
+                    return target_type.parse(value)
+                except Exception as e:
+                    errors.append(e)
+
+                # try "normal" attrs structuring
+                try:
+                    if isinstance(value, dict):
+                        return converter.structure_attrs_fromdict(value, target_type)
+                except Exception as e:
+                    errors.append(e)
+
+                return None
 
             converter.register_structure_hook(
                 cls,
@@ -155,11 +192,14 @@ class Parseable(abc.ABC):
         return converter.structure_attrs_fromdict(deepcopy(value), cls)
 
 
+converter.register_structure_hook(
+    dict,
+    lambda v, t: v if isinstance(v, dict) else dict(v)
+)
+
 __all__ = [
     "Serializable",
     "Parseable",
     "converter",
     "Idempotent",
-
-
 ]

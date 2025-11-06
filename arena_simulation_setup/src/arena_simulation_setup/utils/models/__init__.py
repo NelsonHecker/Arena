@@ -2,29 +2,14 @@ from __future__ import annotations
 
 import abc
 import enum
-import functools
-import sys
-from collections.abc import Callable, Collection, Set
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import Optional, Type, overload
 import typing
 
 import attrs
 
-from arena_simulation_setup.tree import ProviderBase
 from arena_simulation_setup.utils.cattrs import Parseable, Serializable, converter
-
-# TODO deprecate this in favor of Model.EMPTY
-
-
-def _EMPTY_LOADER(*_, **__) -> Model:
-
-    return Model(
-        type=ModelType.UNKNOWN, name="", description="", path=Path('/dev/null')
-    )
-
-
-EMPTY_LOADER = _EMPTY_LOADER
 
 
 class ModelType(enum.Enum):
@@ -56,11 +41,26 @@ class Model:
         """
         return attrs.evolve(self, **kwargs)
 
+    @classmethod
+    def EMPTY(cls) -> Model:
+        return Model(
+            type=ModelType.UNKNOWN,
+            name="__EMPTY",
+            description="Empty Model",
+            path=Path("/dev/null"),
+        )
+
 
 class ModelProvider(abc.ABC):
     @classmethod
     def provides(cls, model_type: ModelType) -> Type[ModelProvider]:
         return type(cls.__name__, (cls,), {'type': classmethod(lambda cls: model_type)})
+
+    @classmethod
+    def asdict(cls, model_dir: Path, model: str) -> dict[ModelType, Callable[[dict], Model]]:
+        return {
+            cls.type(): lambda loader_args: cls.load(model_dir, model, loader_args)
+        }
 
     @classmethod
     @abc.abstractmethod
@@ -71,8 +71,8 @@ class ModelProvider(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model | None:
-        return None
+    def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
+        raise FileNotFoundError(f"Model {model} not found in {model_dir}")
 
     @classmethod
     @abc.abstractmethod
@@ -90,21 +90,16 @@ class ModelProvider(abc.ABC):
 
 class ModelWrapper(Parseable, Serializable):
 
-    _get: Callable[[Collection[ModelType], dict], Model]
+    _loaders: dict[ModelType, Callable[[dict], Model]]
     _name: str
-    _override: dict[ModelType, tuple[bool, Callable[..., Model]]]
-    _loader: object
-
-    def loader_matches(self, loader: object) -> bool:
-        return self._loader is loader
 
     def __repr__(self) -> str:
-        return f"ModelWrapper(name={self.name}, loader={self._loader})"
+        return f"ModelWrapper(name={self.name}, loaders={list(self._loaders.keys())})"
 
     @classmethod
     def parse(cls, value: typing.Any) -> ModelWrapper:
         if isinstance(value, str):
-            return cls.EMPTY(value)
+            return cls.EMPTY()
         if isinstance(value, cls):
             return value
         raise TypeError(f"Cannot parse ModelWrapper from {value!r}")
@@ -115,28 +110,22 @@ class ModelWrapper(Parseable, Serializable):
     def __init__(
         self,
         name: str,
-        callback: Callable[[Collection[ModelType], dict], Model] | None = None,
-        loader: ModelProvider | None = None,
+        loaders: dict[ModelType, Callable[[dict], Model]],
     ):
+        """Create a new ModelWrapper
+
+        Args:
+            name (str): Name of the ModelWrapper (should match the underlying Models)
+            loaders (dict[ModelType, Callable[[dict], Model]]): Functions to call to get the model for each ModelType.
         """
-        Create new ModelWrapper
-        @name: Name of the ModelWrapper (should match the underlying Models)
-        """
-        self._loader = loader
-        if self._loader is None:
-            self._loader = object()
-        if callback is None:
-            callback = EMPTY_LOADER
         self._name = name
-        self._get = callback
-        self._override = {}
+        self._loaders = loaders
 
     def clone(self) -> ModelWrapper:
         """
         Clone (shallow copy) this ModelWrapper instance
         """
-        clone = ModelWrapper(self.name, self._get, loader=self._loader)
-        clone._override = self._override
+        clone = ModelWrapper(self.name, self._loaders)
         return clone
 
     def override(
@@ -146,21 +135,28 @@ class ModelWrapper(Parseable, Serializable):
         noload: bool = False,
         name: Optional[str] = None,
     ) -> ModelWrapper:
-        """
-        Create new ModelWrapper with an overridden ModelType callback
-        @model_type: Which ModelType to override
-        @override: Mapping function (Model)->Model which replaces the loaded model with a new one
-        @noload: (default: False) If True, indicates that the original Model is not used by the override function and a dummy Model can be passed to it instead
-        @name: (optional) If set, overrides name of ModelWrapper
-        """
-        clone = self.clone()
-        clone._loader = object()
-        clone._override = {**self._override, model_type: (noload, override)}
+        """Create a new ModelWrapper with an overridden loader for a specific ModelType
 
-        if name is not None:
-            clone._name = name
+        Args:
+            model_type (ModelType): The ModelType to override.
+            override (Callable[[Model], Model]): The function to call to get the overridden model.
+            noload (bool, optional): If True, indicates that the original Model is not used by the override function and a dummy Model can be passed to it instead. Defaults to False.
+            name (Optional[str], optional): If set, overrides name of ModelWrapper. Defaults to None.
 
-        return clone
+        Returns:
+            ModelWrapper: A new ModelWrapper with the overridden loader.
+        """
+        old_loader = self._loaders.get(model_type)
+        if old_loader is None:
+            def old_loader(): raise ValueError(f"No loader for model type {model_type}")
+
+        def new_loader(loader_args: dict | None) -> Model:
+            if noload:
+                return override(Model.EMPTY())
+            return override(old_loader(loader_args))
+
+        self._loaders[model_type] = new_loader
+        return self
 
     @overload
     def get(
@@ -207,26 +203,22 @@ class ModelWrapper(Parseable, Serializable):
         **kwargs,
     ) -> Model:
         if only is None:
-            only = self._override.keys()
+            only = self._loaders.keys()
+        if isinstance(only, ModelType):
+            only = [only]
 
         if loader_args is None:
             loader_args = {}
 
         args: LoaderArgs = LoaderArgs(loader_args)  # make hashable
 
-        if isinstance(only, ModelType):
-            return self.get([only])
-
         for model_type in only:
-            if model_type in self._override:
-                noload, mapper = self._override[model_type]
-
-                if noload:
-                    return mapper(EMPTY_LOADER())
-
-                return mapper(self._get([model_type], args), **kwargs)
-
-        return self._get(only, args)
+            loader = self._loaders.get(model_type)
+            if loader is not None:
+                model = loader(args)
+                if model is not None:
+                    return model
+        raise FileNotFoundError(f'Could not load model of type(s) {only} in ModelWrapper {self.name}')
 
     @property
     def name(self) -> str:
@@ -243,18 +235,10 @@ class ModelWrapper(Parseable, Serializable):
         @models: dictionary of ModelType->Model mappings
         """
 
-        def get(only: Collection[ModelType], loader_args: dict | None) -> Model:
-            if not len(only):
-                only = list(models.keys())
-
-            for model_type in only:
-                if model_type in models:
-                    return models[model_type]
-            raise LookupError(
-                f"no matching model found for {name} (available: {list(models.keys())}, requested: {list(only)})"
-            )
-
-        return ModelWrapper(name, get)
+        return ModelWrapper(
+            name,
+            {model_type: (lambda _: model) for model_type, model in models.items()}
+        )
 
     @classmethod
     def from_model(cls, model: Model) -> ModelWrapper:
@@ -268,8 +252,11 @@ class ModelWrapper(Parseable, Serializable):
         )
 
     @classmethod
-    def EMPTY(cls, name="__EMPTY") -> ModelWrapper:
-        wrapper = ModelWrapper(name, EMPTY_LOADER)
+    def EMPTY(cls) -> ModelWrapper:
+        wrapper = ModelWrapper(
+            "__EMPTY",
+            {t: lambda _: Model.EMPTY() for t in ModelType}
+        )
         return wrapper
 
 
@@ -284,75 +271,3 @@ class LoadersT(tuple[Type[ModelProvider], ...]):
 class LoaderArgs(dict):
     def __hash__(self) -> int:
         return hash(str(self))
-
-
-class ModelLoader:
-
-    def __init__(self, provider: Type[ProviderBase], loaders: Collection[Type[ModelProvider]]) -> None:
-        self.__provider: Type[ProviderBase] = provider
-        self.__loaders: LoadersT = LoadersT(loaders)
-
-    @functools.cache
-    @staticmethod
-    def _match_loaders(loaders: LoadersT, model_type: ModelType) -> LoadersT:
-        return LoadersT(loader for loader in loaders if model_type == loader.type())
-
-    @property
-    def models(self) -> Set[str]:
-        return set(self.__provider.list())
-
-    def bind(self, model: str) -> ModelWrapper:
-        return ModelWrapper(
-            name=model,
-            callback=functools.partial(self._load_safe, model),
-            loader=self,
-        )
-
-    @functools.lru_cache(maxsize=128)
-    @staticmethod
-    def _load_cached(loaders: LoadersT, provider: Type[ProviderBase], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
-        for loader in ModelLoader._match_loaders(loaders, model_type):
-            model_dir = provider(model).resolve(model)
-            if (hit := loader.load(model_dir, model, loader_args)) is not None:
-                return hit
-        return None
-
-    @functools.lru_cache(maxsize=128)
-    @staticmethod
-    def _convert_cached(loaders: LoadersT, provider: Type[ProviderBase], model: str, model_type: ModelType, loader_args: LoaderArgs | None) -> Model | None:
-        for loader in ModelLoader._match_loaders(loaders, model_type):
-            for convertable in loader.convertable():
-                model_dir = provider(model).resolve(model)
-                if (base := ModelLoader._load_cached(loaders, provider, model, convertable, loader_args)) is not None:
-                    if (hit := loader.convert(model_dir, base, loader_args)) is not None:
-                        return hit
-        return None
-
-    def _load(self, model: str, only: Collection[ModelType], loader_args: dict | None) -> Model | None:
-        if not only:
-            only = [loader.type() for loader in self.__loaders]
-        if loader_args:
-            loader_args = LoaderArgs(loader_args)  # hashable
-
-        for model_type in only:  # try to load
-            if (hit := ModelLoader._load_cached(self.__loaders, self.__provider, model, model_type, loader_args)) is not None:
-                return hit
-
-        for model_type in only:  # try to convert
-            if (hit := ModelLoader._convert_cached(self.__loaders, self.__provider, model, model_type, loader_args)) is not None:
-                return hit
-
-        return None
-
-    def _load_safe(self, model: str, only: Collection[ModelType], loader_args: dict | None) -> Model:
-        loaded = self._load(model, only, loader_args)
-        if loaded is not None:
-            return loaded
-
-        print(f"no model {model} among {only} found in {self.__provider(model).path} and could not be converted", file=sys.stderr)
-        return Model(
-            type=ModelType.UNKNOWN,
-            name=model,
-            description="",
-            path=Path("/dev/null"),
-        )

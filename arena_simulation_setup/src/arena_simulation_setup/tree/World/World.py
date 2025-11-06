@@ -7,10 +7,7 @@ from pathlib import Path
 import attrs
 import yaml
 
-from arena_simulation_setup.tree.assets.Material import (
-    MaterialLoader,
-    MaterialProvider,
-)
+from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.shared import (
     Door,
     DynamicObstacle,
@@ -19,9 +16,11 @@ from arena_simulation_setup.shared import (
     Obstacle,
     Wall,
 )
-
-from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.tree import StaticProvider
+from arena_simulation_setup.tree.assets.Material import (
+    Material,
+    MaterialIdentifier,
+)
 from arena_simulation_setup.utils.cattrs import converter
 from arena_simulation_setup.utils.geometry import Position
 
@@ -54,7 +53,10 @@ class WorldDescription:
         walls: list[Wall] = attrs.field(factory=list)
         doors: list[Door] = attrs.field(factory=list)
         elevators: list[Elevator] = attrs.field(factory=list)
-        material: MaterialProvider = attrs.field(converter=MaterialLoader.converter, factory=lambda: MaterialLoader.DEFAULT('floor'))
+        material: MaterialIdentifier = attrs.field(
+            converter=MaterialIdentifier.converter,
+            default=Material.default('floor')
+        )
         entities: WorldEntities = attrs.field(factory=WorldEntities)
         description: str = ''
 
@@ -146,7 +148,7 @@ class WorldDescription:
             return tarfile.open(fileobj=io.BytesIO(tar_stream.getvalue()))
 
 
-class WorldProvider(StaticProvider):
+class WorldProvider(StaticProvider[WorldDescription]):
 
     @classmethod
     def list(cls):

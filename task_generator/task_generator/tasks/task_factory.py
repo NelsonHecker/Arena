@@ -154,8 +154,8 @@ class TaskFactory(Namespaced):
 
                 robots_manager.set_up()
 
-                self.__param_tm_obstacles = None
-                self.__param_tm_robots = None
+                self.__param_tm_obstacles = None  # type: ignore
+                self.__param_tm_robots = None  # type: ignore
                 self.__modules = [
                     cls.registry_module[module]()(task=self) for module in modules
                 ]
@@ -262,6 +262,8 @@ class TaskFactory(Namespaced):
                     Exception: If an error occurs during the reset task.
 
                 """
+                # TODO
+                raise NotImplementedError("This method is deprecated. Use _reset_task instead.")
                 while self.__reset_mutex:
                     rclpy.sleep(0.001)
                 self.__reset_mutex = True

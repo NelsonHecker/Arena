@@ -25,6 +25,11 @@ class NodeInterface:
     class Taskgen_T(ArenaMixinNode, SafeCallbackNode):
         do_launch: typing.Callable[[launch.LaunchDescription], None]
 
+        # TODO
+        _environment_manager: typing.Any
+        _world_manager: typing.Any
+        conf: typing.Any
+
     node: Taskgen_T
 
     def __init__(self) -> None:

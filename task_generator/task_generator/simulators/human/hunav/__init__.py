@@ -9,7 +9,8 @@ import hunav_msgs.msg
 import yaml
 from ament_index_python.packages import get_package_share_directory
 
-from task_generator.shared import DynamicObstacle, ModelWrapper, Pose, Position
+from task_generator.shared import DynamicObstacle, Pose, Position
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 
 
 @attrs.define
@@ -102,7 +103,7 @@ class HunavDynamicObstacle:
     group_id: int
     init_pose: PositionH
     yaw: float
-    model: ModelWrapper
+    model: PedestrianIdentifier
     goals: Goals
     extra: dict
     velocity: None
@@ -218,7 +219,7 @@ class HunavDynamicObstacle:
         return agent_msg
 
     @classmethod
-    def parse(cls, obj: dict, model: ModelWrapper) -> "HunavDynamicObstacle":
+    def parse(cls, obj: dict) -> "HunavDynamicObstacle":
 
         if 'goals' in obj:
             waypoints = Goals.parse(obj)
@@ -228,7 +229,7 @@ class HunavDynamicObstacle:
         return cls(
             name=obj.get('name', cls._default.name),
             extra=obj.get('extra', cls._default.extra),
-            model=model,
+            model=obj.get('model', cls._default.model),
             goals=waypoints,
             init_pose=PositionH(
                 x=obj.get('init_pose', {}).get('x', cls._default.init_pose.x),
@@ -269,7 +270,9 @@ def _load_config(filename: str = "default.yaml") -> "HunavDynamicObstacle":
         with open(config_path, 'r') as f:
             agent_config = yaml.safe_load(f)
 
-        return HunavDynamicObstacle.parse(agent_config, ModelWrapper(''))
+        assert isinstance(agent_config, dict), f"Top-level structure in {config_path} must be a mapping"
+
+        return HunavDynamicObstacle.parse(agent_config)
 
     except Exception as e:
         raise RuntimeError(f"Error loading config from {config_path}") from e
@@ -294,7 +297,7 @@ HunavDynamicObstacle.Behavior._default = HunavDynamicObstacle.Behavior(
 HunavDynamicObstacle._default = HunavDynamicObstacle(
     init_pose=PositionH(x=0, y=0),
     name='',
-    model=ModelWrapper.EMPTY(),
+    model=PedestrianIdentifier(''),
     extra={},
     goals=Goals(),
     id=0,

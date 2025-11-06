@@ -45,7 +45,7 @@ class TM_Robots(TaskMode):
             robot_manager.reset(None, pose)
 
     @property
-    def done(self):
+    def done(self) -> bool:
         """
         Check if all robots have completed their tasks.
 
@@ -57,5 +57,8 @@ class TM_Robots(TaskMode):
                 > self.node.conf.Robot.TIMEOUT.value:
             return True
 
-        return len(self._PROPS.robot_managers) and all(
-            robot_manager.is_done for robot_manager in self._PROPS.robot_managers.values())
+        if not self._PROPS.robot_managers:
+            return False
+        if not all(robot_manager.is_done for robot_manager in self._PROPS.robot_managers.values()):
+            return False
+        return True

@@ -2,7 +2,6 @@
     This file exists to make world_manager more readable
 """
 
-import itertools
 from collections.abc import Callable, Collection
 from typing import Optional, TypeVar
 
@@ -10,10 +9,9 @@ import attrs
 import nav_msgs.msg
 import numpy as np
 import scipy.interpolate
-import shapely
 import collections.abc
 
-from task_generator.shared import (Obstacle, Position, PositionRadius, Wall)
+from task_generator.shared import (Position, PositionRadius, Wall)
 from task_generator.utils.time import Time
 
 # CONVERTERS
