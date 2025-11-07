@@ -52,8 +52,8 @@ fi
 
 if [ -f "$INSTALLED" ] && grep -q "isaac" "$INSTALLED"; then
     if [ -z ${ISAAC_PATH+x} ] ; then
-        . "$HOME/isaacsim-4.2.0/setup.${shell}"
-        . "$HOME/isaacsim-4.2.0/setup.${shell}"
+        . "$HOME/isaacsim-4.2.0/setup.bash"
+        . "$HOME/isaacsim-4.2.0/setup.bash"
     fi
 fi
 
