@@ -3,8 +3,9 @@ from __future__ import annotations
 import typing
 
 import attrs
+import numpy as np
 
-from arena_simulation_setup.utils.geometry import Pose, Position
+from arena_simulation_setup.utils.geometry import Position
 from arena_simulation_setup.tree.assets.Material import MaterialIdentifier, Material
 
 
@@ -28,12 +29,25 @@ class Door:
     start: Position = attrs.field(converter=Position.converter)
     end: Position = attrs.field(converter=Position.converter)
     kind: typing.Literal['sliding'] = 'sliding'
-    pose: Pose = attrs.field(factory=Pose, converter=Pose.converter)
+    width: float = 0.1
     height: float = attrs.field(default=2.0)
     material: MaterialIdentifier = attrs.field(
         converter=MaterialIdentifier.converter,
         default=Material.default('door')
     )
+
+    @property
+    def corners(self) -> list[Position]:
+        direction = np.array(list(self.end)) - np.array(list(self.start))
+        direction = direction / np.linalg.norm(direction)
+        perp = np.array([-direction[1], direction[0], 0])
+        projected_half_width = Position(*(self.width / 2 * perp))
+        return [
+            self.start + projected_half_width,
+            self.start - projected_half_width,
+            self.end - projected_half_width,
+            self.end + projected_half_width,
+        ]
 
 
 @attrs.define

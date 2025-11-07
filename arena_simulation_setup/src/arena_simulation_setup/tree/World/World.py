@@ -113,6 +113,7 @@ class WorldDescription:
 
         png, origin = Map.generate_png(
             rooms=shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
+            doors=shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
             walls=shapely.MultiLineString(list(self.all_walls)),
             resolution=resolution,
             padding=5,

@@ -62,6 +62,11 @@ class Vector3:
     y: float = attrs.field(converter=float)
     z: float = attrs.field(converter=float, default=0.0)
 
+    def __iter__(self) -> Iterator[float]:
+        yield self.x
+        yield self.y
+        yield self.z
+
     def __add__(self, other: Position) -> Position:
         return Position(
             x=self.x + other.x,
@@ -159,11 +164,6 @@ class Position(Parseable, Idempotent, Vector3):
             y=self.y,
             z=self.z
         )
-
-    def __iter__(self) -> Iterator[float]:
-        yield self.x
-        yield self.y
-        yield self.z
 
 
 @attrs.define
