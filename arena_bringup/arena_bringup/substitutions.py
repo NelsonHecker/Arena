@@ -9,7 +9,7 @@ import launch
 import launch.actions
 import launch.substitutions
 import launch.utilities
-import launch_ros
+import launch_ros.parameter_descriptions
 import yaml
 
 

@@ -1,20 +1,32 @@
-import launch
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
+
+from arena_bringup.substitutions import LaunchArgument
 from launch import LaunchDescription
-from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    logger = launch.substitutions.LaunchConfiguration("log_level")
+    ld = []
+    LaunchArgument.auto_append(ld)
+    log_level = LaunchArgument(
+        name='log_level',
+        default_value='debug',
+        description='Logging level',
+    )
     return LaunchDescription([
-        launch.actions.DeclareLaunchArgument(
-            "log_level",
-            default_value=["debug"],
-            description="Logging level",
-        ),
-        Node(
-            package='arena_isaac',
-            executable='run_isaacsim',
-            # output='screen',
-            # arguments=['--ros-args', '--log-level', logger]
-        ),
+        *ld,
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                PathJoinSubstitution([
+                    FindPackageShare('arena_isaac'),
+                    'launch',
+                    'run_isaacsim.launch.py'
+                ]),
+            ),
+            launch_arguments={
+                **log_level.dict,
+            }.items(),
+        )
     ])

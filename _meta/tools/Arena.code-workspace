@@ -1,203 +1,201 @@
 {
-	"folders": [
-		{
-			"name": "repos",
-			"path": "src/Arena/_meta/repos"
-		},
-		{
-			"name": "bringup",
-			"path": "src/Arena/arena_bringup"
-		},
-		{
-			"name": "task_generator",
-			"path": "src/Arena/task_generator"
-		},
-		{
-			"name": "simulation_setup",
-			"path": "src/Arena/arena_simulation_setup"
-		},
-		{
-			"name": "Arena",
-			"path": "src/Arena"
-		},
-		{
-			"name": "isaac",
-			"path": "src/Arena/arena_isaac"
-		},
-		{
-			"name": "tools",
-			"path": "src/Arena/arena_tools"
-		},
-		{
-			"name": "evaluation",
-			"path": "src/Arena/arena_evaluation"
-		},
-		{
-			"path": "src/deps/arena_models"
-		},
-		{
-			"name": "robots",
-			"path": "src/Arena/arena_robots/arena_robots"
-		}
-	],
-	"settings": {
-		"python.defaultInterpreterPath": "${workspaceFolder:Arena}/.venv/bin/python",
-		"files.associations": {
-			"*.ejs": "html",
-			"cctype": "cpp",
-			"clocale": "cpp",
-			"cmath": "cpp",
-			"csignal": "cpp",
-			"cstdarg": "cpp",
-			"cstddef": "cpp",
-			"cstdio": "cpp",
-			"cstdlib": "cpp",
-			"cstring": "cpp",
-			"ctime": "cpp",
-			"cwchar": "cpp",
-			"cwctype": "cpp",
-			"any": "cpp",
-			"array": "cpp",
-			"atomic": "cpp",
-			"strstream": "cpp",
-			"bit": "cpp",
-			"bitset": "cpp",
-			"cfenv": "cpp",
-			"chrono": "cpp",
-			"cinttypes": "cpp",
-			"codecvt": "cpp",
-			"compare": "cpp",
-			"complex": "cpp",
-			"concepts": "cpp",
-			"condition_variable": "cpp",
-			"coroutine": "cpp",
-			"cstdint": "cpp",
-			"deque": "cpp",
-			"forward_list": "cpp",
-			"list": "cpp",
-			"map": "cpp",
-			"set": "cpp",
-			"string": "cpp",
-			"unordered_map": "cpp",
-			"unordered_set": "cpp",
-			"vector": "cpp",
-			"exception": "cpp",
-			"algorithm": "cpp",
-			"functional": "cpp",
-			"iterator": "cpp",
-			"memory": "cpp",
-			"memory_resource": "cpp",
-			"numeric": "cpp",
-			"optional": "cpp",
-			"random": "cpp",
-			"ratio": "cpp",
-			"regex": "cpp",
-			"source_location": "cpp",
-			"string_view": "cpp",
-			"system_error": "cpp",
-			"tuple": "cpp",
-			"type_traits": "cpp",
-			"utility": "cpp",
-			"hash_map": "cpp",
-			"hash_set": "cpp",
-			"slist": "cpp",
-			"fstream": "cpp",
-			"future": "cpp",
-			"initializer_list": "cpp",
-			"iomanip": "cpp",
-			"iosfwd": "cpp",
-			"iostream": "cpp",
-			"istream": "cpp",
-			"limits": "cpp",
-			"mutex": "cpp",
-			"new": "cpp",
-			"numbers": "cpp",
-			"ostream": "cpp",
-			"semaphore": "cpp",
-			"shared_mutex": "cpp",
-			"sstream": "cpp",
-			"stdexcept": "cpp",
-			"stop_token": "cpp",
-			"streambuf": "cpp",
-			"thread": "cpp",
-			"typeindex": "cpp",
-			"typeinfo": "cpp",
-			"valarray": "cpp",
-			"variant": "cpp"
-		},
-		"python.autoComplete.extraPaths": [
-			"${workspaceFolder:Arena}/../../build/task_generator/",
-			"${workspaceFolder:Arena}/../../build/arena_simulation_setup/src",
-			"${workspaceFolder:Arena}/../../build/arena_bringup/",
-			"${workspaceFolder:Arena}/../../install/rclpy/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/std_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/geometry_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/std_srvs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/hunav_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/arena_people_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/lifecycle_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/nav_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/nav2_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/rcl_interfaces/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
-			"${workspaceFolder:Arena}/../../build/launch/",
-			"${workspaceFolder:Arena}/../../build/launch_ros/",
-			"${workspaceFolder:Arena}/../../build/ament_index_python",
-			"${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
-			"${workspaceFolder:Arena}/../../build/arena_isaac/",
-			"${workspaceFolder:Arena}/.venv/lib/python3.10/site-packages/"
-		],
-		"python.analysis.extraPaths": [
-			"${workspaceFolder:Arena}/../../build/task_generator/",
-			"${workspaceFolder:Arena}/../../build/arena_simulation_setup/src",
-			"${workspaceFolder:Arena}/../../build/arena_bringup/",
-			"${workspaceFolder:Arena}/../../install/rclpy/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/std_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/geometry_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/std_srvs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/hunav_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/arena_people_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/lifecycle_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/nav_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/nav2_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/rcl_interfaces/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
-			"${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
-			"${workspaceFolder:Arena}/../../build/launch/",
-			"${workspaceFolder:Arena}/../../build/launch_ros/",
-			"${workspaceFolder:Arena}/../../build/ament_index_python",
-			"${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
-			"${workspaceFolder:Arena}/../../build/arena_isaac/",
-			"${workspaceFolder:Arena}/.venv/lib/python3.10/site-packages/"
-		],
-		"python.analysis.typeCheckingMode": "standard"
-	},
-	"launch": {
-		"version": "0.2.0",
-		"configurations": [
-			{
-				"name": "Attach to ROS2 Python Node",
-				"type": "debugpy",
-				"request": "attach",
-				"connect": {
-					"host": "localhost",
-					"port": 8765
-				},
-				"justMyCode": false
-			}
-		]
-	}
+  "folders": [
+    {
+      "name": "repos",
+      "path": "src/Arena/_meta/repos"
+    },
+    {
+      "name": "bringup",
+      "path": "src/Arena/arena_bringup"
+    },
+    {
+      "name": "task_generator",
+      "path": "src/Arena/task_generator"
+    },
+    {
+      "name": "simulation_setup",
+      "path": "src/Arena/arena_simulation_setup"
+    },
+    {
+      "name": "Arena",
+      "path": "src/Arena"
+    },
+    {
+      "name": "isaac",
+      "path": "src/Arena/arena_isaac"
+    },
+    {
+      "name": "tools",
+      "path": "src/Arena/arena_tools"
+    },
+    {
+      "name": "evaluation",
+      "path": "src/Arena/arena_evaluation"
+    },
+    {
+      "path": "src/deps/arena_models"
+    },
+    {
+      "name": "robots",
+      "path": "src/Arena/arena_robots/arena_robots"
+    }
+  ],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder:Arena}/.venv/bin/python",
+    "files.associations": {
+      "*.ejs": "html",
+      "cctype": "cpp",
+      "clocale": "cpp",
+      "cmath": "cpp",
+      "csignal": "cpp",
+      "cstdarg": "cpp",
+      "cstddef": "cpp",
+      "cstdio": "cpp",
+      "cstdlib": "cpp",
+      "cstring": "cpp",
+      "ctime": "cpp",
+      "cwchar": "cpp",
+      "cwctype": "cpp",
+      "any": "cpp",
+      "array": "cpp",
+      "atomic": "cpp",
+      "strstream": "cpp",
+      "bit": "cpp",
+      "bitset": "cpp",
+      "cfenv": "cpp",
+      "chrono": "cpp",
+      "cinttypes": "cpp",
+      "codecvt": "cpp",
+      "compare": "cpp",
+      "complex": "cpp",
+      "concepts": "cpp",
+      "condition_variable": "cpp",
+      "coroutine": "cpp",
+      "cstdint": "cpp",
+      "deque": "cpp",
+      "forward_list": "cpp",
+      "list": "cpp",
+      "map": "cpp",
+      "set": "cpp",
+      "string": "cpp",
+      "unordered_map": "cpp",
+      "unordered_set": "cpp",
+      "vector": "cpp",
+      "exception": "cpp",
+      "algorithm": "cpp",
+      "functional": "cpp",
+      "iterator": "cpp",
+      "memory": "cpp",
+      "memory_resource": "cpp",
+      "numeric": "cpp",
+      "optional": "cpp",
+      "random": "cpp",
+      "ratio": "cpp",
+      "regex": "cpp",
+      "source_location": "cpp",
+      "string_view": "cpp",
+      "system_error": "cpp",
+      "tuple": "cpp",
+      "type_traits": "cpp",
+      "utility": "cpp",
+      "hash_map": "cpp",
+      "hash_set": "cpp",
+      "slist": "cpp",
+      "fstream": "cpp",
+      "future": "cpp",
+      "initializer_list": "cpp",
+      "iomanip": "cpp",
+      "iosfwd": "cpp",
+      "iostream": "cpp",
+      "istream": "cpp",
+      "limits": "cpp",
+      "mutex": "cpp",
+      "new": "cpp",
+      "numbers": "cpp",
+      "ostream": "cpp",
+      "semaphore": "cpp",
+      "shared_mutex": "cpp",
+      "sstream": "cpp",
+      "stdexcept": "cpp",
+      "stop_token": "cpp",
+      "streambuf": "cpp",
+      "thread": "cpp",
+      "typeindex": "cpp",
+      "typeinfo": "cpp",
+      "valarray": "cpp",
+      "variant": "cpp"
+    },
+    "python.autoComplete.extraPaths": [
+      "${workspaceFolder:Arena}/../../build/task_generator/",
+      "${workspaceFolder:Arena}/../../build/arena_simulation_setup/src",
+      "${workspaceFolder:Arena}/../../build/arena_bringup/",
+      "${workspaceFolder:Arena}/../../install/rclpy/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/std_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/geometry_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/std_srvs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/hunav_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_people_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/lifecycle_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/nav_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/nav2_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/rcl_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
+      "${workspaceFolder:Arena}/../../build/launch/",
+      "${workspaceFolder:Arena}/../../build/launch_ros/",
+      "${workspaceFolder:Arena}/../../build/ament_index_python",
+      "${workspaceFolder:Arena}/../../build/arena_isaac/",
+      "${workspaceFolder:Arena}/.venv/lib/python3.10/site-packages/"
+    ],
+    "python.analysis.extraPaths": [
+      "${workspaceFolder:Arena}/../../build/task_generator/",
+      "${workspaceFolder:Arena}/../../build/arena_simulation_setup/src",
+      "${workspaceFolder:Arena}/../../build/arena_bringup/",
+      "${workspaceFolder:Arena}/../../install/rclpy/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/std_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/geometry_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/std_srvs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/hunav_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_people_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/lifecycle_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/nav_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/nav2_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/rcl_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../build/launch/",
+      "${workspaceFolder:Arena}/../../build/launch_ros/",
+      "${workspaceFolder:Arena}/../../build/ament_index_python",
+      "${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
+      "${workspaceFolder:Arena}/../../build/arena_isaac/",
+      "${workspaceFolder:Arena}/.venv/lib/python3.10/site-packages/"
+    ],
+    "python.analysis.typeCheckingMode": "standard"
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Attach to ROS2 Python Node",
+        "type": "debugpy",
+        "request": "attach",
+        "connect": {
+          "host": "localhost",
+          "port": 8765
+        },
+        "justMyCode": false
+      }
+    ]
+  }
 }
