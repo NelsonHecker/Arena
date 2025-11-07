@@ -81,17 +81,17 @@ install(){
     # chmod +x omniverse-launcher-linux.AppImage
     # ./omniverse-launcher-linux.AppImage --no-sandbox &
     
-    SETUP_FILE=~/isaacsim-4.2.0/setup.bash
+    SETUP_FILE=~/isaacsim-4.2.0/setup.sh
     # Write the content to the file
     cat << 'EOF' > "$SETUP_FILE"
-#!/bin/bash
-MY_DIR=$HOME/isaacsim-4.2.0
-export CARB_APP_PATH=$SCRIPT_DIR/kit
-export EXP_PATH=$MY_DIR/apps
-if [ -f "${MY_DIR}/setup_python_env.sh" ] ; then
-    . ${MY_DIR}/setup_python_env.sh
+#!/bin/sh
+MY_DIR="$HOME/isaacsim-4.2.0"
+export CARB_APP_PATH="$MY_DIR/kit"
+export EXP_PATH="$MY_DIR/apps"
+if [ -f "$MY_DIR/setup_python_env.sh" ] ; then
+    . "$MY_DIR/setup_python_env.sh"
 fi
-export ISAAC_PATH=$MY_DIR
+export ISAAC_PATH="$MY_DIR"
 EOF
     
     echo "Completed Isaac Sim download"
@@ -114,7 +114,9 @@ EOF
 uninstall(){
     #TODO
     echo not implemented, but unsetting flag
-    git submodule deinit -f arena_isaac
+    pushd "$ARENA_DIR" > /dev/null
+        git submodule deinit -f arena_isaac
+    popd > /dev/null
     sed -i "/$name/d" "$INSTALLED"
 }
 

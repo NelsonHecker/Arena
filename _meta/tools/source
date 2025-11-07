@@ -11,6 +11,15 @@ fi
 export SOURCE_FILE="$THIS_FILE"
 export shell
 
+# increase ulimit to fit pythonpath
+current_stack=$(ulimit -s)
+if [ "$current_stack" != "unlimited" ] && [ "$current_stack" -lt 65536 ]; then
+    ulimit -s 65536 2>/dev/null || {
+        echo "Warning: Could not increase stack limit to 65536KB (current: ${current_stack}KB)"
+        echo "Consider running: echo '* soft stack 65536' | sudo tee -a /etc/security/limits.conf"
+    }
+fi
+unset current_stack
 
 ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
 
@@ -33,6 +42,13 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
 export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
 
+if [ -f "$INSTALLED" ] && grep -q "isaac" "$INSTALLED"; then
+    if [ -z ${ISAAC_PATH+x} ] ; then
+        . "$HOME/isaacsim-4.2.0/setup.sh"
+    fi
+fi
+
+
 if [ -f "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}" ] ; then
     . "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}"
 fi
@@ -48,13 +64,6 @@ if [ -f "$ARENA_WS_DIR/.env" ] ; then
     set -a
     . "$ARENA_WS_DIR/.env"
     set +a
-fi
-
-if [ -f "$INSTALLED" ] && grep -q "isaac" "$INSTALLED"; then
-    if [ -z ${ISAAC_PATH+x} ] ; then
-        . "$HOME/isaacsim-4.2.0/setup.bash"
-        . "$HOME/isaacsim-4.2.0/setup.bash"
-    fi
 fi
 
 if [ -z ${ARENA_SOURCED+x} ] ; then
