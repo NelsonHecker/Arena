@@ -90,7 +90,7 @@ sudo apt-get install -y build-essential python3-pip zlib1g-dev libffi-dev libssl
 # == basic arena install ==
 if [ ! -d "$ARENA_WS_DIR/src/Arena" ] ; then
     mkdir -p "$ARENA_WS_DIR/src/"
-    git clone --branch "${ARENA_BRANCH}" "${ARENA_REPO}" "$ARENA_WS_DIR/src/Arena"
+    git clone --branch "${ARENA_BRANCH}" --single-branch "${ARENA_REPO}" "$ARENA_WS_DIR/src/Arena"
 fi
 . "$ARENA_WS_DIR/src/Arena/_meta/tools/source"
 ROSDEP=0 arena update
