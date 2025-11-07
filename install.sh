@@ -164,7 +164,7 @@ if [ ! -f src/ros2/compiled ] ; then
         git -c user.name='Arena' -c user.email='anonymous@arena-rosnav.org' cherry-pick 654d6f5658b59009147b9fad9b724919633f38fe || echo 'already cherry picked'
     popd
 
-    PATHS=src/ros2 BUILD_ALL=1 SKIP_OLD=0 arena build
+    BASE_PATHS=src/ros2 BUILD_ALL=1 SKIP_OLD=0 arena build
     touch src/ros2/compiled
 fi
 

@@ -71,7 +71,9 @@ install(){
     pushd src/tools
       git clone -b main https://github.com/gazebosim/gz-usd
     popd
-    PATHS=src/tools/gz-usd arena build
+    export BASE_PATHS=src/tools/gz-usd
+    arena build
+    unset BASE_PATHS
     echo "Successfully installed gz-usd"
   fi
 
