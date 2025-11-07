@@ -143,5 +143,5 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
         return $result
     }
     
-    export -f arena
+    export -f arena 2>/dev/null || true
 fi
