@@ -1,3 +1,6 @@
 ## Installation
 
-The easiest way to install Arena-Rosnav is to use the [automatic installation](https://arena-rosnav.readthedocs.io/en/latest/tutorials/installation/).
+```sh
+curl https://raw.githubusercontent.com/voshch/Arena/humble/install.sh > install.sh
+bash install.sh
+```
