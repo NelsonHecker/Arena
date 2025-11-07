@@ -158,7 +158,10 @@ class GazeboSimulator(BaseSim):
             request.entity_factory.name = entity.name
 
             # Get model description
-            model = entity.model.load().get((ModelType.SDF, ModelType.URDF))
+            if isinstance(entity, Robot):
+                model = entity.model.load().get(ModelType.URDF, loader_args=entity.asdict())
+            else:
+                model = entity.model.load().get(ModelType.SDF)
 
             if model.type is ModelType.UNKNOWN:
                 return False
