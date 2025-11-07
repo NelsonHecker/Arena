@@ -128,7 +128,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 else
                     package="$1"
                     shift
-                    $SHELL "$ARENA_DIR/_meta/installers/${package}.sh" "$@"
+                    ($SHELL -c "source '$SOURCE_FILE' && $shell '$ARENA_DIR/_meta/installers/${package}.sh' $*")
                     result=$?
                 fi
             ;;
