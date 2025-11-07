@@ -85,6 +85,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     export ARENA_SOURCED=1
     PS1_BACKUP=$PS1
     export PS1="(Arena) $PS1"
+    export PROMPT="(Arena) $PROMPT"
     echo 'sourced Arena environment'
     
     r2st(){ ros2 service call "$1" "$(ros2 service type "$1")";}
