@@ -19,7 +19,7 @@ python -m pip install git+https://github.com/voshch/vcstool.git || echo 'failed 
 if [ $_GIT -eq 1 ] ; then
     echo updating Arena...
     git pull --ff-only --autostash && git submodule update --recursive
-    git submodule update --init arena_robots
+    git submodule update --init --recursive arena_robots
 
     # re-source
     . "$ARENA_DIR/_meta/tools/source"
