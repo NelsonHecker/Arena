@@ -1,8 +1,8 @@
 import functools
 import os
-from pathlib import Path
 import time
 import traceback
+from pathlib import Path
 
 import attrs
 import geometry_msgs.msg
@@ -11,6 +11,7 @@ from ament_index_python.packages import get_package_share_directory
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_people_msgs.srv import DeleteActors
 from arena_rclpy_mixins.shared import Namespace
+from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from geometry_msgs.msg import Point
 from hunav_msgs.msg import Agent, AgentBehavior, Agents, WallSegment
 from hunav_msgs.srv import ComputeAgent, ComputeAgents, GetAgents, GetWalls, MoveAgent
@@ -112,13 +113,16 @@ class _PedestrianHelper:
         return Obstacle(
             name="hunav_plugin",
             pose=Pose(Position(x=0.0, y=0.0, z=-1.0)),
-            model=ModelWrapper.from_model(
-                Model(
-                    type=ModelType.SDF,
-                    name="hunav_plugin",
-                    description=sdf_content,
-                    path=Path(''),
-                )
+            model=ObjectIdentifier.inline(
+                ModelWrapper.from_model(
+                    Model(
+                        type=ModelType.SDF,
+                        name="hunav_plugin",
+                        description=sdf_content,
+                        path=Path(''),
+                    )
+                ),
+                name="hunav_plugin",
             )
         )
 
@@ -150,13 +154,16 @@ class _PedestrianHelper:
         return Obstacle(
             name="human_plugin",
             pose=Pose(Position(x=0.0, y=0.0, z=-1.0)),
-            model=ModelWrapper.from_model(
-                Model(
-                    type=ModelType.SDF,
-                    name="human_plugin",
-                    description=sdf_content,
-                    path=Path(""),
-                )
+            model=ObjectIdentifier.inline(
+                ModelWrapper.from_model(
+                    Model(
+                        type=ModelType.SDF,
+                        name="human_plugin",
+                        description=sdf_content,
+                        path=Path(""),
+                    ),
+                ),
+                name="human_plugin",
             )
         )
 
