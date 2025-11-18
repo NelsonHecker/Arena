@@ -8,6 +8,7 @@ import typing
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
+from typing_extensions import Self
 
 import attrs
 
@@ -455,7 +456,7 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         raise RuntimeError(f'Failed to load asset {self}') from last_error
 
     @classmethod
-    def inline(cls, data: T, name: str = '') -> InlineIdentifier[T]:
+    def inline(cls: typing.Type[Self], data: T, /, name: str = '') -> Self:
         """Create an InlineIdentifier containing the given data.
 
         Args:
@@ -465,7 +466,12 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         Returns:
             InlineIdentifier[T]: The created InlineIdentifier.
         """
-        return InlineIdentifier(data=data, name=name)
+        TypedInline = type(
+            f"TypedInline_{cls.__name__}",
+            (InlineIdentifier, cls),
+            {}
+        )
+        return typing.cast(Self, TypedInline(data, name=name))
 
 
 class InlineIdentifier(Identifier[T], typing.Generic[T]):
@@ -473,7 +479,7 @@ class InlineIdentifier(Identifier[T], typing.Generic[T]):
     """
     _data: T
 
-    def __init__(self, data: T, name: str = '') -> None:
+    def __init__(self, data: T, /, name: str = '') -> None:
         super().__init__(name=name, domain='')
         self._data = data
 

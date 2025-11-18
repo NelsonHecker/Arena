@@ -2,6 +2,7 @@ import functools
 import os
 import time
 import traceback
+import typing
 from pathlib import Path
 
 import attrs
@@ -12,6 +13,7 @@ from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_people_msgs.srv import DeleteActors
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from geometry_msgs.msg import Point
 from hunav_msgs.msg import Agent, AgentBehavior, Agents, WallSegment
 from hunav_msgs.srv import ComputeAgent, ComputeAgents, GetAgents, GetWalls, MoveAgent
@@ -27,6 +29,7 @@ from task_generator.shared import (
     Pose,
     Position,
 )
+from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.dummy import DummyHumanSimulator
 from task_generator.simulators.sim import BaseSim
 
@@ -226,7 +229,7 @@ class _PedestrianHelper:
         return sdf
 
 
-class HunavHumanSimulator(DummyHumanSimulator):
+class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyHumanSimulator):
     """HunavManager with debug logging for tracking execution flow"""
 
     _pedestrians: dict[int, dict]
@@ -561,12 +564,19 @@ class HunavHumanSimulator(DummyHumanSimulator):
                         self._gz_plugin_spawned = True
 
                     # Create SDF with plugin for Gazebo
-                    sdf = _PedestrianHelper.create_sdf(hunav_obstacle)
-                    obstacle.model = obstacle.model.override(
-                        ModelType.SDF,
-                        functools.partial(lambda desc, model: model.load(desc), sdf),
-                        noload=True
-                    )
+                    def update_model(obs: HunavDynamicObstacle, ref: PedestrianIdentifier) -> PedestrianIdentifier:
+                        model = ref.load()
+                        model.override(
+                            ModelType.SDF,
+                            lambda m: attrs.evolve(m, description=_PedestrianHelper.create_sdf(obs)),
+                            noload=True
+                        )
+                        return PedestrianIdentifier.inline(
+                            model,
+                            name=ref.name
+                        )
+
+                    obstacle.model = update_model(hunav_obstacle, obstacle.model)
                     obstacle.pose.orientation = Orientation.from_yaw(hunav_obstacle.yaw)
                     self._logger.info(f"Created SDF and loaded System Plugin for: {agent_msg.name}")
                 else:
@@ -626,8 +636,10 @@ class HunavHumanSimulator(DummyHumanSimulator):
     def _wall_to_points(self, start: Position, end: Position, spacing: float = 0.01) -> list[Point]:
         points: list[Point] = []
         v = (end - start).normalized()
+        i: float
         for i in np.arange(0, (end - start).norm(), spacing):
-            points.append(start + v * i)
+            waypoint = start + v * i
+            points.append(waypoint.to_msg())
         points.append(end.to_msg())
         return points
 
