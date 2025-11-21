@@ -1,35 +1,38 @@
-from tqdm import tqdm
-import time
-from google import genai
-import chromadb
-from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
-from typing import Dict, List
 import json
+import time
 
+import chromadb
+import numpy as np
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from google import genai
+from tqdm import tqdm
 
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_CFG = genai.types.EmbedContentConfig(
-    task_type="retrieval_document", 
+    task_type="retrieval_document",
     output_dimensionality=768
 )
 COLLECTION_NAME = "bt-nodes-reference"
+
 
 class GeminiEmbeddingFunction(EmbeddingFunction):
     def __init__(self, client: genai.Client, model, config: genai.types.EmbedContentConfig, *args, **kwargs):
         self.client = client
         self.model = model
         self.config = config
-              
-    def __call__(self, input: Documents) -> Embeddings:
+
+    def __call__(self, input_: Documents) -> Embeddings:
+        docs: list[str] = input_
         response = self.client.models.embed_content(
             model=self.model,
-            contents=input,
+            contents=list(docs),
             config=self.config
-		)
-        return [item.values for item in response.embeddings]
-    
+        )
+        assert response.embeddings is not None
+        return [np.array(item.values) for item in response.embeddings if item.values is not None]
 
-def process_json_doc(doc_path:str) -> List[str]:
+
+def process_json_doc(doc_path: str) -> list[str]:
     with open(doc_path, 'rt') as f:
         data = json.load(f)
 
@@ -40,10 +43,10 @@ def process_json_doc(doc_path:str) -> List[str]:
             doc = ""
             doc = f"\nNode name: {node['name']}\nPurpose: {node['purpose']}"
             doc += "\nInputs:"
-            for input in node["inputs"]:
-                input_name = input["name"]
-                input_type = input["type"]
-                input_description = input["description"]
+            for input_ in node["inputs"]:
+                input_name = input_["name"]
+                input_type = input_["type"]
+                input_description = input_["description"]
                 doc += f"\n\t- {input_name} ({input_type}): {input_description}"
             doc += "\nOutputs:"
             for output in node["outputs"]:
@@ -51,20 +54,21 @@ def process_json_doc(doc_path:str) -> List[str]:
                 output_type = output["type"]
                 output_description = output["description"]
                 doc += f"\n\t- {output_name} ({output_type}): {output_description}"
-            doc += f"\nMetadata:\n\t-Category: {category}"
+            node_type = node["n_agent"]
+            doc += f"\nMetadata:\n\t-Category: {category}\n\t-Node type: {node_type}"
             documents.append(doc)
 
     return documents
-    
 
-def create_chroma_db(documents: List[str], db_path: str, client: genai.Client, collection_name: str=COLLECTION_NAME, embedding_model: str=EMBEDDING_MODEL, embedding_config: genai.types.EmbedContentConfig=EMBEDDING_CFG) -> chromadb.Collection:
+
+def create_chroma_db(documents: list[str], db_path: str, client: genai.Client, collection_name: str = COLLECTION_NAME, embedding_model: str = EMBEDDING_MODEL, embedding_config: genai.types.EmbedContentConfig = EMBEDDING_CFG) -> chromadb.Collection:
     chroma_client = chromadb.PersistentClient(db_path)
-    
+
     collection = chroma_client.create_collection(
-        name=collection_name, 
+        name=collection_name,
         embedding_function=GeminiEmbeddingFunction(
-            client=client, 
-            model=embedding_model, 
+            client=client,
+            model=embedding_model,
             config=embedding_config
         )
     )
@@ -80,26 +84,24 @@ def create_chroma_db(documents: List[str], db_path: str, client: genai.Client, c
     return collection
 
 
-def get_chroma_collection(db_path: str, client: genai.Client, collection_name: str=COLLECTION_NAME, embedding_model: str=EMBEDDING_MODEL, embedding_config: genai.types.EmbedContentConfig=EMBEDDING_CFG) -> chromadb.Collection:
+def get_chroma_collection(db_path: str, client: genai.Client, collection_name: str = COLLECTION_NAME, embedding_model: str = EMBEDDING_MODEL, embedding_config: genai.types.EmbedContentConfig = EMBEDDING_CFG) -> chromadb.Collection:
     chroma_client = chromadb.PersistentClient(db_path)
 
     return chroma_client.get_collection(
-        name=collection_name, 
+        name=collection_name,
         embedding_function=GeminiEmbeddingFunction(
-            client=client, 
-            model=embedding_model, 
+            client=client,
+            model=embedding_model,
             config=embedding_config
         )
     )
 
 
-def get_relevant_bt_nodes(query:str, collection:chromadb.Collection, n_results=10) -> str:
-    passages = collection.query(query_texts=[query], n_results=n_results)[
-        'documents'][0]
-    
-    nodes_descriptions = ""
-    
-    for p in passages:
-        nodes_descriptions += f'\n{p}'
-    
+def get_relevant_bt_nodes(query: str, collection: chromadb.Collection, n_results=10) -> str:
+    result = collection.query(query_texts=[query], n_results=n_results)
+    assert result["documents"] is not None
+    passages = result['documents'][0]
+
+    nodes_descriptions = "\n".join(("", *passages))
+
     return nodes_descriptions.encode("utf-8").decode("unicode_escape").strip()

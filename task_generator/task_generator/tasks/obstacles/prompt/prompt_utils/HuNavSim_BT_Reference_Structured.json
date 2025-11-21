@@ -1,0 +1,426 @@
+{
+  "Doc title": "HuNavSim 2.0 Behaviour-Tree Nodes Reference",
+  "Units": "Distances in metres [m] · Angles in radians [rad] · Times in seconds [s]",
+  "Node categories": {
+    "Condition node": [
+      {
+        "name": "RandomChanceCondition",
+        "purpose": "Succeeds probabilistically based on a given chance.",
+        "inputs": [
+          {
+            "name": "probability",
+            "type": "double",
+            "description": "Chance of success (0.0-1.0).",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "IsAgentVisible",
+        "purpose": "Determines if a target agent is visible to an observer.",
+        "inputs": [
+          {
+            "name": "observer_name",
+            "type": "int",
+            "description": "Name of the observing agent.",
+            "required": true
+          },
+          {
+            "name": "agent_name",
+            "type": "int",
+            "description": "Name of the target agent.",
+            "required": true
+          },
+          {
+            "name": "distance",
+            "type": "double",
+            "description": "Visibility distance threshold [m].",
+            "required": true
+          },
+          {
+            "name": "field_of_view",
+            "type": "double",
+            "description": "It defines how wide the observer’s vision is. It’s value is half of field of view angle (symmetric left and right of the forward axis) [rad].",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "IsAgentClose",
+        "purpose": "Determines whether one agent is within a close distance of another agent.",
+        "inputs": [
+          {
+            "name": "observer_name",
+            "type": "int",
+            "description": "Name of the observing agent.",
+            "required": true
+          },
+          {
+            "name": "target_agent_name",
+            "type": "int",
+            "description": "Name of the target agent.",
+            "required": true
+          },
+          {
+            "name": "threshold",
+            "type": "double",
+            "description": "Distance threshold for close proximity [m].",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "IsAtPosition",
+        "purpose": "Checks if the agent has reached a specified goal position within a tolerance.",
+        "inputs": [
+          {
+            "name": "agent_name",
+            "type": "int",
+            "description": "Name of the agent.",
+            "required": true
+          },
+          {
+            "name": "target_x",
+            "type": "double",
+            "description": "X-Coordinate of the target goal position.",
+            "required": true
+          },
+          {
+            "name": "target_y",
+            "type": "double",
+            "description": "Y-Coordinate of the target goal position.",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      }
+    ],
+    "Action node": [
+      {
+        "name": "FindNearestAgent",
+        "purpose": "Identifies the nearest agent relative to a given agent.",
+        "inputs": [
+          {
+            "name": "agent_id",
+            "type": "int",
+            "description": "Identifier of the querying agent.",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "target_agent_id",
+            "type": "int",
+            "description": "Identifier of the nearest agent found."
+          }
+        ],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "SaySomething",
+        "purpose": "Commands the agent to publish a ROS message.",
+        "inputs": [
+          {
+            "name": "agent_id",
+            "type": "int",
+            "description": "Identifier of the speaking agent.",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "StopMovement",
+        "purpose": "Commands the agent to immediately halt all movement (stay idle).",
+        "inputs": [
+          {
+            "name": "agent_id",
+            "type": "int",
+            "description": "Identifier of the agent.",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "ResumeMovement",
+        "purpose": "Instructs the agent to resume movement after being stopped.",
+        "inputs": [
+          {
+            "name": "agent_id",
+            "type": "int",
+            "description": "Identifier of the agent.",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "StopAndWaitTimerAction",
+        "purpose": "Implements a stop‑and‑wait behaviour that stops the agent for a defined duration.",
+        "inputs": [
+          {
+            "name": "agent_id",
+            "type": "int",
+            "description": "Identifier of the agent.",
+            "required": true
+          },
+          {
+            "name": "wait_duration",
+            "type": "double",
+            "description": "Duration for which the agent should wait [s].",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "ConversationFormation",
+        "purpose": "Manages the formation of a conversation among multiple agents.",
+        "inputs": [
+          {
+            "name": "main_agent_name",
+            "type": "int",
+            "description": "Identifier of the primary agent leading the conversation.",
+            "required": true
+          },
+          {
+            "name": "conversation_duration",
+            "type": "double",
+            "description": "Total duration of the conversation [s].",
+            "required": true
+          },
+          {
+            "name": "target_x",
+            "type": "double",
+            "description": "X-Coordinate of where conversation's central point will take place.",
+            "required": true
+          },
+          {
+            "name": "target_y",
+            "type": "double",
+            "description": "Y-Coordinate of where conversation's central point will take place.",
+            "required": true
+          },
+          {
+            "name": "time_step",
+            "type": "double",
+            "description": "Time step for movement updates [s].",
+            "required": true
+          },
+          {
+            "name": "non_main_agent_names",
+            "type": "string",
+            "description": "List of participating agent names. Must be passed as a list of string, e.g. [\"hunav_1\", \"hunav_2\"]",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "GoTo",
+        "purpose": "Commands the agent to navigate directly to a specified point.",
+        "inputs": [
+          {
+            "name": "agent_name",
+            "type": "int",
+            "description": "Name of the agent.",
+            "required": true
+          },
+          {
+            "name": "time_step",
+            "type": "double",
+            "description": "Time step for movement updates [s].",
+            "default": 0.1,
+            "required": false
+          },
+          {
+            "name": "target_x",
+            "type": "double",
+            "description": "X-Coordinate of the target goal position.",
+            "required": true
+          },
+          {
+            "name": "target_y",
+            "type": "double",
+            "description": "Y-Coordinate of the target goal position.",
+            "required": true
+          },
+          {
+            "name": "tolerance",
+            "type": "double",
+            "description": "Distance to consider 'at goal' [m].",
+            "default": 1.0,
+            "required": false
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "ApproachAgent",
+        "purpose": "Directs the agent to move towards another agent for a defined duration.",
+        "inputs": [
+          {
+            "name": "agent_id",
+            "type": "int",
+            "description": "Identifier of the approaching agent.",
+            "required": true
+          },
+          {
+            "name": "target_agent_id",
+            "type": "int",
+            "description": "Identifier of the target agent.",
+            "required": true
+          },
+          {
+            "name": "time_step",
+            "type": "double",
+            "description": "Time step for movement updates [s].",
+            "required": true
+          },
+          {
+            "name": "duration",
+            "type": "double",
+            "description": "Duration of the approach action [s].",
+            "required": true
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "GroupWalk",
+        "purpose": "Directs a group to walk together with a designated main agent.",
+        "inputs": [
+          {
+            "name": "main_agent_name",
+            "type": "int",
+            "description": "Identifier of the main agent guiding the group.",
+            "required": true
+          },
+          {
+            "name": "time_step",
+            "type": "double",
+            "description": "Time increment used for updating movement [s].",
+            "required": true
+          },
+          {
+            "name": "non_main_agent_names",
+            "type": "string",
+            "description": "List of the non-main agents' names. Must be passed as a list of string, e.g. [\"hunav_1\", \"hunav_2\"]",
+            "required": true
+          },
+          {
+            "name": "duration",
+            "type": "double",
+            "description": "Duration for which the behaviour runs [s]. If omitted, the behaviour runs indefinitely.",
+            "required": false
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "FollowAgent",
+        "purpose": "Commands an agent to follow another target agent.",
+        "inputs": [
+          {
+            "name": "agent_id",
+            "type": "int",
+            "description": "Identifier of the follower agent.",
+            "required": true
+          },
+          {
+            "name": "time_step",
+            "type": "double",
+            "description": "Time step for movement updates [s].",
+            "required": true
+          },
+          {
+            "name": "target_agent_id",
+            "type": "int",
+            "description": "Identifier of the agent to be followed.",
+            "required": true
+          },
+          {
+            "name": "duration",
+            "type": "double",
+            "description": "Duration for which the behaviour is active [s]. If omitted, the behaviour runs indefinitely.",
+            "required": false
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      },
+      {
+        "name": "Queue",
+        "purpose": "Commands agents to queue in line, the order of agents is determined by the order of their names in the list.",
+        "inputs": [
+          {
+            "name": "agents_names",
+            "type": "list[string]",
+            "description": "List of participating agent names. Must be passed as a list of string, e.g. [\"hunav_1\", \"hunav_2\"]",
+            "required": true
+          },
+          {
+            "name": "wait_duration",
+            "type": "list[double]",
+            "description": "Durations for which each agent should wait [s].",
+            "required": true
+          },
+          {
+            "name": "front_agent_pose",
+            "type": "list[double]",
+            "description": "The pose ([x, y, yaw]) of the agent in the front of the queue, the pose of agents behind will be calculated base on this agent's pose and queue direction.",
+            "required": true
+          },
+          {
+            "name": "direction",
+            "type": "double",
+            "description": "The direction of the queue line given in yaw angle, the pose of agents will be calculated base on this attribute and front agent's pose.",
+            "required": false
+          },
+          {
+            "name": "distances",
+            "type": "double",
+            "description": "The distances between each agents, e.g. If `agents_names`=[\"hunav_1\", \"hunav_2\", \"hunav_3\"] and distances=[1.0, 1.5], it means \"hunav_1\" stands 1.0 meters from \"hunav_2\" and \"hunav_2\" stands 1.5 meters from \"hunav_3\".",
+            "required": false
+          }
+        ],
+        "outputs": [],
+        "n_agent": "multi agent node"
+      }
+    ],
+    "Stateful Condition Nodes": [],
+    "Decorator node": [
+      {
+        "name": "TimeDelayDecorator",
+        "purpose": "Delays the execution of its child node by a specified amount of time. Returns FAILURE until delay elapses, then ticks child.",
+        "inputs": [
+          {
+            "name": "delay",
+            "type": "double",
+            "description": "Delay time before the child node is ticked [s].",
+            "required": false,
+            "default": 1.0
+          }
+        ],
+        "outputs": [],
+        "n_agent": "single agent node"
+      }
+    ]
+  }
+}
