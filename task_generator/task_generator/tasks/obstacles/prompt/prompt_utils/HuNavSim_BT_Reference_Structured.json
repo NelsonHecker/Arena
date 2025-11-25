@@ -108,7 +108,7 @@
         "purpose": "Identifies the nearest agent relative to a given agent.",
         "inputs": [
           {
-            "name": "agent_id",
+            "name": "agent_name",
             "type": "int",
             "description": "Identifier of the querying agent.",
             "required": true
@@ -116,7 +116,7 @@
         ],
         "outputs": [
           {
-            "name": "target_agent_id",
+            "name": "target_agent_name",
             "type": "int",
             "description": "Identifier of the nearest agent found."
           }
@@ -128,7 +128,7 @@
         "purpose": "Commands the agent to publish a ROS message.",
         "inputs": [
           {
-            "name": "agent_id",
+            "name": "agent_name",
             "type": "int",
             "description": "Identifier of the speaking agent.",
             "required": true
@@ -142,7 +142,7 @@
         "purpose": "Commands the agent to immediately halt all movement (stay idle).",
         "inputs": [
           {
-            "name": "agent_id",
+            "name": "agent_name",
             "type": "int",
             "description": "Identifier of the agent.",
             "required": true
@@ -156,7 +156,7 @@
         "purpose": "Instructs the agent to resume movement after being stopped.",
         "inputs": [
           {
-            "name": "agent_id",
+            "name": "agent_name",
             "type": "int",
             "description": "Identifier of the agent.",
             "required": true
@@ -170,7 +170,7 @@
         "purpose": "Implements a stop‑and‑wait behaviour that stops the agent for a defined duration.",
         "inputs": [
           {
-            "name": "agent_id",
+            "name": "agent_name",
             "type": "int",
             "description": "Identifier of the agent.",
             "required": true
@@ -274,13 +274,13 @@
         "purpose": "Directs the agent to move towards another agent for a defined duration.",
         "inputs": [
           {
-            "name": "agent_id",
+            "name": "agent_name",
             "type": "int",
             "description": "Identifier of the approaching agent.",
             "required": true
           },
           {
-            "name": "target_agent_id",
+            "name": "target_agent_name",
             "type": "int",
             "description": "Identifier of the target agent.",
             "required": true
@@ -338,7 +338,7 @@
         "purpose": "Commands an agent to follow another target agent.",
         "inputs": [
           {
-            "name": "agent_id",
+            "name": "agent_name",
             "type": "int",
             "description": "Identifier of the follower agent.",
             "required": true
@@ -350,7 +350,7 @@
             "required": true
           },
           {
-            "name": "target_agent_id",
+            "name": "target_agent_name",
             "type": "int",
             "description": "Identifier of the agent to be followed.",
             "required": true
