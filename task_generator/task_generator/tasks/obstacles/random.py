@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import itertools
 import typing
@@ -89,8 +91,12 @@ class TM_Random(TM_Obstacles):
         class ModelList(dict[str, float]):
 
             @classmethod
-            def fromkeys(cls, *args, **kwargs) -> "ModelList":
-                return cls(super().fromkeys(*args, **kwargs))
+            def fromkeys(cls, *args, **kwargs) -> ModelList:
+                result = cls(super().fromkeys(*args, **kwargs))
+                if not len(result):
+                    self._logger.warn('Empty model list passed. Defaulting to empty string.')
+                    result[""] = 1.0
+                return result
 
             @property
             def a(self) -> list[str]:

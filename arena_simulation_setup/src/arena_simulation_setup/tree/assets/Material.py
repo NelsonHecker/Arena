@@ -23,7 +23,7 @@ class Material:
     __DEFAULTS: typing.ClassVar[dict[str, str]] = {
         'wall': 'Marble',
         'floor': 'Porcelain_Tile_4',
-        'door': 'Zinc'
+        'door': 'Aluminum_Anodized',
     }
 
     @classmethod
