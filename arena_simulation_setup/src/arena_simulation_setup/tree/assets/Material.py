@@ -22,11 +22,12 @@ class Material:
     __DEFAULT: typing.ClassVar[str] = "Marble"
     __DEFAULTS: typing.ClassVar[dict[str, str]] = {
         'wall': 'Marble',
-        'floor': 'Wood_Cork',
+        'floor': 'Porcelain_Tile_4',
+        'door': 'Zinc'
     }
 
     @classmethod
-    def default(cls, context: typing.Literal['floor', 'wall'] | str = '') -> str:
+    def default(cls, context: typing.Literal['floor', 'wall', 'door'] | str = '') -> str:
         return cls.__DEFAULTS.get(context, cls.__DEFAULT)
 
     def asdict(self) -> dict:
