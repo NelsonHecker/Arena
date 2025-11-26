@@ -234,6 +234,7 @@ class IsaacSimulator(BaseSim):
     def remove_walls_doors(self):
         self._delete_entity(self._NS_WALL)
         self._delete_entity(self._NS_DOOR)
+        self._delete_entity(self._NS_FLOOR)
         return True
 
     def spawn_walls(self, walls):
