@@ -209,7 +209,10 @@ class IsaacSimulator(BaseSim):
 
     def robot_move(self, robots):
         def move_robot(robot: Robot) -> bool:
-            return self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
+            robot_params = arena_robots.Robot.RobotLoader(robot.model.name).model_params
+            res1 = self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
+            res2 = self._move_entity(self._NS_ROBOT(robot.name, robot_params.base_frame), robot.pose)
+            return res1 and res2
         return tuple(map(move_robot, robots))
 
     def obstacle_delete(self, obstacles):
