@@ -70,16 +70,6 @@ class WorldManager(NodeInterface):
         self._detected_walls = None
         self._map = world_map
 
-        if not list(world_description.all_walls):
-            pass
-            # world_description.zones.append(
-            #     WorldDescription.Zone(
-            #         name='detected_walls',
-            #         corners=[],
-            #         walls=list(self.detected_walls),
-            #     )
-            # )
-
         counter = itertools.count(0)
         for entity in itertools.chain(world_description.all_static_entities, world_description.all_dynamic_entities):
             if not entity.name:
@@ -240,8 +230,7 @@ class WorldManager(NodeInterface):
 
         if n < 0:  # TODO profile when this is faster
             for _ in range(n):
-                pos = self._classic_get_random_pos_on_map(
-                    safe_dist=safe_dist, forbidden_zones=forbidden_zones)
+                pos = self._classic_get_random_pos_on_map(safe_dist=safe_dist, forbidden_zones=forbidden_zones)
                 posr = PositionRadius(x=pos.x, y=pos.y, radius=safe_dist)
                 fork.occupy(*self.map.tf_posr2rect(posr))
                 forbidden_zones.append(posr)

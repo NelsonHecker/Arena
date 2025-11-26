@@ -22,7 +22,7 @@ EntityT = typing.TypeVar("EntityT", bound="Entity")
 @attrs.define
 class Entity(Parseable):
     pose: Pose = attrs.field(converter=Pose.converter)
-    name: str = attrs.field(converter=lambda s: Entity.sanitize_name(str(s)))
+    name: str
     model: Identifier[ModelWrapper]
 
     extra: dict = attrs.field(factory=dict, kw_only=True)
@@ -38,6 +38,14 @@ class Entity(Parseable):
 
     @classmethod
     def sanitize_name(cls, name: str) -> str:
+        """Replace special chars in name with underscores.
+
+        Args:
+            name (str): input name
+
+        Returns:
+            str: sanitized name
+        """
         return re.sub('[^A-Za-z0-9_]', '_', name)
 
     @classmethod
