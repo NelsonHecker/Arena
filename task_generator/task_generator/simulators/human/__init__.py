@@ -62,7 +62,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
                 known.obstacle = obstacle
-                self._simulator.obstacle_move(known.obstacle.name, known.obstacle.pose)
+                self._simulator.obstacle_move((known.obstacle,))
                 known.layer = layer
             else:
                 known = self._known_obstacles.create_or_get(
@@ -98,7 +98,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
                 known.obstacle = obstacle
-                self._simulator.pedestrian_move(known.obstacle.name, known.obstacle.pose)
+                self._simulator.pedestrian_move((known.obstacle,))
                 known.layer = ObstacleLayer.INUSE
             else:
                 known = self._known_obstacles.create_or_get(

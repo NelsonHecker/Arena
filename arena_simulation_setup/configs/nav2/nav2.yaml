@@ -51,6 +51,7 @@ bt_navigator:
     action_server_timeout: 0.0
     retry_max: 5
     retry_timeout: 0.0
+    wait_for_service_timeout: -1
     
     default_nav_to_pose_bt_xml: ${default_nav_to_pose_bt_xml}
     default_nav_through_poses_bt_xml: ${default_nav_through_poses_bt_xml}
