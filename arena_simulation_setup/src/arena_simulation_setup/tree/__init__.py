@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import enum
+import logging
 import os
 import subprocess
 import typing
@@ -148,6 +149,7 @@ class NetResolver(Resolver):
                 str(target_path),
             ]).strip().decode()) == '1':
                 disk_path = ARENA_ASSETS_DIR / provider
+                logging.info(f"Fetching asset {identifier} from network provider {provider}...")
                 subprocess.check_output([
                     'ros2',
                     'run',

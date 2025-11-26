@@ -63,13 +63,14 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
                 known.obstacle = obstacle
                 self._simulator.obstacle_move((known.obstacle,))
-                known.layer = layer
             else:
                 known = self._known_obstacles.create_or_get(
                     name=obstacle.name,
                     obstacle=obstacle,
                 )
-            if not known.spawned:
+            if known.spawned:
+                known.layer = layer
+            else:
                 unspawneds.append(known)
 
         to_simulator = []
@@ -81,6 +82,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
             if known.layer == ObstacleLayer.UNUSED:
                 to_simulator.append(known.obstacle)
+            known.layer = layer
 
         self._simulator.obstacle_spawn(to_simulator)
 
@@ -99,13 +101,14 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
                 known.obstacle = obstacle
                 self._simulator.pedestrian_move((known.obstacle,))
-                known.layer = ObstacleLayer.INUSE
             else:
                 known = self._known_obstacles.create_or_get(
                     name=obstacle.name,
                     obstacle=obstacle
                 )
-            if not known.spawned:
+            if known.spawned:
+                known.layer = ObstacleLayer.INUSE
+            else:
                 unspawneds.append(known)
 
         to_simulator = []
@@ -118,6 +121,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
             if known.layer == ObstacleLayer.UNUSED:
                 to_simulator.append(known.obstacle)
+            known.layer = ObstacleLayer.INUSE
+
         self._simulator.pedestrian_spawn(to_simulator)
 
     def spawn_world(
