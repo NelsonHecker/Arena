@@ -175,7 +175,7 @@ class TM_Prompt(TM_Obstacles):
         if use_behavior_tree:
             self.setup_chroma()
 
-            if "bt" not in self.cached_context.keys():  # system context is not cached (due to initialization)
+            if "bt" not in self.cached_context_name.keys():  # system context is not cached (due to initialization)
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
@@ -185,7 +185,7 @@ class TM_Prompt(TM_Obstacles):
                     )
                 )
                 if cache.name is not None:
-                    self.cached_context.update({"bt": cache.name})
+                    self.cached_context_name.update({"bt": cache.name})
 
             bt_nodes = get_relevant_bt_nodes(
                 query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\". \
@@ -200,7 +200,7 @@ class TM_Prompt(TM_Obstacles):
             )
 
         else:
-            if "arena" not in self.cached_context.keys():  # system context is not cached (due to initialization)
+            if "arena" not in self.cached_context_name.keys():  # system context is not cached (due to initialization)
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
@@ -210,7 +210,7 @@ class TM_Prompt(TM_Obstacles):
                     )
                 )
                 if cache.name is not None:
-                    self.cached_context.update({"arena": cache.name})
+                    self.cached_context_name.update({"arena": cache.name})
 
             messages.append(
                 f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below: {world_info}. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
@@ -257,7 +257,7 @@ class TM_Prompt(TM_Obstacles):
                 model=REMOTE_LM,
                 contents=messages,
                 config=genai.types.GenerateContentConfig(
-                    cached_content=self.cached_context["bt"] if use_behavior_tree else self.cached_context["arena"],
+                    cached_content=self.cached_context_name["bt"] if use_behavior_tree else self.cached_context_name["arena"],
                     top_p=top_p,
                     thinking_config=genai.types.ThinkingConfig(
                         include_thoughts=False,
@@ -407,6 +407,11 @@ class TM_Prompt(TM_Obstacles):
             api_key=os.environ["GEMINI_API_KEY"]
         )
 
-        self.cached_context: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
+        self.cached_context_name: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
 
         self.tmp_dir = tempfile.TemporaryDirectory()  # Temporary directory to store behavior tree XML files
+
+    def __del__(self):
+        # Delete caches
+        for cache_name in self.cached_context_name.values():
+            self.inference_client.caches.delete(name=cache_name)

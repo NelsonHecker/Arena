@@ -394,9 +394,9 @@
             "required": false
           },
           {
-            "name": "distances",
+            "name": "distance",
             "type": "double",
-            "description": "The distances between each agents, e.g. If `agents_names`=[\"hunav_1\", \"hunav_2\", \"hunav_3\"] and distances=[1.0, 1.5], it means \"hunav_1\" stands 1.0 meters from \"hunav_2\" and \"hunav_2\" stands 1.5 meters from \"hunav_3\".",
+            "description": "The distance between each agents.",
             "required": false
           }
         ],

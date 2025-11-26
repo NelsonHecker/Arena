@@ -313,9 +313,7 @@ behavior_tree_format = """
                         0.0
                     ],
                     "direction": 92.5,
-                    "distances": [
-                        1.0
-                    ]
+                    "distance": 1.0
                 },
                 "orders": {
                     "hunav_1": 1,
