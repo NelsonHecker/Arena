@@ -182,8 +182,13 @@ class IsaacSimulator(BaseSim):
         results = [True] * len(obstacles)
 
         for i, obstacle in enumerate(obstacles):
-            model = obstacle.model.load().get([ModelType.USD])
-            if model.type is ModelType.UNKNOWN:
+            try:
+                model = obstacle.model.load().get([ModelType.USD])
+                if model.type is ModelType.UNKNOWN:
+                    raise ValueError(f"obstacle model {obstacle.model.name} has no USD representation")
+            except Exception as e:
+                import traceback
+                self._logger.error(f"Failed to load model for obstacle {obstacle.name}: {e}\n{traceback.format_exc()}")
                 results[i] = False
                 continue
             prim = Prim()

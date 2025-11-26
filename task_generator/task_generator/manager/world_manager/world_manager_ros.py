@@ -185,6 +185,9 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         #     raise RuntimeError(
         #         f'Simulator {simulator.value} does not support world reloading.')
 
+        if world_name == self._world_name:
+            return True  # no change
+
         self._logger.warn(f'LOADING WORLD {world_name}')
         self._world_name = world_name
 
