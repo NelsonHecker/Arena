@@ -669,17 +669,13 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         # Phase 1: Delete Actors from ECM first
         success = self._call_delete_actors_service()
 
-        if not success:
-            self._logger.info("Failed to delete  Pedestrians from ECM - continuing anyway")
-            # Don't return False - continue with deletion
-
         # Phase 2: Clear local agents container
         self._agents_container = Agents()
         self._get_agents_container = Agents()
         self._logger.debug("Cleared local agents container")
 
         # Phase 3: Reset HunavSim
-        success = self._clear_hunav_agents()
+        success = self._reset_hunav()
         if not success:
             self._logger.error("Failed to reset HuNav agents - continuing anyway")
 
@@ -689,7 +685,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug(f"Complete reset completed: {success}")
         return success
 
-    def _clear_hunav_agents(self):
+    def _reset_hunav(self):
         """Reset HuNav by calling ClearAgents service"""
         try:
             if not self._clear_agents_client.wait_for_service(timeout_sec=2.0):
@@ -698,11 +694,11 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
             request = Trigger.Request()
 
-            self._logger.debug("Calling HuNav ClearAgents service...")
+            self._logger.error("Calling HuNav ClearAgents service...")
             response = self._clear_agents_client.call(request)
 
             if response and response.success:
-                self._logger.debug("HuNav clear successful - ready for new agents")
+                self._logger.error("HuNav clear successful - ready for new agents")
                 return True
             else:
                 self._logger.error("HuNav clear failed")
@@ -716,12 +712,12 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         """Call the plugin's delete actors service"""
         try:
             if not self._delete_actors_client.wait_for_service(timeout_sec=2.0):
-                self._logger.error("Delete actors service currently not available")
+                self._logger.debug("Delete  service currently not available")
                 return False
 
             request = DeleteActors.Request()
 
-            self._logger.error("Calling delete_actors service...")
+            self._logger.debug("Calling delete_actors service...")
 
             response = self._delete_actors_client.call(request)
 

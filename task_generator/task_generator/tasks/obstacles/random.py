@@ -201,15 +201,17 @@ class TM_Random(TM_Obstacles):
 
             dynamic_obstacles += [
                 DynamicObstacle(
-                    name=f"D_{model}_{index(model)}",
+                    name=f"Pedestrian_{i}",
                     model=model,
                     waypoints=list(itertools.islice(waypoints, waypoints_per_ped)),
                     pose=next(positions),
                 )
-                for model in self.node.conf.General.RNG.value.choice(
-                    a=MODELS_DYNAMIC_OBSTACLES.a,
-                    p=MODELS_DYNAMIC_OBSTACLES.p,
-                    size=N_DYNAMIC_OBSTACLES,
+                for i, model in enumerate(
+                    self.node.conf.General.RNG.value.choice(
+                        a=MODELS_DYNAMIC_OBSTACLES.a,
+                        p=MODELS_DYNAMIC_OBSTACLES.p,
+                        size=N_DYNAMIC_OBSTACLES,
+                    )
                 )
             ]
 
