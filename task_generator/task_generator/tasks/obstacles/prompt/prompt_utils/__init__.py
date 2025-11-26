@@ -10,19 +10,10 @@ from .vector_db import (
     get_relevant_bt_nodes,
     process_json_doc,
 )
+from arena_hunav_sim_bridge import BT_REF_DOC_PATH, CHROMA_DB_PATH
 
 LOCAL_LM = "Qwen/Qwen3-0.6B"
 REMOTE_LM = "gemini-2.5-flash"
-CHROMA_DB_PATH = os.path.join(
-    get_package_share_directory("task_generator"),
-    "prompt_utils",
-    "chroma"
-)
-BT_REF_DOC_PATH = os.path.join(
-    get_package_share_directory("task_generator"),
-    "prompt_utils",
-    "HuNavSim_BT_Reference_Structured.json"
-)
 
 
 __all__ = [
