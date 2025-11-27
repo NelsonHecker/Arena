@@ -473,15 +473,18 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
     def _update_agent_obstacles(self, current_agents):
         """Update agent closest_obs with latest obstacle data before HuNav call"""
-        if not self._latest_obstacles:
-            return
+        # if not self._latest_obstacles:
+        #     return current_agents
 
         for agent in current_agents.agents:
-            if agent.name in self._latest_obstacles:
-                agent.closest_obs = self._latest_obstacles[agent.name]
-                agent.closest_obs.extend(self._wall_points)
-                self._logger.debug(f"Updated agent {agent.name} with {len(agent.closest_obs)} obstacles")
-                self._logger.debug(f"Wall Points: {self._wall_points}")
+            # if agent.name in self._latest_obstacles:
+            # agent.closest_obs = self._latest_obstacles[agent.name]
+            agent.closest_obs.extend(self._wall_points)
+            self._logger.debug(f"Updated agent {agent.name} with {len(agent.closest_obs)} obstacles")
+            self._logger.debug(f"Wall Points: {self._wall_points}")
+
+        # self._logger.info(f"current_agents after obstacle update: {current_agents}")
+        return current_agents
 
     def _get_agents_callback(self, request, response):
         """Handle get_agents service request - return UNMODIFIED agents"""
@@ -633,13 +636,12 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         return results
 
-    def _wall_to_points(self, start: Position, end: Position, spacing: float = 0.01) -> list[Point]:
+    def _wall_to_points(self, start: Position, end: Position, spacing: float = 0.2) -> list[Point]:
         points: list[Point] = []
         v = (end - start).normalized()
-        i: float
         for i in np.arange(0, (end - start).norm(), spacing):
-            waypoint = start + v * i
-            points.append(waypoint.to_msg())
+            pt_pos = start + v * i
+            points.append(pt_pos.to_msg())  # convert Position -> geometry_msgs.msg.Point
         points.append(end.to_msg())
         return points
 
@@ -881,7 +883,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             current_agents.header.stamp = self.node.get_clock().now().to_msg()
 
             # Update obstacles BEFORE sending to HuNav
-            self._update_agent_obstacles(current_agents)
+            current_agents = self._update_agent_obstacles(current_agents)
 
             # Smooth yaw values before sending to HuNav
             current_agents = self._smooth_agents_before_hunav(current_agents)
