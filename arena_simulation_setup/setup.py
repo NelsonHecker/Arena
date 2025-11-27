@@ -41,6 +41,7 @@ setup(
     scripts=[
         'scripts/download_assets',
         'scripts/model_staging',
+        'scripts/touch_world',
     ],
     entry_points={
         'console_scripts': [
