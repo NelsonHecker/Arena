@@ -20,6 +20,7 @@ dependencies = [
     "pydantic>=2.11.5",
     "pillow>=11.2.1",
     "lxml>=4.9.1",
+    "colourings>=0.4.1",
 ]
 
 [project.urls]
