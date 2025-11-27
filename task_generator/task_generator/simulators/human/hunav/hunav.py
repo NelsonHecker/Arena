@@ -696,11 +696,11 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
             request = Trigger.Request()
 
-            self._logger.error("Calling HuNav ClearAgents service...")
+            self._logger.debug("Calling HuNav ClearAgents service...")
             response = self._clear_agents_client.call(request)
 
             if response and response.success:
-                self._logger.error("HuNav clear successful - ready for new agents")
+                self._logger.debug("HuNav clear successful - ready for new agents")
                 return True
             else:
                 self._logger.error("HuNav clear failed")

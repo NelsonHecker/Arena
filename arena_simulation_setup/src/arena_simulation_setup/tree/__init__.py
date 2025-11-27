@@ -135,8 +135,6 @@ class NetResolver(Resolver):
     """
 
     def _network_fetch(self, provider: str, identifier: Identifier) -> Optional[Path]:
-        import sys
-        print(f'trying to resolve {identifier} on provider {provider}', file=sys.stderr)
         target_path = identifier.path(self._asset_type)
         try:
             if (subprocess.check_output([

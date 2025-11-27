@@ -392,7 +392,7 @@ class RobotManager(NodeInterface):
                 'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
                 'namespace': self.namespace,
                 # 'use_namespace': 'True',
-                'frame': self._robot.frame(''),  # trailing slash
+                'frame': self.node._environment_manager.realize(self._robot).frame(''),  # trailing slash
                 'inter_planner': self._robot.inter_planner,
                 'global_planner': self._robot.global_planner,
                 'local_planner': self._robot.local_planner,
@@ -422,7 +422,7 @@ class RobotManager(NodeInterface):
             self.node.do_launch(launch_description)
 
             while 'bt_navigator' not in (node_names := self.node.get_node_names()):
-                self._logger.debug(f'waiting for bt_navigator in {node_names}')
+                self._logger.info(f'waiting for bt_navigator in {node_names}')
                 # TODO redo this globally in the robots manager, every get_node_names call is expensive
                 self._rate_setup.sleep()  # we love race conditions
 

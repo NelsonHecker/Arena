@@ -69,7 +69,7 @@ class WorldDescription:
             pos = Position(x=(x_min + x_max) / 2, y=(y_min + y_max) / 2)
             x_length = x_max - x_min
             y_length = y_max - y_min
-            return Floor(pos=pos, x_length=x_length, y_length=y_length, material=self.material)
+            return Floor(name=self.name, pos=pos, x_length=x_length, y_length=y_length, material=self.material)
 
     zones: list[Zone] = attrs.field(factory=list)
 

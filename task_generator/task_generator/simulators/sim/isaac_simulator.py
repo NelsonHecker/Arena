@@ -233,8 +233,9 @@ class IsaacSimulator(BaseSim):
         return tuple(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots)
 
     def remove_walls_doors(self):
-        self._delete_entity(self._NS_WALL)
-        self._delete_entity(self._NS_DOOR)
+        self._delete_entity(self._NS_WALL(self.node._environment_manager._prefix()))
+        self._delete_entity(self._NS_DOOR(self.node._environment_manager._prefix()))
+        self._delete_entity(self._NS_FLOOR(self.node._environment_manager._prefix()))
         return True
 
     def spawn_walls(self, walls):
@@ -297,10 +298,9 @@ class IsaacSimulator(BaseSim):
 
         for floor in floors:
             try:
-                i = next(self.floor_counter)
                 req.floors.append(  # type: ignore
                     Floor(
-                        name=self._NS_FLOOR(f"floor_{i}"),
+                        name=self._NS_FLOOR(floor.name),
                         x_length=floor.x_length,
                         y_length=floor.y_length,
                         pos=floor.pos.to_msg(),
@@ -308,9 +308,9 @@ class IsaacSimulator(BaseSim):
                     )
                 )
 
-            except Exception as e:
-                self._logger.error("Failed to spawn floor")
-                self._logger.error(repr(e))
+            except Exception:
+                import traceback
+                self._logger.error(f"Failed to spawn floor: {floor.name}\n{traceback.format_exc()}")
                 traceback.print_exc(file=sys.stderr)
 
         res = all(self._services.SpawnFloors.client.call(req).ret)
