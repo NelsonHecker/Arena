@@ -146,7 +146,7 @@ def generate_launch_description():
             create_task_generator(
                 headlessness=PythonExpression([headless.substitution, '>1']),
                 namespace=base_namespace,
-                prefix='',
+                prefix=f'{base_prefix}0' if n > 1 else '',
                 reference=list(next(references))
             )
         )
@@ -157,7 +157,7 @@ def generate_launch_description():
                 create_task_generator(
                     headlessness=PythonExpression([headless.substitution, '>-1']),
                     namespace=base_namespace + '_' + str(i),
-                    prefix=base_prefix + str(i) + '_',
+                    prefix=base_prefix + str(i),
                     reference=list(next(references))
                 )
             )

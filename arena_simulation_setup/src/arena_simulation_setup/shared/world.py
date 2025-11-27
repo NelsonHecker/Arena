@@ -52,6 +52,7 @@ class Door:
 
 @attrs.define
 class Floor:
+    name: str
     pos: Position = attrs.field(converter=Position.converter)
     x_length: float = attrs.field(converter=float, default=20.)
     y_length: float = attrs.field(converter=float, default=20.)
