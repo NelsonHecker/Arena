@@ -221,6 +221,7 @@ class IsaacSimulator(BaseSim):
         return tuple(map(move_robot, robots))
 
     def obstacle_delete(self, obstacles):
+        return [True for _obstacle in obstacles]
         return tuple(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles)
 
     def pedestrian_delete(self, pedestrians):

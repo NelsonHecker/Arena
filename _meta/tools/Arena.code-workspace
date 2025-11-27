@@ -38,6 +38,10 @@
     {
       "name": "robots",
       "path": "src/Arena/arena_robots/arena_robots"
+    },
+    {
+      "name": "hunav",
+      "path": "src/deps/hunav"
     }
   ],
   "settings": {

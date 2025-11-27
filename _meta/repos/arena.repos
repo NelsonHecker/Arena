@@ -78,7 +78,7 @@ repositories:
   deps/hunav/arena_hunav_sim_bridge:
     type: git
     url: https://github.com/ductaingn/arena_hunav_sim_bridge.git
-    version: humble
+    version: humble@f7db705
   
   gazebo/turtlebot4_simulator:
     type: git

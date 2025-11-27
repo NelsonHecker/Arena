@@ -55,20 +55,20 @@ zones:
     entities:
       static:
         - name: nurse_station
-          model: nurse_station
+          model: Hospital/Reception_Counter
           pose: [15, 11.5, -1.57]
         - name: chair1
-          model: chair_array
+          model: Hospital/Chair
           pose: [20.5, 1.0, 1.57]
         - name: chair2
-          model: chair_array
+          model: Hospital/Chair
           pose: [21.5, 1.0, 1.57]
         - name: chair3
-          model: chair_array
+          model: Hospital/Chair
           pose: [22.5, 1.0, 1.57]
         - name: chair4
-          model: chair_array
+          model: Hospital/Chair
           pose: [23.5, 1.0, 1.57]
         - name: chair5
-          model: chair_array
+          model: Hospital/Chair
           pose: [24.5, 1.0, 1.57]
