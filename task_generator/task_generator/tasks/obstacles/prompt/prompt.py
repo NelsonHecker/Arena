@@ -188,15 +188,14 @@ class TM_Prompt(TM_Obstacles):
                     self.cached_context_name.update({"bt": cache.name})
 
             bt_nodes = get_relevant_bt_nodes(
-                query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\". \
-                    Note that if there's any node related to navigation, you must retrieve the node SetGoal.",
+                query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\".",
                 collection=self.chroma_collection,
             )
 
             self.node.get_logger().warn(f"Choosen bt_nodes: {bt_nodes}")
 
             messages.append(
-                f"Generate hunav agents data for a simulation base on this world data as below: {world_info}, where: {prompt}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below: {world_info}. You MUST follow the Universal Spatial Reasoning Protocol (USRP) when producing all positions, movement directions, and yaw angles. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
         else:
@@ -213,7 +212,7 @@ class TM_Prompt(TM_Obstacles):
                     self.cached_context_name.update({"arena": cache.name})
 
             messages.append(
-                f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below: {world_info}. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below: {world_info}. You MUST follow the Universal Spatial Reasoning Protocol (USRP) when producing all positions, movement directions, and yaw angles. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
         if local:  # Currently not supported
@@ -261,7 +260,7 @@ class TM_Prompt(TM_Obstacles):
                     top_p=top_p,
                     thinking_config=genai.types.ThinkingConfig(
                         include_thoughts=False,
-                        thinking_budget=8192
+                        thinking_budget=24576
                     ),
                 )
             )
@@ -412,6 +411,11 @@ class TM_Prompt(TM_Obstacles):
         self.tmp_dir = tempfile.TemporaryDirectory()  # Temporary directory to store behavior tree XML files
 
     def __del__(self):
-        # Delete caches
-        for cache_name in self.cached_context_name.values():
-            self.inference_client.caches.delete(name=cache_name)
+        try:
+            # Delete caches
+            for cache_name in self.cached_context_name.values():
+                self.inference_client.caches.delete(name=cache_name)
+            self.cached_context_name: dict[str, str] = {}
+        except Exception as e:
+            self.node.get_logger().error(e)
+            self.node.get_logger().error(f"Can not delete cache! Maybe it was deleted earlier.")

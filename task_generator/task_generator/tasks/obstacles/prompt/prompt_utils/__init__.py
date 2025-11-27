@@ -13,7 +13,7 @@ from .vector_db import (
 from arena_hunav_sim_bridge import BT_REF_DOC_PATH, CHROMA_DB_PATH
 
 LOCAL_LM = "Qwen/Qwen3-0.6B"
-REMOTE_LM = "gemini-2.5-flash"
+REMOTE_LM = "gemini-3-pro-preview"
 
 
 __all__ = [

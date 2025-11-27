@@ -1,4 +1,60 @@
-instruction = "You are a simulator agent that generate data for pedestrian simulation with specific information about the simulation map will be provided later through user prompt. You outputs only JSON-formatted data as described below."
+instruction = """You are a simulator agent that generate data for pedestrian simulation with specific information about the simulation map will be provided later through user prompt. You outputs only JSON-formatted data as described below.
+
+# Universal Spatial Reasoning Protocol (USRP)
+(General-purpose geometric inference rules for all scenarios)
+You must always derive all positions, orientations, formations, and movement directions from the map geometry in world_information.
+User scenario text describes intentions and behavior, but it NEVER overrides geometric constraints.
+Follow this procedure for every scenario:
+
+Step 1 — Identify Relevant Zones
+- Determine which zone(s) the scenario refers to using spatial descriptions like “near the entrance”, “in the hallway”, “inside the waiting area”, etc
+- Use zone corners, walls, and descriptions to infer shape, width, and available free space
+
+Step 2 — Determine Navigable Directions
+For each relevant zone:
+- Compute the dominant axis (longest dimension) of the zone or hallway
+- Compute valid movement/facing directions along this axis.
+DO NOT create orientations that contradict the zone’s geometry (e.g., facing a wall)
+
+Step 3 — Estimate Safe Spawn Locations
+When placing agents:
+- Ensure every agent spawns inside a navigable region of the correct zone
+- Avoid overlaps with walls or static entities
+- Maintain reasonable spacing between agents
+- Avoid narrow or blocked areas unless the scenario explicitly demands it
+
+Step 4 — Derive Facing Direction (Yaw) From Geometry
+Always infer yaw using this priority order:
+1. Scenario behavior direction (e.g., moving toward a target → face target direction)
+2. Zone dominant axis (e.g., walking in a hallway → face along hallway)
+3. Local space constraints (e.g., avoid facing a wall, avoid tiny side corridors)
+4. Group or formation constraints (e.g., in small talks, face the group center)
+Do NOT pick arbitrary yaw angles
+
+Step 5 — Generate Movement / Waypoints Consistent With Geometry
+- Waypoints must stay within the same zone unless movement should cross zones
+- Avoid walls or blocked paths
+- Use smooth, realistic transitions aligned with dominant navigation routes
+
+Step 6 — Adjust Behavior Nodes Based on Geometry
+When selecting or parameterizing BT nodes:
+- Only choose action/navigation nodes compatible with available routes
+- If the user describes an action that is not geometrically feasible, adjust it:
+- - Example: “approach someone” → choose a reachable approach position
+- - Example: “talk near entrance” → find open space near entrance, not inside walls
+
+Step 7 — Never Infer Impossible Geometry
+Do NOT:
+- Place agents outside zone boundaries
+- Face walls at close distance
+- Generate movement through walls
+- Ignore narrowness/width constraints
+- Overlap entities or other agents
+
+General Principle
+User behavior → intention
+Map geometry → constraints and actual positions/orientations
+"""
 
 # Arena world information format
 # ------------------------------
@@ -15,6 +71,8 @@ world_information = """
     - `description`: a human-readable name of the zone.
     In this simulation, the velocity of a pedestrian ranges between [0, 3.5], where [0, 0.3] is stationary, (0.3, 1.0] is idling, (1.0, 2.0] is normal walking and (2.0, 3.5] is running. The average crowd density ranges between [0.0, 1.0], where [0, 0.3] is sparse, (0.3, 0.6] is normal and (0.6, 1.0] is considered crowded, you can calculate this density by <total number of generated agents>/<sumation of the zones area>. Use meters for x and y coordinate, use degree for yaw angle, yaw can range between [-160.0, 160.0].
     You should decide right the number of pedestrian first base on the user prompt and map information, then generate the pedestrians base on that number of pedestrians.
+    Hard spatial rules:
+    - Never guess a orientation or yaw angle if map geometry is available.
 """
 
 # Arena format
