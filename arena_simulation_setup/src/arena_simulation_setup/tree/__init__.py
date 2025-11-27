@@ -6,12 +6,12 @@ import logging
 import os
 import subprocess
 import typing
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Optional
-from typing_extensions import Self
 
 import attrs
+from typing_extensions import Self
 
 from arena_simulation_setup import (
     ARENA_ASSETS_DIR,
@@ -386,6 +386,11 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
     """
     name: str
     domain: str = attrs.field(default=DOMAIN_DEFAULT)
+    _modifiers: dict | None = attrs.field(default=None, alias='modifiers', repr=False)
+
+    @property
+    def modifiers(self) -> dict:
+        return {} if self._modifiers is None else self._modifiers
 
     def path(self, type_: AssetType) -> Path:
         """Get the path representation of the identifier.
@@ -396,16 +401,22 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         return Path(self.domain) / type_.value / self.name
 
     def __hash__(self) -> int:
-        return hash((self.domain, self.name))
+        return hash(
+            (
+                self.domain,
+                self.name,
+                frozenset(self.modifiers.items())
+            )
+        )
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Identifier):
             return False
-        return self.domain == other.domain and self.name == other.name
+        return self.domain == other.domain and self.name == other.name and self.modifiers == other.modifiers
 
     @classmethod
-    def parse(cls, value: str | Identifier) -> Identifier:
-        """Parse path of the form [type:][domain:]name into an Identifier.
+    def parse(cls, value: str | tuple[str, dict] | Identifier) -> Identifier:
+        """Parse path of the form [domain:]name into an Identifier.
 
         Args:
             identifier (str): The identifier string to parse.
@@ -417,24 +428,39 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         """
         if isinstance(value, Identifier):
             return value
+
+        modifiers = None
+        if isinstance(value, Iterable) and not isinstance(value, str):
+            if not len(value) == 2:
+                raise ValueError(f'Expected Iterable of length 2, got {len(value)}')
+            value, modifiers = value[0], value[1]
+
+            if not isinstance(value, str):
+                raise TypeError(f'Expected value to be str, got {repr(value)}')
+            if not isinstance(modifiers, dict):
+                raise TypeError(f'Expected modifiers to be dict, got {repr(modifiers)}')
+
         parts = list(reversed(value.split('/', 2)))
 
         name = parts[0]
-        domain = parts[1] if len(parts) > 1 else None
+        domain = parts[1] if len(parts) > 1 else DOMAIN_DEFAULT
 
-        if domain:
-            return cls(
-                domain=domain,
-                name=name,
-            )
         return cls(
-            name=name
+            domain=domain,
+            name=name,
+            modifiers=modifiers,
         )
 
-    def serialize(self) -> str:
+    def serialize(self):
         if self.domain == DOMAIN_DEFAULT:
-            return self.name
-        return f'{self.domain}/{self.name}'
+            path = self.name
+        else:
+            path = f'{self.domain}/{self.name}'
+
+        if self.modifiers is None:
+            return path
+        else:
+            return (path, self.modifiers)
 
     @classmethod
     def converter(cls, *args, **kwargs):
@@ -460,12 +486,13 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         raise RuntimeError(f'Failed to load asset {self}') from last_error
 
     @classmethod
-    def inline(cls: typing.Type[Self], data: T, /, name: str = '') -> Self:
+    def inline(cls: typing.Type[Self], data: T, /, name: str = '', modifiers: dict | None = None) -> Self:
         """Create an InlineIdentifier containing the given data.
 
         Args:
             data (T): The asset data.
             name (str, optional): The name of the asset. Defaults to ''.
+            modifiers (dict | None, optional): The modifiers dict for the asset. Defaults to None.
 
         Returns:
             InlineIdentifier[T]: The created InlineIdentifier.
@@ -483,8 +510,8 @@ class InlineIdentifier(Identifier[T], typing.Generic[T]):
     """
     _data: T
 
-    def __init__(self, data: T, /, name: str = '') -> None:
-        super().__init__(name=name, domain='')
+    def __init__(self, data: T, /, name: str = '', modifiers: dict | None = None) -> None:
+        super().__init__(name=name, domain='', modifiers=modifiers)
         self._data = data
 
     def serialize(self) -> str:

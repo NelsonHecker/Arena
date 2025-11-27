@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import attrs
 
-from arena_simulation_setup.tree.assets.Material import Material, MaterialLoader
+from arena_simulation_setup.tree.assets.Material import Material, MaterialIdentifier
 from arena_simulation_setup.tree.Wall import WallDescription, WallRealization
 from arena_simulation_setup.tree.Wall import loader as WallLoader
 from arena_simulation_setup.utils.cattrs import Serializable
@@ -14,7 +14,7 @@ class Wall(Serializable):
     start: Position = attrs.field(converter=Position.converter)
     end: Position = attrs.field(converter=Position.converter)
     kind: str = ''
-    material: str = ''
+    material: MaterialIdentifier | None = None
 
     def assets(self) -> WallRealization:
         """
@@ -24,14 +24,14 @@ class Wall(Serializable):
             if self.kind:
                 _description = WallLoader(self.kind).load()
             else:
-                _description = WallDescription.simple(material=MaterialLoader(self.material) if self.material else None)
+                _description = WallDescription.simple(material=self.material if self.material else None)
             return _description.realize(self.start, self.end)
         except Exception as e:
             import logging
             import traceback
             logging.error(f"Failed to load wall assets for wall from {self.start} to {self.end} of kind '{self.kind}' and material '{self.material}': {e}\n{traceback.format_exc()}")
 
-            return WallDescription.simple(material=MaterialLoader(Material.default('wall'))).realize(self.start, self.end)
+            return WallDescription.simple(material=MaterialIdentifier(Material.default('wall'))).realize(self.start, self.end)
 
     def __iter__(self):
         yield self.start
