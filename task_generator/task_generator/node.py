@@ -125,18 +125,18 @@ class TaskGenerator(NodeInterface.Taskgen_T):
             environment_manager=self._environment_manager
         )
 
-    def _initialize(self):
+    async def _initialize(self):
         self._start_time = self.get_clock().now().seconds_nanoseconds()[0]
-        self._task = self._get_predefined_task()
+        self._task = await self._get_predefined_task()
 
         self._number_of_resets = 0
 
-        self.reset_task(first_map=True)
+        await self.reset_task(first_map=True)
 
         self._initialized = True
         self.rosparam[bool].set('initialized', True)
 
-    def _get_predefined_task(self, **kwargs):
+    async def _get_predefined_task(self, **kwargs):
         """
         Gets the task based on the passed mode
         """
@@ -145,10 +145,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         tm_modules.add(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
         tm_modules.add(Constants.TaskMode.TM_Module.RVIZ_UI)
 
-        if self.conf.Arena.WORLD.value == "dynamic_map":
-            tm_modules.add(Constants.TaskMode.TM_Module.DYNAMIC_MAP)
-
-        self._world_manager.sync()
+        await self._world_manager.sync()
 
         self.get_logger().debug("utils calls task factory")
         return TaskFactory.combine(list(tm_modules))(
@@ -160,7 +157,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         )
 
     # RUNTIME
-    def reset_task(self, **kwargs):
+    async def reset_task(self, **kwargs):
         self._start_time = self.get_clock().now().seconds_nanoseconds()[0]
 
         self._simulator.before_reset_task()
@@ -179,11 +176,11 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         self.get_logger().warn("Task Reset!")
         self.get_logger().warn("=============")
 
-    def _check_task_status(self, *args, **kwargs):
+    async def _check_task_status(self, *args, **kwargs):
         if not self._initialized:
-            return self._initialize()
+            return await self._initialize()
         if self._task.is_done:
-            self.reset_task()
+            await self.reset_task()
 
     def _send_end_message_on_end(self):
         if self.conf.General.DESIRED_EPISODES.value < 0 or self._number_of_resets < self.conf.General.DESIRED_EPISODES.value:
@@ -194,13 +191,13 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         rclpy.shutdown()
 
     # SERVICES
-    def _cb_reset_task(
+    async def _cb_reset_task(
         self,
         request: std_srvs.Empty.Request,
         response: std_srvs.Empty.Response
     ):
         self.get_logger().debug("Task Generator received task-reset request!")
-        self.reset_task()
+        await self.reset_task()
         return response
 
     async def _cb_get_configs_environments(
@@ -260,7 +257,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         self.create_service(
             EmptySrv,
             self.service_namespace('reset_task'),
-            self._cb_reset_task
+            self._cb_reset_task  # type: ignore
         )
 
         self.create_service(

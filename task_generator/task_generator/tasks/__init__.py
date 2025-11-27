@@ -145,11 +145,6 @@ def declare_modules():
         from .modules.clear_forbidden_zones import Mod_ClearForbiddenZones
         return Mod_ClearForbiddenZones
 
-    @TaskFactory.register_module(Constants.TaskMode.TM_Module.DYNAMIC_MAP)
-    def _dynamic_map():
-        from .modules.dynamic_map import Mod_DynamicMap
-        return Mod_DynamicMap
-
     @TaskFactory.register_module(Constants.TaskMode.TM_Module.RVIZ_UI)
     def _rviz_ui():
         from .modules.rviz_ui import Mod_OverrideRobot

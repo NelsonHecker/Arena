@@ -1,4 +1,5 @@
 
+import asyncio
 import os
 import tempfile
 import time
@@ -125,7 +126,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
     _world_name: str
     _origin: Position | None
     _map_name: str | None
-    _callbacks: list[typing.Callable[[], None]]
+    _callbacks: list[typing.Callable[[], typing.Awaitable[None]]]
 
     def _shift_map(self, map_dir: Path) -> tempfile.TemporaryDirectory:
         """Shift the map to the correct origin.
@@ -221,7 +222,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         return True
 
-    def _map_callback(self, costmap: nav_msgs.msg.OccupancyGrid):
+    async def _map_callback(self, costmap: nav_msgs.msg.OccupancyGrid):
         """Handle incoming map updates.
 
         Args:
@@ -244,14 +245,11 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
             self._map_name = self.world_name
 
-            for callback in self._callbacks:
-                try:
-                    callback()
-                except Exception as e:
-                    self._logger.warning(f'encountered exception in world callback: {repr(e)}')
-                    import sys
-                    import traceback
-                    traceback.print_exc(file=sys.stderr)
+            try:
+                await asyncio.gather(callback() for callback in self._callbacks)
+            except Exception as e:
+                import traceback
+                self._logger.warning(f'encountered exception in world callback: {e}\n{traceback.format_exc()}')
 
     def _setup_world_callbacks(self):
         """Set up callbacks for world events.
@@ -261,7 +259,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self.node.create_subscription(
             nav_msgs.msg.OccupancyGrid,
             self.node.service_namespace('map'),
-            self._map_callback,
+            self._map_callback,  # type: ignore
             1,
         )
 
@@ -281,7 +279,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             self._world_callback,
         )
 
-    def on_world_change(self, callback: typing.Callable[[], None]):
+    def on_world_change(self, callback: typing.Callable[[], typing.Awaitable[None]]):
         """Register a callback to be called when the world changes.
 
         Args:
@@ -304,7 +302,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """
         self._setup_world_callbacks()
 
-    def sync(self, timeout: float = -1) -> bool:
+    async def sync(self, timeout: float = -1) -> bool:
         """Synchronize the world and map names.
 
         Args:
@@ -316,7 +314,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if timeout < 0:
             timeout = float('inf')
         while self._map_name != self._world_name:
-            time.sleep(dt := 1)
+            await asyncio.sleep(dt := 1)
             timeout -= dt
             if timeout < 0:
                 return False
