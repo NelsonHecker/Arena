@@ -175,6 +175,13 @@ class WorldProvider(StaticProvider[WorldDescription]):
             )
 
     def save(self, world: WorldDescription, map_only: bool = False, **kwargs) -> Path:
+        os.makedirs(self.path, exist_ok=True)
+        tarball = world.export(**kwargs)
+
+        # compat python 3.10.0
+        if not hasattr(tarfile.TarFile, 'data_filter'):
+            tarball.extractall(self.path)
+            return self.path
 
         filter = tarfile.data_filter
         if map_only:
@@ -186,8 +193,6 @@ class WorldProvider(StaticProvider[WorldDescription]):
                 return member
             filter = map_only_filter
 
-        os.makedirs(self.path, exist_ok=True)
-        tarball = world.export(**kwargs)
         tarball.extractall(self.path, filter=filter)
         return self.path
 
