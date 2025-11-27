@@ -203,7 +203,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         self.reset_task()
         return response
 
-    def _cb_get_configs_environments(
+    async def _cb_get_configs_environments(
         self,
         request: task_generator_msgs.srv.GetEnvironments.Request,
         response: task_generator_msgs.srv.GetEnvironments.Response,
@@ -211,7 +211,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         response.environments = arena_simulation_setup.tree.configs.environment.Environment.list()
         return response
 
-    def _cb_get_configs_parametrized(
+    async def _cb_get_configs_parametrized(
         self,
         request: task_generator_msgs.srv.GetParametrizeds.Request,
         response: task_generator_msgs.srv.GetParametrizeds.Response,
@@ -219,7 +219,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         response.parametrizeds = arena_simulation_setup.tree.configs.parametrized.Parametrized.list()
         return response
 
-    def _cb_get_obstacles(
+    async def _cb_get_obstacles(
         self,
         request: task_generator_msgs.srv.GetObstacles.Request,
         response: task_generator_msgs.srv.GetObstacles.Response,
@@ -229,7 +229,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
 
         return response
 
-    def _cb_get_scenarios(
+    async def _cb_get_scenarios(
         self,
         request: task_generator_msgs.srv.GetScenarios.Request,
         response: task_generator_msgs.srv.GetScenarios.Response,
@@ -239,7 +239,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         ).scenario.list()
         return response
 
-    def _cb_get_worlds(
+    async def _cb_get_worlds(
         self,
         request: task_generator_msgs.srv.GetWorlds.Request,
         response: task_generator_msgs.srv.GetWorlds.Response,
@@ -247,7 +247,7 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         response.worlds = World.World.list()
         return response
 
-    def _cb_get_robots(
+    async def _cb_get_robots(
         self,
         request: task_generator_msgs.srv.GetRobots.Request,
         response: task_generator_msgs.srv.GetRobots.Response,
@@ -266,35 +266,35 @@ class TaskGenerator(NodeInterface.Taskgen_T):
         self.create_service(
             task_generator_msgs.srv.GetEnvironments,
             self.service_namespace('get_environments'),
-            self._cb_get_configs_environments
+            self._cb_get_configs_environments  # type: ignore
         )
 
         self.create_service(
             task_generator_msgs.srv.GetParametrizeds,
             self.service_namespace('get_parametrizeds'),
-            self._cb_get_configs_parametrized
+            self._cb_get_configs_parametrized  # type: ignore
         )
 
         self.create_service(
             task_generator_msgs.srv.GetObstacles,
             self.service_namespace('get_obstacles'),
-            self._cb_get_obstacles
+            self._cb_get_obstacles  # type: ignore
         )
 
         self.create_service(
             task_generator_msgs.srv.GetScenarios,
             self.service_namespace('get_scenarios'),
-            self._cb_get_scenarios
+            self._cb_get_scenarios  # type: ignore
         )
 
         self.create_service(
             task_generator_msgs.srv.GetRobots,
             self.service_namespace('get_robots'),
-            self._cb_get_robots
+            self._cb_get_robots  # type: ignore
         )
 
         self.create_service(
             task_generator_msgs.srv.GetWorlds,
             self.service_namespace('get_worlds'),
-            self._cb_get_worlds
+            self._cb_get_worlds  # type: ignore
         )
