@@ -432,7 +432,9 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         )
 
     def serialize(self) -> str:
-        return f'{self.domain}:{self.name}'
+        if self.domain == DOMAIN_DEFAULT:
+            return self.name
+        return f'{self.domain}/{self.name}'
 
     @classmethod
     def converter(cls, *args, **kwargs):

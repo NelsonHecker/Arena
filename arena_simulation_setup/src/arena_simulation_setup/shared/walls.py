@@ -5,11 +5,12 @@ import attrs
 from arena_simulation_setup.tree.assets.Material import Material, MaterialLoader
 from arena_simulation_setup.tree.Wall import WallDescription, WallRealization
 from arena_simulation_setup.tree.Wall import loader as WallLoader
+from arena_simulation_setup.utils.cattrs import Serializable
 from arena_simulation_setup.utils.geometry import Position
 
 
 @attrs.define
-class Wall:
+class Wall(Serializable):
     start: Position = attrs.field(converter=Position.converter)
     end: Position = attrs.field(converter=Position.converter)
     kind: str = ''
@@ -35,3 +36,11 @@ class Wall:
     def __iter__(self):
         yield self.start
         yield self.end
+
+    def serialize(self) -> dict:
+        ser = attrs.asdict(self)
+        if self.kind or not self.material:
+            ser.pop('material', None)
+        if not self.kind:
+            ser.pop('kind', None)
+        return ser

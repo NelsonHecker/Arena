@@ -49,16 +49,16 @@ class WorldDescription:
             dynamic: list[DynamicObstacle] = attrs.field(factory=list)
 
         name: str
-        corners: list[Position] = attrs.field(factory=list)
-        walls: list[Wall] = attrs.field(factory=list)
-        doors: list[Door] = attrs.field(factory=list)
-        elevators: list[Elevator] = attrs.field(factory=list)
+        description: str = ''
         material: MaterialIdentifier = attrs.field(
             converter=MaterialIdentifier.converter,
             default=Material.default('floor')
         )
+        corners: list[Position] = attrs.field(factory=list)
+        walls: list[Wall] = attrs.field(factory=list)
+        doors: list[Door] = attrs.field(factory=list)
+        elevators: list[Elevator] = attrs.field(factory=list)
         entities: WorldEntities = attrs.field(factory=WorldEntities)
-        description: str = ''
 
         @property
         def floor(self) -> Floor:
@@ -133,7 +133,7 @@ class WorldDescription:
             extra_files = {}
         files: dict[str, bytes] = {**extra_files}
 
-        files['world.yaml'] = typing.cast(bytes, yaml.safe_dump(converter.unstructure(self), encoding='utf-8'))
+        files['world.yaml'] = typing.cast(bytes, yaml.safe_dump(converter.unstructure(self), encoding='utf-8', sort_keys=False))
 
         files['map/map.png'], origin = self.render(resolution=resolution)
 
@@ -174,10 +174,21 @@ class WorldProvider(StaticProvider[WorldDescription]):
                 WorldDescription
             )
 
-    def save(self, world: WorldDescription, **kwargs) -> Path:
+    def save(self, world: WorldDescription, map_only: bool = False, **kwargs) -> Path:
+
+        filter = tarfile.data_filter
+        if map_only:
+            def map_only_filter(member, destpath):
+                if not tarfile.data_filter(member, destpath):
+                    return None
+                if not member.name.startswith('map/'):
+                    return None
+                return member
+            filter = map_only_filter
+
         os.makedirs(self.path, exist_ok=True)
         tarball = world.export(**kwargs)
-        tarball.extractall(self.path, filter='data')
+        tarball.extractall(self.path, filter=filter)
         return self.path
 
 
