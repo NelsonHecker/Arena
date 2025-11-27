@@ -15,10 +15,9 @@ class SafeCallbackNode(rclpy.node.Node):
     Automatically make clients part of a new MutuallyExclusiveCallbackGroup to avoid deadlocks.
     """
 
-    def create_client(self, *args, callback_group: rclpy.callback_groups.CallbackGroup | None = None, **kwargs) -> rclpy.client.Client:
-        if callback_group is None:
-            callback_group = rclpy.callback_groups.MutuallyExclusiveCallbackGroup()
-        return super().create_client(*args, callback_group=callback_group, **kwargs)
+    @property
+    def default_callback_group(self) -> rclpy.callback_groups.CallbackGroup:
+        return rclpy.callback_groups.MutuallyExclusiveCallbackGroup()
 
 
 class NodeInterface:
