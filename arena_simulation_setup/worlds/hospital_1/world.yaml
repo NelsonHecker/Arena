@@ -1,60 +1,39 @@
 zones:
-  # Central Hallway - Main circulation spine (4m × 30m)
+  # Central Hallway - Main circulation spine (4m × 30.15m)
   - description: "Main Central Hallway"
     name: "central_hallway"
     walls:
-      # Bottom
+      # Bottom (doors)
       - start: { x: 8.0, y: 0.0 }
+        end: { x: 9.25, y: 0.0 }
+        material: Marble
+      - start: { x: 10.75, y: 0.0 }
         end: { x: 12.0, y: 0.0 }
         material: Marble
       # Top
-      - start: { x: 8.0, y: 30.0 }
-        end: { x: 12.0, y: 30.0 }
-        material: Marble
-      # Left Side (X=8) - Segmented for doors
-      - start: { x: 8.0, y: 0.0 }
-        end: { x: 8.0, y: 1.75 }
-        material: Marble
-      - start: { x: 8.0, y: 3.25 }
-        end: { x: 8.0, y: 6.75 }
-        material: Marble
-      - start: { x: 8.0, y: 8.25 }
-        end: { x: 8.0, y: 13.25 }
-        material: Marble
-      - start: { x: 8.0, y: 14.75 }
-        end: { x: 8.0, y: 20.25 }
-        material: Marble
-      - start: { x: 8.0, y: 21.75 }
-        end: { x: 8.0, y: 26.75 }
-        material: Marble
-      - start: { x: 8.0, y: 28.25 }
-        end: { x: 8.0, y: 30.0 }
-        material: Marble
-      # Right Side (X=12) - Segmented for doors and openings
-      - start: { x: 12.0, y: 0.0 }
-        end: { x: 12.0, y: 10.0 } # Waiting Area Wall
-        material: Marble
-      # Gap for Sub-Hallway (10-13)
-      - start: { x: 12.0, y: 13.0 }
-        end: { x: 12.0, y: 16.5 } # OR Wall part 1
-        material: Marble
-      - start: { x: 12.0, y: 18.0 }
-        end: { x: 12.0, y: 25.0 } # OR Wall part 2 + Lab Wall part 1
-        material: Marble
-      - start: { x: 12.0, y: 26.5 }
-        end: { x: 12.0, y: 30.0 } # Lab Wall part 2
+      - start: { x: 8.0, y: 30.15 }
+        end: { x: 12.0, y: 30.15 }
         material: Marble
 
     corners:
       - [8.0, 0.0]
       - [12.0, 0.0]
-      - [12.0, 30.0]
-      - [8.0, 30.0]
+      - [12.0, 30.15]
+      - [8.0, 30.15]
+    
+    doors:
+      - name: "main_hallway_entrance"
+        start: { x: 9.25, y: 0.0 }
+        end: { x: 10.75, y: 0.0 }
+        height: 2.0
+        kind: "sliding"
+    
+    mat: Aquamarine
 
     entities:
       static: []
 
-  # Reception (8m × 5m)
+  # Reception (8m × 5m) - No Shift
   - description: "Reception and Check-in"
     name: "reception"
     walls:
@@ -117,36 +96,36 @@ zones:
           model: Hospital/Trashcan
           pose: [7.0, 4.5, 0.0]
 
-  # Examination Room 1 (8m × 5m)
+  # Examination Room 1 (8m × 5m) - Shifted +0.05
   - description: "Examination Room 1"
     name: "exam_room_1"
     walls:
-      - start: { x: 0.0, y: 5.0 }
-        end: { x: 0.0, y: 10.0 }
+      - start: { x: 0.0, y: 5.05 }
+        end: { x: 0.0, y: 10.05 }
         material: Concrete_Polished
-      - start: { x: 0.0, y: 10.0 }
-        end: { x: 8.0, y: 10.0 }
+      - start: { x: 0.0, y: 10.05 }
+        end: { x: 8.0, y: 10.05 }
         material: Concrete_Polished
-      - start: { x: 8.0, y: 10.0 }
-        end: { x: 8.0, y: 8.25 }
+      - start: { x: 8.0, y: 10.05 }
+        end: { x: 8.0, y: 8.30 }
         material: Concrete_Polished
-      - start: { x: 8.0, y: 6.75 }
-        end: { x: 8.0, y: 5.0 }
+      - start: { x: 8.0, y: 6.80 }
+        end: { x: 8.0, y: 5.05 }
         material: Concrete_Polished
-      - start: { x: 8.0, y: 5.0 }
-        end: { x: 0.0, y: 5.0 }
+      - start: { x: 8.0, y: 5.05 }
+        end: { x: 0.0, y: 5.05 }
         material: Concrete_Polished
 
     corners:
-      - [0.0, 5.0]
-      - [8.0, 5.0]
-      - [8.0, 10.0]
-      - [0.0, 10.0]
+      - [0.0, 5.05]
+      - [8.0, 5.05]
+      - [8.0, 10.05]
+      - [0.0, 10.05]
 
     doors:
       - name: "exam_room_1_door"
-        start: [8.0, 6.75]
-        end: [8.0, 8.25]
+        start: [8.0, 6.80]
+        end: [8.0, 8.30]
         height: 2.0
         kind: "sliding"
 
@@ -154,67 +133,67 @@ zones:
       static:
         - name: exam1_exam_table_1
           model: Hospital/Exam_Table
-          pose: [4.0, 7.5, 0.0]
+          pose: [4.0, 7.55, 0.0]
         - name: exam1_medical_stool_1
           model: Hospital/Medical_Stool
-          pose: [2.5, 7.5, 0.0]
+          pose: [2.5, 7.55, 0.0]
         - name: exam1_instrument_table_1
           model: Hospital/Instrument_Table
-          pose: [5.5, 7.5, 0.0]
+          pose: [5.5, 7.55, 0.0]
         - name: exam1_vital_signal_station_1
           model: Hospital/Vital_Signal_Station
-          pose: [7.0, 7.5, 4.71]
+          pose: [7.0, 7.55, 4.71]
         - name: exam1_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [0.8, 9.0, 1.57]
+          pose: [0.8, 9.05, 1.57]
         - name: exam1_supply_cart_1
           model: Hospital/Supply_Cart_A
-          pose: [1.0, 5.5, 0.0]
+          pose: [1.0, 5.55, 0.0]
         - name: exam1_scale_1
           model: Hospital/Scale
-          pose: [6.5, 5.5, 0.0]
+          pose: [6.5, 5.55, 0.0]
         - name: exam1_trashcan_1
           model: Hospital/Trashcan
-          pose: [7.0, 9.5, 0.0]
+          pose: [7.0, 9.55, 0.0]
 
-  # Patient Ward (8m × 15m)
+  # Patient Ward (8m × 15m) - Shifted +0.10
   - description: "Patient Ward"
     name: "patient_ward"
     walls:
-      - start: { x: 0.0, y: 10.0 }
-        end: { x: 0.0, y: 25.0 }
+      - start: { x: 0.0, y: 10.10 }
+        end: { x: 0.0, y: 25.10 }
         material: Carpet_Berber_Gray
-      - start: { x: 0.0, y: 25.0 }
-        end: { x: 8.0, y: 25.0 }
+      - start: { x: 0.0, y: 25.10 }
+        end: { x: 8.0, y: 25.10 }
         material: Carpet_Berber_Gray
-      - start: { x: 8.0, y: 25.0 }
-        end: { x: 8.0, y: 21.75 }
+      - start: { x: 8.0, y: 25.10 }
+        end: { x: 8.0, y: 21.85 }
         material: Carpet_Berber_Gray
-      - start: { x: 8.0, y: 20.25 }
-        end: { x: 8.0, y: 14.75 }
+      - start: { x: 8.0, y: 20.35 }
+        end: { x: 8.0, y: 14.85 }
         material: Carpet_Berber_Gray
-      - start: { x: 8.0, y: 13.25 }
-        end: { x: 8.0, y: 10.0 }
+      - start: { x: 8.0, y: 13.35 }
+        end: { x: 8.0, y: 10.10 }
         material: Carpet_Berber_Gray
-      - start: { x: 8.0, y: 10.0 }
-        end: { x: 0.0, y: 10.0 }
+      - start: { x: 8.0, y: 10.10 }
+        end: { x: 0.0, y: 10.10 }
         material: Carpet_Berber_Gray
 
     corners:
-      - [0.0, 10.0]
-      - [8.0, 10.0]
-      - [8.0, 25.0]
-      - [0.0, 25.0]
+      - [0.0, 10.10]
+      - [8.0, 10.10]
+      - [8.0, 25.10]
+      - [0.0, 25.10]
 
     doors:
       - name: "patient_ward_door_1"
-        start: [8.0, 13.25]
-        end: [8.0, 14.75]
+        start: [8.0, 13.35]
+        end: [8.0, 14.85]
         height: 2.0
         kind: "sliding"
       - name: "patient_ward_door_2"
-        start: [8.0, 20.25]
-        end: [8.0, 21.75]
+        start: [8.0, 20.35]
+        end: [8.0, 21.85]
         height: 2.0
         kind: "sliding"
 
@@ -222,89 +201,89 @@ zones:
       static:
         - name: ward_bed_1
           model: Hospital/Bed_A
-          pose: [4.0, 13.5, 0.0]
+          pose: [4.0, 13.6, 0.0]
         - name: ward_bedside_table_1
           model: Hospital/Bed_Side_Table
-          pose: [6.0, 13.5, 1.57]
+          pose: [6.0, 13.6, 1.57]
         - name: ward_iv_stand_1
           model: Hospital/IV_Stand
-          pose: [2.5, 13.5, 0.0]
+          pose: [2.5, 13.6, 0.0]
         - name: ward_vital_signal_1
           model: Hospital/Vital_Signal_Station
-          pose: [7.0, 13.5, 4.71]
+          pose: [7.0, 13.6, 4.71]
         - name: ward_privacy_curtain_1
           model: Hospital/Privacy_Curtain_Rail
-          pose: [4.0, 15.0, 0.0]
+          pose: [4.0, 15.1, 0.0]
         - name: ward_bed_2
           model: Hospital/Bed_B
-          pose: [4.0, 19.5, 0.0]
+          pose: [4.0, 19.6, 0.0]
         - name: ward_bedside_table_2
           model: Hospital/Bed_Side_Table
-          pose: [6.0, 19.5, 1.57]
+          pose: [6.0, 19.6, 1.57]
         - name: ward_iv_stand_2
           model: Hospital/IV_Stand
-          pose: [2.5, 19.5, 0.0]
+          pose: [2.5, 19.6, 0.0]
         - name: ward_vital_signal_2
           model: Hospital/Vital_Signal_Station
-          pose: [7.0, 19.5, 4.71]
+          pose: [7.0, 19.6, 4.71]
         - name: ward_privacy_curtain_2
           model: Hospital/Privacy_Curtain_Rail
-          pose: [4.0, 21.0, 0.0]
+          pose: [4.0, 21.1, 0.0]
         - name: ward_armchair_1
           model: Hospital/Patient_Armchair
-          pose: [1.5, 16.5, 1.57]
+          pose: [1.5, 16.6, 1.57]
         - name: ward_armchair_2
           model: Hospital/Patient_Armchair
-          pose: [1.5, 22.5, 1.57]
+          pose: [1.5, 22.6, 1.57]
         - name: ward_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [0.8, 23.5, 1.57]
+          pose: [0.8, 23.6, 1.57]
         - name: ward_medical_cabinet_2
           model: Hospital/Medical_Cabinet
-          pose: [7.0, 23.5, 4.71]
+          pose: [7.0, 23.6, 4.71]
         - name: ward_supply_cart_1
           model: Hospital/Supply_Cart_B
-          pose: [1.0, 11.0, 0.0]
+          pose: [1.0, 11.1, 0.0]
         - name: ward_gurney_1
           model: Hospital/Gurney
-          pose: [6.5, 11.5, 0.0]
+          pose: [6.5, 11.6, 0.0]
         - name: ward_wheelchair_1
           model: Hospital/Wheel_Chair
-          pose: [1.0, 24.0, 0.0]
+          pose: [1.0, 24.1, 0.0]
         - name: ward_trashcan_1
           model: Hospital/Trashcan
-          pose: [7.0, 11.5, 0.0]
+          pose: [7.0, 11.6, 0.0]
 
-  # Pharmacy (8m × 5m)
+  # Pharmacy (8m × 5m) - Shifted +0.15
   - description: "Pharmacy"
     name: "pharmacy"
     walls:
-      - start: { x: 0.0, y: 25.0 }
-        end: { x: 0.0, y: 30.0 }
+      - start: { x: 0.0, y: 25.15 }
+        end: { x: 0.0, y: 30.15 }
         material: Ceramic_Tile_12
-      - start: { x: 0.0, y: 30.0 }
-        end: { x: 8.0, y: 30.0 }
+      - start: { x: 0.0, y: 30.15 }
+        end: { x: 8.0, y: 30.15 }
         material: Ceramic_Tile_12
-      - start: { x: 8.0, y: 30.0 }
-        end: { x: 8.0, y: 28.25 }
+      - start: { x: 8.0, y: 30.15 }
+        end: { x: 8.0, y: 28.40 }
         material: Ceramic_Tile_12
-      - start: { x: 8.0, y: 26.75 }
-        end: { x: 8.0, y: 25.0 }
+      - start: { x: 8.0, y: 26.90 }
+        end: { x: 8.0, y: 25.15 }
         material: Ceramic_Tile_12
-      - start: { x: 8.0, y: 25.0 }
-        end: { x: 0.0, y: 25.0 }
+      - start: { x: 8.0, y: 25.15 }
+        end: { x: 0.0, y: 25.15 }
         material: Ceramic_Tile_12
 
     corners:
-      - [0.0, 25.0]
-      - [8.0, 25.0]
-      - [8.0, 30.0]
-      - [0.0, 30.0]
+      - [0.0, 25.15]
+      - [8.0, 25.15]
+      - [8.0, 30.15]
+      - [0.0, 30.15]
 
     doors:
       - name: "pharmacy_door"
-        start: [8.0, 26.75]
-        end: [8.0, 28.25]
+        start: [8.0, 26.90]
+        end: [8.0, 28.40]
         height: 2.0
         kind: "sliding"
 
@@ -312,45 +291,45 @@ zones:
       static:
         - name: pharmacy_desk_1
           model: Hospital/Reception_Desk
-          pose: [4.0, 26.5, 0.0]
+          pose: [4.0, 26.65, 0.0]
         - name: pharmacy_chair_1
           model: Hospital/Chair
-          pose: [4.0, 27.5, 0.0]
+          pose: [4.0, 27.65, 0.0]
         - name: pharmacy_shelf_1
           model: Hospital/Pharmacy_Shelf
-          pose: [1.0, 27.5, 1.57]
+          pose: [1.0, 27.65, 1.57]
         - name: pharmacy_shelf_2
           model: Hospital/Pharmacy_Shelf
-          pose: [1.0, 28.5, 1.57]
+          pose: [1.0, 28.65, 1.57]
         - name: pharmacy_shelf_3
           model: Hospital/Pharmacy_Shelf
-          pose: [7.0, 27.5, 4.71]
+          pose: [7.0, 27.65, 4.71]
         - name: pharmacy_shelf_4
           model: Hospital/Pharmacy_Shelf
-          pose: [7.0, 28.5, 4.71]
+          pose: [7.0, 28.65, 4.71]
         - name: pharmacy_refrigerated_unit_1
           model: Hospital/Refrigerated_Medicine_Unit
-          pose: [6.8, 25.5, 4.71]
+          pose: [6.8, 25.65, 4.71]
         - name: pharmacy_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [0.8, 29.0, 1.57]
+          pose: [0.8, 29.15, 1.57]
         - name: pharmacy_med_shelf_1
           model: Hospital/Med_Shelf
-          pose: [6.5, 26.0, 4.71]
+          pose: [6.5, 26.15, 4.71]
         - name: pharmacy_supply_cart_1
           model: Hospital/Supply_Cart_A
-          pose: [2.0, 29.0, 0.0]
+          pose: [2.0, 29.15, 0.0]
         - name: pharmacy_supply_cart_2
           model: Hospital/Supply_Cart_B
-          pose: [4.0, 29.0, 0.0]
+          pose: [4.0, 29.15, 0.0]
         - name: pharmacy_biohazard_container_1
           model: Hospital/Biohazard_Container
-          pose: [6.5, 29.5, 0.0]
+          pose: [6.5, 29.65, 0.0]
         - name: pharmacy_trashcan_1
           model: Hospital/Trashcan
-          pose: [5.5, 29.5, 0.0]
+          pose: [5.5, 29.65, 0.0]
 
-  # Waiting Area (13m × 10m)
+  # Waiting Area (13m × 10m) - No Shift
   - description: "Main Waiting Area"
     name: "waiting_area"
     walls:
@@ -481,68 +460,68 @@ zones:
           model: Hospital/Mop_Set
           pose: [24.5, 0.5, 0.0]
 
-  # Sub-Hallway (13m × 3m) - X: 12-25, Y: 10-13
+  # Sub-Hallway (13m × 3m) - Shifted +0.05
   - description: "Sub-Hallway"
     name: "sub_hallway"
     walls:
-      - start: { x: 12.0, y: 13.0 }
-        end: { x: 25.0, y: 13.0 }
+      - start: { x: 12.0, y: 13.05 }
+        end: { x: 25.0, y: 13.05 }
         material: Concrete_Smooth
-      - start: { x: 25.0, y: 13.0 }
-        end: { x: 25.0, y: 10.0 }
+      - start: { x: 25.0, y: 13.05 }
+        end: { x: 25.0, y: 10.05 }
         material: Concrete_Smooth
-      - start: { x: 25.0, y: 10.0 }
-        end: { x: 22.75, y: 10.0 }
+      - start: { x: 25.0, y: 10.05 }
+        end: { x: 22.75, y: 10.05 }
         material: Concrete_Smooth
-      - start: { x: 21.25, y: 10.0 }
-        end: { x: 15.75, y: 10.0 }
+      - start: { x: 21.25, y: 10.05 }
+        end: { x: 15.75, y: 10.05 }
         material: Concrete_Smooth
-      - start: { x: 14.25, y: 10.0 }
-        end: { x: 12.0, y: 10.0 }
+      - start: { x: 14.25, y: 10.05 }
+        end: { x: 12.0, y: 10.05 }
         material: Concrete_Smooth
       # Open to Main Hallway at X=12
 
     corners:
-      - [12.0, 10.0]
-      - [25.0, 10.0]
-      - [25.0, 13.0]
-      - [12.0, 13.0]
+      - [12.0, 10.05]
+      - [25.0, 10.05]
+      - [25.0, 13.05]
+      - [12.0, 13.05]
 
     doors: []
 
     entities:
       static: []
 
-  # Operating Room (6m × 8.5m) - X: 12-18, Y: 13-21.5
+  # Operating Room (6m × 8.5m) - Shifted +0.10
   - description: "Operating Room"
     name: "operating_room"
     walls:
-      - start: { x: 12.0, y: 13.0 }
-        end: { x: 12.0, y: 16.5 }
+      - start: { x: 12.0, y: 13.10 }
+        end: { x: 12.0, y: 16.60 }
         material: Ceramic_Tiles_Glazed_Square
-      - start: { x: 12.0, y: 18.0 }
-        end: { x: 12.0, y: 21.5 }
+      - start: { x: 12.0, y: 18.10 }
+        end: { x: 12.0, y: 21.60 }
         material: Ceramic_Tiles_Glazed_Square
-      - start: { x: 12.0, y: 21.5 }
-        end: { x: 18.0, y: 21.5 }
+      - start: { x: 12.0, y: 21.60 }
+        end: { x: 18.0, y: 21.60 }
         material: Ceramic_Tiles_Glazed_Square
-      - start: { x: 18.0, y: 21.5 }
-        end: { x: 18.0, y: 13.0 }
+      - start: { x: 18.0, y: 21.60 }
+        end: { x: 18.0, y: 13.10 }
         material: Ceramic_Tiles_Glazed_Square
-      - start: { x: 18.0, y: 13.0 }
-        end: { x: 12.0, y: 13.0 }
+      - start: { x: 18.0, y: 13.10 }
+        end: { x: 12.0, y: 13.10 }
         material: Ceramic_Tiles_Glazed_Square
 
     corners:
-      - [12.0, 13.0]
-      - [18.0, 13.0]
-      - [18.0, 21.5]
-      - [12.0, 21.5]
+      - [12.0, 13.10]
+      - [18.0, 13.10]
+      - [18.0, 21.60]
+      - [12.0, 21.60]
 
     doors:
       - name: "or_door"
-        start: [12.0, 16.5]
-        end: [12.0, 18.0]
+        start: [12.0, 16.60]
+        end: [12.0, 18.10]
         height: 2.0
         kind: "sliding"
 
@@ -550,80 +529,80 @@ zones:
       static:
         - name: or_operating_table_1
           model: Hospital/Operating_Table
-          pose: [15.0, 17.25, 0.0]
+          pose: [15.0, 17.35, 0.0]
         - name: or_surgical_table_1
           model: Hospital/Surgical_Table
-          pose: [15.0, 15.25, 0.0]
+          pose: [15.0, 15.35, 0.0]
         - name: or_anesthesia_machine_1
           model: Hospital/Anesthesia_Machine
-          pose: [13.5, 17.25, 1.57]
+          pose: [13.5, 17.35, 1.57]
         - name: or_instrument_table_1
           model: Hospital/Instrument_Table
-          pose: [16.5, 17.25, 4.71]
+          pose: [16.5, 17.35, 4.71]
         - name: or_surgical_tray_1
-          model: Hospital/Surgical_Tray
-          pose: [16.5, 18.25, 0.0]
+          model: Hospital/Surgical_Instrument_Tray
+          pose: [16.5, 18.35, 0.0]
         - name: or_vital_monitor_1
-          model: Hospital/Vital_Signs_Monitor
-          pose: [17.0, 17.75, 3.14]
+          model: Hospital/Vital_Signal_Station
+          pose: [17.0, 17.85, 3.14]
         - name: or_defibrillator_1
           model: Hospital/Defibrillator
-          pose: [14.0, 19.75, 3.14]
+          pose: [14.0, 19.85, 3.14]
         - name: or_ventilator_1
           model: Hospital/Ventilator
-          pose: [13.5, 15.25, 1.57]
+          pose: [13.5, 15.35, 1.57]
         - name: or_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [12.8, 19.75, 1.57]
+          pose: [12.8, 19.85, 1.57]
         - name: or_supply_cabinet_1
-          model: Hospital/Supply_Cabinet
-          pose: [17.5, 19.75, 4.71]
+          model: Hospital/Supply_Cabin
+          pose: [17.5, 19.85, 4.71]
         - name: or_scrub_sink_1
           model: Hospital/Scrub_Sink
-          pose: [12.5, 14.75, 1.57]
+          pose: [12.5, 14.85, 1.57]
         - name: or_soap_dispenser_1
           model: Hospital/Soap_Dispenser
-          pose: [12.2, 14.75, 1.57]
+          pose: [12.2, 14.85, 1.57]
         - name: or_towel_dispenser_1
           model: Hospital/Towel_Dispenser
-          pose: [12.2, 15.25, 1.57]
+          pose: [12.2, 15.35, 1.57]
         - name: or_biohazard_container_1
           model: Hospital/Biohazard_Container
-          pose: [17.5, 14.25, 0.0]
+          pose: [17.5, 14.35, 0.0]
         - name: or_trashcan_1
           model: Hospital/Trashcan
-          pose: [17.0, 14.25, 0.0]
+          pose: [17.0, 14.35, 0.0]
 
-  # Laboratory (6m × 8.5m) - X: 12-18, Y: 21.5-30
+  # Laboratory (6m × 8.5m) - Shifted +0.15
   - description: "Laboratory"
     name: "laboratory"
     walls:
-      - start: { x: 12.0, y: 21.5 }
-        end: { x: 12.0, y: 25.0 }
+      - start: { x: 12.0, y: 21.65 }
+        end: { x: 12.0, y: 25.15 }
         material: Ceramic_Smooth_Fired
-      - start: { x: 12.0, y: 26.5 }
-        end: { x: 12.0, y: 30.0 }
+      - start: { x: 12.0, y: 26.65 }
+        end: { x: 12.0, y: 30.15 }
         material: Ceramic_Smooth_Fired
-      - start: { x: 12.0, y: 30.0 }
-        end: { x: 18.0, y: 30.0 }
+      - start: { x: 12.0, y: 30.15 }
+        end: { x: 18.0, y: 30.15 }
         material: Ceramic_Smooth_Fired
-      - start: { x: 18.0, y: 30.0 }
-        end: { x: 18.0, y: 21.5 }
+      - start: { x: 18.0, y: 30.15 }
+        end: { x: 18.0, y: 21.65 }
         material: Ceramic_Smooth_Fired
-      - start: { x: 18.0, y: 21.5 }
-        end: { x: 12.0, y: 21.5 }
+      - start: { x: 18.0, y: 21.65 }
+        end: { x: 12.0, y: 21.65 }
         material: Ceramic_Smooth_Fired
 
     corners:
-      - [12.0, 21.5]
-      - [18.0, 21.5]
-      - [18.0, 30.0]
-      - [12.0, 30.0]
+      - [12.0, 21.65]
+      - [18.0, 21.65]
+      - [18.0, 30.15]
+      - [12.0, 30.15]
 
     doors:
       - name: "laboratory_door"
-        start: [12.0, 25.0]
-        end: [12.0, 26.5]
+        start: [12.0, 25.15]
+        end: [12.0, 26.65]
         height: 2.0
         kind: "sliding"
 
@@ -631,46 +610,46 @@ zones:
       static:
         - name: lab_bench_1
           model: Hospital/Lab_Bench
-          pose: [15.0, 26.5, 0.0]
+          pose: [15.0, 26.65, 0.0]
         - name: lab_bench_2
           model: Hospital/Lab_Bench
-          pose: [15.0, 28.5, 0.0]
+          pose: [15.0, 28.65, 0.0]
         - name: lab_microscope_1
-          model: Hospital/Microscope
-          pose: [15.0, 27.0, 0.0]
+          model: Hospital/Microscope_Station
+          pose: [15.0, 27.15, 0.0]
         - name: lab_microscope_2
-          model: Hospital/Microscope
-          pose: [15.0, 29.0, 0.0]
+          model: Hospital/Microscope_Station
+          pose: [15.0, 29.15, 0.0]
         - name: lab_stool_1
           model: Hospital/Lab_Stool
-          pose: [14.5, 27.0, 0.0]
+          pose: [14.5, 27.15, 0.0]
         - name: lab_stool_2
           model: Hospital/Lab_Stool
-          pose: [14.5, 29.0, 0.0]
+          pose: [14.5, 29.15, 0.0]
         - name: lab_stool_3
           model: Hospital/Lab_Stool
-          pose: [15.5, 27.0, 0.0]
+          pose: [15.5, 27.15, 0.0]
         - name: lab_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [12.8, 29.5, 1.57]
+          pose: [12.8, 29.65, 1.57]
         - name: lab_refrigerated_unit_1
           model: Hospital/Refrigerated_Medicine_Unit
-          pose: [17.5, 29.5, 4.71]
+          pose: [17.5, 29.65, 4.71]
         - name: lab_shelf_1
           model: Hospital/Shelf
-          pose: [12.5, 28.0, 1.57]
+          pose: [12.5, 28.15, 1.57]
         - name: lab_shelf_2
           model: Hospital/Shelf
-          pose: [17.5, 28.0, 4.71]
+          pose: [17.5, 28.15, 4.71]
         - name: lab_wash_basin_1
           model: Hospital/Wash_Basin
-          pose: [12.5, 26.0, 1.57]
+          pose: [12.5, 26.15, 1.57]
         - name: lab_biohazard_container_1
           model: Hospital/Biohazard_Container
-          pose: [17.5, 26.0, 0.0]
+          pose: [17.5, 26.15, 0.0]
         - name: lab_autoclave_1
           model: Hospital/Autoclave
-          pose: [17.0, 25.5, 4.71]
+          pose: [17.0, 25.65, 4.71]
         - name: lab_trashcan_1
           model: Hospital/Trashcan
-          pose: [17.5, 25.5, 0.0]
+          pose: [17.5, 25.65, 0.0]

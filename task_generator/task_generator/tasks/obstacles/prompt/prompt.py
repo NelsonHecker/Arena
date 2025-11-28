@@ -258,10 +258,7 @@ class TM_Prompt(TM_Obstacles):
                 config=genai.types.GenerateContentConfig(
                     cached_content=self.cached_context_name["bt"] if use_behavior_tree else self.cached_context_name["arena"],
                     top_p=top_p,
-                    thinking_config=genai.types.ThinkingConfig(
-                        include_thoughts=False,
-                        thinking_budget=24576
-                    ),
+                    thinking_config=genai.types.ThinkingConfig(thinking_level="low"),
                 )
             )
 
