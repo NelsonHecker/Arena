@@ -305,7 +305,7 @@ def generate_launch_description():
                 )
             ),
             launch_arguments={
-                'use_sim_time': 'True',
+                **use_sim_time.dict,
                 'local_planner': local_planner.substitution,
                 'inter_planner': inter_planner.substitution,
                 'autostart': 'True',

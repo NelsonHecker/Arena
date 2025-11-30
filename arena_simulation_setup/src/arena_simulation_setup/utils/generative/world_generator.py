@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from arena_simulation_setup.tree.World import World
+from arena_simulation_setup.tree.World import WorldIdentifier
 
 from . import WorldGenerator, WorldGeneratorType
 
@@ -10,7 +10,7 @@ __all__ = ['WorldGenerator', 'WorldGeneratorType']
 
 def test_generate(out: str, name: str, config: dict) -> Path:
     gen = WorldGenerator(WorldGeneratorType(name), config)
-    return World(out).save(gen.compute())
+    return WorldIdentifier(out).resolve_sync().save(gen.compute())
 
 
 def main(argv=sys.argv):

@@ -9,11 +9,13 @@ import attrs
 import numpy as np
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.tree.assets.Object import ObjectLoader
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianLoader
-from arena_simulation_setup.tree import DynamicProvider
+from arena_simulation_setup.tree import Identifier
+from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+from typing_extensions import Self
 
 from task_generator.shared import DynamicObstacle, Obstacle, Orientation, Pose
+from task_generator.tasks import identifier_to_available
 from task_generator.tasks.obstacles import Obstacles, TM_Obstacles
 
 
@@ -47,7 +49,7 @@ class TM_Random(TM_Obstacles):
 
     _config: _Config
 
-    def reset(self, **kwargs) -> Obstacles:
+    async def reset(self, **kwargs) -> Obstacles:
         """
         Resets the obstacle generation with the specified parameters.
 
@@ -91,7 +93,7 @@ class TM_Random(TM_Obstacles):
         class ModelList(dict[str, float]):
 
             @classmethod
-            def fromkeys(cls, *args, **kwargs) -> ModelList:
+            def fromkeys(cls, *args, **kwargs) -> Self:
                 result = cls(super().fromkeys(*args, **kwargs))
                 if not len(result):
                     self._logger.warn('Empty model list passed. Defaulting to empty string.')
@@ -226,10 +228,10 @@ class TM_Random(TM_Obstacles):
             lo, hi = min(lo, hi), max(lo, hi)
             return lo, hi
 
-        def param_to_modellist(loader: typing.Type[DynamicProvider], v: typing.Any) -> list[str]:
+        def param_to_modellist(identifier: typing.Type[Identifier], v: typing.Any) -> list[str]:
             if len(v):
                 return v
-            return [identifier.name for identifier in loader.list()]
+            return list(identifier_to_available(identifier))
 
         STATIC = 'static'
         INTERACTIVE = 'interactive'
@@ -256,18 +258,18 @@ class TM_Random(TM_Obstacles):
                 self.namespace(STATIC, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, ObjectLoader)
+                parse=functools.partial(param_to_modellist, ObjectIdentifier)
             ),
             MODELS_INTERACTIVE_OBSTACLES=self.node.ROSParam[list[str]](
                 self.namespace(INTERACTIVE, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, ObjectLoader)
+                parse=functools.partial(param_to_modellist, ObjectIdentifier)
             ),
             MODELS_DYNAMIC_OBSTACLES=self.node.ROSParam[list[str]](
                 self.namespace(DYNAMIC, 'models'),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, PedestrianLoader)
+                parse=functools.partial(param_to_modellist, PedestrianIdentifier)
             ),
         )

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import typing
 
@@ -5,15 +6,17 @@ import action_msgs.msg
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
 import geometry_msgs.msg as geometry_msgs
+import launch.launch_description_sources
 import launch_ros
 import lifecycle_msgs.msg
 import nav_msgs.msg as nav_msgs
 import rclpy
 import rclpy.client
+import rclpy.logging
 import rclpy.publisher
 import rclpy.timer
 from arena_rclpy_mixins.shared import Namespace
-from arena_robots.Robot import RobotLoader, RobotProvider
+from arena_robots.Robot import RobotView
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
 
 import launch
@@ -21,8 +24,9 @@ import task_generator.utils.arena as Utils
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
-from task_generator.shared import ModelType, Orientation, Pose, Position, Robot
-from task_generator.simulators.human.utils import YAMLUtil
+from task_generator.shared import Orientation, Pose, Position, Robot
+
+import rclpy.node
 
 
 class RobotManager(NodeInterface):
@@ -51,7 +55,7 @@ class RobotManager(NodeInterface):
     _clear_costmap_around_robot_srv: rclpy.client.Client
     _is_goal_reached: bool
     _rate_setup: rclpy.timer.Rate
-    _config: RobotProvider
+    _config: RobotView
 
     @property
     def robot(self) -> Robot:
@@ -82,14 +86,16 @@ class RobotManager(NodeInterface):
 
     def __init__(
         self,
+        *args,
         namespace: Namespace,
         environment_manager: EnvironmentManager,
         robot: Robot,
+        **kwargs,
     ):
-        NodeInterface.__init__(self)
+        super().__init__(*args, **kwargs)
         self._rate_setup = self.node.create_rate(.1)
 
-        self._config = RobotLoader(robot.model.name)
+        self._config = robot.model.resolve_sync()
 
         self._namespace = namespace
         self._environment_manager = environment_manager
@@ -97,6 +103,7 @@ class RobotManager(NodeInterface):
         self._start_pos = Pose()
         self._goal_pos = Pose()
         self._is_goal_reached = False
+        self._robot_radius = 0.25
 
         # Parameter handling
         try:
@@ -115,10 +122,10 @@ class RobotManager(NodeInterface):
         self._pose = self._start_pos
         self._goal_timer = None
 
-    def _odom_base_transform(self):
+    async def _odom_base_transform(self):
         """Launch a static transform publisher for odometry to base frame.
         """
-        self.node.do_launch(
+        await self.node.do_launch(
             launch.LaunchDescription([
                 launch_ros.actions.Node(
                     package="tf2_ros",
@@ -135,12 +142,12 @@ class RobotManager(NodeInterface):
             ])
         )
 
-    def set_up_robot(self):
+    async def set_up_robot(self, node_names: set[str]):
         """Set up the robot by configuring its model and spawning it in the environment.
         """
 
         self._robot.pose.position.z += self._config.model_params.z_offset
-        self._robot = self._environment_manager.spawn_robot((self._robot,))[0]
+        self._robot = (await self._environment_manager.spawn_robot((self._robot,)))[0]
 
         _gen_goal_topic = self.namespace("goal_pose")
 
@@ -164,12 +171,12 @@ class RobotManager(NodeInterface):
             1
         )
 
-        self._launch_robot()
-        self._odom_base_transform()
+        await self._launch_robot(node_names)
+        await self._odom_base_transform()
 
         self._robot_radius = self.node.rosparam[float].get(
             'robot_radius',
-            0.25
+            self._robot_radius,
         )
 
     @property
@@ -223,7 +230,7 @@ class RobotManager(NodeInterface):
         return self._namespace(self.name)
 
     @property
-    def is_done(self) -> bool:
+    async def is_done(self) -> bool:
         """Check if the robot has reached its goal.
 
         Returns:
@@ -231,7 +238,7 @@ class RobotManager(NodeInterface):
         """
         return self._is_goal_reached
 
-    def move_robot_to_pos(self, pose: Pose):
+    async def move_robot_to_pos(self, pose: Pose):
         """Move the robot to the specified pose.
 
         Args:
@@ -239,12 +246,12 @@ class RobotManager(NodeInterface):
         """
         pose.position.z += self._config.model_params.z_offset
         self.robot.pose = pose
-        self._environment_manager.move_robot((self.robot,))
+        await self._environment_manager.move_robot((self.robot,))
         import time
         time.sleep(0.001)  # wait for the robot to move
-        self._clear_local_costmap(-1)
+        await self._clear_local_costmap(-1)
 
-    def _clear_local_costmap(self, reset_distance: float = -1) -> bool:
+    async def _clear_local_costmap(self, reset_distance: float = -1) -> bool:
         """Clear the local costmap around the robot.
 
         Args:
@@ -277,7 +284,7 @@ class RobotManager(NodeInterface):
         while not srv.wait_for_service(timeout_sec=1.0):
             self._logger.warn(f'{srv_name} service not available, waiting...')
 
-        result = srv.call(req)
+        result = await srv.call_async(req)
         if result is None:
             self._logger.error(
                 f"service call failed for {srv_name}")
@@ -287,7 +294,7 @@ class RobotManager(NodeInterface):
         )
         return True
 
-    def reset(
+    async def reset(
         self,
         start_pos: typing.Optional[Pose],
         goal_pos: typing.Optional[Pose],
@@ -303,7 +310,7 @@ class RobotManager(NodeInterface):
         """
         if start_pos is not None:
             self._start_pos = self._environment_manager.realize(start_pos)
-            self.move_robot_to_pos(start_pos)
+            await self.move_robot_to_pos(start_pos)
 
             if self._robot.record_data_dir:
                 self.node.rosparam[list[float]].set(
@@ -321,7 +328,7 @@ class RobotManager(NodeInterface):
                 )
         return self._pose, self._goal_pos
 
-    def _publish_goal_callback(self):
+    async def _publish_goal_callback(self):
         """Callback to publish the goal periodically.
         """
         from geometry_msgs.msg import PoseStamped
@@ -374,16 +381,15 @@ class RobotManager(NodeInterface):
             self._publish_goal_callback,
         )
 
-    def _launch_robot(self):
+    async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot external nodes.
         """
         self._logger.warn(f"START WITH MODEL {self.name}")
 
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
-
             launch_description = launch.LaunchDescription()
             current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
-            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))
+            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))  # type: ignore
 
             launch_arguments = {
                 'robot': self.model_name,
@@ -419,12 +425,14 @@ class RobotManager(NodeInterface):
                     launch_arguments=launch_arguments.items(),
                 )
             )
-            self.node.do_launch(launch_description)
+            self._logger.warn(f"LAUNCHING ROBOT {self.name}")
+            await self.node.do_launch(launch_description)
 
-            while 'bt_navigator' not in (node_names := self.node.get_node_names()):
-                self._logger.info(f'waiting for bt_navigator in {node_names}')
-                # TODO redo this globally in the robots manager, every get_node_names call is expensive
-                self._rate_setup.sleep()  # we love race conditions
+            bt_node_path = str(self.namespace('bt_navigator'))
+            self._logger.warn(f"WAITIN FOR ROBOT {self.name} {bt_node_path}")
+            self._logger.info(f'waiting for {bt_node_path}')
+            while bt_node_path not in node_paths:
+                await asyncio.sleep(0.01)
 
     def _robot_pos_callback(self, data: nav_msgs.Odometry):
         """Callback for robot position updates.
@@ -449,19 +457,19 @@ class RobotManager(NodeInterface):
         Args:
             data(action_msgs.msg.GoalStatusArray): The goal status data.
         """
-        last_goal = next(reversed(data.status_list), None)
+        last_goal = next(reversed(list(data.status_list)), None)
         self._is_goal_reached = (last_goal is not None) and last_goal.status == action_msgs.msg.GoalStatus.STATUS_SUCCEEDED
 
-    def update(self):
+    async def update(self):
         """Live - update some kwargs of robot
         """
         # TODO implement record data dir
 
-    def destroy(self):
+    async def destroy(self):
         """Destroy robot and remove from simulation and navigation stack.
         """
         if self._goal_timer is not None:
             self._goal_timer.cancel()
             self._goal_timer.destroy()
-        self._environment_manager.remove_robot((self.robot,))
+        await self._environment_manager.remove_robot((self.robot,))
         # TODO kill node in navigation stack

@@ -4,7 +4,7 @@ import attrs
 
 from arena_simulation_setup.tree.assets.Material import Material, MaterialIdentifier
 from arena_simulation_setup.tree.Wall import WallDescription, WallRealization
-from arena_simulation_setup.tree.Wall import loader as WallLoader
+from arena_simulation_setup.tree.Wall import WallIdentifier
 from arena_simulation_setup.utils.cattrs import Serializable
 from arena_simulation_setup.utils.geometry import Position
 
@@ -16,13 +16,13 @@ class Wall(Serializable):
     kind: str = ''
     material: MaterialIdentifier | None = None
 
-    def assets(self) -> WallRealization:
+    async def assets(self) -> WallRealization:
         """
         Get sub-assets that make up the wall.
         """
         try:
             if self.kind:
-                _description = WallLoader(self.kind).load()
+                _description = await WallIdentifier(self.kind).resolve()
             else:
                 _description = WallDescription.simple(material=self.material if self.material else None)
             return _description.realize(self.start, self.end)
@@ -31,7 +31,7 @@ class Wall(Serializable):
             import traceback
             logging.error(f"Failed to load wall assets for wall from {self.start} to {self.end} of kind '{self.kind}' and material '{self.material}': {e}\n{traceback.format_exc()}")
 
-            return WallDescription.simple(material=MaterialIdentifier(Material.default('wall'))).realize(self.start, self.end)
+            return WallDescription.simple(material=Material.default('wall')).realize(self.start, self.end)
 
     def __iter__(self):
         yield self.start

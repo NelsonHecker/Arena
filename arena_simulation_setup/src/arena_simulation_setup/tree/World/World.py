@@ -16,7 +16,7 @@ from arena_simulation_setup.shared import (
     Obstacle,
     Wall,
 )
-from arena_simulation_setup.tree import StaticProvider
+from arena_simulation_setup.tree import Identifier, PathView, FallbackResolver
 from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
@@ -25,7 +25,7 @@ from arena_simulation_setup.utils.cattrs import converter
 from arena_simulation_setup.utils.geometry import Position
 
 from .Map import Map
-from .Scenario import ScenarioProvider
+from .Scenario import ScenarioView
 
 
 @attrs.define
@@ -52,7 +52,7 @@ class WorldDescription:
         description: str = ''
         material: MaterialIdentifier = attrs.field(
             converter=MaterialIdentifier.converter,
-            default=Material.default('floor')
+            default=Material.default('floor'),
         )
         corners: list[Position] = attrs.field(factory=list)
         walls: list[Wall] = attrs.field(factory=list)
@@ -149,15 +149,29 @@ class WorldDescription:
             return tarfile.open(fileobj=io.BytesIO(tar_stream.getvalue()))
 
 
-class WorldProvider(StaticProvider[WorldDescription]):
-
-    @classmethod
-    def list(cls):
-        return ('.generated', *super().list())
+class World(PathView):
 
     @property
-    def scenario(self):
-        return ScenarioProvider.bind(self.path / 'scenarios')
+    def scenario(self) -> typing.Type[Identifier[ScenarioView]]:
+        class ScenarioIdentifier(Identifier[ScenarioView]):
+            @classmethod
+            def listall(cls, **kwargs):
+                scenarios_dir = self.path / 'scenarios'
+                if not scenarios_dir.is_dir():
+                    return []
+                yield from (
+                    cls(entry.name)
+                    for entry
+                    in os.scandir(scenarios_dir)
+                    if entry.is_dir()
+                )
+
+            def load(self, path: Path, /, **kwargs) -> ScenarioView:
+                del kwargs
+                return ScenarioView(path)
+
+        ScenarioIdentifier.use(FallbackResolver(ScenarioIdentifier, self.path / 'scenarios'))
+        return ScenarioIdentifier
 
     @property
     def map(self):
@@ -167,7 +181,7 @@ class WorldProvider(StaticProvider[WorldDescription]):
     def world_path(self) -> Path:
         return self.path / 'world.yaml'
 
-    def load(self, *args, **kwargs) -> WorldDescription:
+    def load(self) -> WorldDescription:
         with open(self.world_path) as f:
             return converter.structure(
                 yaml.safe_load(f),
@@ -183,7 +197,7 @@ class WorldProvider(StaticProvider[WorldDescription]):
             tarball.extractall(self.path)
             return self.path
 
-        filter = tarfile.data_filter
+        _filter = tarfile.data_filter
         if map_only:
             def map_only_filter(member, destpath):
                 if not tarfile.data_filter(member, destpath):
@@ -191,10 +205,20 @@ class WorldProvider(StaticProvider[WorldDescription]):
                 if not member.name.startswith('map/'):
                     return None
                 return member
-            filter = map_only_filter
+            _filter = map_only_filter
 
-        tarball.extractall(self.path, filter=filter)
+        tarball.extractall(self.path, filter=_filter)
         return self.path
 
 
-World = WorldProvider.bind(ASS_DIR / 'worlds')
+class WorldIdentifier(Identifier[World]):
+    @classmethod
+    def listall(cls, **kwargs):
+        yield from (WorldIdentifier(name) for name in os.listdir(ASS_DIR / 'worlds'))
+
+    def load(self, path: Path, /, **kwargs) -> World:
+        del kwargs
+        return World(path)
+
+
+WorldIdentifier.use(FallbackResolver(WorldIdentifier, ASS_DIR / 'worlds'))

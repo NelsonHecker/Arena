@@ -2,7 +2,7 @@
 import asyncio
 import os
 import tempfile
-import time
+import traceback
 import typing
 from pathlib import Path
 
@@ -10,17 +10,15 @@ import arena_simulation_setup.tree.World as World
 import launch.actions
 import launch.launch_description_sources
 import lifecycle_msgs.msg
-import lifecycle_msgs.srv
 import nav2_msgs.srv
 import nav_msgs.msg
 import numpy as np
 import rclpy
-import rclpy.callback_groups
 import rclpy.client
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_simulation_setup.shared import Position
-from arena_simulation_setup.tree import Resolvers
+from arena_simulation_setup.tree import DynamicPaths
 
 import launch
 from task_generator import NodeInterface
@@ -37,7 +35,7 @@ _DUMMY_MAP = nav_msgs.msg.OccupancyGrid(
         height=_DUMMY_MAP_SHAPE[0] + 2 * _DUMMY_MAP_PADDING,
         width=_DUMMY_MAP_SHAPE[1] + 2 * _DUMMY_MAP_PADDING,
         resolution=0.1,
-        map_load_time=Time(-1, 0).to_time(),
+        map_load_time=Time(-1, 0).to_msg(),
     ),
     data=list(
         np.pad(
@@ -57,60 +55,43 @@ class MapServerHandler(NodeInterface):
     """Handler functions for the map server lifecycle.
     """
 
-    def restart_map_server(self):
+    async def ensure_map_server(self):
         """Restart the map server if it is not active.
         """
-        self._logger.warn('shutting down map server...')
 
-        change_state_client = self.node.create_client(
-            lifecycle_msgs.srv.ChangeState,
-            self.node.service_namespace('map_server', 'change_state')
-        )
-        while not change_state_client.wait_for_service(timeout_sec=1.0):
-            self.node.get_logger().warn('ChangeState service not available, waiting again...')
+        wait_interval = 15.0
 
-        request = lifecycle_msgs.srv.ChangeState.Request()
-        request.transition.id = lifecycle_msgs.msg.Transition.TRANSITION_DESTROY
-        change_state_client.call(request)
+        while not await self.node.wait_for_lifecycle_state_async(
+            self.node.service_namespace('map_server'),
+            lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE,
+            timeout=wait_interval,
+        ):
+            wait_interval = min(wait_interval * 2, 60.0)
 
-        self._logger.warn('map server shut down.')
-        self._logger.warn('relaunching map server...')
+            self._logger.warn('shutting down map server...')
 
-        self.node.do_launch(
-            launch.LaunchDescription([
-                launch.actions.IncludeLaunchDescription(
-                    launch.launch_description_sources.PythonLaunchDescriptionSource(
-                        os.path.join(
-                            get_package_share_directory('arena_bringup'),
-                            'launch/utils/map_server.launch.py'
+            await self.node.change_lifecycle_state_async(
+                self.node.service_namespace('map_server'),
+                lifecycle_msgs.msg.Transition.TRANSITION_DESTROY
+            )
+
+            self._logger.warn('map server shut down.')
+            self._logger.warn('relaunching map server...')
+
+            await self.node.do_launch(
+                launch.LaunchDescription([
+                    launch.actions.IncludeLaunchDescription(
+                        launch.launch_description_sources.PythonLaunchDescriptionSource(
+                            os.path.join(
+                                get_package_share_directory('arena_bringup'),
+                                'launch/utils/map_server.launch.py'
+                            )
                         )
                     )
-                )
-            ])
-        )
+                ])
+            )
 
-        self._logger.warn('map server relaunched.')
-
-    def check_map_server(self, timeout: float = 10.0, period: float = 1.0) -> bool:
-        """Check if the map server is active.
-
-        Args:
-            timeout (float, optional): Time to wait for the map server to become active. Defaults to 10.0.
-            period (float, optional): Time to wait between checks. Defaults to 1.0.
-
-        Returns:
-            bool: True if the map server is active, False otherwise.
-        """
-        while self.node.get_lifecycle_state(
-            self.node.service_namespace('map_server'),
-            callback_group=rclpy.callback_groups.ReentrantCallbackGroup(),
-        ).id != lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE:
-            self.node.get_logger().warn('map_server is not active, waiting again...')
-            time.sleep(period if timeout > period else timeout)
-            timeout -= period
-            if timeout <= 0:
-                return False
-        return True
+        self._logger.info('map server launched.')
 
 
 class WorldManagerROS(MapServerHandler, WorldManager):
@@ -185,6 +166,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             bool: True if the world was changed successfully, False otherwise.
         """
         world_name = str(value)
+        self._logger.info(f'World change requested: {world_name}')
 
         # if world_name != self._world_name and \
         #         (simulator := self.node.conf.Arena.SIM.value) in (Constants.Simulator.GAZEBO,):
@@ -194,16 +176,16 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if world_name == self._world_name:
             return True  # no change
 
-        self._logger.warn(f'LOADING WORLD {world_name}')
+        self._logger.warn(f'Loading World {world_name}')
         self._world_name = world_name
 
-        tmp_map = self._shift_map(
-            World.World(world_name).map.path
-        )
+        world = World.WorldIdentifier(world_name).resolve_sync()
+        tmp_map = self._shift_map(world.map.path)
         map_yaml = os.path.join(
             tmp_map.name,
             'map.yaml',
         )
+
         response = self._cli.call(
             nav2_msgs.srv.LoadMap.Request(
                 map_url=f'{map_yaml}'
@@ -230,54 +212,24 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """
         if self._map.time <= costmap.info.map_load_time:
 
-            world = World.World(self.world_name)
+            world = await World.WorldIdentifier(self.world_name).resolve()
             world_map = WorldMap.from_costmap(costmap)
 
             if self._origin is not None:
                 world_map.origin = self._origin
                 self._origin = None
 
-            Resolvers.set_world_dir(world.path)
+            DynamicPaths.WORLD.path = world.path
             self.update_world(
                 world_map=world_map,
                 world_description=world.load()
             )
 
             self._map_name = self.world_name
-
             try:
-                await asyncio.gather(callback() for callback in self._callbacks)
+                await asyncio.gather(*(callback() for callback in self._callbacks), return_exceptions=True)
             except Exception as e:
-                import traceback
                 self._logger.warning(f'encountered exception in world callback: {e}\n{traceback.format_exc()}')
-
-    def _setup_world_callbacks(self):
-        """Set up callbacks for world events.
-        """
-
-        # retrieving map from map_server
-        self.node.create_subscription(
-            nav_msgs.msg.OccupancyGrid,
-            self.node.service_namespace('map'),
-            self._map_callback,  # type: ignore
-            1,
-        )
-
-        while not self.check_map_server():
-            self.restart_map_server()
-
-        # publishing map to map_server
-        self._cli = self.node.create_client(
-            nav2_msgs.srv.LoadMap,
-            self.node.service_namespace('map_server', 'load_map'),
-        )
-        while not self._cli.wait_for_service(timeout_sec=1.0):
-            self._logger.warn('LoadMap service not available, waiting again...')
-
-        self.node.rosparam.callback(
-            'world',
-            self._world_callback,
-        )
 
     def on_world_change(self, callback: typing.Callable[[], typing.Awaitable[None]]):
         """Register a callback to be called when the world changes.
@@ -287,8 +239,8 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """
         self._callbacks.append(callback)
 
-    def __init__(self, environment_manager: EnvironmentManager) -> None:
-        WorldManager.__init__(self)
+    def __init__(self, *args, environment_manager: EnvironmentManager, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self._environment_manager = environment_manager
 
         self._callbacks = []
@@ -297,10 +249,32 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._origin = None
         self._map_name = None
 
-    def start(self):
+    async def start(self):
         """Start the world manager.
         """
-        self._setup_world_callbacks()
+        self._logger.info("starting")
+
+        # retrieving map from map_server
+        self.node.create_subscription(
+            nav_msgs.msg.OccupancyGrid,
+            self.node.service_namespace('map'),
+            self._map_callback,
+            1,
+        )
+
+        await self.ensure_map_server()
+
+        # publishing map to map_server
+        self._cli = self.node.create_client(
+            nav2_msgs.srv.LoadMap,
+            self.node.service_namespace('map_server', 'load_map'),
+        )
+        await self.node.wait_for_service_async(self._cli)
+
+        self.node.rosparam.callback(
+            'world',
+            self._world_callback,
+        )
 
     async def sync(self, timeout: float = -1) -> bool:
         """Synchronize the world and map names.
@@ -311,13 +285,13 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         Returns:
             bool: True if synchronization was successful, False otherwise.
         """
-        if timeout < 0:
-            timeout = float('inf')
+        start_time = self.node.get_clock().now().seconds_nanoseconds()[0]
         while self._map_name != self._world_name:
-            await asyncio.sleep(dt := 1)
-            timeout -= dt
-            if timeout < 0:
-                return False
+            await asyncio.sleep(0.01)
+            if timeout >= 0:
+                elapsed = self.node.get_clock().now().seconds_nanoseconds()[0] - start_time
+                if elapsed >= timeout:
+                    return False
         return True
 
     @property

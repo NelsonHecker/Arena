@@ -1,16 +1,19 @@
 import os
 import typing
 
-import launch
+import launch.launch_description_sources
+import launch.utilities
+import launch.utilities.type_utils
+import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
+from launch.actions import LogInfo
+from launch.substitutions import LaunchConfiguration, TextSubstitution
+
+import launch
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
 from arena_bringup.future import IfElseSubstitution, PythonExpression
 from arena_bringup.substitutions import LaunchArgument
-from launch.actions import LogInfo
-from launch.substitutions import LaunchConfiguration, TextSubstitution
-
-import launch_ros.actions
 
 
 def generate_launch_description():
@@ -116,14 +119,16 @@ def generate_launch_description():
     ) -> typing.Optional[typing.List[launch.LaunchDescriptionEntity]]:
         n = launch.utilities.type_utils.perform_typed_substitution(
             context,
-            launch.utilities.normalize_to_list_of_substitutions([n_substitution]),
+            launch.utilities.normalize_to_list_of_substitutions(n_substitution),
             int,
         )
+        n = typing.cast(int, n)
         d = launch.utilities.type_utils.perform_typed_substitution(
             context,
-            launch.utilities.normalize_to_list_of_substitutions([d_substitution]),
+            launch.utilities.normalize_to_list_of_substitutions(d_substitution),
             float,
         )
+        d = typing.cast(float, d)
 
         # Log env_n value
         launch.actions.LogInfo(

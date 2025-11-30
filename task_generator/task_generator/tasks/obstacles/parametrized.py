@@ -2,7 +2,7 @@ import math
 
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree.configs.parametrized import (
-    Parametrized,
+    ParametrizedIdentifier,
     ParametrizedConfig,
 )
 
@@ -15,7 +15,7 @@ class TM_Parametrized(TM_Obstacles):
     _config: ROSParamT[ParametrizedConfig]
 
     def _parse(self, config_name: str) -> ParametrizedConfig:
-        return Parametrized(config_name).load()
+        return ParametrizedIdentifier(config_name).resolve_sync()
 
     def _get_pose(self):
         return Pose(
@@ -29,7 +29,7 @@ class TM_Parametrized(TM_Obstacles):
             safe_dist=1.0
         )
 
-    def reset(self, **kwargs):
+    async def reset(self, **kwargs):
         dynamic_obstacles: list[DynamicObstacle] = []
         obstacles: list[Obstacle] = []
 

@@ -1,6 +1,6 @@
-import os
+import aiofiles
 
-from . import Model, ModelType, ModelProvider
+from . import Model, ModelProvider, ModelType
 
 # raise RuntimeError('YAML models are not supported anymore')
 
@@ -8,15 +8,12 @@ from . import Model, ModelType, ModelProvider
 class ModelProvider_YAML(ModelProvider.provides(ModelType.YAML)):
 
     @classmethod
-    def load(cls, model_dir, model, loader_args):
+    async def load(cls, model_dir, model, loader_args) -> Model:
 
         model_path = model_dir / f"{model}.yaml"
 
-        try:
-            with open(model_path) as f:
-                model_desc = f.read()
-        except FileNotFoundError:
-            return None
+        async with aiofiles.open(model_path, 'r') as f:
+            model_desc = await f.read()
 
         model_obj = Model(
             type=ModelType.YAML,

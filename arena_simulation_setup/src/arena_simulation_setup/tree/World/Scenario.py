@@ -7,7 +7,7 @@ from collections.abc import Iterable
 import attrs
 import yaml
 
-from arena_simulation_setup.tree import StaticProvider
+from arena_simulation_setup.tree import PathView
 from arena_simulation_setup.shared import DynamicObstacle, Obstacle, Pose
 from arena_simulation_setup.utils.cattrs import converter
 
@@ -32,7 +32,7 @@ class Scenario:
     robots: list[RobotGoal]
 
 
-class ScenarioProvider(StaticProvider):
+class ScenarioView(PathView):
 
     _names: typing.ClassVar[Iterable[str]] = [
         "scenario.yaml",
@@ -59,7 +59,7 @@ class ScenarioProvider(StaticProvider):
         )
         return scenario
 
-    def load(self) -> "Scenario":
+    def load(self) -> Scenario:
         with open(self.scenario_path, 'r') as f:
             scenario = yaml.safe_load(f)
 

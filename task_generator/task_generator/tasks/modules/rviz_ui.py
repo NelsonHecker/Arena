@@ -2,7 +2,6 @@ import geometry_msgs.msg as geometry_msgs
 from builtin_interfaces.msg import Time
 
 from task_generator.shared import Pose
-from task_generator.tasks import Task
 from task_generator.tasks.modules import TM_Module
 
 
@@ -14,8 +13,8 @@ class Mod_OverrideRobot(TM_Module):
 
     _timeouts: dict[int, Time]
 
-    def __init__(self, task: Task, **kwargs):
-        TM_Module.__init__(self, task, **kwargs)
+    def __init__(self, *args, **kwargs):
+        TM_Module.__init__(self, *args, **kwargs)
 
         self._timeouts = {}
 
@@ -41,17 +40,17 @@ class Mod_OverrideRobot(TM_Module):
         )
 
     def _reset_timeout(self, index: int):
-        self._timeouts[index] = self._TASK.clock.clock
+        self._timeouts[index] = self._PROPS.clock.clock
 
-    def _cb_set_position(self, pos: geometry_msgs.PoseWithCovarianceStamped):
-        self._TASK.set_robot_position(
+    async def _cb_set_position(self, pos: geometry_msgs.PoseWithCovarianceStamped):
+        await self._TASK.set_robot_position(
             Pose.from_msg(
                 pos.pose.pose
             )
         )
 
-    def _cb_set_goal(self, pos: geometry_msgs.PoseStamped):
-        self._TASK.set_robot_goal(
+    async def _cb_set_goal(self, pos: geometry_msgs.PoseStamped):
+        await self._TASK.set_robot_goal(
             Pose.from_msg(
                 pos.pose
             )

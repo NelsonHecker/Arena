@@ -16,13 +16,10 @@ class TM_Robots(TaskMode):
 
     _last_reset: int
 
-    def __init__(self, **kwargs):
-        TaskMode.__init__(self, **kwargs)
-
-    def reset(self, **kwargs):
+    async def reset(self, **kwargs):
         self._last_reset = self._PROPS.clock.clock.sec
 
-    def set_position(self, pose: Pose):
+    async def set_position(self, pose: Pose):
         """
         Set the position of all robots.
 
@@ -30,10 +27,10 @@ class TM_Robots(TaskMode):
             position (Pose): The desired position and orientation.
 
         """
-        for robot_manager in self._PROPS.robot_managers.values():
-            robot_manager.reset(pose, None)
+        for robot_manager in self._PROPS.robots.values():
+            await robot_manager.reset(pose, None)
 
-    def set_goal(self, pose: Pose):
+    async def set_goal(self, pose: Pose):
         """
         Set the goal position for all robots.
 
@@ -41,11 +38,11 @@ class TM_Robots(TaskMode):
             position (Pose): The desired goal position and orientation.
 
         """
-        for robot_manager in self._PROPS.robot_managers.values():
-            robot_manager.reset(None, pose)
+        for robot_manager in self._PROPS.robots.values():
+            await robot_manager.reset(None, pose)
 
     @property
-    def done(self) -> bool:
+    async def done(self) -> bool:
         """
         Check if all robots have completed their tasks.
 
@@ -57,8 +54,8 @@ class TM_Robots(TaskMode):
                 > self.node.conf.Robot.TIMEOUT.value:
             return True
 
-        if not self._PROPS.robot_managers:
+        if not self._PROPS.robots:
             return False
-        if not all(robot_manager.is_done for robot_manager in self._PROPS.robot_managers.values()):
+        if not all(robot_manager.is_done for robot_manager in self._PROPS.robots.values()):
             return False
         return True

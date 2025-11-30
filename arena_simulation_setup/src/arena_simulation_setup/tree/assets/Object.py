@@ -1,11 +1,11 @@
+from pathlib import Path
+
 import attrs
 
 from arena_simulation_setup.tree import (
-    AssetType,
-    DynamicProvider,
-    Identifier,
+    DomainAssetIdentifier,
+    DynamicPaths,
     NetResolver,
-    Resolvers,
 )
 from arena_simulation_setup.utils.models import ModelWrapper
 from arena_simulation_setup.utils.models.model_loader import (
@@ -14,31 +14,22 @@ from arena_simulation_setup.utils.models.model_loader import (
 )
 
 
-class ObjectProvider(DynamicProvider[ModelWrapper]):
+@attrs.define(eq=False, hash=False)
+class ObjectIdentifier(DomainAssetIdentifier[ModelWrapper]):
+    """Represents an identifier referencing a 3D model asset.
+    """
+    _asset_type = 'Object'
 
-    def load(self, *args, **kwargs) -> ModelWrapper:
-        resolved = self.resolve(self.identifier)
-        if resolved is None:
-            raise FileNotFoundError(f'Object model {self.identifier} not found')
+    def load(self, path: Path, /, **kwargs) -> ModelWrapper:
+        del kwargs  # unused
         return ModelWrapper(
             self.name,
             {
-                **ModelProvider_USD.asdict(resolved, resolved.name),
-                **ModelProvider_SDF.asdict(resolved, resolved.name),
+                **ModelProvider_USD.asdict(path, path.name),
+                **ModelProvider_SDF.asdict(path, path.name),
             }
         )
 
 
-ObjectResolver = NetResolver(AssetType.OBJECT)
-Resolvers.register(ObjectResolver)
-
-ObjectLoader = ObjectProvider.bind(ObjectResolver)
-
-
-@attrs.define(eq=False, hash=False)
-class ObjectIdentifier(Identifier[ModelWrapper]):
-    """Represents an identifier referencing a 3D model asset.
-    """
-
-
-ObjectIdentifier.provide(ObjectLoader)
+ObjectIdentifier.use(*DynamicPaths.as_resolvers(ObjectIdentifier))
+ObjectIdentifier.use(*NetResolver.all(ObjectIdentifier))

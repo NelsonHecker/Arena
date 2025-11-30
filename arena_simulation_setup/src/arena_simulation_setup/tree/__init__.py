@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import abc
-import enum
+import asyncio
 import logging
 import os
 import subprocess
+import threading
 import typing
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Optional
+import warnings
 
 import attrs
 from typing_extensions import Self
@@ -22,31 +24,65 @@ from arena_simulation_setup.utils.cattrs import Idempotent, Parseable, Serializa
 NETWORK_PROVIDERS: Sequence[str] = os.environ.get('ASSET_BUCKETS', 'default').split(',')
 ANNOTATION_MARKER = 'annotation.yaml'
 
+# Utils
 
-class AssetType(str, enum.Enum):
-    """Represents the type of a simulation asset.
+
+class PathContainer:
+    def __init__(self, path: Path):
+        self._path: Path = path
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+
+class PathView(PathContainer):
+    @property
+    def name(self) -> str:
+        return self.path.name
+
+
+class DynamicPath(PathContainer):
+    @PathContainer.path.setter
+    def path(self, value: Path):
+        self._path = value
+
+    def __init__(self, path: Path = Path('/dev/null')):
+        super().__init__(path)
+
+
+class DynamicPaths:
+    WORLD = DynamicPath()
+    ARENA = DynamicPath(Path(os.getenv('ARENA_ASSETS_DIR_LOCAL', ARENA_ASSETS_DIR / 'local')))
+
+    @classmethod
+    def as_resolvers(cls, _T: typing.Type[IdentifierT], /) -> Iterable[DynamicPathResolver[IdentifierT]]:
+        yield DynamicPathResolver(_T, cls.WORLD, fn=lambda p: p / 'assets')
+        yield DynamicPathResolver(_T, cls.ARENA)
+
+
+IdentifierT = typing.TypeVar('IdentifierT', bound='IdentifierProtocol')
+
+
+class ResolverBase(abc.ABC, typing.Generic[IdentifierT]):
     """
-    OBJECT = 'Object'  # 3D model
-    MATERIAL = 'Material'  # Material
-    PEDESTRIAN = 'Pedestrian'  # Pedestrian
-    WALL = 'Wall'  # Wall Description
-
-
-T = typing.TypeVar('T')
-
-
-# RESOLVERS
-
-
-class Resolver:
+    Base class for resolvers.
     """
-    Resolve asset paths from disk.
-    """
+    @property
+    def _asset_type(self) -> str:
+        return self._IdentifierT.label()
 
-    def __init__(self, asset_type: AssetType, dirs: Optional[dict[str, Path]] = None):
-        self._cache: dict[Identifier, Path] = {}
-        self._asset_type: AssetType = asset_type
-        self._dirs: dict[str, Path] = dirs or {}
+    _cache: dict[IdentifierT, Path] = attrs.field(factory=dict, init=False)
+
+    def __init__(self, _T: typing.Type[IdentifierT], /):
+        self._IdentifierT: typing.Type[IdentifierT] = _T
+        self._cache = {}
+
+    @abc.abstractmethod
+    async def resolve(self, identifier: IdentifierT) -> Optional[Path]:
+        """
+        Resolve the given identifier.
+        """
 
     def invalidate(self):
         """
@@ -54,90 +90,124 @@ class Resolver:
         """
         self._cache.clear()
 
-    def update_dir(self, extra: str, path: Optional[Path]):
+    def listall(self, **kwargs) -> Iterator[IdentifierT]:
         """
-        Update or remove extra disk source.
-        Arguments:
-            extra: The name of the extra disk source.
-            path: The path to the extra disk source. If None, the extra disk source is removed.
+        List all local assets available. Builds the cache in the process.
         """
-        if extra in self._dirs:
-            self.invalidate()
-        if path:
-            self._dirs[extra] = path
-        else:
-            self._dirs.pop(extra, None)
+        return iter(())
 
-    def _check_exists(self, identifier: Identifier, type_: AssetType) -> Optional[Path]:
-        """Check if the asset exists in local sources.
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}<{self._asset_type}>'
 
-        Args:
-            identifier (Identifier): The identifier of the asset.
 
-        Returns:
-            Optional[Path]: The path to the asset if it exists, otherwise None.
-        """
-        arena_dir = self._dirs.get(Resolvers.ARENA_DIR)
-        if arena_dir is None:
-            globbed_arenadir = []
-        else:
-            globbed_arenadir = arena_dir.glob('*')
-        for local_source in (*globbed_arenadir, *self._dirs.values()):
-            candidate = local_source / identifier.path(type_)
-            if candidate.exists():
-                return candidate
-        return None
+class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[IdentifierT]):
+    """
+    Resolve asset paths from disk.
+    """
+    @property
+    @abc.abstractmethod
+    def path(self) -> Path:
+        ...
 
-    def resolve(self, identifier: Identifier) -> Optional[Path]:
+    async def resolve(self, identifier: IdentifierT) -> Optional[Path]:
         """
         Resolve the given identifier.
         """
         if identifier not in self._cache:
-            target = self._check_exists(identifier, self._asset_type)
-            if target is not None:
-                self._cache[identifier] = target
+            candidate = self.path / identifier.relpath()
+            if candidate.exists():
+                self._cache[identifier] = candidate
+                return candidate
         return self._cache.get(identifier, None)
 
-    def list_cached(self) -> Sequence[Identifier]:
-        """
-        List all cached assets.
-        """
-        return list(self._cache.keys())
-
-    def list_local(self) -> Sequence[Identifier]:
+    def listall(self, **kwargs) -> Iterator[IdentifierT]:
         """
         List all local assets available. Builds the cache in the process.
         """
-        found: list[Identifier] = []
-        for local_source in self._dirs.values():
-            for root, _, files in os.walk(local_source):
-                if self._asset_type != Path(root).parts[0]:
+        source = self.path
+        for root, _, files in os.walk(source):
+            if self._asset_type != Path(root).parts[0]:
+                continue
+            for file in files:
+                if not file == ANNOTATION_MARKER:
                     continue
-                for file in files:
-                    if not file == ANNOTATION_MARKER:
-                        continue
-                    relpath = Path(root).relative_to(local_source)
-                    identifier = Identifier(domain=relpath.parts[0], name=str(relpath.relative_to(relpath.parts[0])))
-                    self._cache[identifier] = identifier.path(self._asset_type)
-                    found.append(identifier)
-                    _.clear()
-
-        return found
+                relpath = Path(root).relative_to(source)
+                try:
+                    identifier = self._IdentifierT.from_relpath(relpath)
+                except Exception:
+                    continue
+                self._cache[identifier] = identifier.relpath()
+                yield identifier
+            _.clear()
 
     def __repr__(self) -> str:
-        sources = map(lambda v: os.path.join(v, '*', self._asset_type), self._dirs.values())
-        return f"{self.__class__.__name__}({', '.join(sources)})"
+        return f"{super().__repr__()}(path={self.path})"
 
 
-class NetResolver(Resolver):
+class SimplePathResolver(PathResolverBase[IdentifierT], typing.Generic[IdentifierT]):
+    """
+    Resolve asset paths from a single disk location.
+    """
+
+    def __init__(self, _T: typing.Type[IdentifierT], /, path: Path, **kwargs):
+        super().__init__(_T, **kwargs)
+        self._path = path
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+
+class DynamicPathResolver(PathResolverBase[IdentifierT], typing.Generic[IdentifierT]):
+    """
+    Resolve asset paths from a dynamic disk location.
+    """
+
+    def __init__(self, _T: typing.Type[IdentifierT], /, path: DynamicPath, *, fn: typing.Callable[[Path], Path] | None = None, **kwargs):
+        super().__init__(_T, **kwargs)
+        if fn is None:
+            def _identity_fn(p): return p
+            fn = _identity_fn
+        self._dynamic_path = path
+        self._fn = fn
+
+    @property
+    def path(self) -> Path:
+        return self._fn(self._dynamic_path.path)
+
+
+class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], ResolverBase[IdentifierT]):
     """
     Resolve asset paths from both disk and network.
     """
 
-    def _network_fetch(self, provider: str, identifier: Identifier) -> Optional[Path]:
-        target_path = identifier.path(self._asset_type)
+    def __init__(self, _T: typing.Type[IdentifierT], /, provider: str, **kwargs):
+        path = ARENA_ASSETS_DIR / provider
+        super().__init__(_T, path=path, **kwargs)
+        self._provider: str = provider
+
+    @classmethod
+    async def check_output_async(cls, args: Iterable[str], **kwargs) -> bytes:
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            **kwargs
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
+        return stdout
+
+    async def _network_fetch(self, provider: str, identifier: IdentifierT) -> Optional[Path]:
+        relpath = identifier.relpath()
+        root_path = ARENA_ASSETS_DIR / provider
+        target_path = root_path / relpath
+
+        if target_path.exists():
+            return target_path
         try:
-            if (subprocess.check_output([
+            if (await self.check_output_async([
                 'ros2',
                 'run',
                 'arena_models',
@@ -146,11 +216,10 @@ class NetResolver(Resolver):
                 'net',
                 provider,
                 'exists',
-                str(target_path),
-            ]).strip().decode()) == '1':
-                disk_path = ARENA_ASSETS_DIR / provider
+                str(relpath),
+            ])).strip().decode() == '1':
                 logging.info(f"Fetching asset {identifier} from network provider {provider}...")
-                subprocess.check_output([
+                await self.check_output_async([
                     'ros2',
                     'run',
                     'arena_models',
@@ -159,246 +228,358 @@ class NetResolver(Resolver):
                     'net',
                     provider,
                     'fetch',
-                    str(target_path),
+                    str(relpath),
                     '-o',
-                    str(disk_path),
+                    str(root_path),
                 ])
-                return disk_path / target_path
+                return target_path
 
         except subprocess.CalledProcessError:
             return None
 
-    def _check_exists_network(self, identifier: Identifier) -> Optional[Path]:
-        for provider in NETWORK_PROVIDERS:
-            if (target := self._network_fetch(provider, identifier)) is not None:
-                return target
-        return None
-
-    def resolve(self, identifier):
+    async def resolve(self, identifier):
         """
         Resolve the given name.
         """
-        local = super().resolve(identifier)
-        if local is None:
-            net_result = self._check_exists_network(identifier)
-            if net_result is not None:
-                self._cache[identifier] = net_result
+        local_result = await SimplePathResolver.resolve(self, identifier)
+        if local_result is not None:
+            return local_result
+        net_result = await self._network_fetch(self._provider, identifier)
+        if net_result is not None:
+            self._cache[identifier] = net_result
         return self._cache.get(identifier, None)
 
+    def listall(self, *, network: bool = False, **kwargs) -> Iterator[IdentifierT]:
+        """
+        List all local assets available. Builds the cache in the process.
+        """
+        yield from SimplePathResolver.listall(self, **kwargs)
+        if network:
+            warnings.warn(f'Network listing is not yet supported in {repr(self.__class__)}', UserWarning)
+            yield from ()
+
     def __repr__(self) -> str:
-        sources = (*map(lambda v: os.path.join(v, self._asset_type), self._dirs.values()), *NETWORK_PROVIDERS)
-        return f"{self.__class__.__name__}({', '.join(sources)})"
-
-
-class _Resolvers:
-    ARENA_DIR: str = 'arena'
-    WORLD_DIR: str = 'world'
-
-    def __init__(self) -> None:
-        self._resolvers: list[Resolver] = []
-        self._world_dir: Optional[Path] = None
-        self._arena_dir: Path = ARENA_ASSETS_DIR
-
-    def register(self, resolver: Resolver) -> None:
-        self._resolvers.append(resolver)
-        resolver.update_dir(self.ARENA_DIR, self._arena_dir)
-        resolver.update_dir(self.WORLD_DIR, self._world_dir)
-
-    def set_world_dir(self, world_dir: Path | None) -> None:
-        """
-        Set the world directory dynamic source resolution.
-        """
-        if world_dir is not None:
-            world_dir = world_dir / 'assets'
-        for resolver in self._resolvers:
-            resolver.update_dir(self.WORLD_DIR, world_dir)
-
-
-Resolvers = _Resolvers()
-
-
-# PROVIDERS
-
-
-class ProviderBase(Parseable, Serializable, Idempotent, abc.ABC, typing.Generic[T]):
-
-    # Class Methods: Provider
+        return f"{super().__repr__()}(net={self._provider})"
 
     @classmethod
-    def _listdir(cls, path: Path) -> Sequence[str]:
-        if not path.exists():
-            return ()
-        return tuple(sorted(str(f.relative_to(path)) for f in path.iterdir() if not f.name.startswith('.')))
-
-    # Instance Methods: Providee
-
-    @abc.abstractmethod
-    def __init__(self, identifier: typing.Any) -> None:
-        ...
-
-    @property
-    @abc.abstractmethod
-    def name(self) -> str:
-        ...
-
-    @property
-    @abc.abstractmethod
-    def path(self) -> Path:
-        """Get the path to the asset.
-
-        Returns:
-            Path: The path to the asset.
-        """
-
-    @abc.abstractmethod
-    def load(self, *args, **kwargs) -> T:
-        """
-        Load the asset.
-        """
+    def all(cls, _T: typing.Type[IdentifierT], /) -> Iterable[Self]:
+        for provider in NETWORK_PROVIDERS:
+            yield cls(_T, provider=provider)
 
 
-DynamicProviderT = typing.TypeVar('DynamicProviderT', bound='DynamicProvider')
-
-
-class DynamicProvider(ProviderBase[T], typing.Generic[T]):
+class FallbackResolver(ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
     """
-    Dynamic provider base class
-    """
-    _resolver: typing.ClassVar[Resolver]
-
-    @classmethod
-    def parse(cls: typing.Type[DynamicProviderT], value: typing.Any) -> DynamicProviderT:
-        if isinstance(value, cls):
-            return value
-        if not isinstance(value, str):
-            raise TypeError(f'Expected value to be str, got {type(value)}')
-        return cls(value)
-
-    def serialize(self) -> typing.Any:
-        return self.identifier
-
-    @classmethod
-    def bind(cls: typing.Type[DynamicProviderT], resolver: Resolver) -> typing.Type[DynamicProviderT]:
-        return typing.cast(
-            typing.Type[DynamicProviderT],
-            type('Bound' + cls.__name__, (cls,), dict(_resolver=resolver))
-        )
-
-    @classmethod
-    def list(cls) -> Sequence[Identifier]:
-        return cls._resolver.list_local()
-
-    @classmethod
-    def resolve(cls, identifier: Identifier[T]):
-        result = cls._resolver.resolve(identifier)
-        if result is None:
-            raise FileNotFoundError(f"Asset '{identifier}' not found in {cls._resolver}")
-        return result
-
-    # Instance Methods
-    _identifier: Identifier
-
-    @property
-    def name(self) -> str:
-        return self._identifier.name
-
-    @property
-    def identifier(self) -> Identifier:
-        return self._identifier
-
-    @property
-    def path(self) -> Path:
-        return self.resolve(self._identifier)
-
-    def __init__(self, identifier: Identifier | str) -> None:
-        if hasattr(self, '_identifier'):
-            return
-        if isinstance(identifier, str):
-            identifier = Identifier.parse(identifier)
-        if not isinstance(identifier, Identifier):
-            raise TypeError(f'Expected identifier to be Identifier, got {type(identifier)}')
-        self._identifier = identifier
-
-
-StaticProviderT = typing.TypeVar('StaticProviderT', bound='StaticProvider')
-
-
-class StaticProvider(ProviderBase[T], typing.Generic[T]):
-    """Static provider base class.
+    Resolver that always yields a fallback path.
     """
 
-    _path: typing.ClassVar[Path]
+    def __init__(self, _T: typing.Type[IdentifierT], /, path: Path, **kwargs):
+        super().__init__(_T, **kwargs)
+        self._path = path
 
-    @classmethod
-    def parse(cls: typing.Type[StaticProviderT], value: typing.Any) -> StaticProviderT:
-        if isinstance(value, cls):
-            return value
-        if not isinstance(value, str):
-            raise TypeError(f'Expected value to be str, got {type(value)}')
-        return cls(value)
+    async def resolve(self, identifier: IdentifierT) -> Optional[Path]:
+        """
+        Resolve the given identifier.
+        """
+        return self._path / identifier.relpath()
 
-    def serialize(self) -> typing.Any:
-        return self.name
-
-    @classmethod
-    def bind(cls: typing.Type[StaticProviderT], path: Path) -> typing.Type[StaticProviderT]:
-        return typing.cast(
-            typing.Type[StaticProviderT],
-            type('Bound' + cls.__name__, (cls,), dict(_path=path))
-        )
-
-    @classmethod
-    def list(cls) -> Sequence[str]:
-        return cls._listdir(cls._path)
-
-    @classmethod
-    def base_dir(cls) -> Path:
-        return cls._path
-
-    @classmethod
-    def resolve(cls, name: str) -> Path:
-        return cls._path / name
-
-    # Instance Methods
-    _name: str
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def path(self) -> Path:
-        return self._path / self._name
-
-    def __init__(self, identifier: str) -> None:
-        if hasattr(self, '_name'):
-            return
-        if not isinstance(identifier, str):
-            raise TypeError(f'Expected name to be str, got {type(identifier)}')
-        self._name = identifier
-
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({repr(self._path)})"
 
 # IDENTIFIERS
 
-@attrs.define(eq=False, hash=False)
-class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
-    """Represents an identifier referencing an asset.
-    """
-    name: str
-    domain: str = attrs.field(default=DOMAIN_DEFAULT)
-    _modifiers: dict | None = attrs.field(default=None, alias='modifiers', repr=False)
+
+T = typing.TypeVar('T')
+T_co = typing.TypeVar('T_co', covariant=True)
+
+
+class IdentifierProtocol(typing.Protocol, typing.Generic[T_co]):
+    async def resolve(self, **kwargs) -> T_co:
+        """Resolve and load the asset referenced by this identifier.
+        """
+        ...
 
     @property
-    def modifiers(self) -> dict:
-        return {} if self._modifiers is None else self._modifiers
+    def shortname(self) -> str:
+        """Get the short name of the identifier.
+        """
+        ...
 
-    def path(self, type_: AssetType) -> Path:
+    def relpath(self) -> Path:
         """Get the path representation of the identifier.
 
         Returns:
             Path: The path of the identifier relative to a repository.
         """
-        return Path(self.domain) / type_.value / self.name
+        ...
+
+    @classmethod
+    def from_relpath(cls, relpath: Path) -> Self:
+        """Create an Identifier from a relative path.
+
+        Args:
+            relpath(Path): The relative path.
+        Returns:
+            Identifier: The created Identifier.
+        """
+        ...
+
+    @classmethod
+    def label(cls) -> str:
+        """Short label for the identifier type.
+        """
+        ...
+
+    @classmethod
+    def listall(cls, **kwargs) -> Iterator[Self]:
+        """List all local assets available.
+        """
+        ...
+
+
+@attrs.define(eq=False, hash=False)
+class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typing.Generic[T]):
+    """Represents an identifier referencing an path.
+    """
+    name: str
+
+    @property
+    def shortname(self) -> str:
+        return self.name
+
+    def relpath(self) -> Path:
+        return Path(self.name)
+
+    async def resolve(self, **kwargs) -> T:
+        for resolver in self._resolvers:
+            resolved = await resolver.resolve(self)
+            if resolved is not None:
+                return self.load(resolved, **kwargs)
+        msg = f'{self} not found among'
+        for resolver in self._resolvers:
+            msg += f'\n\t{repr(resolver)}'
+        raise FileNotFoundError(msg)
+
+    def resolve_sync(self, **kwargs) -> T:
+        """Synchronously load the asset referenced by this identifier.
+        """
+        result: T = None  # type: ignore
+        exc: Optional[Exception] = None
+
+        def _run_async_load():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                nonlocal result
+                result = loop.run_until_complete(self.resolve(**kwargs))
+            except Exception as e:
+                nonlocal exc
+                exc = e
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=_run_async_load)
+        thread.start()
+        thread.join()
+
+        if exc is not None:
+            raise exc
+        return result
+
+    @abc.abstractmethod
+    def load(self, path: Path, /, **kwargs) -> T:
+        """Load the asset referenced by this identifier.
+        """
+
+    def serialize(self):
+        return self.shortname
+
+    # Class Methods
+
+    @classmethod
+    def label(cls) -> str:
+        return cls.__name__
+
+    @classmethod
+    def from_relpath(cls, relpath: Path) -> Self:
+        assert len(relpath.parts) >= 1, f'Expected at least 1 part in relpath, got {len(relpath.parts)}'
+        return cls(name=str(relpath.parts))
+
+    @classmethod
+    def parse(cls, value: str | Self) -> Self:
+        """Parse path into an Identifier.
+
+        Args:
+            identifier(str): The identifier string to parse.
+
+        Returns:
+            Identifier: The parsed Identifier object.
+        """
+        if isinstance(value, cls):
+            return value
+
+        if not isinstance(value, str):
+            raise TypeError(f'Expected str, got {repr(value)}')
+
+        return cls(name=value)
+
+    @classmethod
+    def converter(cls, *args, **kwargs):
+        return super().instance_or(cls.parse)(*args, **kwargs)
+
+    @classmethod
+    def listall(cls, **kwargs) -> Iterator[Self]:
+        for resolver in cls._resolvers:
+            yield from resolver.listall(**kwargs)
+
+    # Resolvers
+    _resolvers: typing.ClassVar[list[ResolverBase]] = []
+
+    @classmethod
+    def use(cls, *resolver: ResolverBase[Self]):
+        if '_resolvers' not in cls.__dict__:
+            cls._resolvers = []
+        cls._resolvers.extend(resolver)
+
+    @classmethod
+    def inline(cls: typing.Type[Self], data: T, /, name: str = '', modifiers: dict | None = None) -> Self:
+        """Create an InlineIdentifier containing the given data.
+
+        Args:
+            data(T_co): The asset data.
+            name(str, optional): The name of the asset. Defaults to ''.
+            modifiers(dict | None, optional): The modifiers dict for the asset. Defaults to None.
+
+        Returns:
+            InlineIdentifier[T_co]: The created InlineIdentifier.
+        """
+        del modifiers
+
+        TypedInline = type(
+            f"TypedInline_{cls.__name__}",
+            (InlineIdentifier, cls),
+            {}
+        )
+        return typing.cast(Self, TypedInline(data, name=name))
+
+
+@attrs.define(eq=False, hash=False)
+class AssetIdentifier(Identifier[T], typing.Generic[T]):
+    """Represents an identifier referencing an asset.
+    """
+    name: str
+
+    _asset_type: typing.ClassVar[str]
+
+    def relpath(self) -> Path:
+        return Path(self._asset_type) / self.name
+
+    @classmethod
+    def label(cls) -> str:
+        """Short label for the identifier type.
+        """
+        return cls._asset_type
+
+    @classmethod
+    def from_relpath(cls, relpath: Path) -> Self:
+        """Create an Identifier from a relative path.
+
+        Args:
+            relpath(Path): The relative path.
+        Returns:
+            Identifier: The created Identifier.
+        """
+        assert len(relpath.parts) >= 2, f'Expected at least 2 parts in relpath, got {len(relpath.parts)}'
+        assert relpath.parts[0] == cls._asset_type, f'Expected asset type {cls._asset_type}, got {relpath.parts[0]}'
+        return cls(name=str(relpath.parts[1:]))
+
+
+@attrs.define(eq=False, hash=False)
+class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
+    """Represents an identifier referencing an asset.
+    """
+    name: str
+    domain: str = attrs.field(default=DOMAIN_DEFAULT)
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.domain,
+                self.name,
+            )
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, DomainAssetIdentifier):
+            return False
+        return self.domain == other.domain and self.name == other.name
+
+    @classmethod
+    def parse(cls, value: str | Self) -> Self:  # type: ignore
+        """Parse path of the form[domain:]name into an Identifier.
+
+        Args:
+            identifier(str): The identifier string to parse.
+            default_target(AssetType): The default target type if not specified.
+            default_domain(str): The default domain if not specified.
+
+        Returns:
+            Identifier: The parsed Identifier object.
+        """
+        if isinstance(value, cls):
+            return value
+
+        if not isinstance(value, str):
+            raise TypeError(f'Expected str, got {repr(value)}')
+
+        parts = list(reversed(value.split('/', 2)))
+
+        name = parts[0]
+        domain = parts[1] if len(parts) > 1 else DOMAIN_DEFAULT
+
+        return cls(
+            domain=domain,
+            name=name,
+        )
+
+    @property
+    def shortname(self) -> str:
+        if self.domain == DOMAIN_DEFAULT:
+            return self.name
+        return f'{self.domain}/{self.name}'
+
+    def relpath(self) -> Path:
+        """Get the path representation of the identifier.
+
+        Returns:
+            Path: The path of the identifier relative to a repository.
+        """
+        return Path(self.domain) / self._asset_type / self.name
+
+    @classmethod
+    def from_relpath(cls, relpath: Path) -> Self:
+        """Create an Identifier from a relative path.
+
+        Args:
+            relpath(Path): The relative path.
+        Returns:
+            Identifier: The created Identifier.
+        """
+        assert len(relpath.parts) >= 3, f'Expected at least 3 parts in relpath, got {len(relpath.parts)}'
+        assert relpath.parts[1] == cls._asset_type, f'Expected asset type {cls._asset_type}, got {relpath.parts[0]}'
+        return cls(domain=relpath.parts[0], name=str(relpath.parts[2:]))
+
+
+@attrs.define(eq=False, hash=False)
+class ModifiersDomainAssetIdentifier(DomainAssetIdentifier[T], typing.Generic[T]):
+    """DomainIdentifiers that supports modifiers.
+    """
+    _modifiers: dict | None = attrs.field(default=None, alias='modifiers', repr=False)
+
+    @property
+    def modifiers(self) -> dict:
+        """Get the modifiers dictionary.
+        """
+        return {} if self._modifiers is None else self._modifiers
 
     def __hash__(self) -> int:
         return hash(
@@ -410,24 +591,26 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
         )
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Identifier):
+        if not isinstance(other, ModifiersDomainAssetIdentifier):
             return False
         return self.domain == other.domain and self.name == other.name and self.modifiers == other.modifiers
 
     @classmethod
-    def parse(cls, value: str | tuple[str, dict] | Identifier) -> Identifier:
-        """Parse path of the form [domain:]name into an Identifier.
+    def parse(cls, value: str | tuple[str, dict] | Self) -> Self:  # type: ignore
+        """Parse path of the form[domain:]name into an Identifier.
 
         Args:
-            identifier (str): The identifier string to parse.
-            default_target (AssetType): The default target type if not specified.
-            default_domain (str): The default domain if not specified.
+            identifier(str): The identifier string to parse.
+            default_target(AssetType): The default target type if not specified.
+            default_domain(str): The default domain if not specified.
 
         Returns:
             Identifier: The parsed Identifier object.
         """
-        if isinstance(value, Identifier):
-            return value
+        if isinstance(value, DomainAssetIdentifier):
+            if isinstance(value, cls):
+                return value
+            raise TypeError(f'Received Identifier of type {type(value)}, expected {cls}')
 
         modifiers = None
         if isinstance(value, Iterable) and not isinstance(value, str):
@@ -440,69 +623,19 @@ class Identifier(Parseable, Serializable, Idempotent, typing.Generic[T]):
             if not isinstance(modifiers, dict):
                 raise TypeError(f'Expected modifiers to be dict, got {repr(modifiers)}')
 
-        parts = list(reversed(value.split('/', 2)))
-
-        name = parts[0]
-        domain = parts[1] if len(parts) > 1 else DOMAIN_DEFAULT
+        base = super().parse(value)
 
         return cls(
-            domain=domain,
-            name=name,
+            domain=base.domain,
+            name=base.name,
             modifiers=modifiers,
         )
 
-    def serialize(self):
-        if self.domain == DOMAIN_DEFAULT:
-            path = self.name
-        else:
-            path = f'{self.domain}/{self.name}'
-
+    def serialize(self) -> typing.Any:
+        base = super().serialize()
         if self.modifiers is None:
-            return path
-        else:
-            return (path, self.modifiers)
-
-    @classmethod
-    def converter(cls, *args, **kwargs):
-        return super().instance_or(cls.parse)(*args, **kwargs)
-
-    # Class Methods
-    _providers: typing.ClassVar[list[typing.Type[ProviderBase[T]]]] = []  # type: ignore
-
-    @classmethod
-    def provide(cls, *providers: typing.Type[ProviderBase[T]]):
-        if '_providers' not in cls.__dict__:
-            cls._providers = []
-        cls._providers.extend(providers)
-
-    def load(self) -> T:
-        last_error: Optional[Exception] = None
-        for provider_cls in self._providers:
-            provider = provider_cls(self)
-            try:
-                return provider.load()
-            except Exception as e:
-                last_error = e
-        raise RuntimeError(f'Failed to load asset {self}') from last_error
-
-    @classmethod
-    def inline(cls: typing.Type[Self], data: T, /, name: str = '', modifiers: dict | None = None) -> Self:
-        """Create an InlineIdentifier containing the given data.
-
-        Args:
-            data (T): The asset data.
-            name (str, optional): The name of the asset. Defaults to ''.
-            modifiers (dict | None, optional): The modifiers dict for the asset. Defaults to None.
-
-        Returns:
-            InlineIdentifier[T]: The created InlineIdentifier.
-        """
-        TypedInline = type(
-            f"TypedInline_{cls.__name__}",
-            (InlineIdentifier, cls),
-            {}
-        )
-        return typing.cast(Self, TypedInline(data, name=name))
+            return base
+        return (base, self.modifiers)
 
 
 class InlineIdentifier(Identifier[T], typing.Generic[T]):
@@ -510,12 +643,16 @@ class InlineIdentifier(Identifier[T], typing.Generic[T]):
     """
     _data: T
 
-    def __init__(self, data: T, /, name: str = '', modifiers: dict | None = None) -> None:
-        super().__init__(name=name, domain='', modifiers=modifiers)
+    def __init__(self, data: T, /, name: str = '', **kwargs) -> None:
+        super().__init__(name=name, **kwargs)
         self._data = data
 
     def serialize(self) -> str:
         raise TypeError('InlineIdentifier cannot be serialized')
 
-    def load(self) -> T:
+    async def resolve(self, **kwargs) -> T:
+        del kwargs  # unused
         return self._data
+
+    def load(self, path: Path, /, **kwargs) -> T:
+        raise NotImplementedError('How did you even get here?')
