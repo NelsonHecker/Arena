@@ -4,11 +4,13 @@ if [ -n "$ZSH_VERSION" ]; then
     shell='zsh'
     # shellcheck disable=SC2296
     THIS_FILE="${(%):-%N}"
+    unsetopt PUSHD_IGNORE_DUPS
 else
     shell='bash'
     THIS_FILE="${BASH_SOURCE[0]}"
 fi
-export SOURCE_FILE="$THIS_FILE"
+SOURCE_FILE=$(realpath "$THIS_FILE")
+export SOURCE_FILE
 export shell
 
 # increase ulimit to fit pythonpath

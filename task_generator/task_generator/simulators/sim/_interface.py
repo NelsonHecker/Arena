@@ -78,28 +78,28 @@ class RobotITF(abc.ABC):
 
 class WorldITF(abc.ABC):
     @abc.abstractmethod
-    def spawn_walls(self, walls: list[Wall]) -> bool:
+    def spawn_walls(self, walls: Sequence[Wall]) -> bool:
         """
         Add a list of walls to the simulator.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def spawn_floors(self, floors: list[Floor]) -> bool:
+    def spawn_floors(self, floors: Sequence[Floor]) -> bool:
         """
         Add a list of floors to the simulator.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def spawn_doors(self, doors: list[Door]) -> bool:
+    def spawn_doors(self, doors: Sequence[Door]) -> bool:
         """
         Add a list of doors to the simulator.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def spawn_elevators(self, elevators: list[Elevator]) -> bool:
+    def spawn_elevators(self, elevators: Sequence[Elevator]) -> bool:
         """
         Add a list of elevators to the simulator.
         """

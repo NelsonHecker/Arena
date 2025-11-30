@@ -1,8 +1,10 @@
-from abc import ABC
-import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Union, Literal, Any, Annotated
-from pydantic import BaseModel, Field, field_validator
+from __future__ import annotations
 
+import xml.etree.ElementTree as ET
+from abc import ABC
+import typing
+
+from pydantic import BaseModel, Field, field_validator
 
 CONTROL_NODE_ID_MAP = {}
 
@@ -22,8 +24,8 @@ CONDITION_NODE_ID_MAP = {}
 class InputPort(BaseModel):
     name: str
     type: str
-    default: Optional[str] = None
-    description: Optional[str] = None
+    default: typing.Optional[str] = None
+    description: typing.Optional[str] = None
 
     def to_xml(self) -> ET.Element:
         element = ET.Element(
@@ -44,8 +46,8 @@ class InputPort(BaseModel):
 class OutputPort(BaseModel):
     name: str
     type: str
-    default: Optional[str] = None
-    description: Optional[str] = None
+    default: typing.Optional[str] = None
+    description: typing.Optional[str] = None
 
     def to_xml(self) -> ET.Element:
         element = ET.Element(
@@ -65,8 +67,8 @@ class OutputPort(BaseModel):
 
 class Condition(BaseModel):
     ID: str
-    input_ports: Optional[List[InputPort]] = []
-    output_port: Optional[List[OutputPort]] = []
+    input_ports: typing.Optional[list[InputPort]] = []
+    output_port: typing.Optional[list[OutputPort]] = []
 
     def to_xml(self) -> ET.Element:
         element = ET.Element(
@@ -89,8 +91,8 @@ class Condition(BaseModel):
 
 class Action(BaseModel):
     ID: str
-    input_ports: Optional[List[InputPort]] = []
-    output_port: Optional[List[OutputPort]] = []
+    input_ports: typing.Optional[list[InputPort]] = []
+    output_port: typing.Optional[list[OutputPort]] = []
 
     @field_validator("ID")
     @classmethod
@@ -119,8 +121,8 @@ class Action(BaseModel):
 
 
 class TreeNodesModel(BaseModel):
-    conditions: Optional[List[Condition]] = []
-    actions: Optional[List[Action]] = []
+    conditions: typing.Optional[list[Condition]] = []
+    actions: typing.Optional[list[Action]] = []
 
     def to_xml(self) -> ET.Element:
         element = ET.Element(
@@ -128,10 +130,10 @@ class TreeNodesModel(BaseModel):
             attrib={}
         )
 
-        for action in self.actions:
+        for action in self.actions or ():
             element.append(action.to_xml())
 
-        for condition in self.conditions:
+        for condition in self.conditions or ():
             element.append(condition.to_xml())
 
         return element
@@ -141,20 +143,20 @@ class TreeNodesModel(BaseModel):
 
 
 class TreeNode(BaseModel):
-    ID: str
+    ID: typing.Any
     name: str
-    attributes: Dict[str, Any] = {}
+    attributes: dict[str, typing.Any] = {}
 
     def to_xml(self) -> ET.Element:
         ...
 
 
 class DecorationNode(TreeNode):
-    ID: Literal[
+    ID: typing.Literal[
         "TimeDelayDecorator",
         "RetryUntilSuccessful"
     ]
-    child_node: "NodeUnion"
+    child_node: NodeUnion
 
     @field_validator("ID")
     @classmethod
@@ -175,11 +177,11 @@ class DecorationNode(TreeNode):
 
 
 class ControlNode(TreeNode):
-    ID: Literal[
+    ID: typing.Literal[
         "Sequence",
         "Fallback"
     ]
-    children_nodes: List["NodeUnion"]
+    children_nodes: list[NodeUnion]
 
     def to_xml(self):
         element = ET.Element(
@@ -204,7 +206,7 @@ class LeafNode(ABC, TreeNode):
 
 
 class ActionNode(LeafNode):
-    ID: Literal[
+    ID: typing.Literal[
         # Old nodes
         "UpdateGoal",
         "RegularNav",
@@ -242,7 +244,7 @@ class ActionNode(LeafNode):
 
 
 class ConditionNode(LeafNode):
-    ID: Literal[
+    ID: typing.Literal[
         # Old nodes
         "IsGoalReached",
         "IsRobotVisible",
@@ -262,7 +264,7 @@ class ConditionNode(LeafNode):
 
 class BehaviorTree(BaseModel):
     ID: str
-    child_node: "NodeUnion"
+    child_node: NodeUnion
 
     def to_xml(self) -> ET.Element:
         element = ET.Element(
@@ -281,7 +283,7 @@ class Root(BaseModel):
     main_tree_to_execute: str
     BTCPP_format: str
     tree_nodes_model: TreeNodesModel
-    behavior_trees: List[BehaviorTree]
+    behavior_trees: list[BehaviorTree]
 
     def to_xml(
         self,
@@ -314,16 +316,17 @@ class Root(BaseModel):
         return element
 
 
-NodeUnion = Annotated[
-    Union[ControlNode, DecorationNode, ActionNode, ConditionNode],
+NodeUnion = typing.Annotated[
+    typing.Union[ControlNode, DecorationNode, ActionNode, ConditionNode],
     Field(discriminator="ID")
 ]
 
 if __name__ == "__main__":
     from xml.dom import minidom
-    from context import behavior_tree_format
 
-    json_str = behavior_tree_format.strip().strip("Output must strictly follow this structure:").strip("\n    ```json").strip("\n    ```\n    Do NOT explain anything. Output JSON only.")
+    from .context import behavior_tree_format, strip_behavior_tree_format
+
+    json_str = strip_behavior_tree_format(behavior_tree_format)
 
     test = Root.model_validate_json(json_str)
 

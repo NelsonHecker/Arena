@@ -123,6 +123,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
     _cli: rclpy.client.Client
     _world_name: str
+    _origin: Position | None
     _map_name: str | None
     _callbacks: list[typing.Callable[[], None]]
 
@@ -144,6 +145,10 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             map_yaml = yaml.safe_load(f)
             assert isinstance(map_yaml, dict), "map.yaml must be a dictionary"
         origin = list(map_yaml.get('origin', [0, 0, 0]))
+        self._origin = Position(
+            x=origin[0],
+            y=origin[1],
+        )
         shifted_origin = self._environment_manager.realize(
             Position(
                 x=origin[0],
@@ -185,6 +190,9 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         #     raise RuntimeError(
         #         f'Simulator {simulator.value} does not support world reloading.')
 
+        if world_name == self._world_name:
+            return True  # no change
+
         self._logger.warn(f'LOADING WORLD {world_name}')
         self._world_name = world_name
 
@@ -222,10 +230,15 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if self._map.time <= costmap.info.map_load_time:
 
             world = World.World(self.world_name)
+            world_map = WorldMap.from_costmap(costmap)
+
+            if self._origin is not None:
+                world_map.origin = self._origin
+                self._origin = None
 
             Resolvers.set_world_dir(world.path)
             self.update_world(
-                world_map=WorldMap.from_costmap(costmap),
+                world_map=world_map,
                 world_description=world.load()
             )
 
@@ -283,6 +296,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._callbacks = []
         self.update_world(world_map=WorldMap.from_costmap(_DUMMY_MAP), world_description=World.WorldDescription())
         self._world_name = ''
+        self._origin = None
         self._map_name = None
 
     def start(self):

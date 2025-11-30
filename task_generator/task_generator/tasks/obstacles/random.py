@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import itertools
 import typing
@@ -89,8 +91,12 @@ class TM_Random(TM_Obstacles):
         class ModelList(dict[str, float]):
 
             @classmethod
-            def fromkeys(cls, *args, **kwargs) -> "ModelList":
-                return cls(super().fromkeys(*args, **kwargs))
+            def fromkeys(cls, *args, **kwargs) -> ModelList:
+                result = cls(super().fromkeys(*args, **kwargs))
+                if not len(result):
+                    self._logger.warn('Empty model list passed. Defaulting to empty string.')
+                    result[""] = 1.0
+                return result
 
             @property
             def a(self) -> list[str]:
@@ -195,15 +201,17 @@ class TM_Random(TM_Obstacles):
 
             dynamic_obstacles += [
                 DynamicObstacle(
-                    name=f"D_{model}_{index(model)}",
+                    name=f"Pedestrian_{i}",
                     model=model,
                     waypoints=list(itertools.islice(waypoints, waypoints_per_ped)),
                     pose=next(positions),
                 )
-                for model in self.node.conf.General.RNG.value.choice(
-                    a=MODELS_DYNAMIC_OBSTACLES.a,
-                    p=MODELS_DYNAMIC_OBSTACLES.p,
-                    size=N_DYNAMIC_OBSTACLES,
+                for i, model in enumerate(
+                    self.node.conf.General.RNG.value.choice(
+                        a=MODELS_DYNAMIC_OBSTACLES.a,
+                        p=MODELS_DYNAMIC_OBSTACLES.p,
+                        size=N_DYNAMIC_OBSTACLES,
+                    )
                 )
             ]
 

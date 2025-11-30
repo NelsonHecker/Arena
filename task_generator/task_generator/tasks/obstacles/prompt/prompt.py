@@ -1,16 +1,14 @@
-import itertools
 import json
 import math
 import os
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-from typing import Dict
 
 import attrs
-import chromadb
 import yaml
 from ament_index_python.packages import get_package_share_directory
+from arena_hunav_sim_bridge.agent.llm_parser import Parser
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree.World import WorldDescription
 from arena_simulation_setup.utils.cattrs import converter
@@ -18,21 +16,18 @@ from google import genai
 
 from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle
 from task_generator.tasks.obstacles import (
-    CustomDynamicObstacle,
-    CustomObstacles,
     DynamicObstacle,
     Obstacle,
-    Obstacles,
     TM_Obstacles,
 )
-from task_generator.tasks.obstacles.prompt_utils import (
+
+from .prompt_utils import (
     ARENA_CONTEXT,
     BEHAVIOR_TREE_CONTEXT,
     BT_REF_DOC_PATH,
     CHROMA_DB_PATH,
     LOCAL_LM,
     REMOTE_LM,
-    Root,
     create_chroma_db,
     get_chroma_collection,
     get_relevant_bt_nodes,
@@ -107,7 +102,7 @@ class TM_Prompt(TM_Obstacles):
 
         return json.dumps(parsed, indent=2)
 
-    def llm_bt_output_to_config(self, llm_output: Dict) -> Dict:
+    def llm_bt_output_to_config(self, llm_output: dict) -> dict:
         try:
             config = {
                 "obstacles": {
@@ -116,19 +111,18 @@ class TM_Prompt(TM_Obstacles):
                 }
             }
 
-            for id, hunav in enumerate(llm_output.get("hunav_agents")):
-                hunav: Dict
-
+            parser = Parser(llm_output)
+            parser.parse()
+            for hunav_agent in parser.agents.values():
                 hunav_config = {
-                    "id": id,
-                    "name": hunav.get("name"),
-                    "pos": hunav.get("pos"),
-                    "model": hunav.get("model"),
-                    "waypoints": hunav.get("waypoints")
+                    "id": hunav_agent.id,
+                    "name": hunav_agent.name,
+                    "pos": hunav_agent.pos,
+                    "model": hunav_agent.model,
+                    "waypoints": hunav_agent.waypoints
                 }
 
-                bt_root: Dict = hunav.get("bt_root")
-                behavior_tree_xml = Root.model_validate_json(json.dumps(bt_root)).to_xml()
+                behavior_tree_xml = hunav_agent.to_xml()
 
                 tmp_xml_file = tempfile.NamedTemporaryFile(
                     mode='w+t',
@@ -181,7 +175,7 @@ class TM_Prompt(TM_Obstacles):
         if use_behavior_tree:
             self.setup_chroma()
 
-            if "bt" not in self.cached_context.keys():  # system context is not cached (due to initialization)
+            if "bt" not in self.cached_context_name.keys():  # system context is not cached (due to initialization)
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
@@ -190,22 +184,22 @@ class TM_Prompt(TM_Obstacles):
                         contents=BEHAVIOR_TREE_CONTEXT
                     )
                 )
-                self.cached_context.update({"bt": cache.name})
+                if cache.name is not None:
+                    self.cached_context_name.update({"bt": cache.name})
 
             bt_nodes = get_relevant_bt_nodes(
-                query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\". \
-                    Note that if there's any node related to navigation, you must retrieve the node SetGoal.",
+                query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\".",
                 collection=self.chroma_collection,
             )
 
             self.node.get_logger().warn(f"Choosen bt_nodes: {bt_nodes}")
 
             messages.append(
-                f"Generate hunav agents data for a simulation base on this world data as below: {world_info}, where: {prompt}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below: {world_info}. You MUST follow the Universal Spatial Reasoning Protocol (USRP) when producing all positions, movement directions, and yaw angles. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
         else:
-            if "arena" not in self.cached_context.keys():  # system context is not cached (due to initialization)
+            if "arena" not in self.cached_context_name.keys():  # system context is not cached (due to initialization)
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
@@ -214,10 +208,11 @@ class TM_Prompt(TM_Obstacles):
                         contents=ARENA_CONTEXT
                     )
                 )
-                self.cached_context.update({"arena": cache.name})
+                if cache.name is not None:
+                    self.cached_context_name.update({"arena": cache.name})
 
             messages.append(
-                f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below: {world_info}. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below: {world_info}. You MUST follow the Universal Spatial Reasoning Protocol (USRP) when producing all positions, movement directions, and yaw angles. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
         if local:  # Currently not supported
@@ -261,11 +256,11 @@ class TM_Prompt(TM_Obstacles):
                 model=REMOTE_LM,
                 contents=messages,
                 config=genai.types.GenerateContentConfig(
-                    cached_content=self.cached_context["bt"] if use_behavior_tree else self.cached_context["arena"],
+                    cached_content=self.cached_context_name["bt"] if use_behavior_tree else self.cached_context_name["arena"],
                     top_p=top_p,
                     thinking_config=genai.types.ThinkingConfig(
                         include_thoughts=False,
-                        thinking_budget=8192
+                        thinking_budget=24576
                     ),
                 )
             )
@@ -276,6 +271,7 @@ class TM_Prompt(TM_Obstacles):
             end = time.time()
             self.node.get_logger().warn(f"Inference done, took: {end-start:.1f}s")
 
+        assert answer is not None
         if answer.startswith("```json"):
             answer = answer.strip("```json").strip("```").strip()
         elif answer.startswith("```"):
@@ -347,7 +343,7 @@ class TM_Prompt(TM_Obstacles):
         # self._logger.warning(pprint.pformat(attrs.asdict(result)))
         return result
 
-    def reset(self, **kwargs) -> CustomObstacles:
+    def reset(self, **kwargs):
         parsed_config = self._parse_prompt(
             self._config.user_prompt.value,
             self._config.top_p.value,
@@ -378,6 +374,7 @@ class TM_Prompt(TM_Obstacles):
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
 
+                assert isinstance(config, dict), "Config file is not properly formatted."
                 agent_config = config['hunav_loader']['ros__parameters']['agent1']
                 return agent_config
 
@@ -409,6 +406,16 @@ class TM_Prompt(TM_Obstacles):
             api_key=os.environ["GEMINI_API_KEY"]
         )
 
-        self.cached_context: Dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
+        self.cached_context_name: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
 
         self.tmp_dir = tempfile.TemporaryDirectory()  # Temporary directory to store behavior tree XML files
+
+    def __del__(self):
+        try:
+            # Delete caches
+            for cache_name in self.cached_context_name.values():
+                self.inference_client.caches.delete(name=cache_name)
+            self.cached_context_name: dict[str, str] = {}
+        except Exception as e:
+            self.node.get_logger().error(e)
+            self.node.get_logger().error(f"Can not delete cache! Maybe it was deleted earlier.")

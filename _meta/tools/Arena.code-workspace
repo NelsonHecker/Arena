@@ -38,6 +38,10 @@
     {
       "name": "robots",
       "path": "src/Arena/arena_robots/arena_robots"
+    },
+    {
+      "name": "hunav",
+      "path": "src/deps/hunav"
     }
   ],
   "settings": {
@@ -146,6 +150,7 @@
       "${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../build/arena_hunav_sim_bridge/",
       "${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
       "${workspaceFolder:Arena}/../../build/launch/",
       "${workspaceFolder:Arena}/../../build/launch_ros/",
@@ -174,6 +179,7 @@
       "${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../build/arena_hunav_sim_bridge/",
       "${workspaceFolder:Arena}/../../build/launch/",
       "${workspaceFolder:Arena}/../../build/launch_ros/",
       "${workspaceFolder:Arena}/../../build/ament_index_python",

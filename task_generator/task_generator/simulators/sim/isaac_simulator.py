@@ -182,8 +182,13 @@ class IsaacSimulator(BaseSim):
         results = [True] * len(obstacles)
 
         for i, obstacle in enumerate(obstacles):
-            model = obstacle.model.load().get([ModelType.USD])
-            if model.type is ModelType.UNKNOWN:
+            try:
+                model = obstacle.model.load().get([ModelType.USD])
+                if model.type is ModelType.UNKNOWN:
+                    raise ValueError(f"obstacle model {obstacle.model.name} has no USD representation")
+            except Exception as e:
+                import traceback
+                self._logger.error(f"Failed to load model for obstacle {obstacle.name}: {e}\n{traceback.format_exc()}")
                 results[i] = False
                 continue
             prim = Prim()
@@ -209,10 +214,14 @@ class IsaacSimulator(BaseSim):
 
     def robot_move(self, robots):
         def move_robot(robot: Robot) -> bool:
-            return self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
+            robot_params = arena_robots.Robot.RobotLoader(robot.model.name).model_params
+            res1 = self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
+            res2 = self._move_entity(self._NS_ROBOT(robot.name, robot_params.base_frame), robot.pose)
+            return res1 and res2
         return tuple(map(move_robot, robots))
 
     def obstacle_delete(self, obstacles):
+        return [True for _obstacle in obstacles]
         return tuple(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles)
 
     def pedestrian_delete(self, pedestrians):
@@ -224,8 +233,9 @@ class IsaacSimulator(BaseSim):
         return tuple(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots)
 
     def remove_walls_doors(self):
-        self._delete_entity(self._NS_WALL)
-        self._delete_entity(self._NS_DOOR)
+        self._delete_entity(self._NS_WALL(self.node._environment_manager._prefix()))
+        self._delete_entity(self._NS_DOOR(self.node._environment_manager._prefix()))
+        self._delete_entity(self._NS_FLOOR(self.node._environment_manager._prefix()))
         return True
 
     def spawn_walls(self, walls):
@@ -288,10 +298,9 @@ class IsaacSimulator(BaseSim):
 
         for floor in floors:
             try:
-                i = next(self.floor_counter)
                 req.floors.append(  # type: ignore
                     Floor(
-                        name=self._NS_FLOOR(f"floor_{i}"),
+                        name=self._NS_FLOOR(floor.name),
                         x_length=floor.x_length,
                         y_length=floor.y_length,
                         pos=floor.pos.to_msg(),
@@ -299,9 +308,9 @@ class IsaacSimulator(BaseSim):
                     )
                 )
 
-            except Exception as e:
-                self._logger.error("Failed to spawn floor")
-                self._logger.error(repr(e))
+            except Exception:
+                import traceback
+                self._logger.error(f"Failed to spawn floor: {floor.name}\n{traceback.format_exc()}")
                 traceback.print_exc(file=sys.stderr)
 
         res = all(self._services.SpawnFloors.client.call(req).ret)

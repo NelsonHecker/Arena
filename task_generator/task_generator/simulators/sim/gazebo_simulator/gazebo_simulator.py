@@ -121,7 +121,7 @@ class GazeboSimulator(BaseSim):
     # IMPL
 
     def _move_entity(self, entity: Entity):
-        name = entity.name
+        name = Entity.sanitize_name(entity.name)
         pose = entity.pose
         self._logger.debug(f"Attempting to move entity: {name}")
         self._logger.debug(f"Moving entity {name} to position: {pose}")
@@ -152,6 +152,8 @@ class GazeboSimulator(BaseSim):
 
     def _spawn_entity(self, entity: Entity) -> bool:
         try:
+            entity.name = Entity.sanitize_name(entity.name)
+
             # Create spawn request
             request = SpawnEntity.Request()
             request.entity_factory = EntityFactory()
@@ -198,6 +200,8 @@ class GazeboSimulator(BaseSim):
             return False
 
     def _delete_entity(self, name: str):
+        name = Entity.sanitize_name(name)
+
         self._logger.debug(f"Attempting to delete entity: {name}")
 
         if name not in self.entities:
@@ -308,7 +312,7 @@ class GazeboSimulator(BaseSim):
     def spawn_walls(self, walls) -> bool:
         self.remove_walls_doors()  # Clear existing walls
         for wall in walls:  # only walls, ignore obstacles
-            wall_name = self.node._environment_manager.realize(f"wall_{next(self._wall_counter)}")
+            wall_name = Entity.sanitize_name(self.node._environment_manager.realize(f"wall_{next(self._wall_counter)}"))
             wall_height = 2.0  # Wall height in meters
             wall_thickness = 0.05  # Wall thickness in meters
             base_position = (0, 0, 0)  # Offset the wall to (10, 10, 0)

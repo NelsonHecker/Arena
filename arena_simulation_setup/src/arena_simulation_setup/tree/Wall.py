@@ -152,7 +152,7 @@ class PlaceWallSegmentAsset(SubWall):
     """
     material: MaterialIdentifier = attrs.field(
         converter=MaterialIdentifier.converter,
-        default=Material.default('wall')
+        default=MaterialIdentifier(Material.default('wall'))
     )
     height: float = attrs.field(converter=float, default=2.0)
     width: float = attrs.field(converter=float, default=0.05)
@@ -188,7 +188,8 @@ class WallSegment:
     height: float
     width: float
     material: MaterialIdentifier = attrs.field(
-        default=Material.default('wall')
+        converter=MaterialIdentifier.converter,
+        default=MaterialIdentifier(Material.default('wall'))
     )
 
 
@@ -209,13 +210,13 @@ class WallDescription:
         return (r_walls, r_obstacles)
 
     @classmethod
-    def simple(cls, material: typing.Optional[Material] = None) -> WallDescription:
+    def simple(cls, material: typing.Optional[MaterialIdentifier] = None) -> WallDescription:
         if material is None:
             return cls(main=[PlaceWallSegmentAsset()])
         return cls(
             main=[
                 PlaceWallSegmentAsset(
-                    material=material.name
+                    material=material,
                 )
             ]
         )

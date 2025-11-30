@@ -11,18 +11,20 @@ from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.utils.cattrs import (
     Parseable,
+    Serializable,
     converter,
 )
 from arena_simulation_setup.utils.geometry import Pose, Position
 from arena_simulation_setup.utils.models import ModelWrapper
+import cattrs
 
 EntityT = typing.TypeVar("EntityT", bound="Entity")
 
 
 @attrs.define
-class Entity(Parseable):
+class Entity(Parseable, Serializable):
     pose: Pose = attrs.field(converter=Pose.converter)
-    name: str = attrs.field(converter=lambda s: Entity.sanitize_name(str(s)))
+    name: str
     model: Identifier[ModelWrapper]
 
     extra: dict = attrs.field(factory=dict, kw_only=True)
@@ -38,6 +40,14 @@ class Entity(Parseable):
 
     @classmethod
     def sanitize_name(cls, name: str) -> str:
+        """Replace special chars in name with underscores.
+
+        Args:
+            name (str): input name
+
+        Returns:
+            str: sanitized name
+        """
         return re.sub('[^A-Za-z0-9_]', '_', name)
 
     @classmethod
@@ -47,6 +57,14 @@ class Entity(Parseable):
             del value['pos']
         value['extra'] = {**value}
         return converter.structure_attrs_fromdict(value, cls)
+
+    def serialize(self) -> dict:
+        result = cattrs.gen.make_dict_unstructure_fn(type(self), converter, _cattrs_omit_if_default=True)(self)
+        for k in attrs.fields(type(self)):
+            result.get('extra', {}).pop(k.name, None)
+        if not result.get('extra', {}):
+            result.pop('extra', None)
+        return result
 
 
 @attrs.define

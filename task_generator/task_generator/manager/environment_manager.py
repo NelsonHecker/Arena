@@ -1,4 +1,5 @@
 import itertools
+import os
 import typing
 from collections.abc import Callable, Collection, Iterator, Sequence
 from typing import Any
@@ -18,6 +19,7 @@ from task_generator.shared import (
     Position,
     Robot,
     Wall,
+    Floor,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
@@ -38,20 +40,31 @@ class _Realizer:
     @typing.overload
     def realize(self, target: str) -> str: ...
 
-    def _prefix(self, s: str) -> str:
-        return self._config.prefix + s
+    def _prefix(self, *s: str) -> str:
+        return os.path.join(self._config.prefix, *s)
 
     def _realize_position(self, position: Position) -> Position:
-        position.x += self._config.x
-        position.y += self._config.y
-        return position
+        return Position(
+            x=position.x + self._config.x,
+            y=position.y + self._config.y,
+            z=position.z,
+        )
+
+    def _realize_position_inv(self, position: Position) -> Position:
+        return Position(
+            x=position.x - self._config.x,
+            y=position.y - self._config.y,
+            z=position.z,
+        )
 
     def _realize_orientation(self, orientation: Orientation) -> Orientation:
-        return orientation
+        return Orientation(*orientation)
 
     def _realize_pose(self, pose: Pose) -> Pose:
-        pose.position = self._realize_position(pose.position)
-        return pose
+        return Pose(
+            self._realize_position(pose.position),
+            self._realize_orientation(pose.orientation)
+        )
 
     @typing.overload
     def realize(self, target: EntityPropsT) -> EntityPropsT: ...
@@ -63,9 +76,11 @@ class _Realizer:
     def realize(self, target: Pose) -> Pose: ...
 
     def _realize_entity(self, entity: EntityPropsT) -> EntityPropsT:
-        entity.pose = self._realize_pose(entity.pose)
-        entity.name = self._prefix(entity.name)
-        return entity
+        return attrs.evolve(
+            entity,
+            name=self._prefix(entity.name),
+            pose=self._realize_pose(entity.pose),
+        )
 
     @typing.overload
     def realize(self, target: Wall) -> Wall: ...
@@ -78,14 +93,28 @@ class _Realizer:
         )
 
     @typing.overload
+    def realize(self, target: Floor) -> Floor: ...
+
+    def _realize_floor(self, floor: Floor) -> Floor:
+        return attrs.evolve(
+            floor,
+            name=self._prefix(floor.name),
+            pos=self._realize_position(floor.pos),
+        )
+
+    @typing.overload
     def realize(self, target: Door) -> Door: ...
 
     def _realize_door(self, door: Door) -> Door:
         return attrs.evolve(
             door,
+            name=self._prefix(door.name),
             start=self._realize_position(door.start),
             end=self._realize_position(door.end),
         )
+
+    @typing.overload
+    def realize(self, target: Elevator) -> Elevator: ...
 
     def _realize_elevator(self, elevator: Elevator) -> Elevator:
         pos = list(elevator.position)
@@ -122,6 +151,9 @@ class _Realizer:
 
         if isinstance(target, Door):
             return self._realize_door(target)
+
+        if isinstance(target, Floor):
+            return self._realize_floor(target)
 
         if isinstance(target, Elevator):
             return self._realize_elevator(target)
@@ -167,19 +199,15 @@ class EnvironmentManager(NodeInterface, _Realizer):
 
         walls = world.all_walls
         doors = world.all_doors
-        floors = list(world.all_floors)
-
-        realized_doors = list(map(self._realize_door, doors))
-        if realized_doors:
-            self._simulator.spawn_doors(realized_doors)
+        floors = world.all_floors
 
         if floors:
-            self._logger.debug(f'spawning {len(floors)}')
-            self._simulator.spawn_floors(list(floors))
+            self._simulator.spawn_floors(tuple(map(self._realize_floor, floors)))
+
         if walls or doors:
             self._human_simulator.spawn_world(
                 tuple(map(self._realize_wall, walls)),
-                realized_doors,
+                tuple(map(self._realize_door, doors)),
             )
         self._human_simulator.spawn_obstacles(
             tuple(map(self._realize_entity, world.all_static_entities)),
@@ -212,25 +240,20 @@ class EnvironmentManager(NodeInterface, _Realizer):
         """
         Loads given robot into the simulator
         """
-        robots = tuple(map(self._realize_entity, robots))
-        self._human_simulator.spawn_robot(robots)
+        self._human_simulator.spawn_robot(robots=tuple(map(self._realize_entity, robots)))
         return robots
 
-    def move_robot(self, robots: Sequence[Robot]):
+    def move_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """
         Moves given robot
         """
-        for robot in robots:
-            robot.pose = self._realize_pose(robot.pose)
-        self._human_simulator.move_robot(robots)
+        return self._human_simulator.move_robot(tuple(map(self._realize_entity, robots)))
 
-    def remove_robot(self, robots: Sequence[Robot]):
+    def remove_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """
         Deletes given robot
         """
-        for robot in robots:
-            robot.name = self._prefix(robot.name)
-        self._human_simulator.remove_robot(robots)
+        return self._human_simulator.remove_robot(tuple(map(self._realize_entity, robots)))
 
     def respawn(self, callback: Callable[[], Any]):
         """
