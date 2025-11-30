@@ -191,5 +191,13 @@ if [ ! -d /usr/local/include/lightsfm ] ; then
 fi
 
 
+# Initialize arena_training submodules
+if [ -d "$ARENA_WS_DIR/src/Arena/arena_training" ]; then
+    echo "Initializing arena_training submodules..."
+    cd "$ARENA_WS_DIR/src/Arena/arena_training"
+    git submodule update --init --recursive
+    cd "$ARENA_WS_DIR"
+fi
+
 BUILD_ALL=1 arena build
 echo 'installation finished'

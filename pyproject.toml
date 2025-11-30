@@ -42,23 +42,8 @@ dependencies = [
     "google-genai>=1.32.0,<2.0.0",
 ]
 
-[project.optional-dependencies]
-training = [
-    "torch>=1.11.0,<2.0.0",
-    "wandb>=0.13.9,<1.0.0",
-    "tensorboard>=2.12.2,<3.0.0",
-    "torchdiffeq>=0.2.3,<1.0.0",
-    "diffcp>=1.0.21,<2.0.0",
-    "cvxpy>=1.3.0,<2.0.0",
-    "cvxpylayers>=0.1.5,<1.0.0",
-    "mpi4py>=3.1.4,<4.0.0",
-    "gputil>=1.4.0,<2.0.0",
-    "tensorboardx>=2.6,<3.0.0",
-    "gym>=0.22,<1.0.0",
-    "opencv-python>=4.8,<5.0.0",
-    "sb3-contrib>=2.1.0,<3.0.0",
-    "shimmy>=1.3.0,<2.0.0",
-]
+[tool.poetry.group.training.dependencies]
+arena_training = { path = "./arena_training", develop = true }
 
 [build-system]
 requires = ["setuptools<80", "wheel"]
