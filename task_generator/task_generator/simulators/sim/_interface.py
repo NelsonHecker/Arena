@@ -20,17 +20,17 @@ from task_generator.shared import (
 class ObstacleITF(abc.ABC):
     """Abstract base class for obstacle management in simulators."""
     @abc.abstractmethod
-    def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
+    async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         """Spawn obstacles."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def obstacle_move(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
+    async def obstacle_move(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         """Move obstacles."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def obstacle_delete(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
+    async def obstacle_delete(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         """Delete obstacles."""
         raise NotImplementedError()
 
@@ -38,22 +38,22 @@ class ObstacleITF(abc.ABC):
 class PedestrianITF(abc.ABC):
     """Abstract base class for pedestrian management in simulators."""
     @abc.abstractmethod
-    def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
+    async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         """Spawn pedestrians."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
+    async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         """Teleport pedestrians."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
+    async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         """Delete pedestrians."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def pedestrian_update(self, pedestrians: Pedestrians) -> Sequence[bool]:
+    async def pedestrian_update(self, pedestrians: Pedestrians) -> Sequence[bool]:
         """Navigate pedestrians to position with velocity."""
         raise NotImplementedError()
 
@@ -61,53 +61,52 @@ class PedestrianITF(abc.ABC):
 class RobotITF(abc.ABC):
     """Abstract base class for robot management in simulators."""
     @abc.abstractmethod
-    def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
+    async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Spawn robots."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
+    async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Move robots."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
+    async def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Delete robots."""
         raise NotImplementedError()
 
 
 class WorldITF(abc.ABC):
     @abc.abstractmethod
-    def spawn_walls(self, walls: Sequence[Wall]) -> bool:
+    async def spawn_walls(self, walls: Sequence[Wall]) -> bool:
         """
         Add a list of walls to the simulator.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def spawn_floors(self, floors: Sequence[Floor]) -> bool:
+    async def spawn_floors(self, floors: Sequence[Floor]) -> bool:
         """
         Add a list of floors to the simulator.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def spawn_doors(self, doors: Sequence[Door]) -> bool:
+    async def spawn_doors(self, doors: Sequence[Door]) -> bool:
         """
         Add a list of doors to the simulator.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def spawn_elevators(self, elevators: Sequence[Elevator]) -> bool:
+    async def spawn_elevators(self, elevators: Sequence[Elevator]) -> bool:
         """
         Add a list of elevators to the simulator.
         """
         raise NotImplementedError()
 
-    # TODO rename
-    def remove_walls_doors(self) -> bool:
+    async def remove_world(self) -> bool:
         """
-        Remove every spawned wall and door from the simulator.
+        Remove every spawned world element.
         """
         raise NotImplementedError()

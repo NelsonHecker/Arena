@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 import os
 import typing
@@ -13,13 +14,13 @@ from task_generator.shared import (
     Door,
     DynamicObstacle,
     Entity,
+    Floor,
     Obstacle,
     Orientation,
     Pose,
     Position,
     Robot,
     Wall,
-    Floor,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
@@ -35,13 +36,16 @@ class _Realizer:
         y: float = 0.0
         prefix: str = ''
 
-    _config: "_Configuration"
+    _config: _Configuration
 
     @typing.overload
     def realize(self, target: str) -> str: ...
 
     def _prefix(self, *s: str) -> str:
         return os.path.join(self._config.prefix, *s)
+
+    @typing.overload
+    def realize(self, target: Position) -> Position: ...
 
     def _realize_position(self, position: Position) -> Position:
         return Position(
@@ -68,9 +72,6 @@ class _Realizer:
 
     @typing.overload
     def realize(self, target: EntityPropsT) -> EntityPropsT: ...
-
-    @typing.overload
-    def realize(self, target: Position) -> Position: ...
 
     @typing.overload
     def realize(self, target: Pose) -> Pose: ...
@@ -171,11 +172,13 @@ class EnvironmentManager(NodeInterface, _Realizer):
 
     def __init__(
         self,
+        *args,
         namespace,
         simulator: BaseSim,
         entity_manager: BaseHumanSimulator,
+        **kwargs,
     ):
-        NodeInterface.__init__(self)
+        super().__init__(*args, **kwargs)
 
         self._namespace = namespace
         self._simulator = simulator
@@ -191,81 +194,92 @@ class EnvironmentManager(NodeInterface, _Realizer):
 
         self.id_generator = itertools.count(434)
 
-    def spawn_world_obstacles(self, world: WorldDescription):
+    async def spawn_world_obstacles(self, world: WorldDescription):
         """
         Loads given obstacles into the simulator,
         the map file is retrieved from launch parameter "world"
         """
 
+        futures: list[typing.Awaitable] = []
+
         walls = world.all_walls
         doors = world.all_doors
         floors = world.all_floors
+        elevators = world.all_elevators
 
         if floors:
-            self._simulator.spawn_floors(tuple(map(self._realize_floor, floors)))
+            futures.append(self._simulator.spawn_floors(tuple(map(self._realize_floor, floors))))
 
         if walls or doors:
-            self._human_simulator.spawn_world(
-                tuple(map(self._realize_wall, walls)),
-                tuple(map(self._realize_door, doors)),
+            futures.append(
+                self._human_simulator.spawn_world(
+                    tuple(map(self._realize_wall, walls)),
+                    tuple(map(self._realize_door, doors)),
+                )
             )
-        self._human_simulator.spawn_obstacles(
-            tuple(map(self._realize_entity, world.all_static_entities)),
-            layer=ObstacleLayer.WORLD,
-        )
-        elevators = list(world.all_elevators)
-        self._logger.debug(f"Raw elevators from world (all zones): {elevators}")
-        realized_elevators = list(map(self._realize_elevator, elevators))
-        if realized_elevators:
-            self._logger.debug(f"Realized elevators for world: {[e.name for e in realized_elevators]}")
-            self._simulator.spawn_elevators(realized_elevators)
 
-    def spawn_dynamic_obstacles(self, setups: Collection[DynamicObstacle]):
+        futures.append(
+            self._human_simulator.spawn_obstacles(
+                tuple(map(self._realize_entity, world.all_static_entities)),
+                layer=ObstacleLayer.WORLD,
+            )
+        )
+        if elevators:
+            self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
+            futures.append(
+                self._simulator.spawn_elevators(
+                    tuple(map(self._realize_elevator, elevators))
+                )
+            )
+
+        await asyncio.gather(*futures)
+
+    async def spawn_dynamic_obstacles(self, setups: Collection[DynamicObstacle]):
         """
         Loads given dynamic obstacles into the simulator.
         """
 
-        self._human_simulator.spawn_dynamic_obstacles(
+        await self._human_simulator.spawn_dynamic_obstacles(
             tuple(map(self._realize_entity, setups))
         )
 
-    def spawn_obstacles(self, setups: Collection[Obstacle]):
+    async def spawn_obstacles(self, setups: Collection[Obstacle]):
         """
         Loads given obstacles into the simulator.
         """
 
-        self._human_simulator.spawn_obstacles(tuple(map(self._realize_entity, setups)))
+        await self._human_simulator.spawn_obstacles(tuple(map(self._realize_entity, setups)))
 
-    def spawn_robot(self, robots: Sequence[Robot]) -> Sequence[Robot]:
+    async def spawn_robot(self, robots: Sequence[Robot]) -> Sequence[Robot]:
         """
         Loads given robot into the simulator
         """
-        self._human_simulator.spawn_robot(robots=tuple(map(self._realize_entity, robots)))
+        await self._human_simulator.spawn_robot(robots=tuple(map(self._realize_entity, robots)))
         return robots
 
-    def move_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
+    async def move_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """
         Moves given robot
         """
-        return self._human_simulator.move_robot(tuple(map(self._realize_entity, robots)))
+        return await self._human_simulator.move_robot(tuple(map(self._realize_entity, robots)))
 
-    def remove_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
+    async def remove_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """
         Deletes given robot
         """
-        return self._human_simulator.remove_robot(tuple(map(self._realize_entity, robots)))
+        return await self._human_simulator.remove_robot(tuple(map(self._realize_entity, robots)))
 
-    def respawn(self, callback: Callable[[], Any]):
+    async def respawn(self, callback: Callable[[], typing.Awaitable[Any]]):
         """
         Unuse obstacles, (re-)use them in callback, finally remove unused obstacles
         @callback: Function to call between unuse and remove
         """
-        self._human_simulator.unuse_obstacles()
-        callback()
-        self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
+        await self._human_simulator.unuse_obstacles()
+        await callback()
+        await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
 
-    def reset(self, purge: ObstacleLayer = ObstacleLayer.INUSE):
+    async def reset(self, purge: ObstacleLayer = ObstacleLayer.INUSE):
         """
         Unuse and remove all obstacles
         """
-        self._human_simulator.remove_obstacles(purge=purge)
+        await self._human_simulator.remove_obstacles(purge=purge)

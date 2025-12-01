@@ -146,7 +146,7 @@ class HunavDynamicObstacle:
 
         behavior_tree: str = cls._default.behavior_tree
         if 'behavior_tree' in extra:
-            behavior_tree = os.path.join(obj.path, extra['behavior_tree'])
+            behavior_tree = extra['behavior_tree']
 
         return cls(
             name=obj.name,
@@ -210,11 +210,15 @@ class HunavDynamicObstacle:
                 (0.997901, -4.131655, 1.250000),
                 (-0.227549, -20.187146, 1.250000)
             ]
-            for x, y, h in goals:
-                goal = geometry_msgs.msg.Pose()
-                goal.position.x = x
-                goal.position.y = y
-                agent_msg.goals.append(goal)
+            agent_msg.goals = [
+                geometry_msgs.msg.Pose(
+                    position=geometry_msgs.msg.Point(
+                        x=x,
+                        y=y
+                    )
+                )
+                for x, y, _ in goals
+            ]
 
         return agent_msg
 

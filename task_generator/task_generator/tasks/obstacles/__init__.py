@@ -7,8 +7,5 @@ CustomObstacles = tuple[list[Obstacle], list[CustomDynamicObstacle]]
 
 class TM_Obstacles(TaskMode):
 
-    def __init__(self, **kwargs):
-        TaskMode.__init__(self, **kwargs)
-
-    def reset(self, **kwargs) -> Obstacles:
+    async def reset(self, **kwargs) -> Obstacles:
         return [], []

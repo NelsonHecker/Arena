@@ -11,7 +11,7 @@ class TM_Random(TM_Robots):
     Inherits from TM_Robots class.
     """
 
-    def reset(self, **kwargs):
+    async def reset(self, **kwargs):
         """
         Reset the task generator.
 
@@ -22,13 +22,13 @@ class TM_Random(TM_Robots):
             None
         """
 
-        super().reset(**kwargs)
+        await super().reset(**kwargs)
 
         ROBOT_POSITIONS: list[
             tuple[Pose, Pose]
         ] = kwargs.get("ROBOT_POSITIONS", [])
         biggest_robot = max(
-            (robot.safe_distance for robot in self._PROPS.robot_managers.values()),
+            (robot.safe_distance for robot in self._PROPS.robots.values()),
             default=0
         )
 
@@ -40,9 +40,9 @@ class TM_Random(TM_Robots):
                 ]
             )
 
-        if len(ROBOT_POSITIONS) < len(self._PROPS.robot_managers):
+        if len(ROBOT_POSITIONS) < len(self._PROPS.robots):
             to_generate = 2 * \
-                (len(self._PROPS.robot_managers) - len(ROBOT_POSITIONS))
+                (len(self._PROPS.robots) - len(ROBOT_POSITIONS))
 
             orientations = 2 * math.pi * \
                 self.node.conf.General.RNG.value.random(to_generate)
@@ -66,8 +66,5 @@ class TM_Random(TM_Robots):
                 zip(generated_positions[::2], generated_positions[1::2])
             )
 
-        for robot, pos in zip(self._PROPS.robot_managers.values(), ROBOT_POSITIONS):
-            robot.reset(start_pos=pos[0], goal_pos=pos[1])
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        for robot, pos in zip(self._PROPS.robots.values(), ROBOT_POSITIONS):
+            await robot.reset(start_pos=pos[0], goal_pos=pos[1])

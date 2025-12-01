@@ -1,10 +1,11 @@
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Optional
 
 import attrs
 
 from arena_simulation_setup import AB_DIR
-from arena_simulation_setup.tree import StaticProvider
+from arena_simulation_setup.tree import Identifier, ResolverBase
 
 
 def _get_attrib(
@@ -40,9 +41,21 @@ class ParametrizedConfig:
     DYNAMIC: list[ObstacleConfig]
 
 
-class ParametrizedProvider(StaticProvider):
-    def load(self, *args, **kwargs) -> ParametrizedConfig:
-        tree = ET.parse(self.path)
+class ParametrizedResolver(ResolverBase):
+    base_path = AB_DIR / 'configs' / 'parametrized'
+
+    async def resolve(self, identifier):
+        target_path = self.base_path / f'{identifier.name}.yaml'
+        if target_path.exists():
+            return target_path
+        return None
+
+
+class ParametrizedIdentifier(Identifier[ParametrizedConfig]):
+    def load(self, path: Path, /, **kwargs) -> ParametrizedConfig:
+        del kwargs
+
+        tree = ET.parse(path)
         root = tree.getroot()
 
         assert isinstance(
@@ -63,4 +76,4 @@ class ParametrizedProvider(StaticProvider):
         )
 
 
-Parametrized = ParametrizedProvider.bind(AB_DIR / 'configs' / 'parametrized')
+ParametrizedIdentifier.use(ParametrizedResolver(ParametrizedIdentifier))

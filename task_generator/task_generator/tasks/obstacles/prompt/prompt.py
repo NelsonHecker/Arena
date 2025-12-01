@@ -340,7 +340,7 @@ class TM_Prompt(TM_Obstacles):
         # self._logger.warning(pprint.pformat(attrs.asdict(result)))
         return result
 
-    def reset(self, **kwargs):
+    async def reset(self, **kwargs):
         parsed_config = self._parse_prompt(
             self._config.user_prompt.value,
             self._config.top_p.value,

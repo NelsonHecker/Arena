@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import abc
 import enum
+import typing
 from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import Optional, Type, overload
-import typing
 
 import attrs
 
@@ -57,9 +57,11 @@ class ModelProvider(abc.ABC):
         return type(cls.__name__, (cls,), {'type': classmethod(lambda cls: model_type)})
 
     @classmethod
-    def asdict(cls, model_dir: Path, model: str) -> dict[ModelType, Callable[[dict], Model]]:
+    def asdict(cls, model_dir: Path, model: str) -> dict[ModelType, _LoaderImplT]:
+        async def _load(loader_args: dict | None) -> Model:
+            return await cls.load(model_dir, model, loader_args)
         return {
-            cls.type(): lambda loader_args: cls.load(model_dir, model, loader_args)
+            cls.type(): _load
         }
 
     @classmethod
@@ -71,7 +73,7 @@ class ModelProvider(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
+    async def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
         raise FileNotFoundError(f"Model {model} not found in {model_dir}")
 
     @classmethod
@@ -84,13 +86,16 @@ class ModelProvider(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def convert(cls, model_dir: Path, model: Model, loader_args: dict | None) -> Model | None:
+    async def convert(cls, model_dir: Path, model: Model, loader_args: dict | None) -> Model | None:
         return None
+
+
+_LoaderImplT = Callable[[dict | None], typing.Awaitable[Model]]
 
 
 class ModelWrapper(Parseable, Serializable):
 
-    _loaders: dict[ModelType, Callable[[dict], Model]]
+    _loaders: dict[ModelType, _LoaderImplT]
     _name: str
 
     def __repr__(self) -> str:
@@ -110,7 +115,7 @@ class ModelWrapper(Parseable, Serializable):
     def __init__(
         self,
         name: str,
-        loaders: dict[ModelType, Callable[[dict], Model]],
+        loaders: dict[ModelType, _LoaderImplT],
     ):
         """Create a new ModelWrapper
 
@@ -146,20 +151,23 @@ class ModelWrapper(Parseable, Serializable):
         Returns:
             ModelWrapper: A new ModelWrapper with the overridden loader.
         """
-        old_loader = self._loaders.get(model_type)
-        if old_loader is None:
-            def old_loader(): raise ValueError(f"No loader for model type {model_type}")
+        del name  # unused
 
-        def new_loader(loader_args: dict | None) -> Model:
+        old_loader: _LoaderImplT | None = self._loaders.get(model_type)
+        if old_loader is None:
+            async def _dummy_loader(*args, **kwargs): raise ValueError(f"No loader for model type {model_type}")
+            old_loader = _dummy_loader
+
+        async def new_loader(loader_args: dict | None) -> Model:
             if noload:
                 return override(Model.EMPTY())
-            return override(old_loader(loader_args))
+            return override(await old_loader(loader_args))
 
         self._loaders[model_type] = new_loader
         return self
 
     @overload
-    def get(
+    async def get(
         self,
         only: ModelType,
         *,
@@ -172,7 +180,7 @@ class ModelWrapper(Parseable, Serializable):
         """
 
     @overload
-    def get(
+    async def get(
         self,
         only: Collection[ModelType],
         *,
@@ -185,7 +193,7 @@ class ModelWrapper(Parseable, Serializable):
         """
 
     @overload
-    def get(
+    async def get(
         self,
         *,
         loader_args: dict | None = None,
@@ -195,13 +203,15 @@ class ModelWrapper(Parseable, Serializable):
             load any available model
         """
 
-    def get(
+    async def get(
         self,
         only: ModelType | Collection[ModelType] | None = None,
         *,
         loader_args: dict | None = None,
         **kwargs,
     ) -> Model:
+        del kwargs  # unused
+
         if only is None:
             only = self._loaders.keys()
         if isinstance(only, ModelType):
@@ -215,7 +225,7 @@ class ModelWrapper(Parseable, Serializable):
         for model_type in only:
             loader = self._loaders.get(model_type)
             if loader is not None:
-                model = loader(args)
+                model = await loader(args)
                 if model is not None:
                     return model
         raise FileNotFoundError(f'Could not load model of type(s) {only} in ModelWrapper {self.name}')
@@ -235,9 +245,14 @@ class ModelWrapper(Parseable, Serializable):
         @models: dictionary of ModelType->Model mappings
         """
 
+        def _loader_factory(model: Model) -> _LoaderImplT:
+            async def _loader(_: dict | None) -> Model:
+                return model
+            return _loader
+
         return ModelWrapper(
             name,
-            {model_type: (lambda _: model) for model_type, model in models.items()}
+            {model_type: _loader_factory(model) for model_type, model in models.items()}
         )
 
     @classmethod
@@ -253,9 +268,9 @@ class ModelWrapper(Parseable, Serializable):
 
     @classmethod
     def EMPTY(cls) -> ModelWrapper:
-        wrapper = ModelWrapper(
+        wrapper = ModelWrapper.Constant(
             "__EMPTY",
-            {t: lambda _: Model.EMPTY() for t in ModelType}
+            {t: Model.EMPTY() for t in ModelType}
         )
         return wrapper
 
@@ -269,5 +284,5 @@ class LoadersT(tuple[Type[ModelProvider], ...]):
 
 
 class LoaderArgs(dict):
-    def __hash__(self) -> int:
+    def __hash__(self) -> int:  # type: ignore
         return hash(str(self))

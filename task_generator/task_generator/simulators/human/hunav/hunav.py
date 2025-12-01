@@ -1,4 +1,4 @@
-import functools
+import asyncio
 import os
 import time
 import traceback
@@ -8,6 +8,9 @@ from pathlib import Path
 import attrs
 import geometry_msgs.msg
 import numpy as np
+import rclpy.client
+import rclpy.node
+import rclpy.timer
 from ament_index_python.packages import get_package_share_directory
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_people_msgs.srv import DeleteActors
@@ -232,10 +235,6 @@ class _PedestrianHelper:
 class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyHumanSimulator):
     """HunavManager with debug logging for tracking execution flow"""
 
-    _pedestrians: dict[int, dict]
-    _agents_container: Agents
-    _get_agents_container: Agents
-
     # Service Names
     SERVICE_COMPUTE_AGENT = 'compute_agent'
     SERVICE_COMPUTE_AGENTS = 'compute_agents'
@@ -245,9 +244,25 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     SERVICE_GET_WALLS = 'get_walls'
     SERVICE_DELETE_ACTORS = 'delete_actors'
 
-    def __init__(self, namespace: Namespace, simulator: BaseSim):
+    # Service Clients
+    _compute_agent_client: rclpy.client.Client
+    _compute_agents_client: rclpy.client.Client
+    _move_agent_client: rclpy.client.Client
+    _clear_agents_client: rclpy.client.Client
+    _get_agents_client: rclpy.client.Client
+    _get_walls_client: rclpy.client.Client
+    _delete_actors_client: rclpy.client.Client
+
+    # Service Servers
+    _get_agents_service: rclpy.node.Service
+    _get_walls_service: rclpy.node.Service
+
+    # Publishers
+    _arena_peds_publisher: rclpy.node.Publisher
+
+    def __init__(self, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
         """Initialize HunavManager with debug logging"""
-        super().__init__(namespace=namespace, simulator=simulator)
+        super().__init__(*args, namespace=namespace, simulator=simulator, **kwargs)
         # Detect Simulator Type to decide between Plugin or move_entity callback
         self._logger.info(f"Detected simulator type: {self._simulator_type}")
 
@@ -256,58 +271,71 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         # Initialize collections
         self._logger.debug("Initializing collections...")
-        self._pedestrians = {}
+        self._pedestrians: dict[int, dict] = {}
         self._wall_segments: list[WallSegment] = []
         self._wall_points: list[Point] = []
-        self._agents_container = Agents()  # Container to hold all registered agents
-        self._get_agents_container = Agents()  # Container specifically just to send the Agent attributes to Hunavsystemplugin
+        self._agents_container: Agents = Agents()  # Container to hold all registered agents
+        self._get_agents_container: Agents = Agents()  # Container specifically just to send the Agent attributes to Hunavsystemplugin
         self._agents_container.header.frame_id = "map"
-        self._arena_pedestrians_container = Pedestrians()
+        self._arena_pedestrians_container: Pedestrians = Pedestrians()
         self._arena_pedestrians_container.header.frame_id = "map"
-        self._logger.debug("Collections initialized")
 
-        self._obstacle_subscriber = self.node.create_subscription(
-            Agents,
-            '/task_generator_node/hunav_closest_obstacles',
-            self._obstacle_callback,
-            10
-        )
-        # Setup services
-        self._logger.debug("Setting up services...")
-        setup_success = self._setup_services()
-        if not setup_success:
-            self._logger.error("Service setup failed!")
-        else:
-            self._logger.info("Services setup complete")
-        arena_peds_success = self._setup_arena_peds_publisher()
-        if not arena_peds_success:
-            self._logger.error("Arena peds publisher setup failed!")
-        else:
-            self._logger.info("Arena peds publisher setup complete")
-
-            # Setup obstacle subscriber
-        if not self._setup_obstacle_subscriber():
-            self._logger.error("Failed to setup obstacle subscriber")
-
-        self._logger.debug("Waiting for services to be ready...")
-        time.sleep(2.0)
-        self._logger.debug("Service wait complete")
-
-        self._logger.info("=== HUNAVMANAGER INIT COMPLETE ===")
+        self._update_timer: rclpy.timer.Timer | None = None
+        self._arena_peds_timer: rclpy.timer.Timer | None = None
 
         self._gz_plugin_spawned: bool = False
         self._last_updated_agents = None
         self._last_smooth_yaws = {}
-        # Orientation smoothing (wie Isaac Wrapper)
+        self._latest_obstacles = {}
+
         self._agent_previous_orientations = {}
         self._orientation_smoothing_factor = 0.15  # 0.05-0.3 range
+
+        self._obstacle_subscriber = self.node.create_subscription(
+            Agents,
+            '/task_generator_node/hunav_closest_obstacles',
+            self._obstacle_callback,  # type: ignore
+            10
+        )
+
+        self._logger.debug("Collections initialized")
 
     @property
     def _simulator_type(self) -> Constants.SimSimulator:
         """Detect which simulator is being used"""
         return self.node.conf.Arena.SIM.value
 
-    def _setup_services(self):
+    async def setup(self):
+
+        # Setup services
+        self._logger.debug("Setting up services...")
+        if await self._setup_services():
+            self._logger.info("Services setup complete")
+        else:
+            self._logger.error("Service setup failed!")
+
+        if self._setup_arena_peds_publisher():
+            self._logger.info("Arena peds publisher setup complete")
+        else:
+            self._logger.error("Arena peds publisher setup failed!")
+
+            # Setup obstacle subscriber
+        if not self._setup_obstacle_subscriber():
+            self._logger.error("Failed to setup obstacle subscriber")
+
+        self._logger.debug("Waiting for services to be ready...")
+        await asyncio.sleep(2.0)
+        self._logger.debug("Service wait complete")
+
+        self._logger.info("=== HUNAVMANAGER INIT COMPLETE ===")
+
+    @classmethod
+    async def create(cls, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
+        self = cls(*args, namespace=namespace, simulator=simulator, **kwargs)
+        await self.setup()
+        return self
+
+    async def _setup_services(self):
         """Initialize all required services with debug logging"""
         self._logger.info("=== SETUP_SERVICES START ===")
 
@@ -357,7 +385,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         )
        # Create GetAgents service provider
         self._logger.debug(f"Creating get_agents service provider at: {service_names.get_agents}")
-        self._get_agents_server = self.node.create_service(
+        self._get_agents_service = self.node.create_service(
             GetAgents,
             service_names.get_agents,
             self._get_agents_callback,
@@ -382,29 +410,28 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         ]
 
-        max_attempts = float('inf')
-        for client, service in required_services:
-            attempts = 0
+        max_wait = float('inf')
+
+        async def wait_for_service(client, service) -> bool:
             self._logger.debug(f"Waiting for service {service}...")
+            res = await self.node.wait_for_service_async(client, timeout=max_wait)
 
-            while attempts < max_attempts:
-                if client.wait_for_service(timeout_sec=2.0):
-                    self._logger.debug(f'Service {service} is available')
-                    break
-                attempts += 1
-                self._logger.debug(
-                    f'Waiting for service {service} (attempt {attempts}/{max_attempts})\n'
-                    f'Looking for service at: {service}'
-                )
-
-            if attempts >= max_attempts:
+            if not res:
                 self._logger.error(
-                    f'Service {service} not available after {max_attempts} attempts\n'
+                    f'Service {service} not available after {max_wait}s\n'
                     f'Was looking for service at: {service}'
                 )
-                self._logger.error("=== SETUP_SERVICES FAILED ===")
-                return False
+                raise TimeoutError(f'Service {service} not available after {max_wait}s')
 
+            return res
+
+        try:
+            await asyncio.gather(*(wait_for_service(client, service) for client, service in required_services))
+        except TimeoutError:
+            self._logger.error("=== SETUP_SERVICES FAILED ===")
+            return False
+
+        self._logger.info("All required services are available")
         self._logger.info("=== SETUP_SERVICES COMPLETE ===")
         return True
 
@@ -423,7 +450,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             # Create timer
             self._arena_peds_timer = self.node.create_timer(
                 0.1,  # 10 Hz
-                self._publish_arena_peds_callback
+                self.node.syncify(self._publish_arena_peds_callback)
             )
 
             self._logger.info("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
@@ -443,7 +470,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._obstacle_subscriber = self.node.create_subscription(
                 Agents,
                 obstacle_topic,
-                self._obstacle_callback,
+                self._obstacle_callback,  # type: ignore
                 10
             )
 
@@ -458,7 +485,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._logger.error(f"Obstacle subscriber setup failed: {e}")
             return False
 
-    def _obstacle_callback(self, msg):
+    async def _obstacle_callback(self, msg):
         """Store latest obstacle data from HuNavSystemPlugin"""
         try:
             self._latest_obstacles.clear()
@@ -486,8 +513,9 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         # self._logger.info(f"current_agents after obstacle update: {current_agents}")
         return current_agents
 
-    def _get_agents_callback(self, request, response):
+    async def _get_agents_callback(self, request, response):
         """Handle get_agents service request - return UNMODIFIED agents"""
+        del request
         try:
             self._logger.debug("=== GET AGENTS CALLBACK ===")
             self._logger.debug(f"Returning {len(self._get_agents_container.agents)} agents")
@@ -510,8 +538,9 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             response.agents = Agents()  # Empty response on error
             return response
 
-    def _get_walls_callback(self, request, response):
+    async def _get_walls_callback(self, request, response):
         """Service callback für Wall-Segments"""
+        del request
         response.walls = self._wall_segments
         self._logger.debug(f"Sent {len(self._wall_segments)} wall segments")
         return response
@@ -520,12 +549,12 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         """Pedestrian Move Entity Callback for non gazebo simulators"""
 
         try:
-            self._simulator.pedestrian_update(self._arena_pedestrians_container)
+            self.node.wait_for(self._simulator.pedestrian_update(self._arena_pedestrians_container))
 
         except Exception as e:
             self._logger.error(f"Failed to update agent positions: {e}")
 
-    def _spawn_dynamic_obstacles_impl(self, obstacles):
+    async def _spawn_dynamic_obstacles_impl(self, obstacles):
 
         results = []
 
@@ -537,7 +566,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 hunav_obstacle = HunavDynamicObstacle.from_dynamic_obstacle(obstacle)
                 hunav_obstacle = attrs.evolve(hunav_obstacle, id=unique_id)
 
-                agent_msg = self._create_agent_msg(hunav_obstacle)
+                agent_msg = hunav_obstacle.to_msg()
 
                 # Add to container - NO ComputeAgents call here!
                 self._get_agents_container.agents.append(agent_msg)  # type: ignore
@@ -562,13 +591,15 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 if self._simulator_type == Constants.SimSimulator.GAZEBO:
                     # spawn plugin if not already spawned
                     if not self._gz_plugin_spawned:
-                        self._simulator.obstacle_spawn((_PedestrianHelper.plugin_entity(self.node.service_namespace()),))
-                        self._simulator.obstacle_spawn((_PedestrianHelper.hunav_plugin_entity(self.node.service_namespace()),))
+                        await self._simulator.obstacle_spawn((
+                            _PedestrianHelper.plugin_entity(self.node.service_namespace()),
+                            _PedestrianHelper.hunav_plugin_entity(self.node.service_namespace())
+                        ))
                         self._gz_plugin_spawned = True
 
                     # Create SDF with plugin for Gazebo
-                    def update_model(obs: HunavDynamicObstacle, ref: PedestrianIdentifier) -> PedestrianIdentifier:
-                        model = ref.load()
+                    async def update_model(obs: HunavDynamicObstacle, ref: PedestrianIdentifier) -> PedestrianIdentifier:
+                        model = await ref.resolve()
                         model.override(
                             ModelType.SDF,
                             lambda m: attrs.evolve(m, description=_PedestrianHelper.create_sdf(obs)),
@@ -579,7 +610,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                             name=ref.name
                         )
 
-                    obstacle.model = update_model(hunav_obstacle, obstacle.model)
+                    obstacle.model = await update_model(hunav_obstacle, obstacle.model)
                     obstacle.pose.orientation = Orientation.from_yaw(hunav_obstacle.yaw)
                     self._logger.info(f"Created SDF and loaded System Plugin for: {agent_msg.name}")
                 else:
@@ -606,7 +637,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             request.current_agents = self._agents_container
 
             # Call HuNav service
-            response = self._compute_agents_client.call(request)
+            response = await self._compute_agents_client.call_async(request)
 
             if response:
                 self._logger.debug(f"Successfully registered {len(response.updated_agents.agents)} agents")
@@ -645,7 +676,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         points.append(end.to_msg())
         return points
 
-    def _spawn_walls_impl(self, walls) -> bool:
+    async def _spawn_walls_impl(self, walls) -> bool:
 
         self._wall_segments = []
         self._wall_points = []
@@ -664,12 +695,12 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug(f"Wallsegments{self._wall_segments} ")
         return True
 
-    def _remove_obstacles_impl(self):
+    async def _remove_obstacles_impl(self):
         """Remove all spawned pedestrians from simulation safely"""
         self._logger.debug(f"=== REMOVING {len(self._pedestrians)} PEDESTRIANS ===")
 
         # Phase 1: Delete Actors from ECM first
-        success = self._call_delete_actors_service()
+        success = await self._call_delete_actors_service()
 
         # Phase 2: Clear local agents container
         self._agents_container = Agents()
@@ -677,7 +708,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug("Cleared local agents container")
 
         # Phase 3: Reset HunavSim
-        success = self._reset_hunav()
+        success = await self._reset_hunav()
         if not success:
             self._logger.error("Failed to reset HuNav agents - continuing anyway")
 
@@ -687,7 +718,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug(f"Complete reset completed: {success}")
         return success
 
-    def _reset_hunav(self):
+    async def _reset_hunav(self):
         """Reset HuNav by calling ClearAgents service"""
         try:
             if not self._clear_agents_client.wait_for_service(timeout_sec=2.0):
@@ -697,7 +728,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             request = Trigger.Request()
 
             self._logger.debug("Calling HuNav ClearAgents service...")
-            response = self._clear_agents_client.call(request)
+            response = await self._clear_agents_client.call_async(request)
 
             if response and response.success:
                 self._logger.debug("HuNav clear successful - ready for new agents")
@@ -710,7 +741,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._logger.error(f"Error calling ClearAgents: {e}")
             return False
 
-    def _call_delete_actors_service(self):
+    async def _call_delete_actors_service(self):
         """Call the plugin's delete actors service"""
         try:
             if not self._delete_actors_client.wait_for_service(timeout_sec=2.0):
@@ -721,7 +752,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
             self._logger.debug("Calling delete_actors service...")
 
-            response = self._delete_actors_client.call(request)
+            response = await self._delete_actors_client.call_async(request)
 
             if response and response.success:
                 self._logger.debug(f"Successfully deleted {response.deleted_count} actors")
@@ -748,7 +779,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._agent_previous_orientations = {}
 
         # Stop and cleanup movement timer if running (for non-gazebo simulators)
-        if hasattr(self, '_update_timer') and self._update_timer:
+        if self._update_timer:
             try:
                 self._update_timer.destroy()
                 self._update_timer = None
@@ -756,66 +787,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             except Exception as e:
                 self._logger.error(f"Error stopping movement timer: {e}")
 
-        # if hasattr(self, '_arena_peds_timer') and self._arena_peds_timer:
-        #     self._arena_peds_timer.destroy()
-        #     self._arena_peds_timer = None
-
         self._logger.debug("All local data structures cleared")
-
-    def _create_agent_msg(self, hunav_obstacle: HunavDynamicObstacle) -> Agent:
-        self._logger.debug(f"Preparing agent {hunav_obstacle.name} (ID: {hunav_obstacle.id})")
-
-        # Create agent message
-        agent_msg = hunav_obstacle.to_msg()
-
-        # Add wall obstacles
-        # self._logger.debug(f"Hunav Manager Wallpoints: {self._wall_points}")
-        # agent_msg.closest_obs.extend(self._wall_points)
-        # self._logger.debug(f"Hunav Manager Closest Obstacles: {agent_msg.closest_obs}")
-
-        # After creating the agent message:
-        self._logger.debug(f"""            ##Complete Debug for the set attributes
-                Full HunavObstacle Details:
-                ID: {agent_msg.id}
-                Name: {agent_msg.name}
-                Type: {agent_msg.type}
-                Skin: {agent_msg.skin}
-                Group ID: {agent_msg.group_id}
-
-                Position:
-                - X: {agent_msg.position.position.x}
-                - Y: {agent_msg.position.position.y}
-                - Z: {agent_msg.position.position.z}
-                - Yaw: {agent_msg.yaw}
-
-                Velocities:
-                - Desired: {agent_msg.desired_velocity}
-                - Linear: {agent_msg.linear_vel}
-                - Angular: {agent_msg.angular_vel}
-
-                Physical:
-                - Radius: {agent_msg.radius}
-
-                Behavior:
-                - Type: {agent_msg.behavior.type}
-                - Configuration: {agent_msg.behavior.configuration}
-                - Duration: {agent_msg.behavior.duration}
-                - Once: {agent_msg.behavior.once}
-                - Velocity: {agent_msg.behavior.vel}
-                - Distance: {agent_msg.behavior.dist}
-                - Goal Force: {agent_msg.behavior.goal_force_factor}
-                - Obstacle Force: {agent_msg.behavior.obstacle_force_factor}
-                - Social Force: {agent_msg.behavior.social_force_factor}
-                - Other Force: {agent_msg.behavior.other_force_factor}
-
-                Goals:
-                - Count: {len(agent_msg.goals)}
-                - Cyclic: {agent_msg.cyclic_goals}
-                - Radius: {agent_msg.goal_radius}
-                - Goals List: {[f'({g.position.x}, {g.position.y})' for g in agent_msg.goals]}
-                """)
-
-        return agent_msg
 
     def _create_arena_pedestrian(self, hunav_obstacle: HunavDynamicObstacle, unique_id: int) -> Pedestrian:
         """Create arena_people_msgs.Pedestrian (separate from hunav)"""
@@ -846,8 +818,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         """Map hunav behavior to arena animation state"""
 
         # Import AgentBehavior constants
-        from hunav_msgs.msg import AgentBehavior
-
         behavior_mapping = {
             AgentBehavior.BEH_REGULAR: Pedestrian.WALKING,
             AgentBehavior.BEH_IMPASSIVE: Pedestrian.IDLE,
@@ -859,7 +829,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         return behavior_mapping.get(behavior_type, Pedestrian.WALKING)
 
-    def _publish_arena_peds_callback(self):
+    async def _publish_arena_peds_callback(self):
         """Use last updated agents as current agents (like Plugin does)"""
 
         self._logger.debug(f"arena_peds_callback: publishing {len(self._arena_pedestrians_container.pedestrians)} pedestrians")
@@ -889,7 +859,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             request.current_agents = current_agents
             request.robot = _create_robot_message()
 
-            response = self._compute_agents_client.call(request)
+            response = await self._compute_agents_client.call_async(request)
 
             if response and response.updated_agents:
                 # Fix frame_id
@@ -948,7 +918,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         except Exception as e:
             self._logger.error(f"Error: {e}")
-            import traceback
             self._logger.error(traceback.format_exc())
 
     def _smooth_yaw(self, new_yaw, current_yaw):

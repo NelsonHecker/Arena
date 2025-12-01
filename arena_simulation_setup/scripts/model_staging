@@ -4,10 +4,10 @@ import collections.abc
 import os
 
 from ament_index_python.packages import get_package_share_directory
-from arena_robots.Robot import RobotLoader
+from arena_robots.Robot import RobotIdentifier
 
-from arena_simulation_setup.tree.assets.Object import ObjectLoader
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianLoader
+from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 
 package_name = 'arena_simulation_setup'
 
@@ -50,14 +50,14 @@ def main(install_dir: str):
 
     base_dir = get_package_share_directory(package_name)
 
-    for name in ObjectLoader.list():
-        handler.add_to_staging(ObjectLoader(name).path, name)
+    for name in list(ObjectIdentifier.listall()):
+        handler.add_to_staging(ObjectIdentifier(name).resolve_sync().path, name)
 
-    for name in PedestrianLoader.list():
-        handler.add_to_staging(PedestrianLoader(name).path, name)
+    for name in list(PedestrianIdentifier.listall()):
+        handler.add_to_staging(PedestrianIdentifier(name).resolve_sync().path, name)
 
-    for name in RobotLoader.list():
-        handler.add_to_staging(RobotLoader(name).path, name)
+    for name in list(RobotIdentifier.listall()):
+        handler.add_to_staging(RobotIdentifier(name).resolve_sync().path, name)
 
     colcon_deps_file = os.path.join(base_dir, '..', 'colcon-core', 'packages', package_name)
     if os.path.isfile(colcon_deps_file):

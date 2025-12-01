@@ -2,13 +2,13 @@
 import os
 import typing
 
-import launch
 import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
-
-from arena_bringup.substitutions import (CurrentNamespaceSubstitution,
-                                         LaunchArgument)
 from arena_bringup.future import PythonExpression
+from arena_bringup.substitutions import CurrentNamespaceSubstitution, LaunchArgument
+
+import launch
+import launch.launch_description_sources
 
 
 def generate_launch_description():

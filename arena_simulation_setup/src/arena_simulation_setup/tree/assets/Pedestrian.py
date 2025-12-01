@@ -1,11 +1,11 @@
+from pathlib import Path
+
 import attrs
 
 from arena_simulation_setup.tree import (
-    AssetType,
-    DynamicProvider,
-    Identifier,
+    DomainAssetIdentifier,
+    DynamicPaths,
     NetResolver,
-    Resolvers,
 )
 from arena_simulation_setup.utils.models import ModelWrapper
 from arena_simulation_setup.utils.models.model_loader import (
@@ -13,30 +13,21 @@ from arena_simulation_setup.utils.models.model_loader import (
 )
 
 
-class PedestrianProvider(DynamicProvider[ModelWrapper]):
+@attrs.define(eq=False, hash=False)
+class PedestrianIdentifier(DomainAssetIdentifier[ModelWrapper]):
+    """Represents an identifier referencing a 3D model asset.
+    """
+    _asset_type = 'Pedestrian'
 
-    def load(self, *args, **kwargs) -> ModelWrapper:
-        resolved = self.resolve(self.identifier)
-        if resolved is None:
-            raise FileNotFoundError(f'Object model {self.identifier} not found')
+    def load(self, path: Path, /, **kwargs) -> ModelWrapper:
+        del kwargs  # unused
         return ModelWrapper(
             self.name,
             {
-                **ModelProvider_SDF.asdict(resolved, resolved.name),
+                **ModelProvider_SDF.asdict(path, path.name),
             }
         )
 
 
-PedestrianResolver = NetResolver(AssetType.PEDESTRIAN)
-Resolvers.register(PedestrianResolver)
-
-PedestrianLoader = PedestrianProvider.bind(PedestrianResolver)
-
-
-@attrs.define(eq=False, hash=False)
-class PedestrianIdentifier(Identifier[ModelWrapper]):
-    """Represents an identifier referencing a 3D model asset.
-    """
-
-
-PedestrianIdentifier.provide(PedestrianLoader)
+PedestrianIdentifier.use(*DynamicPaths.as_resolvers(PedestrianIdentifier))
+PedestrianIdentifier.use(*NetResolver.all(PedestrianIdentifier))

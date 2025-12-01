@@ -1,8 +1,10 @@
+import asyncio
 import itertools
 import math
 import time
 import traceback
 from pathlib import Path
+import typing
 
 import arena_robots.Robot
 import launch_ros
@@ -29,10 +31,8 @@ from .robot_bridge import BridgeConfiguration
 
 class GazeboSimulator(BaseSim):
 
-    def __init__(self, namespace):
-        super().__init__(namespace=namespace)
-
-        self._set_up_services()
+    def __init__(self, *args, namespace, **kwargs):
+        super().__init__(*args, namespace=namespace, **kwargs)
 
         self._logger.info(f"Initializing GazeboSimulator with namespace: {namespace}")
 
@@ -45,82 +45,85 @@ class GazeboSimulator(BaseSim):
         self._walls_entities: list[str] = []
         self._wall_counter = itertools.count()
 
-    def before_reset_task(self):
+    async def before_reset_task(self):
         self._logger.info("Pausing simulation before reset")
-        return bool(self.pause_simulation())
+        return bool(await self.pause_simulation())
 
-    def after_reset_task(self):
+    async def after_reset_task(self):
         self._logger.info("Unpausing simulation after reset")
         try:
-            return self.unpause_simulation()
+            return await self.unpause_simulation()
         except Exception as e:
             self._logger.error(
                 f"Error unpausing simulation: {str(e)}")
             traceback.print_exc()
             raise
 
-    def obstacle_spawn(self, obstacles):
-        return tuple(map(self._spawn_entity, obstacles))
+    async def obstacle_spawn(self, obstacles):
+        return await asyncio.gather(*map(self._spawn_entity, obstacles))
 
-    def pedestrian_spawn(self, pedestrians):
-        return tuple(map(self._spawn_entity, pedestrians))
+    async def pedestrian_spawn(self, pedestrians):
+        return await asyncio.gather(*map(self._spawn_entity, pedestrians))
 
-    def robot_spawn(self, robots):
-        success = tuple(map(self._spawn_entity, robots))
-        for robot, succeeded in zip(robots, success):
-            if succeeded:
-                model = robot.model.load().get(ModelType.URDF, loader_args=robot.asdict())
-                if model.type is ModelType.UNKNOWN:
-                    continue
-                model_description = model.description
-                self._robot_initialpose(robot)
-                self._robot_bridge(robot, model_description)
+    async def robot_spawn(self, robots):
+
+        async def impl(robot: Robot) -> bool:
+            if not await self._spawn_entity(robot):
+                return False
+            model = await (await robot.model.resolve()).model.get(ModelType.URDF, loader_args=robot.asdict())
+            if model.type is ModelType.UNKNOWN:
+                return False
+            model_description = model.description
+            self._robot_initialpose(robot)
+            await self._robot_bridge(robot, model_description)
+            return True
+        success = await asyncio.gather(*map(impl, robots))
         return success
 
-    def obstacle_move(self, obstacles):
-        return tuple(map(self._move_entity, obstacles))
+    async def obstacle_move(self, obstacles):
+        return await asyncio.gather(*map(self._move_entity, obstacles))
 
-    def pedestrian_move(self, pedestrians):
+    async def pedestrian_move(self, pedestrians):
         # Gazebo does not support modifying actors after spawning
         return (True,) * len(pedestrians)
 
-    def robot_move(self, robots):
-        success = map(self._move_entity, robots)
-        success = map(lambda sr: sr[0] and self._robot_move(sr[1]), zip(success, robots))
-        return tuple(success)
+    async def robot_move(self, robots):
+        async def impl(robot: Robot) -> bool:
+            return (await self._move_entity(robot)) and (await self._robot_move(robot))
+        return await asyncio.gather(*map(impl, robots))
 
-    def obstacle_delete(self, obstacles):
-        return tuple(self._delete_entity(o.name) for o in obstacles)
+    async def obstacle_delete(self, obstacles):
+        return await asyncio.gather(*(self._delete_entity(o.name) for o in obstacles))
 
-    def pedestrian_delete(self, pedestrians):
+    async def pedestrian_delete(self, pedestrians):
         # Gazebo does not support deleting actors after spawning
         return (True,) * len(pedestrians)
 
-    def robot_delete(self, robots):
-        return tuple(self._delete_entity(robot.name) for robot in robots)
+    async def robot_delete(self, robots):
+        return await asyncio.gather(*(self._delete_entity(robot.name) for robot in robots))
 
-    def pedestrian_update(self, pedestrians):
+    async def pedestrian_update(self, pedestrians):
         # Gazebo does not support modifying actors after spawning
         return (True,) * len(pedestrians.pedestrians)
 
-    def spawn_floors(self, floors):
+    async def spawn_floors(self, floors):
         # Gazebo does not support spawning floors
         del floors
         return True
 
-    def spawn_doors(self, doors):
+    async def spawn_doors(self, doors):
         # Gazebo does not support spawning doors
         del doors
         return True
 
-    def spawn_elevators(self, elevators):
+    async def spawn_elevators(self, elevators):
         # Gazebo does not support spawning elevators
         del elevators
         return True
 
     # IMPL
 
-    def _move_entity(self, entity: Entity):
+    async def _move_entity(self, entity: Entity):
         name = Entity.sanitize_name(entity.name)
         pose = entity.pose
         self._logger.debug(f"Attempting to move entity: {name}")
@@ -135,7 +138,7 @@ class GazeboSimulator(BaseSim):
 
         try:
             self._service_set_entity_pose.wait_for_service()
-            result = self._service_set_entity_pose.call(request)
+            result = await self._service_set_entity_pose.call_async(request)
 
             if result is None:
                 self._logger.error(f"Move service call failed for {name}")
@@ -150,7 +153,7 @@ class GazeboSimulator(BaseSim):
             traceback.print_exc()
             return False
 
-    def _spawn_entity(self, entity: Entity) -> bool:
+    async def _spawn_entity(self, entity: Entity) -> bool:
         try:
             entity.name = Entity.sanitize_name(entity.name)
 
@@ -160,10 +163,14 @@ class GazeboSimulator(BaseSim):
             request.entity_factory.name = entity.name
 
             # Get model description
-            if isinstance(entity, Robot):
-                model = entity.model.load().get(ModelType.URDF, loader_args=entity.asdict())
-            else:
-                model = entity.model.load().get(ModelType.SDF)
+            try:
+                if isinstance(entity, Robot):
+                    model = await (await entity.model.resolve()).model.get(ModelType.URDF, loader_args=entity.asdict())
+                else:
+                    model = await (await entity.model.resolve()).get(ModelType.SDF)
+            except Exception as e:
+                self._logger.error(f"Error resolving model for entity {entity.name}: {e}\n{traceback.format_exc()}")
+                return False
 
             if model.type is ModelType.UNKNOWN:
                 return False
@@ -177,9 +184,8 @@ class GazeboSimulator(BaseSim):
             self._logger.debug(
                 f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}")
 
-            self._service_spawn_entity.wait_for_service()
             self._logger.debug(f"Sending spawn request for {entity.name}")
-            result = self._service_spawn_entity.call(request)
+            result = await self._service_spawn_entity.call_async(request)
 
             if result is None:
                 self._logger.error(
@@ -199,7 +205,7 @@ class GazeboSimulator(BaseSim):
             traceback.print_exc()
             return False
 
-    def _delete_entity(self, name: str):
+    async def _delete_entity(self, name: str):
         name = Entity.sanitize_name(name)
 
         self._logger.debug(f"Attempting to delete entity: {name}")
@@ -215,8 +221,7 @@ class GazeboSimulator(BaseSim):
         )
 
         try:
-            self._service_delete_entity.wait_for_service()
-            result = self._service_delete_entity.call(request)
+            result = await self._service_delete_entity.call_async(request)
 
             if result is None:
                 self._logger.error(f"Delete service call failed for {name}")
@@ -234,15 +239,14 @@ class GazeboSimulator(BaseSim):
             traceback.print_exc()
             return False
 
-    def pause_simulation(self):
+    async def pause_simulation(self):
         self._logger.debug("Attempting to pause simulation")
         request = ControlWorld.Request()
         request.world_control = WorldControl()
         request.world_control.pause = True
 
         try:
-            self._service_control_world.wait_for_service()
-            result = self._service_control_world.call(request)
+            result = await self._service_control_world.call_async(request)
 
             if result is None:
                 self._logger.error("Pause service call failed")
@@ -256,15 +260,14 @@ class GazeboSimulator(BaseSim):
             traceback.print_exc()
             return False
 
-    def unpause_simulation(self):
+    async def unpause_simulation(self):
         self._logger.debug("Attempting to unpause simulation")
         request = ControlWorld.Request()
         request.world_control = WorldControl()
         request.world_control.pause = False
 
         try:
-            self._service_control_world.wait_for_service()
-            result = self._service_control_world.call(request)
+            result = await self._service_control_world.call_async(request)
 
             if result is None:
                 self._logger.error("Unpause service call failed")
@@ -278,15 +281,14 @@ class GazeboSimulator(BaseSim):
             traceback.print_exc()
             return False
 
-    def step_simulation(self, steps):
+    async def step_simulation(self, steps):
         self._logger.info(f"Stepping simulation by {steps} steps")
         request = ControlWorld.Request()
         request.world_control = WorldControl()
         request.world_control.multi_step = steps
 
         try:
-            self._service_control_world.wait_for_service()
-            result = self._service_control_world.call(request)
+            result = await self._service_control_world.call_async(request)
 
             if result is None:
                 self._logger.error("Step service call failed")
@@ -309,8 +311,8 @@ class GazeboSimulator(BaseSim):
         self._goal_pub.publish(goal_msg)
         self._logger.info("Goal published")
 
-    def spawn_walls(self, walls) -> bool:
-        self.remove_walls_doors()  # Clear existing walls
+    async def spawn_walls(self, walls) -> bool:
+        await self.remove_world()  # Clear existing walls
         for wall in walls:  # only walls, ignore obstacles
             wall_name = Entity.sanitize_name(self.node._environment_manager.realize(f"wall_{next(self._wall_counter)}"))
             wall_height = 2.0  # Wall height in meters
@@ -348,19 +350,19 @@ class GazeboSimulator(BaseSim):
                 extra={},
             )
 
-            self._spawn_entity(entity)
+            await self._spawn_entity(entity)
             self._walls_entities.append(wall_name)
 
         return True
 
-    def remove_walls_doors(self) -> bool:
+    async def remove_world(self) -> bool:
         for entity in self._walls_entities:
-            self._delete_entity(entity)
+            await self._delete_entity(entity)
         self._walls_entities = []
         self._wall_counter = itertools.count()
         return True
 
-    def _robot_bridge(self, robot: Robot, description: str):
+    async def _robot_bridge(self, robot: Robot, description: str):
         launch_description = launch.LaunchDescription()
 
         launch_description.add_action(
@@ -369,7 +371,7 @@ class GazeboSimulator(BaseSim):
             )
         )
 
-        robot_config = arena_robots.Robot.RobotLoader(robot.model.name)
+        robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
 
         mappings = BridgeConfiguration.from_file(
             robot_config.mappings
@@ -418,7 +420,7 @@ class GazeboSimulator(BaseSim):
         #         remappings=[('/joint_states', '/joint_states')]
         #     )
         # )
-        self.node.do_launch(launch_description)
+        await self.node.do_launch(launch_description)
 
     def _robot_initialpose(self, robot: Robot):
         pose = PoseWithCovarianceStamped()
@@ -431,7 +433,7 @@ class GazeboSimulator(BaseSim):
             qos_profile=1,
         ).publish(pose)
 
-    def _robot_move(self, robot: Robot) -> bool:
+    async def _robot_move(self, robot: Robot) -> bool:
         name = robot.name
         try:
 
@@ -468,7 +470,7 @@ class GazeboSimulator(BaseSim):
 
             odom_frame = 'odom'
 
-            odom_frame = arena_robots.Robot.RobotLoader(robot.model.name).model_params.odom_frame
+            odom_frame = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync().model_params.odom_frame
 
             qx, qy, qz, qw = robot.pose.orientation.x, robot.pose.orientation.y, robot.pose.orientation.z, robot.pose.orientation.w
             transform_pub_node = launch_ros.actions.Node(
@@ -483,7 +485,7 @@ class GazeboSimulator(BaseSim):
                 ],
                 parameters=[{'use_sim_time': True}],
             )
-            self.node.do_launch(launch.LaunchDescription([transform_pub_node]))
+            await self.node.do_launch(launch.LaunchDescription([transform_pub_node]))
             # time.sleep(1)
             # self.node.get_logger().info("Destroying the static_transform_publisher node after 3 seconds.")
             # transform_pub_node.destroy_node() # won't work like this, a topic/service to trigger self-destruction
@@ -494,24 +496,26 @@ class GazeboSimulator(BaseSim):
             self._logger.error(f"Error moving robot {name}: {str(e)}")
             return False
 
-    def _set_up_services(self):
-
-        self.node.do_launch(
-            launch.LaunchDescription([
-                launch_ros.actions.Node(
-                    package='ros_gz_bridge',
-                    executable='parameter_bridge',
-                    name='gz_services_bridge',
-                    output='screen',
-                    arguments=[
-                        '/world/default/create@ros_gz_interfaces/srv/SpawnEntity',
-                        '/world/default/remove@ros_gz_interfaces/srv/DeleteEntity',
-                        '/world/default/set_pose@ros_gz_interfaces/srv/SetEntityPose',
-                        '/world/default/control@ros_gz_interfaces/srv/ControlWorld',
-                    ],
-                    parameters=[{'use_sim_time': True}],
-                )
-            ])
+    async def _set_up_services(self):
+        futures: list[typing.Awaitable] = []
+        futures.append(
+            self.node.do_launch(
+                launch.LaunchDescription([
+                    launch_ros.actions.Node(
+                        package='ros_gz_bridge',
+                        executable='parameter_bridge',
+                        name='gz_services_bridge',
+                        output='screen',
+                        arguments=[
+                            '/world/default/create@ros_gz_interfaces/srv/SpawnEntity',
+                            '/world/default/remove@ros_gz_interfaces/srv/DeleteEntity',
+                            '/world/default/set_pose@ros_gz_interfaces/srv/SetEntityPose',
+                            '/world/default/control@ros_gz_interfaces/srv/ControlWorld',
+                        ],
+                        parameters=[{'use_sim_time': True}],
+                    )
+                ])
+            )
         )
 
         # Initialize service clients
@@ -541,11 +545,18 @@ class GazeboSimulator(BaseSim):
             (self._service_control_world, "control world"),
         )
 
-        # for service, name in services:
-        #     if not service.wait_for_service(10):
-        #         raise RuntimeError(f'service {name} ({service.srv_name}) not available')
+        for service, name in services:
+            self._logger.info(f"Waiting for {name} service...")
+            futures.append(self.node.wait_for_service_async(service))
 
+        await asyncio.gather(*futures)
         self._logger.info("All Gazebo services are available now.")
+
+    @classmethod
+    async def create(cls, *args, namespace, **kwargs) -> "GazeboSimulator":
+        simulator = cls(*args, namespace=namespace, **kwargs)
+        await simulator._set_up_services()
+        return simulator
 
 
 def _generate_wall_sdf(
@@ -554,6 +565,8 @@ def _generate_wall_sdf(
     height: float,
     thickness: float,
     base_position: tuple[float, float, float] = (0, 0, 0),
+
+
 ) -> str:
     """
     Generate an SDF string for a wall structure based on given parameters and base position.

@@ -1,138 +1,79 @@
 #! /usr/bin/env python3
 import asyncio
-import multiprocessing
-import queue
 import traceback
-import typing
-
-import launch
 import rclpy
 import rclpy.executors
+from .node import TaskGenerator
 
 
-def init_launch_service(
-    CONCURRENT: bool
-) -> tuple[
-    typing.Callable[[], typing.Any],
-    typing.Callable[[launch.LaunchDescription], typing.Any],
-    typing.Callable[[], None]
-]:
-    """
-    Initiate launch service.
-    Args:
-        CONCURRENT: is node run concurrently in python thread?
-    Returns:
-        A tuple consisting of:
-            loop function to call after `executor.spin_once()`,
-            function that accepts a `launch.LaunchDescription` and schedules its launch.
-            cleanup function to call at shutdown
-    """
-
-    def _do_launch(
-            launch_description: launch.LaunchDescription
-    ) -> typing.Callable[[], typing.Any]:
-
-        # https://github.com/ros2/launch/issues/724#issue-1851039469
-        def run_process(stop_event, launch_description):
-
-            # https://github.com/ros2/launch/issues/724#issuecomment-1829050299
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            launch_service = launch.launch_service.LaunchService()
-            launch_service.include_launch_description(launch_description)
-            launch_task = loop.create_task(launch_service.run_async())
-
-            try:
-                loop.run_until_complete(
-                    loop.run_in_executor(
-                        None,
-                        stop_event.wait
-                    )
-                )
-            except KeyboardInterrupt:
-                stop_event.set()
-
-            if not launch_task.done():
-                asyncio.ensure_future(launch_service.shutdown(), loop=loop)
-                try:
-                    loop.run_until_complete(launch_task)
-                except KeyboardInterrupt:
-                    stop_event.set()
-
-        stop_event = multiprocessing.Event()
-        process = multiprocessing.Process(
-            target=run_process, args=(
-                stop_event,
-                launch_description
-            ),
-            daemon=True
-        )
-        process.start()
-
-        def shutdown():
-            stop_event.set()
-
-        return shutdown
-
-    if CONCURRENT:
-        launch_queue = queue.Queue[launch.LaunchDescription]()
-        shutdown_queue = queue.Queue[typing.Callable[[], typing.Any]]()
-
-        def process_queue() -> None:
-            try:
-                launch_description = launch_queue.get(False)
-            except queue.Empty:
-                return None
-
-            shutdown_queue.put(_do_launch(launch_description))
-            return process_queue()
-
-        def launch_soon(launch_description: launch.LaunchDescription) -> None:
-            launch_queue.put(launch_description)
-
-        def cleanup():
-            while not shutdown_queue.empty():
-                do_shutdown = shutdown_queue.get(True)
-                do_shutdown()
-
-        return process_queue, launch_soon, cleanup
-
-    def _noop() -> None:
-        return None
-
-    return _noop, _do_launch, _noop
+def spin_blocking(executor):
+    try:
+        executor.spin()
+    except rclpy.executors.ExternalShutdownException:
+        pass
 
 
-def main(args=None):
+async def app_logic(node):
+    node.get_logger().info('Beginning client, shut down with CTRL-C')
+    await node.setup()
+    stop_event = asyncio.Event()
+    await stop_event.wait()
+
+
+async def main_async(args=None):
+    del args
     rclpy.init()
+    loop = asyncio.get_running_loop()
 
-    CONCURRENT = True
+    executor = rclpy.executors.MultiThreadedExecutor()
 
-    if CONCURRENT:
-        executor = rclpy.executors.MultiThreadedExecutor()
-    else:
-        executor = rclpy.executors.SingleThreadedExecutor()
-
-    launch_loop, do_launch, launch_cleanup = init_launch_service(
-        CONCURRENT=CONCURRENT
-    )
-
-    from . import NodeInterface
-
-    node = NodeInterface.init_task_gen_node(do_launch=do_launch)
+    node = TaskGenerator()
+    node.event_loop = loop
 
     executor.add_node(node)
 
-    try:
-        node.get_logger().info('Beginning client, shut down with CTRL-C')
-        while rclpy.ok():
-            executor.spin_once()
-            launch_loop()
-    except KeyboardInterrupt:
-        node.get_logger().info(traceback.format_exc())
-        node.get_logger().info('Keyboard interrupt, shutting down.')
+    spin_future = loop.run_in_executor(None, spin_blocking, executor)
+    app_task = asyncio.create_task(app_logic(node))
 
-    launch_cleanup()
-    node.destroy_node()
-    rclpy.try_shutdown()
+    try:
+        done, _ = await asyncio.wait(
+            [spin_future, app_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        if spin_future in done:
+            spin_future.result()
+
+        if app_task in done:
+            app_task.result()
+
+    except asyncio.CancelledError:
+        node.get_logger().info('Shutting down.')
+    except Exception:
+        node.get_logger().error(traceback.format_exc())
+        raise
+    finally:
+        if not app_task.done():
+            app_task.cancel()
+
+        executor.shutdown()
+
+        try:
+            await spin_future
+        except Exception:
+            pass
+
+        executor.remove_node(node)
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+def main(args=None):
+    try:
+        asyncio.run(main_async(args=args))
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == '__main__':
+    main()
