@@ -258,10 +258,7 @@ class TM_Prompt(TM_Obstacles):
                 config=genai.types.GenerateContentConfig(
                     cached_content=self.cached_context_name["bt"] if use_behavior_tree else self.cached_context_name["arena"],
                     top_p=top_p,
-                    thinking_config=genai.types.ThinkingConfig(
-                        include_thoughts=False,
-                        thinking_budget=24576
-                    ),
+                    thinking_config=genai.types.ThinkingConfig(thinking_level="low"),
                 )
             )
 
@@ -405,6 +402,14 @@ class TM_Prompt(TM_Obstacles):
         self.inference_client = genai.Client(
             api_key=os.environ["GEMINI_API_KEY"]
         )
+
+        try:
+            caches = self.inference_client.caches.list()
+            if caches:
+                for cache in caches:
+                    self.inference_client.caches.delete(name=cache.name)
+        except Exception as e:
+            print(e)
 
         self.cached_context_name: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
 
