@@ -403,6 +403,14 @@ class TM_Prompt(TM_Obstacles):
             api_key=os.environ["GEMINI_API_KEY"]
         )
 
+        try:
+            caches = self.inference_client.caches.list()
+            if caches:
+                for cache in caches:
+                    self.inference_client.caches.delete(name=cache.name)
+        except Exception as e:
+            print(e)
+
         self.cached_context_name: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
 
         self.tmp_dir = tempfile.TemporaryDirectory()  # Temporary directory to store behavior tree XML files
