@@ -122,7 +122,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
         to_simulator: list[DynamicObstacle] = []
         for (known, obstacle) in zip(unspawneds, await self._spawn_dynamic_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
-            self._logger.warning(f"Spawned dynamic obstacle: {obstacle}")
+            self._logger.info(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
                 continue
 
