@@ -11,7 +11,7 @@ from geometry_msgs.msg import PoseStamped
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Robot, Wall
-from task_generator.simulators.human.utils import KnownObstacles, ObstacleLayer
+from task_generator.simulators.human.utils import KnownObstacle, KnownObstacles, ObstacleLayer
 from task_generator.simulators.sim import BaseSim
 from task_generator.utils.registry import Registry
 
@@ -61,7 +61,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f'spawning {len(obstacles)} static obstacles')
 
         futures: list[typing.Awaitable] = []
-        unspawneds = []
+        unspawneds: list[KnownObstacle[Obstacle]] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
@@ -77,7 +77,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             else:
                 unspawneds.append(known)
 
-        to_simulator = []
+        to_simulator: list[Obstacle] = []
         for (known, obstacle) in zip(unspawneds, await self._spawn_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
             if not obstacle:
                 continue
@@ -103,7 +103,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f'spawning {len(obstacles)} dynamic obstacles')
 
         futures: list[typing.Awaitable] = []
-        unspawneds = []
+        unspawneds: list[KnownObstacle[DynamicObstacle]] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
@@ -120,9 +120,9 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             else:
                 unspawneds.append(known)
 
-        to_simulator = []
-
+        to_simulator: list[DynamicObstacle] = []
         for (known, obstacle) in zip(unspawneds, await self._spawn_dynamic_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
+            self._logger.warning(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
                 continue
 
