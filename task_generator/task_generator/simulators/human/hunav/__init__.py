@@ -8,9 +8,9 @@ import geometry_msgs.msg
 import hunav_msgs.msg
 import yaml
 from ament_index_python.packages import get_package_share_directory
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 
 from task_generator.shared import DynamicObstacle, Pose, Position
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 
 
 @attrs.define
@@ -147,6 +147,8 @@ class HunavDynamicObstacle:
         behavior_tree: str = cls._default.behavior_tree
         if 'behavior_tree' in extra:
             behavior_tree = extra['behavior_tree']
+            if behavior_tree.startswith('./') and obj.included_from:
+                behavior_tree = str(obj.included_from / behavior_tree)
 
         return cls(
             name=obj.name,

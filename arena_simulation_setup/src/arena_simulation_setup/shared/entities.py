@@ -27,6 +27,7 @@ class Entity(Parseable, Serializable):
     model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
 
     extra: dict = attrs.field(factory=dict, kw_only=True)
+    included_from: Path | None = attrs.field(default=None, kw_only=True, repr=False)
 
     @classmethod
     def parse(cls: typing.Type[EntityT], value: dict) -> EntityT:
@@ -74,7 +75,7 @@ class Obstacle(Entity):
 @attrs.define
 class DynamicObstacle(Entity):
     model: PedestrianIdentifier = attrs.field(converter=PedestrianIdentifier.converter)
-    waypoints: list[Position]
+    waypoints: list[Position] = attrs.field(factory=list)
     velocity: float = attrs.field(converter=float, default=1.0)  # m/s
 
 
