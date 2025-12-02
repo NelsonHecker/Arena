@@ -101,7 +101,7 @@ class TM_Prompt(TM_Obstacles):
             }
             parsed["zones"].append(parsed_zone)
 
-        return json.dumps(parsed, indent=2)
+        return json.dumps(parsed)
 
     def llm_bt_output_to_config(self, llm_output: dict) -> dict:
         try:
@@ -292,6 +292,11 @@ class TM_Prompt(TM_Obstacles):
             config = {}
 
         if DEBUG:
+            with open(f"{os.environ['HOME']}/Desktop/raw_llm_output.txt", 'wt') as file:
+                file.write(answer)
+            with open(f"{os.environ['HOME']}/Desktop/full_llm_input.txt", 'wt') as file:
+                file.write(messages[0])
+            self.node.get_logger().info(f"Saved LLM output to {file.name}")
             with tempfile.NamedTemporaryFile(delete=False, prefix='scenario', suffix=".json", dir=os.environ["HOME"], mode='w') as file:
                 json.dump(config, file)
             self.node.get_logger().warning(f"Saved LLM output to {file.name}")
