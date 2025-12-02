@@ -1,6 +1,7 @@
 import functools
 import itertools
 import os
+import traceback
 import typing
 from collections.abc import Iterable
 
@@ -27,9 +28,9 @@ class RobotGoal:
 
 @attrs.define
 class Scenario:
-    static: list[Obstacle]
-    dynamic: list[DynamicObstacle]
-    robots: list[RobotGoal]
+    static: list[Obstacle] = attrs.field(factory=list)
+    dynamic: list[DynamicObstacle] = attrs.field(factory=list)
+    robots: list[RobotGoal] = attrs.field(factory=list)
 
 
 class ScenarioView(PathView):
@@ -59,7 +60,7 @@ class ScenarioView(PathView):
         )
         return scenario
 
-    def load(self) -> Scenario:
+    def load_legacy(self) -> Scenario:
         with open(self.scenario_path, 'r') as f:
             scenario = yaml.safe_load(f)
 
@@ -84,4 +85,27 @@ class ScenarioView(PathView):
                 for robot
                 in scenario.get("robots", [])
             ]
+        )
+
+    def load(self) -> Scenario:
+        load_exc: Exception
+        try:
+            with open(self.scenario_path, 'r') as f:
+                scenario = converter.structure(yaml.safe_load(f), Scenario)
+                for obj in itertools.chain(scenario.static, scenario.dynamic):
+                    obj.included_from = self.path
+            return scenario
+        except Exception as e:
+            load_exc = e
+
+        legacy_exc: Exception
+        try:
+            return self.load_legacy()
+        except Exception as e:
+            legacy_exc = e
+
+        raise RuntimeError(
+            f"Failed to load scenario from {self.scenario_path}:\n"
+            f" - New format error: {load_exc}\n{''.join(traceback.format_exception(type(load_exc), load_exc, load_exc.__traceback__))}\n"
+            f" - Legacy format error: {legacy_exc}\n{''.join(traceback.format_exception(type(legacy_exc), legacy_exc, legacy_exc.__traceback__))}"
         )

@@ -1,0 +1,8 @@
+dynamic:
+- name: agent1
+  model: actor1
+  pose: [5,5,0]
+  waypoints:
+    - [10,10,0]
+    - [15,5,0]
+  behavior_tree: ./bt1.xml
