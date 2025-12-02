@@ -150,6 +150,7 @@
       "${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/action_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../build/arena_hunav_sim_bridge/",
       "${workspaceFolder:Arena}/../../build/arena_rclpy_mixins/",
       "${workspaceFolder:Arena}/../../build/launch/",
@@ -179,6 +180,7 @@
       "${workspaceFolder:Arena}/../../install/builtin_interfaces/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/rosgraph_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/ros_gz_interfaces/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/action_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../build/arena_hunav_sim_bridge/",
       "${workspaceFolder:Arena}/../../build/launch/",
       "${workspaceFolder:Arena}/../../build/launch_ros/",
@@ -187,7 +189,20 @@
       "${workspaceFolder:Arena}/../../build/arena_isaac/",
       "${workspaceFolder:Arena}/.venv/lib/python3.10/site-packages/"
     ],
-    "python.analysis.typeCheckingMode": "standard"
+    "python.analysis.typeCheckingMode": "standard",
+    "pylint.args": [
+      "--disable=E1101",
+      "--disable=W0718",
+      "--disable=W0718",
+      "--disable=W1203",
+      "--disable=W2301",
+      "--disable=W0101",
+      "--disable=C0301"
+    ],
+    "autopep8.args": [
+      "--aggressive",
+      "--max-line-length=1024"
+    ]
   },
   "launch": {
     "version": "0.2.0",

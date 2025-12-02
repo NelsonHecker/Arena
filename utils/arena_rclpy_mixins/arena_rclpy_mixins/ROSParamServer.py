@@ -145,7 +145,8 @@ class _rosparam(typing.Generic[T]):
 
     _node: typing.ClassVar["ROSParamServer"]
 
-    _UNSET = typing.NewType('_UNSET', None)
+    class _UNSET(object):
+        ...
 
     @classmethod
     def declare_safe(
@@ -165,7 +166,7 @@ class _rosparam(typing.Generic[T]):
     def get_unsafe(
         cls,
         param_name: str,
-        default: T | type[_UNSET] = _UNSET
+        default: T | typing.Type[_UNSET] = _UNSET
     ) -> T:
         """
         Get value of parameter.
@@ -183,7 +184,7 @@ class _rosparam(typing.Generic[T]):
         )
         if result.type_ is rclpy.Parameter.Type.NOT_SET:
             if _default is not cls._UNSET:
-                return _default
+                return _default  # type: ignore
             raise ValueError(
                 f'parameter {param_name} is unset and no default passed'
             )
@@ -232,7 +233,7 @@ class _rosparam(typing.Generic[T]):
         except ValueError:
             value = None
 
-        cls._node._callbacks.setdefault(param_name, set()).add(callback)
+        cls._node.add_param_callback(param_name, callback)
 
         if value is not None:
             if cls._node.executor is not None:
@@ -255,14 +256,29 @@ class ROSParamServer(rclpy.node.Node):
         typing.Set[typing.Callable[[typing.Any], bool]]
     ]
 
+    def add_param_callback(
+        self,
+        param_name: str,
+        callback: typing.Callable[[typing.Any], bool]
+    ):
+        """
+        Add callback for parameter changes.
+        """
+
+        self._callbacks.setdefault(param_name, set()).add(callback)
+
     def register_param(self, param: ROSParamT[T], value: typing.Any, **kwargs):
+        del kwargs  # unused
 
         current_value = self.rosparam[T].get(
             param.name,
             value
         )
 
-        self._callbacks.setdefault(param.name, set()).add(param.callback)
+        self.add_param_callback(
+            param.name,
+            param.callback,
+        )
 
         result = self._callback([
             rclpy.Parameter(

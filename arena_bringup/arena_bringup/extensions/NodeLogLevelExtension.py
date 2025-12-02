@@ -1,10 +1,12 @@
 import logging
 from typing import Literal
 
-import launch
+import launch.utilities
 from launch_ros.actions import Node as NodeAction
 from launch_ros.actions.node import NodeActionExtension
 from launch_ros.utilities import plugin_support
+
+import launch
 
 
 class NodeLogLevelExtension(NodeActionExtension):

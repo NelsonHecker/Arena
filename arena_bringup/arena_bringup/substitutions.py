@@ -83,7 +83,7 @@ class SelectAction(launch.Action):
     def keys(self) -> list[str]:
         return list(self._actions.keys())
 
-    def execute(self, context: launch.LaunchContext):
+    def execute(self, context: launch.LaunchContext):  # type: ignore
         key = launch.utilities.perform_substitutions(context, self._selector)
         return self._actions.get(key, [])
 
@@ -136,7 +136,7 @@ class YAMLFileSubstitution(launch.Substitution):
                         obj[k] = substitute_recursive(v)
 
                 return obj
-
+            assert isinstance(contents, (dict, list))
             contents = substitute_recursive(contents)
 
         yaml_file = tempfile.NamedTemporaryFile(mode='w', delete=False)

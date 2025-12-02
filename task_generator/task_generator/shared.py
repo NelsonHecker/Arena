@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import Collection
 from typing import Optional, Type, TypeVar
 
 import attrs
-import rclpy
-import rclpy.node
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer
 from arena_rclpy_mixins.shared import Namespace
-from arena_robots.Robot import RobotLoader, RobotProvider
+from arena_robots.Robot import RobotIdentifier
 from arena_robots.SetupFile import Config as RobotSetupConfig
 from arena_simulation_setup.shared import (  # noqa
     CustomDynamicObstacle,
@@ -20,6 +17,7 @@ from arena_simulation_setup.shared import (  # noqa
     Obstacle,
     Wall,
 )
+from arena_simulation_setup.shared.entities import Entity  # noqa
 from arena_simulation_setup.utils.geometry import (  # noqa
     Orientation,
     Pose,
@@ -61,7 +59,7 @@ def rosparam_set(
 
 @attrs.define
 class Robot(Entity):
-    model: RobotProvider
+    model: RobotIdentifier  # type: ignore
     inter_planner: str
     local_planner: str
     global_planner: str
@@ -121,7 +119,7 @@ class Robot(Entity):
             inter_planner=inter_planner,
             local_planner=local_planner,
             global_planner=global_planner,
-            model=RobotLoader(model),
+            model=RobotIdentifier.parse(model),
             agent=agent,
             record_data_dir=record_data,
             extra=value,

@@ -12,7 +12,7 @@ from arena_simulation_setup.tree.assets.Material import MaterialIdentifier, Mate
 @attrs.define
 class Elevator:
     name: str
-    position: list[float]
+    position: Position = attrs.field(converter=Position.converter)
     size: list[float] = attrs.field(factory=lambda: [2.0, 2.0, 0.2])
     height_min: float = 0.0
     height_max: float = 3.0

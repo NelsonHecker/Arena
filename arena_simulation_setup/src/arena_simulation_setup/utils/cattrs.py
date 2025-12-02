@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import traceback
 import typing
 
 from copy import deepcopy
@@ -159,7 +160,7 @@ class Parseable(abc.ABC):
         if not getattr(cls, "__abstractmethods__", set()):
 
             def try_parse(value, target_type):
-                errors = []
+                errors: list[Exception] = []
                 # check idempotence
                 try:
                     if isinstance(value, target_type):
@@ -180,7 +181,10 @@ class Parseable(abc.ABC):
                 except Exception as e:
                     errors.append(e)
 
-                return None
+                errors_repr = ''
+                for error in errors:
+                    errors_repr += ''.join(traceback.format_exception(type(error), error, error.__traceback__))
+                raise ValueError(f'could not parse into {target_type} from {value}:{errors_repr}')
 
             converter.register_structure_hook(
                 cls,
