@@ -67,7 +67,7 @@ class ScenarioView(PathView):
 
         return Scenario(
             static=[
-                converter.structure({**obs, **dict(path=self.path)}, Obstacle)
+                converter.structure({**obs, **dict(included_from=self.path)}, Obstacle)
                 for obs
                 in itertools.chain(
                     scenario.get("obstacles", {}).get("static", []),
@@ -75,7 +75,7 @@ class ScenarioView(PathView):
                 )
             ],
             dynamic=[
-                converter.structure({**obs, **dict(path=self.path)}, DynamicObstacle)
+                converter.structure({**obs, **dict(included_from=self.path)}, DynamicObstacle)
                 for obs
                 in scenario.get("obstacles", {}).get("dynamic", [])
             ],
