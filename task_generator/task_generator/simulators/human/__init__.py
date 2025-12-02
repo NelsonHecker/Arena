@@ -162,6 +162,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug('unusing obstacles')
         await self._remove_obstacles_impl()
         for obstacle in self._known_obstacles.values():
+            obstacle.spawned = False
             if obstacle.layer == ObstacleLayer.INUSE:
                 obstacle.layer = ObstacleLayer.UNUSED
 
@@ -185,7 +186,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         for oid, known in list(self._known_obstacles.items()):
             if purge >= known.layer:
                 if isinstance(known.obstacle, DynamicObstacle):
-                    self._logger.warning(f'removing dynamic obstacle: {known.obstacle.name} {known}')
+                    self._logger.info(f'removing dynamic obstacle: {known.obstacle.name} {known}')
                     dynamic.append(known.obstacle)
                 else:
                     static.append(known.obstacle)
