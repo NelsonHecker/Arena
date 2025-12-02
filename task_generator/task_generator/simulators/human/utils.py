@@ -65,7 +65,7 @@ class SDFUtil:
         return hits
 
 
-class ObstacleLayer(enum.IntEnum):
+class ObstacleLayer(int, enum.Enum):
     UNUSED = 0  # unused, could be garbage collected
     INUSE = 1  # in use, but can be unused
     WORLD = 2  # intrinsic part of world
