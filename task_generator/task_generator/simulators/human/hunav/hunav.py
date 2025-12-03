@@ -274,6 +274,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._pedestrians: dict[int, dict] = {}
         self._wall_segments: list[WallSegment] = []
         self._wall_points: list[Point] = []
+        self._agents_lock: asyncio.Lock = asyncio.Lock()
         self._agents_container: Agents = Agents()  # Container to hold all registered agents
         self._get_agents_container: Agents = Agents()  # Container specifically just to send the Agent attributes to Hunavsystemplugin
         self._agents_container.header.frame_id = "map"
@@ -555,117 +556,117 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._logger.error(f"Failed to update agent positions: {e}")
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles):
+        async with self._agents_lock:
+            results = []
 
-        results = []
+            for obstacle in obstacles:
+                try:
+                    # Get unique ID
+                    unique_id = len(self._agents_container.agents) + 1
+                    self._logger.debug(f"Preparing to spawn dynamic obstacle '{obstacle.name}' with ID {unique_id}")
+                    hunav_obstacle = HunavDynamicObstacle.from_dynamic_obstacle(obstacle)
+                    hunav_obstacle = attrs.evolve(hunav_obstacle, id=unique_id)
 
-        for obstacle in obstacles:
-            try:
-                # Get unique ID
-                unique_id = len(self._agents_container.agents) + 1
-                self._logger.debug(f"Preparing to spawn dynamic obstacle '{obstacle.name}' with ID {unique_id}")
-                hunav_obstacle = HunavDynamicObstacle.from_dynamic_obstacle(obstacle)
-                hunav_obstacle = attrs.evolve(hunav_obstacle, id=unique_id)
+                    agent_msg = hunav_obstacle.to_msg()
 
-                agent_msg = hunav_obstacle.to_msg()
+                    # Add to container - NO ComputeAgents call here!
+                    self._get_agents_container.agents.append(agent_msg)  # type: ignore
+                    self._agents_container.agents.append(agent_msg)  # type: ignore
+                    # self._logger.error(f"spawn_dynamic_obstacle_agents_container {self._agents_container}")
 
-                # Add to container - NO ComputeAgents call here!
-                self._get_agents_container.agents.append(agent_msg)  # type: ignore
-                self._agents_container.agents.append(agent_msg)  # type: ignore
-                # self._logger.error(f"spawn_dynamic_obstacle_agents_container {self._agents_container}")
+                    # Create separate arena pedestrian
+                    arena_pedestrian = self._create_arena_pedestrian(hunav_obstacle, unique_id)
+                    self._arena_pedestrians_container.pedestrians.append(arena_pedestrian)  # type: ignore
+                    self._logger.debug(f"Added arena pedestrian {arena_pedestrian.name} - Total: {len(self._arena_pedestrians_container.pedestrians)}")
 
-                # Create separate arena pedestrian
-                arena_pedestrian = self._create_arena_pedestrian(hunav_obstacle, unique_id)
-                self._arena_pedestrians_container.pedestrians.append(arena_pedestrian)  # type: ignore
-                self._logger.debug(f"Added arena pedestrian {arena_pedestrian.name} - Total: {len(self._arena_pedestrians_container.pedestrians)}")
+                    # Store in pedestrians dictionary
+                    self._pedestrians[agent_msg.id] = {
+                        'last_update': time.time(),
+                        'current_state': agent_msg.behavior.state,
+                        'agent': agent_msg,
+                        'animation_time': 0.0
+                    }
 
-                # Store in pedestrians dictionary
-                self._pedestrians[agent_msg.id] = {
-                    'last_update': time.time(),
-                    'current_state': agent_msg.behavior.state,
-                    'agent': agent_msg,
-                    'animation_time': 0.0
-                }
+                    self._logger.debug(f"Added agent {agent_msg.name} to container. Total agents: {len(self._agents_container.agents)}")
 
-                self._logger.debug(f"Added agent {agent_msg.name} to container. Total agents: {len(self._agents_container.agents)}")
+                    if self._simulator_type == Constants.SimSimulator.GAZEBO:
+                        # spawn plugin if not already spawned
+                        if not self._gz_plugin_spawned:
+                            await self._simulator.obstacle_spawn((
+                                _PedestrianHelper.plugin_entity(self.node.service_namespace()),
+                                _PedestrianHelper.hunav_plugin_entity(self.node.service_namespace())
+                            ))
+                            self._gz_plugin_spawned = True
 
-                if self._simulator_type == Constants.SimSimulator.GAZEBO:
-                    # spawn plugin if not already spawned
-                    if not self._gz_plugin_spawned:
-                        await self._simulator.obstacle_spawn((
-                            _PedestrianHelper.plugin_entity(self.node.service_namespace()),
-                            _PedestrianHelper.hunav_plugin_entity(self.node.service_namespace())
-                        ))
-                        self._gz_plugin_spawned = True
+                        # Create SDF with plugin for Gazebo
+                        async def update_model(obs: HunavDynamicObstacle, ref: PedestrianIdentifier) -> PedestrianIdentifier:
+                            model = await ref.resolve()
+                            model.override(
+                                ModelType.SDF,
+                                lambda m: attrs.evolve(m, description=_PedestrianHelper.create_sdf(obs)),
+                                noload=True
+                            )
+                            return PedestrianIdentifier.inline(
+                                model,
+                                name=ref.name
+                            )
 
-                    # Create SDF with plugin for Gazebo
-                    async def update_model(obs: HunavDynamicObstacle, ref: PedestrianIdentifier) -> PedestrianIdentifier:
-                        model = await ref.resolve()
-                        model.override(
-                            ModelType.SDF,
-                            lambda m: attrs.evolve(m, description=_PedestrianHelper.create_sdf(obs)),
-                            noload=True
+                        obstacle.model = await update_model(hunav_obstacle, obstacle.model)
+                        obstacle.pose.orientation = Orientation.from_yaw(hunav_obstacle.yaw)
+                        self._logger.info(f"Created SDF and loaded System Plugin for: {agent_msg.name}")
+                    else:
+                        # For other simulators: use simple model without plugin
+                        self._logger.info(f"Using simple spawning for simulator: {self._simulator_type}")
+                    results.append(obstacle)
+
+                except Exception as e:
+                    self._logger.error(f"Error preparing agent: {str(e)}")
+                    self._logger.error(traceback.format_exc())
+                    results.append(None)
+
+            # Now all obstacles have been prepared - register them with HuNav
+
+            if self._agents_container.agents:
+                self._logger.debug(f"All spawns complete. Registering {len(self._agents_container.agents)} agents with HuNav")
+
+                # Update timestamp
+                self._agents_container.header.stamp = self.node.get_clock().now().to_msg()
+
+                # Create request
+                request = ComputeAgents.Request()
+                request.robot = _create_robot_message()
+                request.current_agents = self._agents_container
+
+                # Call HuNav service
+                response = await self._compute_agents_client.call_async(request)
+
+                if response:
+                    self._logger.debug(f"Successfully registered {len(response.updated_agents.agents)} agents")
+
+                    # # Update local agents with response data
+                    # for updated_agent in response.updated_agents.agents:
+
+                    #     for i, agent in enumerate(self._agents_container.agents):
+                    #         if agent.id == updated_agent.id:
+                    #             self._agents_container.agents[i] = updated_agent
+                    #             break
+
+                    #     # Update pedestrians dictionary if exists
+                    #     if updated_agent.id in self._pedestrians:
+                    #         self._pedestrians[updated_agent.id]['agent'] = updated_agent
+
+                    if self._simulator_type != Constants.SimSimulator.GAZEBO:
+                        self._logger.debug("Non-Gazebo detected - starting movement timer")
+                        self._update_timer = self.node.create_timer(
+                            0.1,  # 10 Hz
+                            self._move_entity_callback
                         )
-                        return PedestrianIdentifier.inline(
-                            model,
-                            name=ref.name
-                        )
-
-                    obstacle.model = await update_model(hunav_obstacle, obstacle.model)
-                    obstacle.pose.orientation = Orientation.from_yaw(hunav_obstacle.yaw)
-                    self._logger.info(f"Created SDF and loaded System Plugin for: {agent_msg.name}")
                 else:
-                    # For other simulators: use simple model without plugin
-                    self._logger.info(f"Using simple spawning for simulator: {self._simulator_type}")
-                results.append(obstacle)
-
-            except Exception as e:
-                self._logger.error(f"Error preparing agent: {str(e)}")
-                self._logger.error(traceback.format_exc())
-                results.append(None)
-
-        # Now all obstacles have been prepared - register them with HuNav
-
-        if self._agents_container.agents:
-            self._logger.debug(f"All spawns complete. Registering {len(self._agents_container.agents)} agents with HuNav")
-
-            # Update timestamp
-            self._agents_container.header.stamp = self.node.get_clock().now().to_msg()
-
-            # Create request
-            request = ComputeAgents.Request()
-            request.robot = _create_robot_message()
-            request.current_agents = self._agents_container
-
-            # Call HuNav service
-            response = await self._compute_agents_client.call_async(request)
-
-            if response:
-                self._logger.debug(f"Successfully registered {len(response.updated_agents.agents)} agents")
-
-                # # Update local agents with response data
-                # for updated_agent in response.updated_agents.agents:
-
-                #     for i, agent in enumerate(self._agents_container.agents):
-                #         if agent.id == updated_agent.id:
-                #             self._agents_container.agents[i] = updated_agent
-                #             break
-
-                #     # Update pedestrians dictionary if exists
-                #     if updated_agent.id in self._pedestrians:
-                #         self._pedestrians[updated_agent.id]['agent'] = updated_agent
-
-                if self._simulator_type != Constants.SimSimulator.GAZEBO:
-                    self._logger.debug("Non-Gazebo detected - starting movement timer")
-                    self._update_timer = self.node.create_timer(
-                        0.1,  # 10 Hz
-                        self._move_entity_callback
-                    )
+                    self._logger.error("Failed to register agents with HuNav")
             else:
-                self._logger.error("Failed to register agents with HuNav")
-        else:
-            self._logger.debug("No agents to register")
+                self._logger.warning(f"No agents to register from {len(obstacles)} spawn requests")
 
-        return results
+            return results
 
     def _wall_to_points(self, start: Position, end: Position, spacing: float = 0.2) -> list[Point]:
         points: list[Point] = []
@@ -699,21 +700,22 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         """Remove all spawned pedestrians from simulation safely"""
         self._logger.debug(f"=== REMOVING {len(self._pedestrians)} PEDESTRIANS ===")
 
-        # Phase 1: Delete Actors from ECM first
-        success = await self._call_delete_actors_service()
+        async with self._agents_lock:
+            # Phase 1: Delete Actors from ECM first
+            success = await self._call_delete_actors_service()
 
-        # Phase 2: Clear local agents container
-        self._agents_container = Agents()
-        self._get_agents_container = Agents()
-        self._logger.debug("Cleared local agents container")
+            # Phase 2: Clear local agents container
+            self._agents_container = Agents()
+            self._get_agents_container = Agents()
+            self._logger.debug("Cleared local agents container")
 
-        # Phase 3: Reset HunavSim
-        success = await self._reset_hunav()
-        if not success:
-            self._logger.error("Failed to reset HuNav agents - continuing anyway")
+            # Phase 3: Reset HunavSim
+            success = await self._reset_hunav()
+            if not success:
+                self._logger.error("Failed to reset HuNav agents - continuing anyway")
 
-        # Phase 4: Clean up local data
-        self._clear_local_data()
+            # Phase 4: Clean up local data
+            self._clear_local_data()
 
         self._logger.debug(f"Complete reset completed: {success}")
         return success
@@ -839,17 +841,18 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         try:
             # Use last updated agents as current agents
-            if self._last_updated_agents:
-                current_agents = self._last_updated_agents
-            else:
-                current_agents = self._agents_container
+            async with self._agents_lock:
+                if self._last_updated_agents:
+                    current_agents = self._last_updated_agents
+                else:
+                    current_agents = self._agents_container
 
-            # Ensure frame_id is set
-            current_agents.header.frame_id = "map"
-            current_agents.header.stamp = self.node.get_clock().now().to_msg()
+                # Ensure frame_id is set
+                current_agents.header.frame_id = "map"
+                current_agents.header.stamp = self.node.get_clock().now().to_msg()
 
-            # Update obstacles BEFORE sending to HuNav
-            current_agents = self._update_agent_obstacles(current_agents)
+                # Update obstacles BEFORE sending to HuNav
+                current_agents = self._update_agent_obstacles(current_agents)
 
             # Smooth yaw values before sending to HuNav
             current_agents = self._smooth_agents_before_hunav(current_agents)

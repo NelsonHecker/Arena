@@ -77,7 +77,7 @@ class ObstacleLayer(int, enum.Enum):
     WORLD = 2  # intrinsic part of world
 
 
-ObstacleT = typing.TypeVar('ObstacleT', bound=Obstacle)
+ObstacleT = typing.TypeVar('ObstacleT')
 
 
 @attrs.define()
