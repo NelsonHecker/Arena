@@ -197,7 +197,8 @@
       "--disable=W1203",
       "--disable=W2301",
       "--disable=W0101",
-      "--disable=C0301"
+      "--disable=C0301",
+      "--disable=W1514"
     ],
     "autopep8.args": [
       "--aggressive",

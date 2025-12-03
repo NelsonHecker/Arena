@@ -148,8 +148,8 @@ class TM_Prompt(TM_Obstacles):
                 config["obstacles"]["dynamic"].append(hunav_config)
 
         except Exception as e:
-            self.node.get_logger().error(f"Failed to parse Behavior tree from LLM response: {e}")
-            self.node.get_logger().error("Returning empty config!")
+            self._logger.error(f"Failed to parse Behavior tree from LLM response: {e}")
+            self._logger.error("Returning empty config!")
             config = {}
 
         return config
@@ -161,14 +161,14 @@ class TM_Prompt(TM_Obstacles):
             processed_doc = process_json_doc(
                 BT_REF_DOC_PATH
             )
-            self.node.get_logger().info("Creating Chroma DB from Behavior Tree Nodes Reference...")
+            self._logger.info("Creating Chroma DB from Behavior Tree Nodes Reference...")
             self.chroma_collection = create_chroma_db(
                 documents=processed_doc,
                 db_path=CHROMA_DB_PATH,
                 client=self.inference_client
             )
 
-    def _prompt_to_config(self, prompt: str, top_p: float, use_behavior_tree: bool, local: bool = False) -> dict:
+    async def _prompt_to_config(self, prompt: str, top_p: float, use_behavior_tree: bool, local: bool = False) -> dict:
         world_info = self.preprocess_world_description(self._PROPS.world_manager.world)
 
         messages = []
@@ -193,7 +193,7 @@ class TM_Prompt(TM_Obstacles):
                 collection=self.chroma_collection,
             )
 
-            self.node.get_logger().warn(f"Choosen bt_nodes: {bt_nodes}")
+            self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
 
             messages.append(
                 f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
@@ -232,7 +232,7 @@ class TM_Prompt(TM_Obstacles):
                 enable_thinking=False,
             )
 
-            self.node.get_logger().info("Start inference...")
+            self._logger.info("Start inference...")
             start = time.time()
 
             # Tokenize input
@@ -248,28 +248,28 @@ class TM_Prompt(TM_Obstacles):
             generated_ids = outputs[0][len(inputs.input_ids[0]):]
             answer = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
             end = time.time()
-            self.node.get_logger().info(f"Inference done, took: {end-start:.1f}s")
+            self._logger.info(f"Inference done, took: {end-start:.1f}s")
 
         else:
-            self.node.get_logger().warn("Start inference...")
+            self._logger.warn("Start inference...")
             start = time.time()
-            response = self.inference_client.models.generate_content(
+            response = await self.inference_client.aio.models.generate_content(
                 model=REMOTE_LM,
                 contents=messages,
                 config=genai.types.GenerateContentConfig(
                     cached_content=self.cached_context_name["bt"] if use_behavior_tree else self.cached_context_name["arena"],
                     top_p=top_p,
-                    temperature=0.2, # Most of the example prompts use this set of parameters (except for top_p), see https://docs.cloud.google.com/vertex-ai/generative-ai/docs/prompt-gallery/samples/extract_tech_specs
+                    temperature=0.2,  # Most of the example prompts use this set of parameters (except for top_p), see https://docs.cloud.google.com/vertex-ai/generative-ai/docs/prompt-gallery/samples/extract_tech_specs
                     top_k=40,
                     thinking_config=genai.types.ThinkingConfig(thinking_level="low"),
                 ),
             )
 
             answer = response.text
-            self.node.get_logger().warn(f"LLM raw output for the prompt: {prompt}")
-            self.node.get_logger().warn(answer)
+            self._logger.warn(f"LLM raw output for the prompt: {prompt}")
+            self._logger.warn(answer)
             end = time.time()
-            self.node.get_logger().warn(f"Inference done, took: {end-start:.1f}s")
+            self._logger.warn(f"Inference done, took: {end-start:.1f}s")
 
         assert answer is not None
         if answer.startswith("```json"):
@@ -287,8 +287,8 @@ class TM_Prompt(TM_Obstacles):
                 config = json.loads(answer)
 
         except json.JSONDecodeError as e:
-            self.node.get_logger().error(f"Failed to parse JSON from LLM response: {e}")
-            self.node.get_logger().error("Returning empty config!")
+            self._logger.error(f"Failed to parse JSON from LLM response: {e}")
+            self._logger.error("Returning empty config!")
             config = {}
 
         if DEBUG:
@@ -296,14 +296,14 @@ class TM_Prompt(TM_Obstacles):
                 file.write(answer)
             with open(f"{os.environ['HOME']}/Desktop/full_llm_input.txt", 'wt') as file:
                 file.write(messages[0])
-            self.node.get_logger().info(f"Saved LLM output to {file.name}")
+            self._logger.info(f"Saved LLM output to {file.name}")
             with tempfile.NamedTemporaryFile(delete=False, prefix='scenario', suffix=".json", dir=os.environ["HOME"], mode='w') as file:
                 json.dump(config, file)
-            self.node.get_logger().warning(f"Saved LLM output to {file.name}")
+            self._logger.warning(f"Saved LLM output to {file.name}")
 
         return config
 
-    def _parse_prompt(self, prompt: str, top_p: float, use_behavior_tree: bool) -> _ParsedConfig:
+    async def _parse_prompt(self, prompt: str, top_p: float, use_behavior_tree: bool) -> _ParsedConfig:
         """
         Parses the prompt to generate obstacles config.
 
@@ -313,7 +313,7 @@ class TM_Prompt(TM_Obstacles):
         Returns:
             _ParsedConfig: Parsed configuration containing static and dynamic obstacles.
         """
-        config = self._prompt_to_config(prompt, top_p, use_behavior_tree)
+        config = await self._prompt_to_config(prompt, top_p, use_behavior_tree)
 
         static_obstacles: list[Obstacle]
         dynamic_obstacles: list[DynamicObstacle]
@@ -341,7 +341,7 @@ class TM_Prompt(TM_Obstacles):
             os.makedirs(target_dir, exist_ok=True)
             with open(os.path.join(target_dir, 'scenario.json'), 'w') as file:
                 json.dump({'obstacles': converter.unstructure(result)}, file, indent=2)
-            self.node.get_logger().warning(f"Saved parsed prompt result to {target_dir}")
+            self._logger.warning(f"Saved parsed prompt result to {target_dir}")
 
         # import attrs
         # self._logger.warning("Final result:")
@@ -349,7 +349,7 @@ class TM_Prompt(TM_Obstacles):
         return result
 
     async def reset(self, **kwargs):
-        parsed_config = self._parse_prompt(
+        parsed_config = await self._parse_prompt(
             self._config.user_prompt.value,
             self._config.top_p.value,
             self._config.behavior_tree.value,
@@ -404,7 +404,7 @@ class TM_Prompt(TM_Obstacles):
         )
 
         if "GEMINI_API_KEY" not in os.environ:
-            self.node.get_logger().error("GEMINI_API_KEY environment variable not set!")
+            self._logger.error("GEMINI_API_KEY environment variable not set!")
             raise OSError("GEMINI_API_KEY environment variable not set!")
 
         self.inference_client = genai.Client(
@@ -430,5 +430,5 @@ class TM_Prompt(TM_Obstacles):
                 self.inference_client.caches.delete(name=cache_name)
             self.cached_context_name: dict[str, str] = {}
         except Exception as e:
-            self.node.get_logger().error(e)
-            self.node.get_logger().error(f"Can not delete cache! Maybe it was deleted earlier.")
+            self._logger.error(e)
+            self._logger.error("Can not delete cache! Maybe it was deleted earlier.")
