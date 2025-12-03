@@ -10,7 +10,6 @@ import geometry_msgs.msg
 import numpy as np
 import rclpy.client
 import rclpy.node
-import rclpy.timer
 from ament_index_python.packages import get_package_share_directory
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_people_msgs.srv import DeleteActors
@@ -281,8 +280,8 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._arena_pedestrians_container: Pedestrians = Pedestrians()
         self._arena_pedestrians_container.header.frame_id = "map"
 
-        self._update_timer: rclpy.timer.Timer | None = None
-        self._arena_peds_timer: rclpy.timer.Timer | None = None
+        self._update_loop_task: asyncio.Task
+        self._publish_loop_task: asyncio.Task
 
         self._gz_plugin_spawned: bool = False
         self._last_updated_agents = None
@@ -329,6 +328,9 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug("Service wait complete")
 
         self._logger.info("=== HUNAVMANAGER INIT COMPLETE ===")
+
+        self._update_loop_task = asyncio.create_task(self._move_entity_loop())
+        self._publish_loop_task = asyncio.create_task(self._publish_arena_peds_loop())
 
     @classmethod
     async def create(cls, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
@@ -437,7 +439,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         return True
 
     def _setup_arena_peds_publisher(self):
-        """Setup arena_peds publisher and timer - separate from services"""
+        """Setup arena_peds publisher and loops - separate from services"""
         try:
             self._logger.info("=== ARENA PEDS PUBLISHER SETUP START ===")
 
@@ -446,12 +448,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 Pedestrians,
                 self._namespace('arena_peds'),
                 10
-            )
-
-            # Create timer
-            self._arena_peds_timer = self.node.create_timer(
-                0.1,  # 10 Hz
-                self.node.syncify(self._publish_arena_peds_callback)
             )
 
             self._logger.info("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
@@ -546,12 +542,14 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug(f"Sent {len(self._wall_segments)} wall segments")
         return response
 
-    def _move_entity_callback(self):
+    async def _move_entity_loop(self):
         """Pedestrian Move Entity Callback for non gazebo simulators"""
 
         try:
-            self.node.wait_for(self._simulator.pedestrian_update(self._arena_pedestrians_container))
-
+            while True:
+                async with self._agents_lock:
+                    await self._simulator.pedestrian_update(self._arena_pedestrians_container)
+                await asyncio.sleep(0.1)  # 10 Hz
         except Exception as e:
             self._logger.error(f"Failed to update agent positions: {e}")
 
@@ -655,12 +653,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                     #     if updated_agent.id in self._pedestrians:
                     #         self._pedestrians[updated_agent.id]['agent'] = updated_agent
 
-                    if self._simulator_type != Constants.SimSimulator.GAZEBO:
-                        self._logger.debug("Non-Gazebo detected - starting movement timer")
-                        self._update_timer = self.node.create_timer(
-                            0.1,  # 10 Hz
-                            self._move_entity_callback
-                        )
                 else:
                     self._logger.error("Failed to register agents with HuNav")
             elif obstacles:
@@ -780,15 +772,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._last_smooth_yaws = {}
         self._agent_previous_orientations = {}
 
-        # Stop and cleanup movement timer if running (for non-gazebo simulators)
-        if self._update_timer:
-            try:
-                self._update_timer.destroy()
-                self._update_timer = None
-                self._logger.debug("Movement timer stopped and cleaned up")
-            except Exception as e:
-                self._logger.error(f"Error stopping movement timer: {e}")
-
         self._logger.debug("All local data structures cleared")
 
     def _create_arena_pedestrian(self, hunav_obstacle: HunavDynamicObstacle, unique_id: int) -> Pedestrian:
@@ -831,97 +814,98 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         return behavior_mapping.get(behavior_type, Pedestrian.WALKING)
 
-    async def _publish_arena_peds_callback(self):
+    async def _publish_arena_peds_loop(self):
         """Use last updated agents as current agents (like Plugin does)"""
 
-        self._logger.debug(f"arena_peds_callback: publishing {len(self._arena_pedestrians_container.pedestrians)} pedestrians")
-
-        if not self._arena_pedestrians_container.pedestrians:
-            return
-
         try:
-            # Use last updated agents as current agents
-            async with self._agents_lock:
-                if self._last_updated_agents:
-                    current_agents = self._last_updated_agents
-                else:
-                    current_agents = self._agents_container
+            while True:
+                await asyncio.sleep(0.1)  # 10 Hz
+                async with self._agents_lock:
 
-                # Ensure frame_id is set
-                current_agents.header.frame_id = "map"
-                current_agents.header.stamp = self.node.get_clock().now().to_msg()
+                    self._logger.debug(f"arena_peds_callback: publishing {len(self._arena_pedestrians_container.pedestrians)} pedestrians")
+                    if not self._arena_pedestrians_container.pedestrians:
+                        continue
 
-                # Update obstacles BEFORE sending to HuNav
-                current_agents = self._update_agent_obstacles(current_agents)
+                    # Use last updated agents as current agents
+                    if self._last_updated_agents:
+                        current_agents = self._last_updated_agents
+                    else:
+                        current_agents = self._agents_container
 
-            # Smooth yaw values before sending to HuNav
-            current_agents = self._smooth_agents_before_hunav(current_agents)
+                    # Ensure frame_id is set
+                    current_agents.header.frame_id = "map"
+                    current_agents.header.stamp = self.node.get_clock().now().to_msg()
 
-            # Create request
-            request = ComputeAgents.Request()
-            request.current_agents = current_agents
-            request.robot = _create_robot_message()
+                    # Update obstacles BEFORE sending to HuNav
+                    current_agents = self._update_agent_obstacles(current_agents)
 
-            response = await self._compute_agents_client.call_async(request)
+                    # Smooth yaw values before sending to HuNav
+                    current_agents = self._smooth_agents_before_hunav(current_agents)
 
-            if response and response.updated_agents:
-                # Fix frame_id
-                response.updated_agents.header.frame_id = "map"
-                response.updated_agents.header.stamp = self.node.get_clock().now().to_msg()
+                    # Create request
+                    request = ComputeAgents.Request()
+                    request.current_agents = current_agents
+                    request.robot = _create_robot_message()
 
-                self._last_updated_agents = response.updated_agents
+                    response = await self._compute_agents_client.call_async(request)
 
-                self._logger.debug(f"Updated agents: {self._last_updated_agents}")
+                    if response and response.updated_agents:
+                        # Fix frame_id
+                        response.updated_agents.header.frame_id = "map"
+                        response.updated_agents.header.stamp = self.node.get_clock().now().to_msg()
 
-                # Update arena pedestrians
-                for arena_ped in self._arena_pedestrians_container.pedestrians:
-                    for updated_agent in response.updated_agents.agents:
-                        if updated_agent.id == arena_ped.id:
+                        self._last_updated_agents = response.updated_agents
 
-                            calculated_vel_x, calculated_vel_y = self._calculate_velocity_from_position_change(updated_agent, arena_ped)
+                        self._logger.debug(f"Updated agents: {self._last_updated_agents}")
 
-                            arena_ped.pose = self._round_coordinates(updated_agent.position, 2)
+                        # Update arena pedestrians
+                        for arena_ped in self._arena_pedestrians_container.pedestrians:
+                            for updated_agent in response.updated_agents.agents:
+                                if updated_agent.id == arena_ped.id:
 
-                            arena_ped.twist.linear.x = updated_agent.velocity.linear.x
-                            arena_ped.twist.linear.y = updated_agent.velocity.linear.y
-                            arena_ped.twist.linear.z = 0.0
+                                    calculated_vel_x, calculated_vel_y = self._calculate_velocity_from_position_change(updated_agent, arena_ped)
 
-                            arena_ped.twist.angular.x = 0.0
-                            arena_ped.twist.angular.y = 0.0
-                            arena_ped.twist.angular.z = 0.0
+                                    arena_ped.pose = self._round_coordinates(updated_agent.position, 2)
 
-                            import math
+                                    arena_ped.twist.linear.x = updated_agent.velocity.linear.x
+                                    arena_ped.twist.linear.y = updated_agent.velocity.linear.y
+                                    arena_ped.twist.linear.z = 0.0
 
-                            # Orientation through CALCULATED VELOCITY!
-                            vel_x = calculated_vel_x
-                            vel_y = calculated_vel_y
-                            velocity_magnitude = math.sqrt(vel_x**2 + vel_y**2)
+                                    arena_ped.twist.angular.x = 0.0
+                                    arena_ped.twist.angular.y = 0.0
+                                    arena_ped.twist.angular.z = 0.0
 
-                            if velocity_magnitude > 0.05:
-                                target_yaw = math.atan2(vel_y, vel_x)
-                            else:
-                                target_yaw = updated_agent.yaw
+                                    import math
 
-                            smoothed_yaw = self._smooth_yaw_slerp(target_yaw, arena_ped.id)
+                                    # Orientation through CALCULATED VELOCITY!
+                                    vel_x = calculated_vel_x
+                                    vel_y = calculated_vel_y
+                                    velocity_magnitude = math.sqrt(vel_x**2 + vel_y**2)
 
-                            arena_ped.pose.orientation = Orientation.from_yaw(smoothed_yaw).to_msg()
+                                    if velocity_magnitude > 0.05:
+                                        target_yaw = math.atan2(vel_y, vel_x)
+                                    else:
+                                        target_yaw = updated_agent.yaw
 
-                            updated_agent.velocity.linear.x = calculated_vel_x
-                            updated_agent.velocity.linear.y = calculated_vel_y
-                            updated_agent.yaw = smoothed_yaw
-                            updated_agent.position.orientation = Orientation.from_yaw(smoothed_yaw).to_msg()
+                                    smoothed_yaw = self._smooth_yaw_slerp(target_yaw, arena_ped.id)
 
-                            break
+                                    arena_ped.pose.orientation = Orientation.from_yaw(smoothed_yaw).to_msg()
 
-            # Publish
-            for ped in self._arena_pedestrians_container.pedestrians:
-                self._logger.debug(f"Publishing pedestrian {ped.name} at ({ped.pose.position.x}, {ped.pose.position.y}) with velocity ({ped.twist.linear.x}, {ped.twist.linear.y})")
+                                    updated_agent.velocity.linear.x = calculated_vel_x
+                                    updated_agent.velocity.linear.y = calculated_vel_y
+                                    updated_agent.yaw = smoothed_yaw
+                                    updated_agent.position.orientation = Orientation.from_yaw(smoothed_yaw).to_msg()
 
-            self._arena_peds_publisher.publish(self._arena_pedestrians_container)
+                                    break
+
+                    # Publish
+                    for ped in self._arena_pedestrians_container.pedestrians:
+                        self._logger.debug(f"Publishing pedestrian {ped.name} at ({ped.pose.position.x}, {ped.pose.position.y}) with velocity ({ped.twist.linear.x}, {ped.twist.linear.y})")
+
+                    self._arena_peds_publisher.publish(self._arena_pedestrians_container)
 
         except Exception as e:
-            self._logger.error(f"Error: {e}")
-            self._logger.error(traceback.format_exc())
+            self._logger.error(f"Error in arena_peds loop: {e}\n{traceback.format_exc()}")
 
     def _smooth_yaw(self, new_yaw, current_yaw):
         import math
