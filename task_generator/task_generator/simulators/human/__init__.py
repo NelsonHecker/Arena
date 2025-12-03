@@ -122,7 +122,6 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
         to_simulator: list[DynamicObstacle] = []
         for (known, obstacle) in zip(unspawneds, await self._spawn_dynamic_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
-            self._logger.warning(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
                 continue
 
@@ -185,7 +184,6 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         for oid, known in list(self._known_obstacles.items()):
             if purge >= known.layer:
                 if isinstance(known.obstacle, DynamicObstacle):
-                    self._logger.warning(f'removing dynamic obstacle: {known.obstacle.name} {known}')
                     dynamic.append(known.obstacle)
                 else:
                     static.append(known.obstacle)

@@ -663,7 +663,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                         )
                 else:
                     self._logger.error("Failed to register agents with HuNav")
-            else:
+            elif obstacles:
                 self._logger.warning(f"No agents to register from {len(obstacles)} spawn requests")
 
             return results
