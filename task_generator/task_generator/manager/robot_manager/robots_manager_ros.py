@@ -87,19 +87,22 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         Yields:
             asyncio.Task: The task that populates the node paths.
         """
+        t: asyncio.Task | None = None
         try:
             async def task():
                 while True:
                     latest = self.node.get_node_names_and_namespaces()
                     paths.update(os.path.join(ns, name) for name, ns in latest)
                     await asyncio.sleep(1.0)
-            yield task()
+            t = asyncio.create_task(task())
+            yield t
         except asyncio.CancelledError:
             pass
         except Exception:
             self._logger.error('Error while providing node paths {e}\n{traceback.format_exc()}')
         finally:
-            pass
+            if t and not t.done():
+                t.cancel()
 
     def _parse_robot_configurations(
         self,
