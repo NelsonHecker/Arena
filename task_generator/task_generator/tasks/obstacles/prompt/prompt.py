@@ -22,8 +22,9 @@ from task_generator.tasks.obstacles import (
 )
 
 from .prompt_utils import (
-    ARENA_CONTEXT,
-    BEHAVIOR_TREE_CONTEXT,
+    SYSTEM_INSTRUCTION,
+    ARENA_FORMAT,
+    BEHAVIOR_TREE_FORMAT,
     BT_REF_DOC_PATH,
     CHROMA_DB_PATH,
     LOCAL_LM,
@@ -100,7 +101,7 @@ class TM_Prompt(TM_Obstacles):
             }
             parsed["zones"].append(parsed_zone)
 
-        return json.dumps(parsed, indent=2)
+        return json.dumps(parsed)
 
     def llm_bt_output_to_config(self, llm_output: dict) -> dict:
         try:
@@ -175,13 +176,13 @@ class TM_Prompt(TM_Obstacles):
         if use_behavior_tree:
             self.setup_chroma()
 
-            if "bt" not in self.cached_context_name.keys():  # system context is not cached (due to initialization)
+            if "bt" not in self.cached_context_name.keys():
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
                         display_name="bt-context",
-                        system_instruction="You always stick to the facts in the sources provided, and never make up new facts. Now look at these provided materials, and answer the following questions.",
-                        contents=BEHAVIOR_TREE_CONTEXT
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        contents=BEHAVIOR_TREE_FORMAT
                     )
                 )
                 if cache.name is not None:
@@ -195,24 +196,24 @@ class TM_Prompt(TM_Obstacles):
             self.node.get_logger().warn(f"Choosen bt_nodes: {bt_nodes}")
 
             messages.append(
-                f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below: {world_info}. You MUST follow the Universal Spatial Reasoning Protocol (USRP) when producing all positions, movement directions, and yaw angles. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
         else:
-            if "arena" not in self.cached_context_name.keys():  # system context is not cached (due to initialization)
+            if "arena" not in self.cached_context_name.keys():
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
                         display_name="arena-context",
-                        system_instruction="You always stick to the facts in the sources provided, and never make up new facts. Now look at these provided materials, and answer the following questions.",
-                        contents=ARENA_CONTEXT
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        contents=ARENA_FORMAT
                     )
                 )
                 if cache.name is not None:
                     self.cached_context_name.update({"arena": cache.name})
 
             messages.append(
-                f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below: {world_info}. You MUST follow the Universal Spatial Reasoning Protocol (USRP) when producing all positions, movement directions, and yaw angles. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
         if local:  # Currently not supported
@@ -258,11 +259,10 @@ class TM_Prompt(TM_Obstacles):
                 config=genai.types.GenerateContentConfig(
                     cached_content=self.cached_context_name["bt"] if use_behavior_tree else self.cached_context_name["arena"],
                     top_p=top_p,
-                    thinking_config=genai.types.ThinkingConfig(
-                        include_thoughts=False,
-                        thinking_budget=24576
-                    ),
-                )
+                    temperature=0.2, # Most of the example prompts use this set of parameters (except for top_p), see https://docs.cloud.google.com/vertex-ai/generative-ai/docs/prompt-gallery/samples/extract_tech_specs
+                    top_k=40,
+                    thinking_config=genai.types.ThinkingConfig(thinking_level="low"),
+                ),
             )
 
             answer = response.text
@@ -292,6 +292,11 @@ class TM_Prompt(TM_Obstacles):
             config = {}
 
         if DEBUG:
+            with open(f"{os.environ['HOME']}/Desktop/raw_llm_output.txt", 'wt') as file:
+                file.write(answer)
+            with open(f"{os.environ['HOME']}/Desktop/full_llm_input.txt", 'wt') as file:
+                file.write(messages[0])
+            self.node.get_logger().info(f"Saved LLM output to {file.name}")
             with tempfile.NamedTemporaryFile(delete=False, prefix='scenario', suffix=".json", dir=os.environ["HOME"], mode='w') as file:
                 json.dump(config, file)
             self.node.get_logger().warning(f"Saved LLM output to {file.name}")
@@ -405,6 +410,14 @@ class TM_Prompt(TM_Obstacles):
         self.inference_client = genai.Client(
             api_key=os.environ["GEMINI_API_KEY"]
         )
+
+        try:
+            caches = self.inference_client.caches.list()
+            if caches:
+                for cache in caches:
+                    self.inference_client.caches.delete(name=cache.name)
+        except Exception as e:
+            print(e)
 
         self.cached_context_name: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
 
