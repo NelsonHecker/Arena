@@ -191,7 +191,6 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         for oid, known in list(self._known_obstacles.items()):
             if purge >= known.layer:
                 if isinstance(known.obstacle, DynamicObstacle):
-                    self._logger.info(f'removing dynamic obstacle: {known.obstacle.name} {known}')
                     dynamic.append(known.obstacle)
                 else:
                     static.append(known.obstacle)

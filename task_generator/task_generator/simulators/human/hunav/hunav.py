@@ -550,8 +550,10 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 async with self._agents_lock:
                     await self._simulator.pedestrian_update(self._arena_pedestrians_container)
                 await asyncio.sleep(0.1)  # 10 Hz
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
-            self._logger.error(f"Failed to update agent positions: {e}")
+            self._logger.error(f"Failed to update agent positions: {e}\n{traceback.format_exc()}")
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles):
         async with self._agents_lock:
@@ -904,6 +906,9 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                         self._logger.debug(f"Publishing pedestrian {ped.name} at ({ped.pose.position.x}, {ped.pose.position.y}) with velocity ({ped.twist.linear.x}, {ped.twist.linear.y})")
 
                     self._arena_peds_publisher.publish(self._arena_pedestrians_container)
+
+        except asyncio.CancelledError:
+            pass
 
         except Exception as e:
             self._logger.error(f"Error in arena_peds loop: {e}\n{traceback.format_exc()}")
