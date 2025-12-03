@@ -55,7 +55,6 @@ __pycache__/
 
 /**/__pycache__
 
-*.lock
 *.bkup
 *.log
 *install/
