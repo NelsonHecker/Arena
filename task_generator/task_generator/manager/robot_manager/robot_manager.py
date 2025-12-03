@@ -272,7 +272,7 @@ class RobotManager(NodeInterface):
             req = ClearCostmapAroundRobot.Request()
             req.reset_distance = reset_distance
 
-        state = self.node.get_lifecycle_state(node_name)
+        state = await self.node.get_lifecycle_state_async(node_name)
         if state.id != lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE:
             return False
 
@@ -384,7 +384,7 @@ class RobotManager(NodeInterface):
     async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot external nodes.
         """
-        self._logger.warn(f"START WITH MODEL {self.name}")
+        self._logger.info(f"LAUNCH ROBOT {self.name}")
 
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
             launch_description = launch.LaunchDescription()
@@ -425,11 +425,9 @@ class RobotManager(NodeInterface):
                     launch_arguments=launch_arguments.items(),
                 )
             )
-            self._logger.warn(f"LAUNCHING ROBOT {self.name}")
             await self.node.do_launch(launch_description)
 
             bt_node_path = str(self.namespace('bt_navigator'))
-            self._logger.warn(f"WAITIN FOR ROBOT {self.name} {bt_node_path}")
             self._logger.info(f'waiting for {bt_node_path}')
             while bt_node_path not in node_paths:
                 await asyncio.sleep(0.01)
