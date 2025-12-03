@@ -66,3 +66,8 @@ training = [
 [build-system]
 requires = ["setuptools<80", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "aiomonitor>=0.7.1",
+]

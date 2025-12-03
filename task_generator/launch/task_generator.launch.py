@@ -2,13 +2,14 @@
 import os
 import typing
 
+import launch.event_handlers
+import launch.launch_description_sources
 import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import CurrentNamespaceSubstitution, LaunchArgument
 
 import launch
-import launch.launch_description_sources
 
 
 def generate_launch_description():
@@ -79,6 +80,10 @@ def generate_launch_description():
         name='prefix',
         default_value='',
     )
+    debug = LaunchArgument(
+        name='debug',
+        default_value='False',
+    )
 
     map_server_node = launch.actions.IncludeLaunchDescription(
         launch.launch_description_sources.PythonLaunchDescriptionSource(
@@ -143,9 +148,20 @@ def generate_launch_description():
                 **record_data_dir.str_param,
                 **reference.param(typing.List[float]),
                 **prefix.str_param,
+                **debug.param(bool),
             },
             parameter_file.substitution,
         ],
+    )
+
+    debug_window_cb = launch.event_handlers.OnProcessStart(
+        target_action=task_generator_node,
+        on_start=[
+            launch.actions.ExecuteProcess(
+                cmd=['/usr/bin/x-terminal-emulator', '-e', 'bash -c "sleep 5; python -m aiomonitor.cli"'],
+                output='screen',
+            )
+        ]
     )
 
     ld = launch.LaunchDescription([
@@ -156,6 +172,10 @@ def generate_launch_description():
             pedestrian_marker_node,
             rviz_node
         ]),
+        launch.actions.RegisterEventHandler(
+            debug_window_cb,
+            condition=launch.conditions.IfCondition(debug.substitution),
+        ),
         task_generator_node,
         # launch_ros.actions.Node(
         #     package='task_generator',

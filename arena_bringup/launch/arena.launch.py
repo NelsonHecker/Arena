@@ -110,6 +110,11 @@ def generate_launch_description():
         default_value='50',
         description='space between environments'
     )
+    debug = LaunchArgument(
+        name='debug',
+        default_value='False',
+        description='Enable debug features'
+    )
 
     def create_task_generators(
         context: launch.LaunchContext,
@@ -216,6 +221,7 @@ def generate_launch_description():
                     **global_planner.dict,
                     **world.dict,
                     **record_data_dir.dict,
+                    **debug.dict,
                     'namespace': namespace,
                     'headless': headlessness,
                     'reference': str(reference),
