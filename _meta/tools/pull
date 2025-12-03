@@ -46,7 +46,7 @@ fi
 
 if [ $_PYTHON -eq 1 ] ; then
     echo updating python deps...
-    uv pip install -r pyproject.toml
+    uv sync --inexact
 fi
 
 # update links

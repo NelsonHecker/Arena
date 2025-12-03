@@ -62,22 +62,23 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
         futures: list[typing.Awaitable] = []
         unspawneds: list[KnownObstacle[Obstacle]] = []
+        to_move: list[Obstacle] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
                 known.obstacle = obstacle
-                futures.append(self._simulator.obstacle_move((known.obstacle,)))
+                to_move.append(known.obstacle)
+                known.layer = layer
             else:
                 known = self._known_obstacles.create_or_get(
                     name=obstacle.name,
                     obstacle=obstacle,
                 )
-            if known.spawned:
-                known.layer = layer
-            else:
                 unspawneds.append(known)
+        if to_move:
+            futures.append(self._simulator.obstacle_move(to_move))
 
-        to_simulator: list[Obstacle] = []
+        to_spawn: list[Obstacle] = []
         for (known, obstacle) in zip(unspawneds, await self._spawn_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
             if not obstacle:
                 continue
@@ -85,10 +86,11 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             known.spawned = True
 
             if known.layer == ObstacleLayer.UNUSED:
-                to_simulator.append(known.obstacle)
+                to_spawn.append(known.obstacle)
             known.layer = layer
 
-        futures.append(self._simulator.obstacle_spawn(to_simulator))
+        if to_spawn:
+            futures.append(self._simulator.obstacle_spawn(to_spawn))
         await asyncio.gather(*futures)
 
     async def spawn_dynamic_obstacles(
@@ -103,24 +105,24 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f'spawning {len(obstacles)} dynamic obstacles')
 
         futures: list[typing.Awaitable] = []
+        to_move: list[DynamicObstacle] = []
         unspawneds: list[KnownObstacle[DynamicObstacle]] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
                 known.obstacle = obstacle
-                futures.append(self._simulator.pedestrian_move((known.obstacle,)))
+                to_move.append(known.obstacle)
+                known.layer = ObstacleLayer.INUSE
             else:
                 known = self._known_obstacles.create_or_get(
                     name=obstacle.name,
                     obstacle=obstacle
                 )
-
-            if known.spawned:
-                known.layer = ObstacleLayer.INUSE
-            else:
                 unspawneds.append(known)
+        if to_move:
+            futures.append(self._simulator.pedestrian_move(to_move))
 
-        to_simulator: list[DynamicObstacle] = []
+        to_spawn: list[DynamicObstacle] = []
         for (known, obstacle) in zip(unspawneds, await self._spawn_dynamic_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
             self._logger.info(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
@@ -130,10 +132,11 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             known.spawned = True
 
             if known.layer == ObstacleLayer.UNUSED:
-                to_simulator.append(known.obstacle)
+                to_spawn.append(known.obstacle)
             known.layer = ObstacleLayer.INUSE
 
-        futures.append(self._simulator.pedestrian_spawn(to_simulator))
+        if to_spawn:
+            futures.append(self._simulator.pedestrian_spawn(to_spawn))
         await asyncio.gather(*futures)
 
     async def spawn_world(
