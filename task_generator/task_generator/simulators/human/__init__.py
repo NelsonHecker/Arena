@@ -61,7 +61,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f'spawning {len(obstacles)} static obstacles')
 
         futures: list[typing.Awaitable] = []
-        unspawneds: list[KnownObstacle[Obstacle]] = []
+        to_register: list[KnownObstacle[Obstacle]] = []
         to_move: list[Obstacle] = []
 
         for obstacle in obstacles:
@@ -74,12 +74,13 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                     name=obstacle.name,
                     obstacle=obstacle,
                 )
-                unspawneds.append(known)
+            if not known.spawned:
+                to_register.append(known)
         if to_move:
             futures.append(self._simulator.obstacle_move(to_move))
 
         to_spawn: list[Obstacle] = []
-        for (known, obstacle) in zip(unspawneds, await self._spawn_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
+        for (known, obstacle) in zip(to_register, await self._spawn_obstacles_impl([known.obstacle for known in to_register])):
             if not obstacle:
                 continue
             known.obstacle = obstacle
@@ -105,8 +106,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f'spawning {len(obstacles)} dynamic obstacles')
 
         futures: list[typing.Awaitable] = []
+        to_register: list[KnownObstacle[DynamicObstacle]] = []
         to_move: list[DynamicObstacle] = []
-        unspawneds: list[KnownObstacle[DynamicObstacle]] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
@@ -118,12 +119,13 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                     name=obstacle.name,
                     obstacle=obstacle
                 )
-                unspawneds.append(known)
+            if not known.spawned:
+                to_register.append(known)
         if to_move:
             futures.append(self._simulator.pedestrian_move(to_move))
 
         to_spawn: list[DynamicObstacle] = []
-        for (known, obstacle) in zip(unspawneds, await self._spawn_dynamic_obstacles_impl([unspawned.obstacle for unspawned in unspawneds])):
+        for (known, obstacle) in zip(to_register, await self._spawn_dynamic_obstacles_impl([known.obstacle for known in to_register])):
             self._logger.info(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
                 continue
