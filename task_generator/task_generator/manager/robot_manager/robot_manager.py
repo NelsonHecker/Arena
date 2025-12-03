@@ -272,7 +272,7 @@ class RobotManager(NodeInterface):
             req = ClearCostmapAroundRobot.Request()
             req.reset_distance = reset_distance
 
-        state = self.node.get_lifecycle_state(node_name)
+        state = await self.node.get_lifecycle_state_async(node_name)
         if state.id != lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE:
             return False
 
