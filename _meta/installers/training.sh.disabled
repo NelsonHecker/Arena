@@ -2,7 +2,7 @@
 
 install(){
     cd "$ARENA_DIR"
-    uv pip install -r pyproject.toml --extras training
+    uv sync --inexact --extra training
 }
 
 uninstall(){
