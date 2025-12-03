@@ -30,7 +30,7 @@ class TM_Explore(TM_Random):
             bool: True if the task is done for all robots, False otherwise.
         """
         for robot, manager in self._PROPS.robots.items():
-            if manager.is_done:
+            if await manager.is_done:
                 waypoint = self._PROPS.world_manager.get_position_on_map(
                     safe_dist=manager.safe_distance, forbid=False
                 )
