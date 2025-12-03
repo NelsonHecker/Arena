@@ -699,6 +699,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             # Phase 2: Clear local agents container
             self._agents_container = Agents()
             self._get_agents_container = Agents()
+            self._last_updated_agents: Agents | None = None
             self._logger.debug("Cleared local agents container")
 
             # Phase 3: Reset HunavSim
