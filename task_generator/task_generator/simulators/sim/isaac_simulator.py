@@ -13,6 +13,7 @@ import isaacsim_msgs.msg
 import numpy as np
 import rclpy
 import rclpy.client
+import std_msgs.msg
 import std_srvs.srv
 from arena_simulation_setup.shared import Door as DoorDefinition
 from arena_simulation_setup.shared import Elevator as ElevatorDefinition
@@ -148,10 +149,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
                             pose=robot.pose.to_msg(),
                             cmd_vel_topic=self.node.service_namespace(robot.name, 'cmd_vel'),
                             joint_states_topic=self.node.service_namespace(robot.name, 'joint_states'),
+                            odom_topic=self.node.service_namespace(robot.name, 'odom'),
                         )
                     )
 
-                    # from isaac_utils.managers.door_manager import
                     base_frame = robot_params.base_frame
                     robot_prim_path = os.path.join("/World", fq_name, base_frame)
 
@@ -535,6 +536,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
             self._logger.debug(f'Waiting for service "{service.name}"...')
             futures.append(self.node.wait_for_service_async(service.client))
         await asyncio.gather(*futures)
+
+        self.node.create_publisher(std_msgs.msg.String, '/isaac/add_pedestrians_topic', 10).publish(
+            std_msgs.msg.String(data=self.node.service_namespace('arena_peds'))
+        )
 
         self._logger.info("All service clients initialized and available.")
 
