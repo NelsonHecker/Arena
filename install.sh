@@ -81,6 +81,7 @@ fi
 if ! which uv ; then
     echo "Installing uv...:"
     curl -LsSf https://astral.sh/uv/install.sh | sh
+    . "$HOME/.local/bin/env" # source uv
 fi
 
 # for building python
