@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import itertools
 import logging
 import os
 import subprocess
 import threading
 import typing
+import warnings
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Optional
-import warnings
 
 import attrs
 from typing_extensions import Self
@@ -22,7 +23,6 @@ from arena_simulation_setup import (
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable, Serializable
 
 NETWORK_PROVIDERS: Sequence[str] = os.environ.get('ASSET_BUCKETS', 'default').split(',')
-ANNOTATION_MARKER = 'annotation.yaml'
 
 # Utils
 
@@ -122,23 +122,25 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
 
     def listall(self, **kwargs) -> Iterator[IdentifierT]:
         """
-        List all local assets available. Builds the cache in the process.
+        List all local assets available.
         """
         source = self.path
-        for root, _, files in os.walk(source):
-            if self._asset_type != Path(root).parts[0]:
+        for root, dirs, files in os.walk(source):
+            relpath = Path(root).relative_to(source)
+            try:
+                yield self._IdentifierT.from_relpath(relpath)
+                # don't recurse
+                dirs.clear()
                 continue
+            except Exception:
+                pass
+
             for file in files:
-                if not file == ANNOTATION_MARKER:
-                    continue
-                relpath = Path(root).relative_to(source)
+                file_relpath = relpath / file
                 try:
-                    identifier = self._IdentifierT.from_relpath(relpath)
+                    yield self._IdentifierT.from_relpath(file_relpath)
                 except Exception:
-                    continue
-                self._cache[identifier] = identifier.relpath()
-                yield identifier
-            _.clear()
+                    pass
 
     def __repr__(self) -> str:
         return f"{super().__repr__()}(path={self.path})"
@@ -436,7 +438,7 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
     @classmethod
     def from_relpath(cls, relpath: Path) -> Self:
         assert len(relpath.parts) >= 1, f'Expected at least 1 part in relpath, got {len(relpath.parts)}'
-        return cls(name=str(relpath.parts))
+        return cls(name=str(relpath))
 
     @classmethod
     def parse(cls, value: str | Self) -> Self:
@@ -524,7 +526,7 @@ class AssetIdentifier(Identifier[T], typing.Generic[T]):
         """
         assert len(relpath.parts) >= 2, f'Expected at least 2 parts in relpath, got {len(relpath.parts)}'
         assert relpath.parts[0] == cls._asset_type, f'Expected asset type {cls._asset_type}, got {relpath.parts[0]}'
-        return cls(name=str(relpath.parts[1:]))
+        return cls(name=str(Path(*relpath.parts[1:])))
 
 
 @attrs.define(eq=False, hash=False)
@@ -600,7 +602,7 @@ class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
         """
         assert len(relpath.parts) >= 3, f'Expected at least 3 parts in relpath, got {len(relpath.parts)}'
         assert relpath.parts[1] == cls._asset_type, f'Expected asset type {cls._asset_type}, got {relpath.parts[0]}'
-        return cls(domain=relpath.parts[0], name=str(relpath.parts[2:]))
+        return cls(domain=relpath.parts[0], name=str(Path(*relpath.parts[2:])))
 
 
 @attrs.define(eq=False, hash=False)
