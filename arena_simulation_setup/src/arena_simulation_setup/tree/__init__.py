@@ -186,6 +186,9 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
         super().__init__(_T, path=path, **kwargs)
         self._provider: str = provider
 
+        self._running_fetches: dict[IdentifierT, asyncio.Task[Optional[Path]]] = {}
+        self._running_lock = asyncio.Lock()
+
     @classmethod
     async def check_output_async(cls, args: Iterable[str], **kwargs) -> bytes:
         process = await asyncio.create_subprocess_exec(
@@ -199,13 +202,32 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
             raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
         return stdout
 
+    async def _do_fetch(self, root_path, target_path, relpath: Path) -> Optional[Path]:
+        try:
+            logging.info(f"Fetching asset {relpath} from network provider {self._provider}...")
+            await self.check_output_async([
+                'ros2',
+                'run',
+                'arena_models',
+                'arena_models',
+                '-s',
+                'net',
+                self._provider,
+                'fetch',
+                str(relpath),
+                '-o',
+                str(root_path),
+            ])
+            return target_path
+
+        except subprocess.CalledProcessError:
+            return None
+
     async def _network_fetch(self, provider: str, identifier: IdentifierT) -> Optional[Path]:
         relpath = identifier.relpath()
         root_path = ARENA_ASSETS_DIR / provider
         target_path = root_path / relpath
 
-        if target_path.exists():
-            return target_path
         try:
             if (await self.check_output_async([
                 'ros2',
@@ -241,12 +263,24 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
         """
         Resolve the given name.
         """
+        if identifier in self._cache:
+            return self._cache[identifier]
+
         local_result = await SimplePathResolver.resolve(self, identifier)
         if local_result is not None:
             return local_result
-        net_result = await self._network_fetch(self._provider, identifier)
+
+        async with self._running_lock:
+            if identifier in self._running_fetches:
+                fetch_task = self._running_fetches[identifier]
+            else:
+                fetch_task = asyncio.create_task(self._network_fetch(self._provider, identifier))
+                self._running_fetches[identifier] = fetch_task
+
+        net_result = await fetch_task
         if net_result is not None:
             self._cache[identifier] = net_result
+
         return self._cache.get(identifier, None)
 
     def listall(self, *, network: bool = False, **kwargs) -> Iterator[IdentifierT]:
