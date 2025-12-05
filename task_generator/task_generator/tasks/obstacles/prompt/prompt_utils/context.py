@@ -240,60 +240,48 @@ ARENA_FIELD_DESCRIPTION = """
 BEHAVIOR_TREE_OUTPUT_FORMAT = """
     Do NOT explain anything. Output JSON only. Use realistic (x, y, 0) coordinates. Output must strictly follow this structure:
     ```json
+{
+  "hunav_agents": [
     {
-        "hunav_agents": [
-            {
-                "name": <agent name>,
-                "pos": [
-                    <x>,
-                    <y>,
-                    <yaw>
-                ],
-                "type": <agent type>,
-                "model": <agent model>,
-                "waypoints": [
-                    [
-                        <x_1>,
-                        <y_1>,
-                        <yaw_1>
-                    ],
-                    ...,
+      "name": <agent name>,
+      "pos": [
+        <x>,
+        <y>,
+        <yaw>
+      ],
+      "type": <agent type>,
+      "model": <agent model>
+    },
+  ... ,
+  ],
 
-                    [
-                        <x_n>,
-                        <y_n>,
-                        <yaw_n>
-                    ]
-                ]
-            },
-            ... ,
-        ],
-        "single_agent_nodes": [
-            {
-                "name": <node name>,
-                "attributes": {
-                    <node attribute>: <attribute value>,
-                },
-                "order": <node order>
-            },
-            ...
-        ],
-        "multi_agent_nodes": [
-            {
-                "name": <node name>,
-                "attributes": {
-                    <node attribute>: <attribute value>,
-                },
-                "orders": {
-                    <agent 1 name>: <node order in agent 1>,
-                    ... ,
-                    <agent n name>: <node order in agent n>,
-                }
-            },
-            ,
-            ...
-        ]
-    }
+  "single_agent_nodes": [
+    {
+      "name": <node name>,
+      "attributes": {
+        <node attribute>: <attribute value>,
+      },
+      "order": <node order>
+    },
+    ...
+  ],
+
+  "multi_agent_nodes": [
+    {
+      "name": <node name>,
+      "attributes": {
+        <node attribute>: <attribute value>,
+      },
+      "orders": {
+        <agent 1 name>: <node order in agent 1>,
+        ... ,
+        <agent n name>: <node order in agent n>,
+      }
+    },
+    ,
+    ...
+  ]
+}
     ```
 """
 
@@ -422,140 +410,36 @@ Metadata:
   "hunav_agents": [
     {
       "name": "hunav_1",
-      "pos": [
-        8.5,
-        2.0,
-        90.0
-      ],
+      "pos": [8.5, 2.0, 90.0],
       "type": "adult",
       "model": "male_adult_construction_01",
-      "waypoints": [
-        [
-          8.5,
-          2.0,
-          90.0
-        ],
-        [
-          4.0,
-          1.0,
-          90.0
-        ],
-        [
-          14.0,
-          2.0,
-          0.0
-        ]
-      ]
     },
     {
       "name": "hunav_2",
-      "pos": [
-        8.5,
-        3.0,
-        90.0
-      ],
+      "pos": [8.5, 3.0, 90.0],
       "type": "adult",
       "model": "male_adult_construction_02",
-      "waypoints": [
-        [
-          8.5,
-          3.0,
-          90.0
-        ],
-        [
-          4.0,
-          1.0,
-          90.0
-        ],
-        [
-          14.0,
-          2.0,
-          0.0
-        ]
-      ]
     },
     {
       "name": "hunav_3",
-      "pos": [
-        8.5,
-        4.0,
-        90.0
-      ],
+      "pos": [8.5, 4.0, 90.0],
       "type": "adult",
       "model": "male_adult_construction_03",
-      "waypoints": [
-        [
-          8.5,
-          4.0,
-          90.0
-        ],
-        [
-          4.0,
-          1.0,
-          90.0
-        ],
-        [
-          14.0,
-          2.0,
-          0.0
-        ]
-      ]
     },
     {
       "name": "hunav_4",
-      "pos": [
-        8.5,
-        5.0,
-        90.0
-      ],
+      "pos": [8.5, 5.0, 90.0],
       "type": "adult",
       "model": "male_adult_construction_05",
-      "waypoints": [
-        [
-          8.5,
-          5.0,
-          90.0
-        ],
-        [
-          4.0,
-          1.0,
-          90.0
-        ],
-        [
-          14.0,
-          2.0,
-          0.0
-        ]
-      ]
     },
     {
       "name": "hunav_5",
-      "pos": [
-        8.5,
-        6.0,
-        90.0
-      ],
+      "pos": [8.5, 6.0, 90.0],
       "type": "adult",
       "model": "male_adult_construction_01",
-      "waypoints": [
-        [
-          8.5,
-          6.0,
-          90.0
-        ],
-        [
-          4.0,
-          1.0,
-          90.0
-        ],
-        [
-          14.0,
-          2.0,
-          0.0
-        ]
-      ]
     }
   ],
+
   "single_agent_nodes": [
     {
       "name": "GoTo",
@@ -658,6 +542,7 @@ Metadata:
       "order": 2
     }
   ],
+
   "multi_agent_nodes": [
     {
       "name": "AdvanceQueue",
@@ -694,38 +579,33 @@ Metadata:
 BEHAVIOR_TREE_FIELD_DESCRIPTION = """
     Top-level structure
     - "hunav_agents" contains a list of hunav agents, each with:
-        - `name`: the agent's unique identifier (e.g., "hunav_1").
-        - `pos`: a list [x, y, yaw] representing the object's position and rotation. You should pay attention to where the agent should be spawned and faced, place the agent within the correct zone and adjust the yaw reasonably.
-        - `type`: the type of dynamic obstacle (e.g., `adult`, `child`, etc.).
-        - `model`: the type of model used for the dynamic obstacle. the type of model can be one of the following only:
-            - "female_adult_business_02"
-            - "female_adult_medical_01"
-            - "female_adult_police_01"
-            - "female_adult_police_02"
-            - "female_adult_police_03"
-            - "male_adult_construction_01"
-            - "male_adult_construction_02"
-            - "male_adult_construction_03"
-            - "male_adult_construction_05"
-            - "male_adult_medical_01"
-            - "male_adult_police_04"
-        - `waypoints`: a list of waypoints for the dynamic obstacle in the format [[x_1, y_1, yaw_1], [x_2, y_2, yaw_n], ...]. The `waypoints` must satisfy the following constraints:
-            - The first waypoint must be within the zone the dynamic obstacle is initialized base on the user's prompt, the last waypoint must be within the zone the user's defined.
-            - The waypoints must be valid positions on the map, avoiding walls and obstacles.
-        - `single_agent_nodes`: the behavior tree nodes that one and only one agent involved in.
-        - `multi_agent_nodes`: the behavior tree nodes that more than one agent involved in.
+      - `name`: the agent's unique identifier (e.g., "hunav_1").
+      - `pos`: a list [x, y, yaw] representing the object's position and rotation. You should pay attention to where the agent should be spawned and faced, place the agent within the correct zone and adjust the yaw reasonably.
+      - `type`: the type of dynamic obstacle (e.g., `adult`, `child`, etc.).
+      - `model`: the type of model used for the dynamic obstacle. the type of model can be one of the following only:
+        - "female_adult_business_02"
+        - "female_adult_medical_01"
+        - "female_adult_police_01"
+        - "female_adult_police_02"
+        - "female_adult_police_03"
+        - "male_adult_construction_01"
+        - "male_adult_construction_02"
+        - "male_adult_construction_03"
+        - "male_adult_construction_05"
+        - "male_adult_medical_01"
+        - "male_adult_police_04"
 
-    Inside `single_agent_nodes`: Contains a list of behavior tree nodes, each has:
-    - `name`: name of the node, only use provided node name, do not modify!
-    - `agent_name`: name of the agent this node applies to
-    - `attributes`: a dictionary of key-value pairs (parameters passed to the node)
-    - `order`: an integer represent the order of execution of this node in the agent behavior tree. The agent will handle nodes in a ascending order determined by this field. For each agent, every nodes must be unique no matter the type (single-agent or multi-agent nodes) is.
+    - "single_agent_nodes": Contains a list of behavior tree nodes that one and only one agent involved in, each has:
+      - `name`: name of the node, only use provided node name, do not modify!
+      - `agent_name`: name of the agent this node applies to
+      - `attributes`: a dictionary of key-value pairs (parameters passed to the node)
+      - `order`: an integer represent the order of execution of this node in the agent behavior tree. The agent will handle nodes in a ascending order determined by this field. For each agent, every nodes must be unique no matter the type (single-agent or multi-agent nodes) is.
 
-    Inside `multi_agent_nodes`: Contains a list of behavior tree nodes, each has:
-    - `name`: name of the node
-    - `agents_names`: list of the agents' names this node applies to
-    - `attributes`: a dictionary of key-value pairs (parameters passed to the node)
-    - `order`: a dictionary of key-value pairs (<agent name>-<order value>) represent the order of execution of this node in each agent behavior tree. The agents will handle nodes in a ascending order determined by this field. For each agent, every nodes must be unique no matter the type (single-agent or multi-agent nodes) is.
+    - "multi_agent_nodes": Contains a list of behavior tree nodes that more than one agent involved in, each has:
+      - `name`: name of the node
+      - `agents_names`: list of the agents' names this node applies to
+      - `attributes`: a dictionary of key-value pairs (parameters passed to the node)
+      - `order`: a dictionary of key-value pairs (<agent name>-<order value>) represent the order of execution of this node in each agent behavior tree. The agents will handle nodes in a ascending order determined by this field. For each agent, every nodes must be unique no matter the type (single-agent or multi-agent nodes) is.
 """
 
 SYSTEM_INSTRUCTION = f"""

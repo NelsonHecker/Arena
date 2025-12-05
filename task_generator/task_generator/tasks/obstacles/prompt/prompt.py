@@ -189,7 +189,7 @@ class TM_Prompt(TM_Obstacles):
                     self.cached_context_name.update({"bt": cache.name})
 
             bt_nodes = get_relevant_bt_nodes(
-                query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\".",
+                query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\". Use GoTo node to guide agents to isolated places if needed.",
                 collection=self.chroma_collection,
             )
 
