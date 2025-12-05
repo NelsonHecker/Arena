@@ -1,0 +1,42 @@
+dynamic:
+- name: hunav_1
+  model: male_adult_construction_01
+  pose: [8.5, 5.0 ,0]
+  waypoints:
+    - [10,10,0]
+  behavior_tree: ./hunav_1_behavior_tree.xml
+
+- name: hunav_2
+  model: male_adult_construction_01
+  pose: [8.5, 6.0 ,0]
+  waypoints:
+    - [10,10,0]
+  behavior_tree: ./hunav_2_behavior_tree.xml
+
+- name: hunav_3
+  model: male_adult_construction_01
+  pose: [8.5, 7.0 ,0]
+  waypoints:
+    - [10,10,0]
+  behavior_tree: ./hunav_3_behavior_tree.xml
+
+- name: hunav_4
+  model: male_adult_construction_01
+  pose: [8.5, 8.0 ,0]
+  waypoints:
+    - [10,10,0]
+  behavior_tree: ./hunav_4_behavior_tree.xml
+
+- name: hunav_5
+  model: male_adult_construction_01
+  pose: [8.5, 9.0 ,0]
+  waypoints:
+    - [10,10,0]
+  behavior_tree: ./hunav_5_behavior_tree.xml
+
+- name: hunav_6
+  model: female_adult_medical_01
+  pose: [3.5, 1.5, 0]
+  waypoints:
+    - [10,10,0]
+  behavior_tree: ./hunav_6_behavior_tree.xml

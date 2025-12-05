@@ -16,19 +16,25 @@
     <BehaviorTree ID="hunav_2_behavior_tree">
         <Sequence>
             <Sequence>
-                <SetGoal agent_id="{id}" goal_id="11" target_x="8.5" target_y="2.800539205380415" />
-                <GoTo agent_id="{id}" goal_id="11" time_step="0.1" tolerance="1" />
+                <SetGoal agent_id="{id}" goal_id="11" target_x="8.5" target_y="5.5" />
+                <GoTo agent_id="{id}" goal_id="11" time_step="0.1" tolerance="0.5" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
-                <GoTo agent_id="{id}" goal_id="10" time_step="0.1" tolerance="1" />
+                <GoTo agent_id="{id}" goal_id="10" time_step="0.1" tolerance="0.5" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
             </Sequence>
             <Sequence>
-                <SetGoal agent_id="{id}" goal_id="2" target_x="4.0" target_y="1.0" />
+                <SetGoal agent_id="{id}" goal_id="2" target_x="6.0" target_y="2.5" />
                 <GoTo agent_id="{id}" goal_id="2" time_step="0.1" tolerance="0.5" />
+                <StopAndWaitTimerAction agent_id="{id}" wait_duration="5.0" />
             </Sequence>
             <Sequence>
-                <SetGoal agent_id="{id}" goal_id="3" target_x="14.0" target_y="2.0" />
+                <SetGoal agent_id="{id}" goal_id="16" target_x="10.5" target_y="4.0" />
+                <GoTo agent_id="{id}" goal_id="16" time_step="0.1" tolerance="0.5" />
+                <SetGoal agent_id="{id}" goal_id="3" target_x="12.0" target_y="11.0" />
                 <GoTo agent_id="{id}" goal_id="3" time_step="0.1" tolerance="0.5" />
+                <SetGoal agent_id="{id}" goal_id="21" target_x="23.2" target_y="6.0" />
+                <GoTo agent_id="{id}" goal_id="21" time_step="0.1" tolerance="0.5" />
+                <StopAndWaitTimerAction agent_id="{id}" wait_duration="60.0" />
             </Sequence>
         </Sequence>
     </BehaviorTree>

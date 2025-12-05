@@ -1,4 +1,3 @@
- 
 <?xml version='1.0' encoding='UTF-8'?>
 <root main_tree_to_execute="hunav_1_behavior_tree" BTCPP_format="4">
     <TreeNodesModel>
@@ -18,7 +17,7 @@
         <Sequence>
             <Sequence>
                 <SetGoal agent_id="{id}" goal_id="0" target_x="8.5" target_y="2.0" />
-                <GoTo agent_id="{id}" goal_id="0" time_step="0.1" tolerance="1" />
+                <GoTo agent_id="{id}" goal_id="0" time_step="0.1" tolerance="0.1" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
             </Sequence>
             <Sequence>
