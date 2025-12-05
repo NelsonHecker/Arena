@@ -1,0 +1,140 @@
+dynamic:
+- behavior_tree: ./hunav_1_behavior_tree.xml
+  model: female_adult_medical_01
+  name: hunav_1
+  pose: [4.0, 2.0, 0.0]
+  waypoint:
+  - [4.0, 2.0, 0.0]
+
+- behavior_tree: ./hunav_2_behavior_tree.xml
+  model: male_adult_medical_01
+  name: hunav_2
+  pose: [2.0, 3.0, 0.0]
+  waypoint:
+  - [2.0, 3.0, 0.0]
+
+- behavior_tree: ./hunav_3_behavior_tree.xml
+  model: female_adult_business_02
+  name: hunav_3
+  pose: [6.0, 3.5, 0.0]
+  waypoint:
+  - [6.0, 3.5, 0.0]
+
+- behavior_tree: ./hunav_4_behavior_tree.xml
+  model: male_adult_construction_01
+  name: hunav_4
+  pose: [2.0, 7.0, 0.0]
+  waypoint:
+  - [2.0, 7.0, 0.0]
+
+- behavior_tree: ./hunav_5_behavior_tree.xml
+  model: female_adult_police_01
+  name: hunav_5
+  pose: [6.0, 8.0, 0.0]
+  waypoint:
+  - [6.0, 8.0, 0.0]
+
+- behavior_tree: ./hunav_6_behavior_tree.xml
+  model: male_adult_construction_02
+  name: hunav_6
+  pose: [4.0, 16.0, 0.0]
+  waypoint:
+  - [4.0, 16.0, 0.0]
+
+- behavior_tree: ./hunav_7_behavior_tree.xml
+  model: female_adult_police_02
+  name: hunav_7
+  pose: [6.0, 22.0, 0.0]
+  waypoint:
+  - [6.0, 22.0, 0.0]
+
+- behavior_tree: ./hunav_8_behavior_tree.xml
+  model: male_adult_construction_03
+  name: hunav_8
+  pose: [2.0, 20.0, 0.0]
+  waypoint:
+  - [2.0, 20.0, 0.0]
+
+- behavior_tree: ./hunav_9_behavior_tree.xml
+  model: female_adult_medical_01
+  name: hunav_9
+  pose: [2.0, 27.0, 0.0]
+  waypoint:
+  - [2.0, 27.0, 0.0]
+
+- behavior_tree: ./hunav_10_behavior_tree.xml
+  model: male_adult_medical_01
+  name: hunav_10
+  pose: [6.0, 28.0, 0.0]
+  waypoint:
+  - [6.0, 28.0, 0.0]
+
+- behavior_tree: ./hunav_11_behavior_tree.xml
+  model: female_adult_police_03
+  name: hunav_11
+  pose: [14.0, 5.0, 0.0]
+  waypoint:
+  - [14.0, 5.0, 0.0]
+
+- behavior_tree: ./hunav_12_behavior_tree.xml
+  model: male_adult_construction_05
+  name: hunav_12
+  pose: [16.0, 7.0, 0.0]
+  waypoint:
+  - [16.0, 7.0, 0.0]
+
+- behavior_tree: ./hunav_13_behavior_tree.xml
+  model: female_adult_business_02
+  name: hunav_13
+  pose: [21.0, 3.0, 0.0]
+  waypoint:
+  - [21.0, 3.0, 0.0]
+
+- behavior_tree: ./hunav_14_behavior_tree.xml
+  model: male_adult_police_04
+  name: hunav_14
+  pose: [23.0, 7.0, 0.0]
+  waypoint:
+  - [23.0, 7.0, 0.0]
+
+- behavior_tree: ./hunav_15_behavior_tree.xml
+  model: female_adult_medical_01
+  name: hunav_15
+  pose: [14.0, 15.0, 0.0]
+  waypoint:
+  - [14.0, 15.0, 0.0]
+
+- behavior_tree: ./hunav_16_behavior_tree.xml
+  model: male_adult_medical_01
+  name: hunav_16
+  pose: [16.0, 19.0, 0.0]
+  waypoint:
+  - [16.0, 19.0, 0.0]
+
+- behavior_tree: ./hunav_17_behavior_tree.xml
+  model: female_adult_police_01
+  name: hunav_17
+  pose: [14.0, 24.0, 0.0]
+  waypoint:
+  - [14.0, 24.0, 0.0]
+
+- behavior_tree: ./hunav_18_behavior_tree.xml
+  model: male_adult_construction_01
+  name: hunav_18
+  pose: [16.0, 28.0, 0.0]
+  waypoint:
+  - [16.0, 28.0, 0.0]
+
+- behavior_tree: ./hunav_19_behavior_tree.xml
+  model: female_adult_business_02
+  name: hunav_19
+  pose: [14.0, 32.0, 0.0]
+  waypoint:
+  - [14.0, 32.0, 0.0]
+
+- behavior_tree: ./hunav_20_behavior_tree.xml
+  model: male_adult_police_04
+  name: hunav_20
+  pose: [16.0, 33.0, 0.0]
+  waypoint:
+  - [16.0, 33.0, 0.0]
