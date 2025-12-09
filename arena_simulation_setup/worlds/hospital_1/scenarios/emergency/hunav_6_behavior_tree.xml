@@ -7,17 +7,24 @@
             <input_port name="target_y" type="double" />
             <input_port name="goal_id" type="int" />
         </Action>
-        <Action ID="StopAndWaitTimerAction">
+        <Action ID="GoTo">
             <input_port name="agent_id" type="int" />
-            <input_port name="wait_duration" type="double" />
+            <input_port name="goal_id" type="int" />
+            <input_port name="time_step" type="double" />
+            <input_port name="tolerance" type="int" />
         </Action>
     </TreeNodesModel>
     <include ros_pkg="arena_simulation_setup" path="configs/hunav/behavior_trees/BTRegularNav.xml" />
     <BehaviorTree ID="hunav_6_behavior_tree">
         <Sequence>
-            <SetGoal agent_id="{id}" goal_id="24" target_x="5.2" target_y="1.5" />
-            <GoTo agent_id="{id}" goal_id="24" time_step="0.1" tolerance="0.1" />
-            <StopAndWaitTimerAction agent_id="{id}" wait_duration="600.0" />
+            <Sequence>
+                <SetGoal agent_id="{id}" goal_id="10" target_x="8.5" target_y="14.0" />
+                <GoTo agent_id="{id}" goal_id="10" time_step="0.1" tolerance="0.5" />
+            </Sequence>
+            <Sequence>
+                <SetGoal agent_id="{id}" goal_id="11" target_x="10.0" target_y="0.5" />
+                <GoTo agent_id="{id}" goal_id="11" time_step="0.1" tolerance="0.5" />
+            </Sequence>
         </Sequence>
     </BehaviorTree>
 </root>
