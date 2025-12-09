@@ -12,7 +12,7 @@ import scipy.interpolate
 import collections.abc
 
 from task_generator.shared import (Position, PositionRadius, Wall)
-from task_generator.utils.time import Time
+from arena_rclpy_mixins.Time import Time
 
 # CONVERTERS
 

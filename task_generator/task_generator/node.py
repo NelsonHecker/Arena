@@ -29,7 +29,6 @@ from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim, SimulatorRegistry
 from task_generator.tasks import identifier_to_available
 from task_generator.tasks.task import Task
-from task_generator.utils.time import Time
 
 from . import SafeCallbackNode
 
@@ -65,7 +64,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self._train_mode = self.rosparam[bool].get('train_mode', False)
 
         self._reset_lock: asyncio.Lock = asyncio.Lock()
-        self._start_time: Time = Time.parse(self.get_clock().now())
+        self._start_time = self.time
         self._number_of_resets = 0
         self._task: Task
 
@@ -168,7 +167,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     # RUNTIME
     async def reset_task(self, **kwargs):
         async with self._reset_lock:
-            self._start_time = Time.parse(self.get_clock().now())
+            self._start_time = self.sim_time
 
             await self._simulator.before_reset_task()
 

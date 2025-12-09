@@ -6,9 +6,10 @@ import lifecycle_msgs.srv
 import rclpy.node
 
 from arena_rclpy_mixins.Async import AsyncNode
+from arena_rclpy_mixins.Time import TimeNode
 
 
-class LifecycleClient(rclpy.node.Node):
+class LifecycleClient(TimeNode, rclpy.node.Node):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -75,14 +76,13 @@ class LifecycleClient(rclpy.node.Node):
         """
         if isinstance(desired_state, int):
             desired_state = lifecycle_msgs.msg.State(id=desired_state)
-        start_time = self.get_clock().now()
+        start_time = self.wall_time
         while True:
             current_state = self.get_lifecycle_state(node_name, timeout=timeout, **kwargs)
             if current_state.id == desired_state.id:
                 return True
             if timeout is not None:
-                elapsed = (self.get_clock().now() - start_time).nanoseconds / 1e9
-                if elapsed >= timeout:
+                if (self.wall_time - start_time).to_seconds() >= timeout:
                     return False
             await asyncio.sleep(check_interval)
 
@@ -154,14 +154,13 @@ class AsyncLifecycleClient(AsyncNode):
 
         if isinstance(desired_state, int):
             desired_state = lifecycle_msgs.msg.State(id=desired_state)
-        start_time = self.get_clock().now()
+        start_time = self.wall_time
         while True:
 
             current_state = await self.get_lifecycle_state_async(node_name, timeout=timeout, **kwargs)
             if current_state.id == desired_state.id:
                 return True
             if timeout is not None:
-                elapsed = (self.get_clock().now() - start_time).nanoseconds / 1e9
-                if elapsed >= timeout:
+                if (self.wall_time - start_time).to_seconds() >= timeout:
                     return False
             await asyncio.sleep(check_interval)

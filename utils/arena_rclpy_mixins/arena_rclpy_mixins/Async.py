@@ -11,6 +11,8 @@ import rclpy.qos
 
 import launch
 
+from arena_rclpy_mixins.Time import TimeNode
+
 T = typing.TypeVar('T')
 
 
@@ -42,7 +44,7 @@ class AsyncLaunchManager:
         await asyncio.gather(*self.active_tasks, return_exceptions=True)
 
 
-class AsyncNode(rclpy.node.Node):
+class AsyncNode(TimeNode, rclpy.node.Node):
     """Async utils for rclpy nodes.
     """
 
@@ -70,13 +72,12 @@ class AsyncNode(rclpy.node.Node):
         """
         Asynchronously wait for service to be available
         """
-        start_time = self.get_clock().now()
+        start_time = self.wall_time
         while True:
             if client.wait_for_service(timeout_sec=interval):
                 return True
             if timeout is not None:
-                elapsed = (self.get_clock().now() - start_time).nanoseconds / 1e9
-                if elapsed >= timeout:
+                if (self.wall_time - start_time).to_seconds() >= timeout:
                     return False
             await asyncio.sleep(interval)
 

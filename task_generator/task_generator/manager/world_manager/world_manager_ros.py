@@ -16,13 +16,13 @@ import numpy as np
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins.Async import ClientWrapper
+from arena_rclpy_mixins.Time import Time
 from arena_simulation_setup.shared import Position
 from arena_simulation_setup.tree import DynamicPaths
 
 import launch
 from task_generator import NodeInterface
 from task_generator.manager.environment_manager import EnvironmentManager
-from task_generator.utils.time import Time
 
 from .utils import WorldMap
 from .world_manager import WorldManager
