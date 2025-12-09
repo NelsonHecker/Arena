@@ -3,17 +3,16 @@ import itertools
 import os
 import random
 import traceback
+import types
 import typing
 
 import arena_people_msgs.msg
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Material
-import attrs
 import isaacsim_msgs.msg
 import numpy as np
-import rclpy
-import rclpy.client
 import std_srvs.srv
+from arena_rclpy_mixins.Async import ClientWrapper
 from arena_simulation_setup.shared import Door as DoorDefinition
 from arena_simulation_setup.shared import Elevator as ElevatorDefinition
 from arena_simulation_setup.shared import Floor as FloorDefinition
@@ -63,24 +62,6 @@ def material_to_msg(material: arena_simulation_setup.tree.assets.Material.Materi
     )
 
 
-@attrs.define()
-class _Service:
-    type_: typing.Any
-    name: str
-
-    _client: rclpy.client.Client = attrs.field(init=False)
-
-    @property
-    def client(self) -> rclpy.client.Client:
-        if self._client is None:
-            raise RuntimeError(f"client for service {self.name} not initialized")
-        return self._client
-
-    @client.setter
-    def client(self, value: rclpy.client.Client):
-        self._client = value
-
-
 class IsaacSimulator(BaseSim, NodeInterface):
 
     _NS_PRIM = Namespace('Obstacles')
@@ -89,22 +70,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
     _NS_WALL = Namespace('Walls')
     _NS_FLOOR = Namespace('Floors')
     _NS_DOOR = Namespace('Doors')
-
-    class _services:
-        DeleteAllPedestrians = _Service(type_=DeletePrims, name="isaac/DeleteAllPedestrians")
-        DeletePrims = _Service(type_=DeletePrims, name="isaac/DeletePrims")
-        EditPrims = _Service(type_=EditPrims, name="isaac/EditPrims")
-        NavigatePedestrians = _Service(type_=NavigatePedestrians, name="isaac/NavigatePedestrians")
-        SpawnDoors = _Service(type_=SpawnDoors, name="isaac/SpawnDoors")
-        SpawnFloors = _Service(type_=SpawnFloors, name='isaac/SpawnFloors')
-        SpawnPedestrians = _Service(type_=SpawnPedestrians, name="isaac/SpawnPedestrians")
-        SpawnPrims = _Service(type_=SpawnPrims, name="isaac/SpawnPrims")
-        SpawnUrdf = _Service(type_=SpawnUrdf, name="isaac/SpawnUrdf")
-        SpawnUsd = _Service(type_=SpawnUsd, name="isaac/SpawnUsd")
-        SpawnWalls = _Service(type_=SpawnWalls, name="isaac/SpawnWalls")
-        SpawnElevators = _Service(type_=SpawnElevators, name="isaac/SpawnElevators")
-        PauseSimulation = _Service(type_=std_srvs.srv.Trigger, name="isaac/PauseSimulation")
-        UnpauseSimulation = _Service(type_=std_srvs.srv.Trigger, name="isaac/UnpauseSimulation")
 
     def __init__(self, *args, **kwargs):
         """Initialize IsaacSimulator
@@ -115,6 +80,22 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self.floor_counter = itertools.count()
         self._spawned_doors = []
         self._ped_dict: dict[str, str] = {}
+        self._clients = types.SimpleNamespace(
+            DeleteAllPedestrians=self.node.create_client_wrapper(DeletePrims, "isaac/DeleteAllPedestrians"),
+            DeletePrims=self.node.create_client_wrapper(DeletePrims, "isaac/DeletePrims"),
+            EditPrims=self.node.create_client_wrapper(EditPrims, "isaac/EditPrims"),
+            NavigatePedestrians=self.node.create_client_wrapper(NavigatePedestrians, "isaac/NavigatePedestrians"),
+            SpawnDoors=self.node.create_client_wrapper(SpawnDoors, "isaac/SpawnDoors"),
+            SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "isaac/SpawnFloors"),
+            SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "isaac/SpawnPedestrians"),
+            SpawnPrims=self.node.create_client_wrapper(SpawnPrims, "isaac/SpawnPrims"),
+            SpawnUrdf=self.node.create_client_wrapper(SpawnUrdf, "isaac/SpawnUrdf"),
+            SpawnUsd=self.node.create_client_wrapper(SpawnUsd, "isaac/SpawnUsd"),
+            SpawnWalls=self.node.create_client_wrapper(SpawnWalls, "isaac/SpawnWalls"),
+            SpawnElevators=self.node.create_client_wrapper(SpawnElevators, "isaac/SpawnElevators"),
+            PauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "isaac/PauseSimulation"),
+            UnpauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "isaac/UnpauseSimulation"),
+        )
 
         # Publisher for external registration messages so IsaacSim's DoorManager
         # can be informed about spawned entities in the IsaacSim process.
@@ -136,7 +117,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
                     fq_name = self._NS_ROBOT(robot.name)
 
-                    await self._services.SpawnUrdf.client.call_async(
+                    await self._clients.SpawnUrdf.call_timeout(
                         SpawnUrdf.Request(
                             name=fq_name,
                             urdf_path=str(model.path),
@@ -199,8 +180,9 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         req = SpawnPrims.Request()
         req.prims = list(filter(None, await asyncio.gather(*map(impl, obstacles))))
-        response = await self._services.SpawnPrims.client.call_async(req)
-        assert response is not None
+        response = await self._clients.SpawnPrims.call_timeout(req)
+        if response is None:
+            return tuple(False for _ in obstacles)
 
         response_iter = iter(response.ret)
 
@@ -288,8 +270,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         walls_req.walls = list(filter(None, await asyncio.gather(*itertools.chain.from_iterable(segment_futures))))
         prims_req.prims = list(filter(None, await asyncio.gather(*itertools.chain.from_iterable(obstacle_futures))))
 
-        walls_res = await self._services.SpawnWalls.client.call_async(walls_req)
-        prims_res = await self._services.SpawnPrims.client.call_async(prims_req)
+        walls_res = await self._clients.SpawnWalls.call_timeout(walls_req)
+        prims_res = await self._clients.SpawnPrims.call_timeout(prims_req)
         res = bool(walls_res) and all(walls_res.ret) and bool(prims_res) and all(prims_res.ret)
 
         self._logger.info("All walls spawned.")
@@ -314,7 +296,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         floors_req = SpawnFloors.Request()
         floors_req.floors = list(filter(None, await asyncio.gather(*map(impl, floors))))
-        floors_res = await self._services.SpawnFloors.client.call_async(floors_req)
+        floors_res = await self._clients.SpawnFloors.call_timeout(floors_req)
 
         res = bool(floors_res) and all(floors_res.ret)
         self._logger.info("All floors spawned successfully.")
@@ -339,7 +321,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         doors_req = SpawnDoors.Request()
         doors_req.doors = list(filter(None, await asyncio.gather(*map(impl, doors))))
-        doors_res = await self._services.SpawnDoors.client.call_async(doors_req)
+        doors_res = await self._clients.SpawnDoors.call_timeout(doors_req)
 
         res = bool(doors_res) and all(doors_res.ret)
         self._logger.info("All doors spawned successfully.")
@@ -371,7 +353,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 return None
 
         req.elevators = list(filter(None, await asyncio.gather(*map(impl, elevators))))
-        elevators_res = await self._services.SpawnElevators.client.call_async(req)
+        elevators_res = await self._clients.SpawnElevators.call_timeout(req)
         res = bool(elevators_res) and all(elevators_res.ret)
         self._logger.debug("All elevators spawned successfully.")
         return res
@@ -385,10 +367,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return True
 
     async def _pause(self):
-        await self._services.PauseSimulation.client.call_async(std_srvs.srv.Trigger.Request())
+        await self._clients.PauseSimulation.call_timeout(std_srvs.srv.Trigger.Request())
 
     async def _unpause(self):
-        await self._services.UnpauseSimulation.client.call_async(std_srvs.srv.Trigger.Request())
+        await self._clients.UnpauseSimulation.call_timeout(std_srvs.srv.Trigger.Request())
 
     async def pedestrian_spawn(self, pedestrians):
 
@@ -436,8 +418,9 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         req = SpawnPedestrians.Request()
         req.pedestrians = list(filter(None, await asyncio.gather(*map(impl, pedestrians))))
-        res = await self._services.SpawnPedestrians.client.call_async(req)
-        assert res is not None
+        res = await self._clients.SpawnPedestrians.call_timeout(req)
+        if res is None:
+            return tuple(False for _ in pedestrians)
 
         for status, (name, model_name) in zip(res.ret, on_success):
             if status:
@@ -474,29 +457,31 @@ class IsaacSimulator(BaseSim, NodeInterface):
         goals = list(filter(None, await asyncio.gather(*map(impl, pedestrians.pedestrians))))
         req = NavigatePedestrians.Request()
         req.goals = goals
-        res = await self._services.NavigatePedestrians.client.call_async(req)
+        res = await self._clients.NavigatePedestrians.call_timeout(req)
 
         return tuple(a and b for a, b in zip(goals, res and res.ret or ()))
 
     async def _delete_entity(self, name: str) -> bool:
         self._logger.debug(f"Attempting to delete prim {name}")
 
-        res = await self._services.DeletePrims.client.call_async(
+        res = await self._clients.DeletePrims.call_timeout(
             DeletePrims.Request(
                 names=[name]
             )
         )
-        assert res is not None
+        if res is None:
+            return False
 
         return res.ret[0]
 
     async def _delete_all_pedestrians(self, prim_path):
         self._logger.info(f"Attempting to delete prim named {prim_path}")
 
-        res = await self._services.DeleteAllPedestrians.client.call_async(
+        res = await self._clients.DeleteAllPedestrians.call_timeout(
             DeletePrims.Request(names=[prim_path])
         )
-        assert res is not None
+        if res is None:
+            return False
 
         return res.ret[0]
 
@@ -508,7 +493,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         if name in self._ped_dict:
             name = os.path.join('pedestrians', name)
 
-        response = await self._services.EditPrims.client.call_async(
+        response = await self._clients.EditPrims.call_timeout(
             EditPrims.Request(
                 prims=[
                     Prim(
@@ -519,8 +504,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 pose=True,
             )
         )
-
-        assert response is not None
+        if response is None:
+            return False
 
         return response.ret[0]
 
@@ -530,10 +515,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         """
         futures: list[typing.Awaitable] = []
         # Define services with their corresponding client attributes
-        for service in (service for at, service in self._services.__dict__.items() if not at.startswith('_')):
-            service.client = self.node.create_client(service.type_, service.name)
-            self._logger.debug(f'Waiting for service "{service.name}"...')
-            futures.append(self.node.wait_for_service_async(service.client))
+        for client in self._clients.__dict__.values():
+            futures.append(typing.cast(ClientWrapper, client).ensure())
         await asyncio.gather(*futures)
 
         self._logger.info("All service clients initialized and available.")

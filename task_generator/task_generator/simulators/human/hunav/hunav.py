@@ -21,6 +21,7 @@ from geometry_msgs.msg import Point
 from hunav_msgs.msg import Agent, AgentBehavior, Agents, WallSegment
 from hunav_msgs.srv import ComputeAgent, ComputeAgents, GetAgents, GetWalls, MoveAgent
 from std_srvs.srv import Trigger
+from arena_rclpy_mixins.Async import ClientWrapper
 
 from task_generator.constants import Constants
 from task_generator.shared import (
@@ -245,13 +246,11 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     SERVICE_DELETE_ACTORS = 'delete_actors'
 
     # Service Clients
-    _compute_agent_client: rclpy.client.Client
-    _compute_agents_client: rclpy.client.Client
-    _move_agent_client: rclpy.client.Client
-    _clear_agents_client: rclpy.client.Client
-    _get_agents_client: rclpy.client.Client
-    _get_walls_client: rclpy.client.Client
-    _delete_actors_client: rclpy.client.Client
+    _compute_agent_client: ClientWrapper
+    _compute_agents_client: ClientWrapper
+    _move_agent_client: ClientWrapper
+    _clear_agents_client: ClientWrapper
+    _delete_actors_client: ClientWrapper
 
     # Service Servers
     _get_agents_service: rclpy.node.Service
@@ -292,6 +291,8 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._agent_previous_orientations = {}
         self._orientation_smoothing_factor = 0.15  # 0.05-0.3 range
 
+        self._logger.debug("Collections initialized")
+
         self._obstacle_subscriber = self.node.create_subscription(
             Agents,
             '/task_generator_node/hunav_closest_obstacles',
@@ -299,7 +300,11 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             10
         )
 
-        self._logger.debug("Collections initialized")
+        self._compute_agent_client = self.node.create_client_wrapper(ComputeAgent, self.node.service_namespace(self.SERVICE_COMPUTE_AGENT))
+        self._compute_agents_client = self.node.create_client_wrapper(ComputeAgents, self.node.service_namespace(self.SERVICE_COMPUTE_AGENTS))
+        self._move_agent_client = self.node.create_client_wrapper(MoveAgent, self.node.service_namespace(self.SERVICE_MOVE_AGENT))
+        self._clear_agents_client = self.node.create_client_wrapper(Trigger, self.node.service_namespace(self.SERVICE_CLEAR_AGENTS))
+        self._delete_actors_client = self.node.create_client_wrapper(DeleteActors, self.node.service_namespace(self.SERVICE_DELETE_ACTORS))
 
     @property
     def _simulator_type(self) -> Constants.SimSimulator:
@@ -345,92 +350,31 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug(f"Task generator namespace: {self._namespace}")
 
         # Create service names with full namespace path
-        class service_names:
-            compute_agent = self.node.service_namespace(self.SERVICE_COMPUTE_AGENT)
-            compute_agents = self.node.service_namespace(self.SERVICE_COMPUTE_AGENTS)
-            move_agent = self.node.service_namespace(self.SERVICE_MOVE_AGENT)
-            clear_agents = self.node.service_namespace(self.SERVICE_CLEAR_AGENTS)
-            get_agents = self.node.service_namespace(self.SERVICE_GET_AGENTS)
-            get_walls = self.node.service_namespace(self.SERVICE_GET_WALLS)
-            delete_actors = self.node.service_namespace(self.SERVICE_DELETE_ACTORS)
 
-        # Create service clients
-        self._logger.debug("Creating compute_agent client...")
-        self._compute_agent_client = self.node.create_client(
-            ComputeAgent,
-            service_names.compute_agent
-        )
-
-        self._logger.debug("Creating compute_agents client...")
-        self._compute_agents_client = self.node.create_client(
-            ComputeAgents,
-            service_names.compute_agents
-        )
-
-        self._logger.debug("Creating move_agent client...")
-        self._move_agent_client = self.node.create_client(
-            MoveAgent,
-            service_names.move_agent,
-        )
-
-        self._logger.debug("Creating clear_agents client...")
-        self._clear_agents_client = self.node.create_client(
-            Trigger,
-            service_names.clear_agents,
-        )
-
-        self._logger.debug("Creating delete_actors client...")
-        self._delete_actors_client = self.node.create_client(
-            DeleteActors,
-            service_names.delete_actors,
-        )
        # Create GetAgents service provider
-        self._logger.debug(f"Creating get_agents service provider at: {service_names.get_agents}")
         self._get_agents_service = self.node.create_service(
             GetAgents,
-            service_names.get_agents,
+            self.node.service_namespace(self.SERVICE_GET_AGENTS),
             self._get_agents_callback,
         )
-        self._logger.debug("GetAgents service provider created")
 
         # Create GetWalls service provider
-        self._logger.debug(f"Creating get_walls service provider at: {service_names.get_walls}")
         self._get_walls_service = self.node.create_service(
             GetWalls,
-            service_names.get_walls,
+            self.node.service_namespace(self.SERVICE_GET_WALLS),
             self._get_walls_callback,
         )
-        self._logger.debug("GetWalls service provider created")
 
-        # Wait for Services
-        required_services = [
-            (self._compute_agent_client, service_names.compute_agent),
-            (self._compute_agents_client, service_names.compute_agents),
-            (self._move_agent_client, service_names.move_agent),
-            (self._clear_agents_client, service_names.clear_agents),
-
-        ]
-
-        max_wait = float('inf')
-
-        async def wait_for_service(client, service) -> bool:
-            self._logger.debug(f"Waiting for service {service}...")
-            res = await self.node.wait_for_service_async(client, timeout=max_wait)
-
-            if not res:
-                self._logger.error(
-                    f'Service {service} not available after {max_wait}s\n'
-                    f'Was looking for service at: {service}'
-                )
-                raise TimeoutError(f'Service {service} not available after {max_wait}s')
-
-            return res
-
-        try:
-            await asyncio.gather(*(wait_for_service(client, service) for client, service in required_services))
-        except TimeoutError:
-            self._logger.error("=== SETUP_SERVICES FAILED ===")
-            return False
+        futures: list[typing.Awaitable] = []
+        for client in (
+            self._compute_agent_client,
+            self._compute_agents_client,
+            self._move_agent_client,
+            self._clear_agents_client,
+            # self._delete_actors_client,
+        ):
+            futures.append(typing.cast(ClientWrapper, client).ensure())
+        await asyncio.gather(*futures)
 
         self._logger.info("All required services are available")
         self._logger.info("=== SETUP_SERVICES COMPLETE ===")
@@ -638,7 +582,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 request.current_agents = self._agents_container
 
                 # Call HuNav service
-                response = await self._compute_agents_client.call_async(request)
+                response = await self._compute_agents_client.call_timeout(request)
 
                 if response:
                     self._logger.debug(f"Successfully registered {len(response.updated_agents.agents)} agents")
@@ -723,14 +667,14 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     async def _reset_hunav(self):
         """Reset HuNav by calling ClearAgents service"""
         try:
-            if not self._clear_agents_client.wait_for_service(timeout_sec=2.0):
+            if not await self._clear_agents_client.ensure(timeout_sec=2.0):
                 self._logger.error("ClearAgents service not available")
                 return False
 
             request = Trigger.Request()
 
             self._logger.debug("Calling HuNav ClearAgents service...")
-            response = await self._clear_agents_client.call_async(request)
+            response = await self._clear_agents_client.call_timeout(request)
 
             if response and response.success:
                 self._logger.debug("HuNav clear successful - ready for new agents")
@@ -746,7 +690,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     async def _call_delete_actors_service(self):
         """Call the plugin's delete actors service"""
         try:
-            if not self._delete_actors_client.wait_for_service(timeout_sec=2.0):
+            if not await self._delete_actors_client.ensure(timeout_sec=2.0):
                 self._logger.debug("Delete  service currently not available")
                 return False
 
@@ -754,7 +698,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
             self._logger.debug("Calling delete_actors service...")
 
-            response = await self._delete_actors_client.call_async(request)
+            response = await self._delete_actors_client.call_timeout(request)
 
             if response and response.success:
                 self._logger.debug(f"Successfully deleted {response.deleted_count} actors")
@@ -862,9 +806,9 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             request.current_agents = current_agents
             request.robot = _create_robot_message()
 
-            response = await self._compute_agents_client.call_async(request)
+            response = await self._compute_agents_client.call_timeout(request)
 
-            if response and response.updated_agents:
+            if response is not None and response.updated_agents:
                 # Fix frame_id
                 response.updated_agents.header.frame_id = "map"
                 response.updated_agents.header.stamp = self.node.get_clock().now().to_msg()

@@ -1,12 +1,15 @@
+from __future__ import annotations
+
 import asyncio
 import functools
 import inspect
 import typing
 
-import launch
 import rclpy.client
 import rclpy.node
 import rclpy.qos
+
+import launch
 
 T = typing.TypeVar('T')
 
@@ -39,7 +42,7 @@ class AsyncLaunchManager:
         await asyncio.gather(*self.active_tasks, return_exceptions=True)
 
 
-class AsyncUtil(rclpy.node.Node):
+class AsyncNode(rclpy.node.Node):
     """Async utils for rclpy nodes.
     """
 
@@ -145,3 +148,101 @@ class AsyncUtil(rclpy.node.Node):
     def create_service(self, srv_type, srv_name: str, callback: typing.Callable[[rclpy.node.SrvTypeRequest, rclpy.node.SrvTypeResponse], rclpy.node.SrvTypeResponse] | typing.Callable[[rclpy.node.SrvTypeRequest, rclpy.node.SrvTypeResponse], typing.Awaitable[rclpy.node.SrvTypeResponse]], *, qos_profile: rclpy.client.QoSProfile = rclpy.qos.qos_profile_services_default, callback_group: rclpy.client.CallbackGroup | None = None) -> rclpy.node.Service:
         callback = self.syncify(callback)
         return super().create_service(srv_type, srv_name, callback, qos_profile=qos_profile, callback_group=callback_group)
+
+    def create_client_wrapper(self, srv_type, srv_name: str, timeout: float = 10.0, *, qos_profile: rclpy.client.QoSProfile = rclpy.qos.qos_profile_services_default, callback_group: rclpy.client.CallbackGroup | None = None) -> ClientWrapper:
+        return ClientWrapper(
+            self,
+            self.create_client(srv_type, srv_name, qos_profile=qos_profile, callback_group=callback_group),
+            timeout=timeout,
+        )
+
+
+class AsyncUtil:
+    # timeout wrappers
+    @classmethod
+    async def timeout(cls, coro: typing.Awaitable[T], timeout_sec: float) -> T | None:
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout_sec)
+        except asyncio.TimeoutError:
+            return None
+
+
+ServiceT = typing.TypeVar('ServiceT')
+
+
+class ClientWrapper(typing.Generic[ServiceT]):
+    """A wrapper around rclpy.client.Client to provide async utilities.
+    """
+
+    def __init__(self, node: AsyncNode, client: rclpy.client.Client, timeout: float = 60.0):
+        """
+        Args:
+            node (AsyncNode | None): node that will own the client.
+            client (rclpy.client.Client): The rclpy client to wrap.
+            timeout (float, optional): Timeout in seconds. Defaults to 60.0.
+        """
+        self._node: AsyncNode = node
+        self._client: rclpy.client.Client = client
+        self._timeout: float = timeout
+
+    @property
+    def client(self) -> rclpy.client.Client:
+        """The underlying rclpy client.
+        """
+        return self._client
+
+    async def call_timeout(
+        self,
+        request: ServiceT.Request,
+        timeout_sec: float | None = None,
+    ) -> ServiceT.Response | None:
+        """Call the service with a timeout.
+
+        Args:
+            request (rclpy.client.SrvTypeRequest): The service request object.
+            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
+
+        Returns:
+            rclpy.client.SrvTypeResponse | None: The service response object or None if timed out.
+        """
+        if timeout_sec is None:
+            timeout_sec = self._timeout
+        res = await AsyncUtil.timeout(
+            self._client.call_async(request),
+            timeout_sec=timeout_sec
+        )
+        if res is None:
+            self._node.get_logger().warning(f"Service call to {self._client.srv_name} timed out after {timeout_sec} seconds")
+        return res
+
+    def call_timeout_sync(
+        self,
+        request: ServiceT.Request,
+        timeout_sec: float | None = None,
+    ) -> ServiceT.Response | None:
+        """Call the service with a timeout in a blocking manner.
+
+        Args:
+            request (ServiceT.Request): The service request object.
+            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
+
+        Returns:
+            ServiceT.Response | None: The service response object or None if timed out.
+        """
+        if timeout_sec is None:
+            timeout_sec = self._timeout
+
+        return self._node.wait_for(
+            self.call_timeout(
+                request,
+                timeout_sec=timeout_sec,
+            )
+        )
+
+    async def ensure(self, timeout_sec: float | None = None) -> bool:
+        """Ensure the service is available within the given timeout.
+
+        Args:
+            timeout_sec (float | None, optional): Timeout in seconds. If None, wait forever. Defaults to None.
+        """
+        return await self._node.wait_for_service_async(self._client, timeout=timeout_sec)

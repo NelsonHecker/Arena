@@ -277,14 +277,13 @@ class RobotManager(NodeInterface):
             return False
 
         self._logger.info(f"Service name: {srv_name}")
-        srv = self.node.create_client(
+        cli = self.node.create_client_wrapper(
             srv_type,
             srv_name,
         )
-        while not srv.wait_for_service(timeout_sec=1.0):
-            self._logger.warn(f'{srv_name} service not available, waiting...')
+        await cli.ensure()
 
-        result = await srv.call_async(req)
+        result = await cli.call_timeout(req)
         if result is None:
             self._logger.error(
                 f"service call failed for {srv_name}")
