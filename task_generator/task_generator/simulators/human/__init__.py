@@ -189,7 +189,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         static = []
         dynamic = []
         for oid, known in list(self._known_obstacles.items()):
-            if purge >= known.layer:
+            if purge >= known.layer:  # tmp: always respawn all dynamic obstacles
                 if isinstance(known.obstacle, DynamicObstacle):
                     dynamic.append(known.obstacle)
                 else:

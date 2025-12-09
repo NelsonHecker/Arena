@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Sequence
 import itertools
 import os
 import random
@@ -80,9 +81,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self.wall_counter = itertools.count()
         self.floor_counter = itertools.count()
         self._spawned_doors = []
-        self._ped_dict: dict[str, str] = {}
         self._clients = types.SimpleNamespace(
-            DeleteAllPedestrians=self.node.create_client_wrapper(DeletePrims, "isaac/DeleteAllPedestrians"),
+            DeletePedestrians=self.node.create_client_wrapper(DeletePrims, "isaac/DeletePedestrians"),
             DeletePrims=self.node.create_client_wrapper(DeletePrims, "isaac/DeletePrims"),
             EditPrims=self.node.create_client_wrapper(EditPrims, "isaac/EditPrims"),
             NavigatePedestrians=self.node.create_client_wrapper(NavigatePedestrians, "isaac/NavigatePedestrians"),
@@ -190,10 +190,19 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return tuple(a and next(response_iter) for a in results)
 
     async def obstacle_move(self, obstacles):
-        return await asyncio.gather(*(self._move_entity(self._NS_PRIM(o.name), o.pose) for o in obstacles))
+        return await self._move_entities([(self._NS_PRIM(o.name), o.pose) for o in obstacles])
 
     async def pedestrian_move(self, pedestrians):
-        return await asyncio.gather(*(self._move_entity(self._NS_PEDESTRIAN(p.name), p.pose) for p in pedestrians))
+        await self._clients.DeletePedestrians.call_timeout(
+            DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.name) for p in pedestrians])
+        )
+        res = await self.pedestrian_spawn(pedestrians)
+        if res is None:
+            return tuple(False for _ in pedestrians)
+        return tuple(res)
+
+        # # tmp: restore when pedestrian move works within isaac sim
+        # return await self._move_entities([(self._NS_PEDESTRIAN(p.name), p.pose) for p in pedestrians])
 
     async def robot_move(self, robots):
         async def move_robot(robot: Robot) -> bool:
@@ -211,7 +220,14 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians):
-        return await asyncio.gather(*(self._delete_entity(self._NS_PEDESTRIAN(p.name)) for p in pedestrians))
+        res = await self._clients.DeletePedestrians.call_timeout(
+            DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.name) for p in pedestrians])
+        )
+        if res is None:
+            ret = tuple(False for _ in pedestrians)
+        else:
+            ret = tuple(res.ret)
+        return ret
 
     async def robot_delete(self, robots):
         return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots))
@@ -423,10 +439,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
         if res is None:
             return tuple(False for _ in pedestrians)
 
-        for status, (name, model_name) in zip(res.ret, on_success):
-            if status:
-                self._ped_dict[name] = model_name
-
         await self.pedestrian_update(
             arena_people_msgs.msg.Pedestrians(pedestrians=[
                 arena_people_msgs.msg.Pedestrian(
@@ -444,13 +456,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
     async def pedestrian_update(self, pedestrians):
 
         async def impl(ped: arena_people_msgs.msg.Pedestrian) -> PedestrianGoal | None:
-            name = ped.name
-            if name not in self._ped_dict:
-                self._logger.warning(f"Pedestrian {name} not found in ped_dict: {list(self._ped_dict.keys())}")
-                return None
-
             goal = PedestrianGoal()
-            goal.name = self._NS_PEDESTRIAN(name, "ManRoot", self._ped_dict[name])
+            goal.name = self._NS_PEDESTRIAN(ped.name)
             goal.position = ped.pose.position
             goal.velocity = np.linalg.norm([ped.twist.linear.x, ped.twist.linear.y])
             return goal
@@ -475,10 +482,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         return res.ret[0]
 
-    async def _delete_all_pedestrians(self, prim_path):
+    async def _delete_pedestrians(self, prim_path):
         self._logger.info(f"Attempting to delete prim named {prim_path}")
 
-        res = await self._clients.DeleteAllPedestrians.call_timeout(
+        res = await self._clients.DeletePedestrians.call_timeout(
             DeletePrims.Request(names=[prim_path])
         )
         if res is None:
@@ -487,28 +494,25 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return res.ret[0]
 
     async def _move_entity(self, name: str, pose: Pose) -> bool:
-        self._logger.debug(f"Attempting to move entity: {name}")
-        self._logger.debug(f"position: {pose.position.x,pose.position.y}")
-        self._logger.debug(f"orientation: {pose.orientation}")
+        return (await self._move_entities([(name, pose)]))[0]
 
-        if name in self._ped_dict:
-            name = os.path.join('pedestrians', name)
-
-        response = await self._clients.EditPrims.call_timeout(
-            EditPrims.Request(
-                prims=[
-                    Prim(
-                        name=name,
-                        pose=pose.to_msg(),
-                    )
-                ],
-                pose=True,
-            )
+    async def _move_entities(self, actions: Sequence[tuple[str, Pose]]) -> Sequence[bool]:
+        req = EditPrims.Request(
+            prims=[
+                Prim(
+                    name=name,
+                    pose=pose.to_msg(),
+                )
+                for name, pose in actions
+            ],
+            pose=True,
         )
-        if response is None:
-            return False
 
-        return response.ret[0]
+        response = await self._clients.EditPrims.call_timeout(req)
+        if response is None:
+            return [False] * len(actions)
+
+        return response.ret
 
     async def setup(self):
         """
