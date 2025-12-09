@@ -225,12 +225,14 @@ class TimeNode(rclpy.node.Node):
             while not done.is_set():
                 await asyncio.sleep(0.01)
                 now = self.sim_time
-                if finish_time is not None and now >= finish_time:
-                    done.set()
-                    break
-                if (dt := (now - last_time).to_seconds()) >= interval:
+                if (is_put := (dt := (now - last_time).to_seconds()) >= interval):
                     last_time = now
                     await events.put(dt)
+                if finish_time is not None and now >= finish_time:
+                    done.set()
+                    if not is_put:
+                        await events.put(dt)
+                    break
 
         events.put_nowait(0.)
         loop_task = asyncio.create_task(_rate_loop())
