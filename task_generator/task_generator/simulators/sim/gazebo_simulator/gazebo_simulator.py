@@ -137,8 +137,8 @@ class GazeboSimulator(BaseSim):
         request.pose = pose.to_msg()
 
         try:
-            self._service_set_entity_pose.wait_for_service()
-            result = await self._service_set_entity_pose.call_async(request)
+            await self._service_set_entity_pose.ensure()
+            result = await self._service_set_entity_pose.call_timeout(request)
 
             if result is None:
                 self._logger.error(f"Move service call failed for {name}")
@@ -185,7 +185,7 @@ class GazeboSimulator(BaseSim):
                 f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}")
 
             self._logger.debug(f"Sending spawn request for {entity.name}")
-            result = await self._service_spawn_entity.call_async(request)
+            result = await self._service_spawn_entity.call_timeout(request)
 
             if result is None:
                 self._logger.error(
@@ -221,7 +221,7 @@ class GazeboSimulator(BaseSim):
         )
 
         try:
-            result = await self._service_delete_entity.call_async(request)
+            result = await self._service_delete_entity.call_timeout(request)
 
             if result is None:
                 self._logger.error(f"Delete service call failed for {name}")
@@ -246,7 +246,7 @@ class GazeboSimulator(BaseSim):
         request.world_control.pause = True
 
         try:
-            result = await self._service_control_world.call_async(request)
+            result = await self._service_control_world.call_timeout(request)
 
             if result is None:
                 self._logger.error("Pause service call failed")
@@ -267,7 +267,7 @@ class GazeboSimulator(BaseSim):
         request.world_control.pause = False
 
         try:
-            result = await self._service_control_world.call_async(request)
+            result = await self._service_control_world.call_timeout(request)
 
             if result is None:
                 self._logger.error("Unpause service call failed")
@@ -288,7 +288,7 @@ class GazeboSimulator(BaseSim):
         request.world_control.multi_step = steps
 
         try:
-            result = await self._service_control_world.call_async(request)
+            result = await self._service_control_world.call_timeout(request)
 
             if result is None:
                 self._logger.error("Step service call failed")
@@ -520,19 +520,19 @@ class GazeboSimulator(BaseSim):
 
         # Initialize service clients
         # https://gazebosim.org/api/sim/8/entity_creation.html
-        self._service_spawn_entity = self.node.create_client(
+        self._service_spawn_entity = self.node.create_client_wrapper(
             SpawnEntity,
             '/world/default/create',
         )
-        self._service_delete_entity = self.node.create_client(
+        self._service_delete_entity = self.node.create_client_wrapper(
             DeleteEntity,
             '/world/default/remove',
         )
-        self._service_set_entity_pose = self.node.create_client(
+        self._service_set_entity_pose = self.node.create_client_wrapper(
             SetEntityPose,
             '/world/default/set_pose',
         )
-        self._service_control_world = self.node.create_client(
+        self._service_control_world = self.node.create_client_wrapper(
             ControlWorld,
             '/world/default/control',
         )
@@ -547,7 +547,7 @@ class GazeboSimulator(BaseSim):
 
         for service, name in services:
             self._logger.info(f"Waiting for {name} service...")
-            futures.append(self.node.wait_for_service_async(service))
+            futures.append(service.ensure())
 
         await asyncio.gather(*futures)
         self._logger.info("All Gazebo services are available now.")

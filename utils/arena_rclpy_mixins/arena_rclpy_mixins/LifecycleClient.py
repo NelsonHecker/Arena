@@ -5,7 +5,7 @@ import lifecycle_msgs.msg
 import lifecycle_msgs.srv
 import rclpy.node
 
-from arena_rclpy_mixins.AsyncUtil import AsyncUtil
+from arena_rclpy_mixins.Async import AsyncNode
 
 
 class LifecycleClient(rclpy.node.Node):
@@ -87,19 +87,19 @@ class LifecycleClient(rclpy.node.Node):
             await asyncio.sleep(check_interval)
 
 
-class AsyncLifecycleClient(AsyncUtil):
+class AsyncLifecycleClient(AsyncNode):
     async def get_lifecycle_state_async(self, node_name: str, *, timeout: float | None = None, **kwargs) -> lifecycle_msgs.msg.State:
         """
         Asynchronously get state of lifecycle node
         """
-        cli = self.create_client(
+        cli = self.create_client_wrapper(
             lifecycle_msgs.srv.GetState,
             os.path.join(node_name, 'get_state'),
             **kwargs,
         )
 
-        await self.wait_for_service_async(cli, timeout=timeout)
-        res = await cli.call_async(lifecycle_msgs.srv.GetState.Request())
+        await cli.ensure(timeout_sec=timeout)
+        res = await cli.call_timeout(lifecycle_msgs.srv.GetState.Request(), timeout_sec=timeout)
         assert res is not None
         return res.current_state
 
@@ -107,13 +107,13 @@ class AsyncLifecycleClient(AsyncUtil):
         """
         Asynchronously get available lifecycle states
         """
-        cli = self.create_client(
+        cli = self.create_client_wrapper(
             lifecycle_msgs.srv.GetAvailableStates,
             os.path.join(node_name, 'get_available_states'),
             **kwargs,
         )
-        await self.wait_for_service_async(cli, timeout=timeout)
-        res = await cli.call_async(lifecycle_msgs.srv.GetAvailableStates.Request())
+        await cli.ensure(timeout_sec=timeout)
+        res = await cli.call_timeout(lifecycle_msgs.srv.GetAvailableStates.Request(), timeout_sec=timeout)
         assert res is not None
         return res.available_states
 
@@ -121,13 +121,13 @@ class AsyncLifecycleClient(AsyncUtil):
         """
         Asynchronously get available lifecycle transitions
         """
-        cli = self.create_client(
+        cli = self.create_client_wrapper(
             lifecycle_msgs.srv.GetAvailableTransitions,
             os.path.join(node_name, 'get_available_transitions'),
             **kwargs,
         )
-        await self.wait_for_service_async(cli, timeout=timeout)
-        res = await cli.call_async(lifecycle_msgs.srv.GetAvailableTransitions.Request())
+        await cli.ensure(timeout_sec=timeout)
+        res = await cli.call_timeout(lifecycle_msgs.srv.GetAvailableTransitions.Request(), timeout_sec=timeout)
         assert res is not None
         return res.available_transitions
 
@@ -137,13 +137,13 @@ class AsyncLifecycleClient(AsyncUtil):
         """
         if isinstance(transition, int):
             transition = lifecycle_msgs.msg.Transition(id=transition)
-        cli = self.create_client(
+        cli = self.create_client_wrapper(
             lifecycle_msgs.srv.ChangeState,
             os.path.join(node_name, 'change_state'),
             **kwargs,
         )
-        await self.wait_for_service_async(cli, timeout=timeout)
-        res = await cli.call_async(lifecycle_msgs.srv.ChangeState.Request(transition=transition))
+        await cli.ensure(timeout_sec=timeout)
+        res = await cli.call_timeout(lifecycle_msgs.srv.ChangeState.Request(transition=transition), timeout_sec=timeout)
         assert res is not None
         return res.success
 

@@ -13,10 +13,9 @@ import lifecycle_msgs.msg
 import nav2_msgs.srv
 import nav_msgs.msg
 import numpy as np
-import rclpy
-import rclpy.client
 import yaml
 from ament_index_python.packages import get_package_share_directory
+from arena_rclpy_mixins.Async import ClientWrapper
 from arena_simulation_setup.shared import Position
 from arena_simulation_setup.tree import DynamicPaths
 
@@ -103,7 +102,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
     _environment_manager: EnvironmentManager
 
-    _cli: rclpy.client.Client
+    _cli: ClientWrapper
     _world_name: str
     _origin: Position | None
     _map_name: str | None
@@ -186,7 +185,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             'map.yaml',
         )
 
-        response = self._cli.call(
+        response = self._cli.call_timeout_sync(
             nav2_msgs.srv.LoadMap.Request(
                 map_url=f'{map_yaml}'
             )
@@ -265,11 +264,11 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         await self.ensure_map_server()
 
         # publishing map to map_server
-        self._cli = self.node.create_client(
+        self._cli = self.node.create_client_wrapper(
             nav2_msgs.srv.LoadMap,
             self.node.service_namespace('map_server', 'load_map'),
         )
-        await self.node.wait_for_service_async(self._cli)
+        await self._cli.ensure()
 
         self.node.rosparam.callback(
             'world',
