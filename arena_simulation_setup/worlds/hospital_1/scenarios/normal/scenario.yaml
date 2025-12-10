@@ -51,16 +51,16 @@ dynamic:
 - behavior_tree: ./hunav_8_behavior_tree.xml
   model: female_adult_medical_01
   name: hunav_8
-  pose: [17.9, 3.3, -90.0]
+  pose: [18.1, 2.9, -90.0]
   waypoint:
-  - [17.9, 3.3, -90.0]
+  - [18.1, 2.9, -90.0]
 
 - behavior_tree: ./hunav_9_behavior_tree.xml
   model: male_adult_medical_01
   name: hunav_9
-  pose: [17.9, 5.2, -90.0]
+  pose: [18.1, 4.8, -90.0]
   waypoint:
-  - [17.9, 5.2, -90.0]
+  - [18.1, 4.8, -90.0]
 
 - behavior_tree: ./hunav_10_behavior_tree.xml
   model: male_adult_medical_01

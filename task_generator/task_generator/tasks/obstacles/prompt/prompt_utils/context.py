@@ -597,13 +597,11 @@ BEHAVIOR_TREE_FIELD_DESCRIPTION = """
 
     - "single_agent_nodes": Contains a list of behavior tree nodes that one and only one agent involved in, each has:
       - `name`: name of the node, only use provided node name, do not modify!
-      - `agent_name`: name of the agent this node applies to
       - `attributes`: a dictionary of key-value pairs (parameters passed to the node)
       - `order`: an integer represent the order of execution of this node in the agent behavior tree. The agent will handle nodes in a ascending order determined by this field. For each agent, every nodes must be unique no matter the type (single-agent or multi-agent nodes) is.
 
     - "multi_agent_nodes": Contains a list of behavior tree nodes that more than one agent involved in, each has:
       - `name`: name of the node
-      - `agents_names`: list of the agents' names this node applies to
       - `attributes`: a dictionary of key-value pairs (parameters passed to the node)
       - `order`: a dictionary of key-value pairs (<agent name>-<order value>) represent the order of execution of this node in each agent behavior tree. The agents will handle nodes in a ascending order determined by this field. For each agent, every nodes must be unique no matter the type (single-agent or multi-agent nodes) is.
 """

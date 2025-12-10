@@ -13,20 +13,12 @@
       <input_port name="time_step" type="double"/>
       <input_port name="tolerance" type="int"/>
     </Action>
-    <Action ID="StopAndWaitTimerAction">
-      <input_port name="agent_id" type="int"/>
-      <input_port name="wait_duration" type="double"/>
-    </Action>
-    <Action ID="ConversationFormation">
-      <input_port name="main_agent_id" type="int"/>
-      <input_port name="conversation_duration" type="double"/>
-      <input_port name="goal" type="int"/>
-      <input_port name="time_step" type="double"/>
-      <input_port name="non_main_agent_ids" type="string"/>
-    </Action>
   </TreeNodesModel>
   <include ros_pkg="arena_simulation_setup" path="configs/hunav/behavior_trees/BTRegularNav.xml"/>
   <BehaviorTree ID="hunav_8_behavior_tree">
-    <Sequence/>
+    <Sequence>
+      <SetGoal agent_id="{id}" goal_id="28" target_x="17.8" target_y="3.1"/>
+      <GoTo agent_id="{id}" goal_id="28" time_step="0.1" tolerance="0.1" />
+    </Sequence>
   </BehaviorTree>
 </root>

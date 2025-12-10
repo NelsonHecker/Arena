@@ -15,7 +15,7 @@
     <include ros_pkg="arena_simulation_setup" path="configs/hunav/behavior_trees/BTRegularNav.xml" />
     <BehaviorTree ID="hunav_6_behavior_tree">
         <Sequence>
-            <SetGoal agent_id="{id}" goal_id="24" target_x="5.2" target_y="1.5" />
+            <SetGoal agent_id="{id}" goal_id="24" target_x="5.9" target_y="1.5" />
             <GoTo agent_id="{id}" goal_id="24" time_step="0.1" tolerance="0.1" />
             <StopAndWaitTimerAction agent_id="{id}" wait_duration="600.0" />
         </Sequence>

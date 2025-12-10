@@ -7,26 +7,18 @@
       <input_port name="target_y" type="double"/>
       <input_port name="goal_id" type="int"/>
     </Action>
-    <Action ID="GoTo">
+    <Action ID="LookAtPoint">
       <input_port name="agent_id" type="int"/>
       <input_port name="goal_id" type="int"/>
-      <input_port name="time_step" type="double"/>
-      <input_port name="tolerance" type="int"/>
-    </Action>
-    <Action ID="StopAndWaitTimerAction">
-      <input_port name="agent_id" type="int"/>
-      <input_port name="wait_duration" type="double"/>
-    </Action>
-    <Action ID="ConversationFormation">
-      <input_port name="main_agent_id" type="int"/>
-      <input_port name="conversation_duration" type="double"/>
-      <input_port name="goal" type="int"/>
-      <input_port name="time_step" type="double"/>
-      <input_port name="non_main_agent_ids" type="string"/>
+      <input_port name="yaw_tolerance" type="double"/>
     </Action>
   </TreeNodesModel>
   <include ros_pkg="arena_simulation_setup" path="configs/hunav/behavior_trees/BTRegularNav.xml"/>
   <BehaviorTree ID="hunav_12_behavior_tree">
-    <Sequence/>
+    <Sequence>
+      <SetGoal agent_id="{id}" goal_id="30" target_x="22.0" target_y="1.8"/>
+      <!-- this doesn't work -->
+      <LookAtPoint agent_id="{id}" goal_id="30" yaw_tolerance="0.17"/>
+    </Sequence>
   </BehaviorTree>
 </root>
