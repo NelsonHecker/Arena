@@ -267,6 +267,14 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         response.robots = list(identifier_to_available(arena_robots.Robot.RobotIdentifier))
         return response
 
+    async def _cb_wait_for_world(
+        self,
+        request: EmptySrv.Request,
+        response: EmptySrv.Response,
+    ):
+        await self._world_manager.sync()
+        return response
+
     async def _set_up_services(self):
         self._logger.info("Setting up services")
 
@@ -311,6 +319,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             task_generator_msgs.srv.GetWorlds,
             self.service_namespace('get_worlds'),
             self._cb_get_worlds,
+        )
+
+        self.create_service(
+            EmptySrv,
+            self.service_namespace('wait_for_world'),
+            self._cb_wait_for_world,
         )
 
         self._logger.info("Services set up")
