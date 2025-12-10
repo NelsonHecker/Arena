@@ -1,822 +1,717 @@
 zones:
-  # Central Hallway - Main circulation spine
+  # Central Hallway - Main circulation spine (4m × 30.15m)
   - description: "Main Central Hallway"
     name: "central_hallway"
+    material: Ceramic_Tile_6
     walls:
-      - start: { x: 15.0, y: 0.0 }
-        end: { x: 15.0, y: 30.0 }
-      - start: { x: 20.0, y: 0.0 }
-        end: { x: 20.0, y: 30.0 }
+      # Bottom (doors)
+      - start: { x: 8.0, y: 0.0 }
+        end: { x: 9.25, y: 0.0 }
+        material: Marble
+      - start: { x: 10.75, y: 0.0 }
+        end: { x: 12.0, y: 0.0 }
+        material: Marble
+      # Top
+      - start: { x: 8.0, y: 30.15 }
+        end: { x: 12.0, y: 30.15 }
+        material: Marble
 
     corners:
-      - [15.0, 0.0]
-      - [20.0, 0.0]
-      - [20.0, 30.0]
-      - [15.0, 30.0]
+      - [8.0, 0.0]
+      - [12.0, 0.0]
+      - [12.0, 30.15]
+      - [8.0, 30.15]
+    
+    doors:
+      - name: "main_hallway_entrance"
+        start: { x: 9.25, y: 0.0 }
+        end: { x: 10.75, y: 0.0 }
+        height: 2.0
+        kind: "sliding"
 
     entities:
       static: []
 
-  # Reception - Entry area (compact)
+  # Reception (8m × 5m) - No Shift
   - description: "Reception and Check-in"
     name: "reception"
+    material: Marble_Tile_18
     walls:
       - start: { x: 0.0, y: 0.0 }
-        end: { x: 0.0, y: 8.0 }
-      - start: { x: 0.0, y: 8.0 }
-        end: { x: 15.0, y: 8.0 }
-      - start: { x: 15.0, y: 8.0 }
-        end: { x: 15.0, y: 0.0 }
-      - start: { x: 15.0, y: 0.0 }
+        end: { x: 0.0, y: 5.0 }
+        material: Ceramic_Tiles_Glazed_Subway
+      - start: { x: 0.0, y: 5.0 }
+        end: { x: 8.0, y: 5.0 }
+        material: Ceramic_Tiles_Glazed_Subway
+      - start: { x: 8.0, y: 5.0 }
+        end: { x: 8.0, y: 3.25 }
+        material: Ceramic_Tiles_Glazed_Subway
+      - start: { x: 8.0, y: 1.75 }
+        end: { x: 8.0, y: 0.0 }
+        material: Ceramic_Tiles_Glazed_Subway
+      - start: { x: 8.0, y: 0.0 }
         end: { x: 0.0, y: 0.0 }
+        material: Ceramic_Tiles_Glazed_Subway
 
     corners:
       - [0.0, 0.0]
-      - [15.0, 0.0]
-      - [15.0, 8.0]
-      - [0.0, 8.0]
+      - [8.0, 0.0]
+      - [8.0, 5.0]
+      - [0.0, 5.0]
 
     doors:
       - name: "reception_door"
-        start: [13.5, 8.0]
-        end: [15.0, 8.0]
+        start: { x: 8.0, y: 1.75 }
+        end: { x: 8.0, y: 3.25 }
         height: 2.0
         kind: "sliding"
 
     entities:
       static:
-        # Reception desk
         - name: reception_counter_1
           model: Hospital/Reception_Counter
-          pose: [7.5, 2.0, 0.0]
+          pose: [3.0, 1.8, 0.0]
         - name: reception_desk_1
           model: Hospital/Reception_Desk
-          pose: [7.5, 3.5, 0.0]
-        - name: reception_chair_1
-          model: Hospital/Chair
-          pose: [7.5, 4.5, 0.0]
-        # Waiting seating (tight 0.8-unit spacing)
+          pose: [4.0, 2.5, 0.0]
+
         - name: reception_waiting_sofa_1
           model: Hospital/Waiting_Room_Sofa
-          pose: [2.0, 6.0, 3.14]
-        - name: reception_waiting_sofa_2
+          pose: [2.0, 4.55, 0]
+        - name: reception_waiting_sofa_2  
           model: Hospital/Waiting_Room_Sofa
-          pose: [5.0, 6.0, 3.14]
+          pose: [3.65, 4.55, 0]
+        - name: reception_waiting_sofa_3
+          model: Hospital/Waiting_Room_Sofa
+          pose: [0.45, 3.15, 1.57079]
         - name: reception_waiting_chair_1
           model: Hospital/Waiting_Room_Chair
-          pose: [10.0, 6.0, 3.14]
+          pose: [5.7, 4.7, 0]
         - name: reception_waiting_chair_2
           model: Hospital/Waiting_Room_Chair
-          pose: [10.8, 6.0, 3.14]
-        - name: reception_waiting_chair_3
-          model: Hospital/Waiting_Room_Chair
-          pose: [11.6, 6.0, 3.14]
-        - name: reception_waiting_chair_4
-          model: Hospital/Waiting_Room_Chair
-          pose: [12.4, 6.0, 3.14]
-        - name: reception_waiting_chair_5
-          model: Hospital/Waiting_Room_Chair
-          pose: [13.2, 6.0, 3.14]
-        # Amenities
+          pose: [5.0, 4.7, 0]
         - name: reception_display_board_1
           model: Hospital/Display_Board
-          pose: [1.0, 1.0, 1.57]
+          pose: [0.4, 0.5, 1.57079]
         - name: reception_water_dispenser_1
           model: Hospital/Water_Dispenser
-          pose: [13.5, 2.0, 1.57]
+          pose: [7.7, 0.2, -1.57079]
         - name: reception_trashcan_1
           model: Hospital/Trashcan
-          pose: [14.0, 7.0, 0.0]
+          pose: [7.7, 4.8, 0.0]
 
-  # Waiting Area - Large crowded space
-  - description: "Main Waiting Area"
-    name: "waiting_area"
-    walls:
-      - start: { x: 20.0, y: 0.0 }
-        end: { x: 20.0, y: 12.0 }
-      - start: { x: 20.0, y: 12.0 }
-        end: { x: 35.0, y: 12.0 }
-      - start: { x: 35.0, y: 12.0 }
-        end: { x: 35.0, y: 0.0 }
-      - start: { x: 35.0, y: 0.0 }
-        end: { x: 20.0, y: 0.0 }
-
-    corners:
-      - [20.0, 0.0]
-      - [35.0, 0.0]
-      - [35.0, 12.0]
-      - [20.0, 12.0]
-
-    doors:
-      - name: "waiting_area_door"
-        start: [20.0, 10.0]
-        end: [20.0, 12.0]
-        height: 2.0
-        kind: "sliding"
-
-    entities:
-      static:
-        # Row 1 - Sofas along back wall
-        - name: waiting_sofa_1
-          model: Hospital/Waiting_Room_Sofa
-          pose: [22.0, 10.5, 3.14]
-        - name: waiting_sofa_2
-          model: Hospital/Waiting_Room_Sofa
-          pose: [25.0, 10.5, 3.14]
-        - name: waiting_sofa_3
-          model: Hospital/Waiting_Room_Sofa
-          pose: [28.0, 10.5, 3.14]
-        - name: waiting_sofa_4
-          model: Hospital/Waiting_Room_Sofa
-          pose: [31.0, 10.5, 3.14]
-        # Row 2 - Chairs (0.8-unit spacing)
-        - name: waiting_chair_1
-          model: Hospital/Waiting_Room_Chair
-          pose: [21.0, 8.0, 3.14]
-        - name: waiting_chair_2
-          model: Hospital/Waiting_Room_Chair
-          pose: [21.8, 8.0, 3.14]
-        - name: waiting_chair_3
-          model: Hospital/Waiting_Room_Chair
-          pose: [22.6, 8.0, 3.14]
-        - name: waiting_chair_4
-          model: Hospital/Waiting_Room_Chair
-          pose: [23.4, 8.0, 3.14]
-        - name: waiting_chair_5
-          model: Hospital/Waiting_Room_Chair
-          pose: [24.2, 8.0, 3.14]
-        - name: waiting_chair_6
-          model: Hospital/Waiting_Room_Chair
-          pose: [25.0, 8.0, 3.14]
-        - name: waiting_chair_7
-          model: Hospital/Waiting_Room_Chair
-          pose: [25.8, 8.0, 3.14]
-        - name: waiting_chair_8
-          model: Hospital/Waiting_Room_Chair
-          pose: [26.6, 8.0, 3.14]
-        - name: waiting_chair_9
-          model: Hospital/Waiting_Room_Chair
-          pose: [27.4, 8.0, 3.14]
-        - name: waiting_chair_10
-          model: Hospital/Waiting_Room_Chair
-          pose: [28.2, 8.0, 3.14]
-        - name: waiting_chair_11
-          model: Hospital/Waiting_Room_Chair
-          pose: [29.0, 8.0, 3.14]
-        - name: waiting_chair_12
-          model: Hospital/Waiting_Room_Chair
-          pose: [29.8, 8.0, 3.14]
-        - name: waiting_chair_13
-          model: Hospital/Waiting_Room_Chair
-          pose: [30.6, 8.0, 3.14]
-        - name: waiting_chair_14
-          model: Hospital/Waiting_Room_Chair
-          pose: [31.4, 8.0, 3.14]
-        - name: waiting_chair_15
-          model: Hospital/Waiting_Room_Chair
-          pose: [32.2, 8.0, 3.14]
-        - name: waiting_chair_16
-          model: Hospital/Waiting_Room_Chair
-          pose: [33.0, 8.0, 3.14]
-        # Row 3 - More chairs
-        - name: waiting_chair_17
-          model: Hospital/Waiting_Room_Chair
-          pose: [21.0, 5.5, 3.14]
-        - name: waiting_chair_18
-          model: Hospital/Waiting_Room_Chair
-          pose: [21.8, 5.5, 3.14]
-        - name: waiting_chair_19
-          model: Hospital/Waiting_Room_Chair
-          pose: [22.6, 5.5, 3.14]
-        - name: waiting_chair_20
-          model: Hospital/Waiting_Room_Chair
-          pose: [23.4, 5.5, 3.14]
-        - name: waiting_chair_21
-          model: Hospital/Waiting_Room_Chair
-          pose: [24.2, 5.5, 3.14]
-        - name: waiting_chair_22
-          model: Hospital/Waiting_Room_Chair
-          pose: [25.0, 5.5, 3.14]
-        - name: waiting_chair_23
-          model: Hospital/Waiting_Room_Chair
-          pose: [25.8, 5.5, 3.14]
-        - name: waiting_chair_24
-          model: Hospital/Waiting_Room_Chair
-          pose: [26.6, 5.5, 3.14]
-        - name: waiting_chair_25
-          model: Hospital/Waiting_Room_Chair
-          pose: [27.4, 5.5, 3.14]
-        - name: waiting_chair_26
-          model: Hospital/Waiting_Room_Chair
-          pose: [28.2, 5.5, 3.14]
-        - name: waiting_chair_27
-          model: Hospital/Waiting_Room_Chair
-          pose: [29.0, 5.5, 3.14]
-        - name: waiting_chair_28
-          model: Hospital/Waiting_Room_Chair
-          pose: [29.8, 5.5, 3.14]
-        - name: waiting_chair_29
-          model: Hospital/Waiting_Room_Chair
-          pose: [30.6, 5.5, 3.14]
-        - name: waiting_chair_30
-          model: Hospital/Waiting_Room_Chair
-          pose: [31.4, 5.5, 3.14]
-        - name: waiting_chair_31
-          model: Hospital/Waiting_Room_Chair
-          pose: [32.2, 5.5, 3.14]
-        - name: waiting_chair_32
-          model: Hospital/Waiting_Room_Chair
-          pose: [33.0, 5.5, 3.14]
-        # Row 4 - Benches (2.0-unit spacing)
-        - name: waiting_bench_1
-          model: Hospital/Waiting_Room_Bench
-          pose: [21.5, 3.0, 3.14]
-        - name: waiting_bench_2
-          model: Hospital/Waiting_Room_Bench
-          pose: [23.5, 3.0, 3.14]
-        - name: waiting_bench_3
-          model: Hospital/Waiting_Room_Bench
-          pose: [25.5, 3.0, 3.14]
-        - name: waiting_bench_4
-          model: Hospital/Waiting_Room_Bench
-          pose: [27.5, 3.0, 3.14]
-        - name: waiting_bench_5
-          model: Hospital/Waiting_Room_Bench
-          pose: [29.5, 3.0, 3.14]
-        - name: waiting_bench_6
-          model: Hospital/Waiting_Room_Bench
-          pose: [31.5, 3.0, 3.14]
-        # Amenities
-        - name: waiting_drinks_machine_1
-          model: Hospital/Drinks_Machine
-          pose: [33.5, 10.5, 1.57]
-        - name: waiting_water_dispenser_1
-          model: Hospital/Water_Dispenser
-          pose: [33.5, 6.0, 1.57]
-        - name: waiting_side_table_1
-          model: Hospital/Side_Table
-          pose: [24.0, 6.5, 0.0]
-        - name: waiting_side_table_2
-          model: Hospital/Side_Table
-          pose: [30.0, 6.5, 0.0]
-        - name: waiting_trashcan_1
-          model: Hospital/Trashcan
-          pose: [20.5, 1.0, 0.0]
-        - name: waiting_trashcan_2
-          model: Hospital/Trashcan
-          pose: [34.5, 1.0, 0.0]
-
-  # Examination Room 1 - Compact treatment room
+  # Examination Room 1 (8m × 5m) - Shifted +0.05
   - description: "Examination Room 1"
     name: "exam_room_1"
+    material: [Ceramic_Tiles_Glazed_Penny, {"tint": "rgba(0,255,0,0.2)"}]
     walls:
-      - start: { x: 0.0, y: 8.0 }
-        end: { x: 0.0, y: 15.0 }
-      - start: { x: 0.0, y: 15.0 }
-        end: { x: 8.0, y: 15.0 }
-      - start: { x: 8.0, y: 15.0 }
-        end: { x: 8.0, y: 8.0 }
-      - start: { x: 8.0, y: 8.0 }
-        end: { x: 0.0, y: 8.0 }
+      - start: { x: 0.0, y: 5.05 }
+        end: { x: 0.0, y: 10.05 }
+        material: Concrete_Polished
+      - start: { x: 0.0, y: 10.05 }
+        end: { x: 8.0, y: 10.05 }
+        material: Concrete_Polished
+      - start: { x: 8.0, y: 10.05 }
+        end: { x: 8.0, y: 8.30 }
+        material: Concrete_Polished
+      - start: { x: 8.0, y: 6.80 }
+        end: { x: 8.0, y: 5.05 }
+        material: Concrete_Polished
+      - start: { x: 8.0, y: 5.05 }
+        end: { x: 0.0, y: 5.05 }
+        material: Concrete_Polished
 
     corners:
-      - [0.0, 8.0]
-      - [8.0, 8.0]
-      - [8.0, 15.0]
-      - [0.0, 15.0]
+      - [0.0, 5.05]
+      - [8.0, 5.05]
+      - [8.0, 10.05]
+      - [0.0, 10.05]
 
     doors:
       - name: "exam_room_1_door"
-        start: [6.5, 8.0]
-        end: [8.0, 8.0]
+        start: [8.0, 6.80]
+        end: [8.0, 8.30]
         height: 2.0
         kind: "sliding"
 
     entities:
       static:
-        # Exam area
-        - name: exam1_exam_table_1
+        - name: exam_exam_table_1
           model: Hospital/Exam_Table
-          pose: [4.0, 11.5, 0.0]
-        - name: exam1_medical_stool_1
+          pose: [5.0, 7.55, 1.57079]
+        - name: exam_medical_stool_1
           model: Hospital/Medical_Stool
-          pose: [2.5, 11.5, 0.0]
-        - name: exam1_instrument_table_1
+          pose: [5.1, 7.1, 0.0]
+        - name: exam_instrument_table_1
           model: Hospital/Instrument_Table
-          pose: [5.5, 11.5, 0.0]
-        - name: exam1_vital_signal_station_1
+          pose: [5.9, 7.0, 0.0]
+        - name: exam_vital_signal_station_1
           model: Hospital/Vital_Signal_Station
-          pose: [6.5, 11.5, 0.0]
-        # Storage
-        - name: exam1_medical_cabinet_1
+          pose: [4.85, 8.2, 0]
+
+        - name: exam_exam_table_2
+          model: Hospital/Exam_Table
+          pose: [3.0, 7.55, 1.57079]
+        - name: exam_medical_stool_2
+          model: Hospital/Medical_Stool
+          pose: [3.1, 7.1, 0.0]
+        - name: exam_instrument_table_2
+          model: Hospital/Instrument_Table
+          pose: [3.9, 7.0, 0.0]
+        - name: exam_vital_signal_station_2
+          model: Hospital/Vital_Signal_Station
+          pose: [2.85, 8.2, 0]
+
+        - name: exam_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [1.0, 13.5, 1.57]
-        - name: exam1_supply_cart_1
+          pose: [0.65, 9.2, 1.57079]
+        - name: exam_medical_cabinet_2
+          model: Hospital/Medical_Cabinet
+          pose: [0.65, 8.325, 1.57079]
+        - name: exam_medical_cabinet_3
+          model: Hospital/Medical_Cabinet
+          pose: [0.65, 7.45, 1.57079]
+        
+        - name: exam_supply_cart_1
           model: Hospital/Supply_Cart_A
-          pose: [1.0, 9.5, 0.0]
-        # Equipment
-        - name: exam1_scale_1
-          model: Hospital/Scale
-          pose: [6.5, 9.0, 0.0]
-        - name: exam1_chart_rack_1
-          model: Hospital/Chart_Rack
-          pose: [0.5, 11.5, 1.57]
-        - name: exam1_trashcan_1
-          model: Hospital/Trashcan
-          pose: [7.0, 14.0, 0.0]
-
-  # Examination Room 2
-  - description: "Examination Room 2"
-    name: "exam_room_2"
-    walls:
-      - start: { x: 8.0, y: 8.0 }
-        end: { x: 8.0, y: 15.0 }
-      - start: { x: 8.0, y: 15.0 }
-        end: { x: 15.0, y: 15.0 }
-      - start: { x: 15.0, y: 15.0 }
-        end: { x: 15.0, y: 8.0 }
-      - start: { x: 15.0, y: 8.0 }
-        end: { x: 8.0, y: 8.0 }
-
-    corners:
-      - [8.0, 8.0]
-      - [15.0, 8.0]
-      - [15.0, 15.0]
-      - [8.0, 15.0]
-
-    doors:
-      - name: "exam_room_2_door"
-        start: [13.5, 8.0]
-        end: [15.0, 8.0]
-        height: 2.0
-        kind: "sliding"
-
-    entities:
-      static:
-        # Exam area
-        - name: exam2_exam_table_1
-          model: Hospital/Exam_Table
-          pose: [11.5, 11.5, 0.0]
-        - name: exam2_medical_stool_1
-          model: Hospital/Medical_Stool
-          pose: [10.0, 11.5, 0.0]
-        - name: exam2_instrument_table_1
-          model: Hospital/Instrument_Table
-          pose: [13.0, 11.5, 0.0]
-        - name: exam2_vital_signal_station_1
-          model: Hospital/Vital_Signal_Station
-          pose: [14.0, 11.5, 0.0]
-        # Storage
-        - name: exam2_medical_cabinet_1
-          model: Hospital/Medical_Cabinet
-          pose: [8.5, 13.5, 1.57]
-        - name: exam2_supply_cart_1
-          model: Hospital/Supply_Cart_B
-          pose: [8.5, 9.5, 0.0]
-        # Equipment
-        - name: exam2_scale_1
-          model: Hospital/Scale
-          pose: [14.0, 9.0, 0.0]
-        - name: exam2_wash_basin_1
-          model: Hospital/Wash_Basin
-          pose: [8.5, 14.5, 1.57]
-        - name: exam2_trashcan_1
-          model: Hospital/Trashcan
-          pose: [14.5, 14.0, 0.0]
-
-  # Treatment Room 1 - Compact operating/procedure room
-  - description: "Treatment Room 1"
-    name: "treatment_room_1"
-    walls:
-      - start: { x: 20.0, y: 12.0 }
-        end: { x: 20.0, y: 20.0 }
-      - start: { x: 20.0, y: 20.0 }
-        end: { x: 28.0, y: 20.0 }
-      - start: { x: 28.0, y: 20.0 }
-        end: { x: 28.0, y: 12.0 }
-      - start: { x: 28.0, y: 12.0 }
-        end: { x: 20.0, y: 12.0 }
-
-    corners:
-      - [20.0, 12.0]
-      - [28.0, 12.0]
-      - [28.0, 20.0]
-      - [20.0, 20.0]
-
-    doors:
-      - name: "treatment_room_1_door"
-        start: [20.0, 18.5]
-        end: [20.0, 20.0]
-        height: 2.0
-        kind: "sliding"
-
-    entities:
-      static:
-        # Operating area
-        - name: treat1_operating_table_1
-          model: Hospital/Operating_Table
-          pose: [24.0, 16.0, 0.0]
-        - name: treat1_surgical_table_1
-          model: Hospital/Surgical_Table
-          pose: [26.0, 16.0, 0.0]
-        - name: treat1_anesthesia_machine_1
-          model: Hospital/Anesthesia_Machine
-          pose: [22.0, 16.0, 0.0]
-        - name: treat1_instrument_table_1
-          model: Hospital/Instrument_Table
-          pose: [24.0, 18.0, 0.0]
-        - name: treat1_surgical_tray_1
-          model: Hospital/Surgical_Instrument_Tray
-          pose: [26.0, 18.0, 0.0]
-        # Equipment
-        - name: treat1_vital_signal_station_1
-          model: Hospital/Vital_Signal_Station
-          pose: [26.5, 14.0, 0.0]
-        - name: treat1_defibrillator_1
-          model: Hospital/Defibrillator
-          pose: [21.5, 14.0, 0.0]
-        - name: treat1_ventilator_1
-          model: Hospital/Ventilator
-          pose: [22.0, 18.5, 0.0]
-        - name: treat1_iv_stand_1
-          model: Hospital/IV_Stand
-          pose: [22.5, 15.0, 0.0]
-        # Storage
-        - name: treat1_medical_cabinet_1
-          model: Hospital/Medical_Cabinet
-          pose: [27.5, 12.5, 4.71]
-        - name: treat1_supply_cabin_1
-          model: Hospital/Supply_Cabin
-          pose: [20.5, 13.0, 1.57]
-        # Sanitation
-        - name: treat1_scrub_sink_1
-          model: Hospital/Scrub_Sink
-          pose: [20.5, 19.0, 1.57]
-        - name: treat1_biohazard_container_1
-          model: Hospital/Biohazard_Container
-          pose: [27.0, 19.5, 0.0]
-        - name: treat1_disposal_stand_1
-          model: Hospital/Disposal_Stand
-          pose: [26.0, 19.5, 0.0]
-        - name: treat1_trashcan_1
-          model: Hospital/Trashcan
-          pose: [21.0, 12.5, 0.0]
-
-  # Treatment Room 2 - Radiology/Imaging
-  - description: "Treatment Room 2 - Radiology"
-    name: "treatment_room_2"
-    walls:
-      - start: { x: 28.0, y: 12.0 }
-        end: { x: 28.0, y: 20.0 }
-      - start: { x: 28.0, y: 20.0 }
-        end: { x: 35.0, y: 20.0 }
-      - start: { x: 35.0, y: 20.0 }
-        end: { x: 35.0, y: 12.0 }
-      - start: { x: 35.0, y: 12.0 }
-        end: { x: 28.0, y: 12.0 }
-
-    corners:
-      - [28.0, 12.0]
-      - [35.0, 12.0]
-      - [35.0, 20.0]
-      - [28.0, 20.0]
-
-    doors:
-      - name: "treatment_room_2_door"
-        start: [28.0, 18.5]
-        end: [28.0, 20.0]
-        height: 2.0
-        kind: "sliding"
-
-    entities:
-      static:
-        # Radiology equipment
-        - name: treat2_xray_lightbox_1
-          model: Hospital/Xray_Light_Box
-          pose: [31.5, 19.5, 0.0]
-        - name: treat2_xray_lightbox_2
-          model: Hospital/Xray_Light_Box
-          pose: [33.0, 19.5, 0.0]
-        # Exam area
-        - name: treat2_exam_table_1
-          model: Hospital/Exam_Table
-          pose: [31.5, 16.0, 0.0]
-        - name: treat2_medical_stool_1
-          model: Hospital/Medical_Stool
-          pose: [30.0, 16.0, 0.0]
-        - name: treat2_instrument_table_1
-          model: Hospital/Instrument_Table
-          pose: [33.0, 16.0, 0.0]
-        - name: treat2_vital_signal_station_1
-          model: Hospital/Vital_Signal_Station
-          pose: [34.0, 16.0, 0.0]
-        # Storage and equipment
-        - name: treat2_medical_cabinet_1
-          model: Hospital/Medical_Cabinet
-          pose: [34.5, 12.5, 4.71]
-        - name: treat2_supply_cart_1
+          pose: [0.55, 5.4, 0.0]
+        - name: exam_supply_cart_2
           model: Hospital/Supply_Cart_A
-          pose: [28.5, 13.0, 1.57]
-        - name: treat2_wheel_chair_1
-          model: Hospital/Wheel_Chair
-          pose: [28.5, 18.0, 1.57]
-        - name: treat2_gurney_1
-          model: Hospital/Gurney
-          pose: [34.0, 12.5, 0.0]
-        - name: treat2_trashcan_1
-          model: Hospital/Trashcan
-          pose: [29.0, 19.5, 0.0]
+          pose: [1.45, 5.4, 0.0]
 
-  # Patient Ward - Compact 4-bed ward
+        - name: exam_scale_1
+          model: Hospital/Scale
+          pose: [7.6, 5.5, 0.0]
+        - name: exam_trashcan_1
+          model: Hospital/Trashcan
+          pose: [7.7, 9.8, 0.0]
+
+  # Patient Ward (8m × 15m) - Shifted +0.10
   - description: "Patient Ward"
     name: "patient_ward"
+    material: Ceramic_Tiles_Glazed_Pinwheel
     walls:
-      - start: { x: 0.0, y: 15.0 }
-        end: { x: 0.0, y: 30.0 }
-      - start: { x: 0.0, y: 30.0 }
-        end: { x: 15.0, y: 30.0 }
-      - start: { x: 15.0, y: 30.0 }
-        end: { x: 15.0, y: 15.0 }
-      - start: { x: 15.0, y: 15.0 }
-        end: { x: 0.0, y: 15.0 }
+      - start: { x: 0.0, y: 10.10 }
+        end: { x: 0.0, y: 25.10 }
+        material: Carpet_Berber_Gray
+      - start: { x: 0.0, y: 25.10 }
+        end: { x: 8.0, y: 25.10 }
+        material: Carpet_Berber_Gray
+      - start: { x: 8.0, y: 25.10 }
+        end: { x: 8.0, y: 21.85 }
+        material: Carpet_Berber_Gray
+      - start: { x: 8.0, y: 20.35 }
+        end: { x: 8.0, y: 14.85 }
+        material: Carpet_Berber_Gray
+      - start: { x: 8.0, y: 13.35 }
+        end: { x: 8.0, y: 10.10 }
+        material: Carpet_Berber_Gray
+      - start: { x: 8.0, y: 10.10 }
+        end: { x: 0.0, y: 10.10 }
+        material: Carpet_Berber_Gray
 
     corners:
-      - [0.0, 15.0]
-      - [15.0, 15.0]
-      - [15.0, 30.0]
-      - [0.0, 30.0]
+      - [0.0, 10.10]
+      - [8.0, 10.10]
+      - [8.0, 25.10]
+      - [0.0, 25.10]
 
     doors:
-      - name: "patient_ward_door"
-        start: [13.5, 15.0]
-        end: [15.0, 15.0]
+      - name: "patient_ward_door_1"
+        start: [8.0, 13.35]
+        end: [8.0, 14.85]
+        height: 2.0
+        kind: "sliding"
+      - name: "patient_ward_door_2"
+        start: [8.0, 20.35]
+        end: [8.0, 21.85]
         height: 2.0
         kind: "sliding"
 
     entities:
       static:
-        # Bed 1 (left side)
         - name: ward_bed_1
           model: Hospital/Bed_A
-          pose: [3.0, 18.0, 1.57]
+          pose: [4.0, 13.6, 0.0]
         - name: ward_bedside_table_1
           model: Hospital/Bed_Side_Table
-          pose: [3.0, 16.5, 1.57]
+          pose: [4.9, 14.4, 1.57079]
         - name: ward_iv_stand_1
           model: Hospital/IV_Stand
-          pose: [3.0, 19.5, 0.0]
+          pose: [2.8, 14.5, 0.0]
         - name: ward_vital_signal_1
           model: Hospital/Vital_Signal_Station
-          pose: [4.5, 18.0, 1.57]
+          pose: [4.9, 13.4, -1.57079]
         - name: ward_privacy_curtain_1
           model: Hospital/Privacy_Curtain_Rail
-          pose: [3.0, 20.0, 0.0]
-        # Bed 2 (left side)
-        - name: ward_bed_2
-          model: Hospital/Bed_A
-          pose: [3.0, 23.0, 1.57]
-        - name: ward_bedside_cabinet_1
-          model: Hospital/Bedside_Cabinet
-          pose: [3.0, 21.5, 1.57]
-        - name: ward_iv_stand_2
-          model: Hospital/IV_Stand
-          pose: [3.0, 24.5, 0.0]
-        - name: ward_vital_signal_2
-          model: Hospital/Vital_Signal_Station
-          pose: [4.5, 23.0, 1.57]
-        - name: ward_privacy_curtain_2
-          model: Hospital/Privacy_Curtain_Rail
-          pose: [3.0, 25.0, 0.0]
-        # Bed 3 (right side)
-        - name: ward_bed_3
-          model: Hospital/Bed_B
-          pose: [12.0, 18.0, 4.71]
-        - name: ward_bedside_table_2
-          model: Hospital/Bed_Side_Table
-          pose: [12.0, 16.5, 4.71]
-        - name: ward_iv_stand_3
-          model: Hospital/IV_Stand
-          pose: [12.0, 19.5, 0.0]
-        - name: ward_vital_signal_3
-          model: Hospital/Vital_Signal_Station
-          pose: [10.5, 18.0, 4.71]
-        - name: ward_privacy_curtain_3
-          model: Hospital/Privacy_Curtain_Rail
-          pose: [12.0, 20.0, 0.0]
-        # Bed 4 (right side)
-        - name: ward_bed_4
-          model: Hospital/Bed_B
-          pose: [12.0, 23.0, 4.71]
-        - name: ward_bedside_cabinet_2
-          model: Hospital/Bedside_Cabinet
-          pose: [12.0, 21.5, 4.71]
-        - name: ward_iv_stand_4
-          model: Hospital/IV_Stand
-          pose: [12.0, 24.5, 0.0]
-        - name: ward_vital_signal_4
-          model: Hospital/Vital_Signal_Station
-          pose: [10.5, 23.0, 4.71]
-        - name: ward_privacy_curtain_4
-          model: Hospital/Privacy_Curtain_Rail
-          pose: [12.0, 25.0, 0.0]
-        # Visitor seating (0.8-unit spacing)
+          pose: [4.0, 15.1, 0.0]
         - name: ward_armchair_1
           model: Hospital/Patient_Armchair
-          pose: [6.5, 28.0, 0.0]
+          pose: [2.2, 13.5, 1.57079]
+        - name: ward_biohazard_container_1
+          model: Hospital/Biohazard_Container
+          pose: [4.9, 12.4, 0.0]
+
+        - name: ward_bed_2
+          model: Hospital/Bed_B
+          pose: [4.0, 19.6, 0.0]
+        - name: ward_bedside_table_2
+          model: Hospital/Bed_Side_Table
+          pose: [4.9, 20.4, 1.57079]
+        - name: ward_iv_stand_2
+          model: Hospital/IV_Stand
+          pose: [2.8, 20.5, 0.0]
+        - name: ward_vital_signal_2
+          model: Hospital/Vital_Signal_Station
+          pose: [4.9, 19.4, -1.57079]
+        - name: ward_privacy_curtain_2
+          model: Hospital/Privacy_Curtain_Rail
+          pose: [4.0, 21.1, 0.0]
         - name: ward_armchair_2
           model: Hospital/Patient_Armchair
-          pose: [8.5, 28.0, 0.0]
-        - name: ward_chair_1
-          model: Hospital/Chair
-          pose: [5.0, 28.0, 0.0]
-        - name: ward_chair_2
-          model: Hospital/Chair
-          pose: [5.8, 28.0, 0.0]
-        - name: ward_chair_3
-          model: Hospital/Chair
-          pose: [10.0, 28.0, 0.0]
-        - name: ward_chair_4
-          model: Hospital/Chair
-          pose: [10.8, 28.0, 0.0]
-        # Medical storage
+          pose: [2.2, 19.5, 1.57079]
+        - name: ward_biohazard_container_2
+          model: Hospital/Biohazard_Container
+          pose: [4.9, 18.4, 0.0]
+
         - name: ward_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [14.5, 17.0, 4.71]
+          pose: [0.8, 24.0, 1.57079]
         - name: ward_medical_cabinet_2
           model: Hospital/Medical_Cabinet
-          pose: [14.5, 22.0, 4.71]
-        # Equipment
+          pose: [0.8, 1.2, 1.57079]
+
+        - name: ward_supply_cart_1
+          model: Hospital/Supply_Cart_B
+          pose: [2.3, 12.0, 0.0]
+        - name: ward_supply_cart_2
+          model: Hospital/Supply_Cart_B
+          pose: [2.3, 18.0, 0.0]
+
         - name: ward_gurney_1
           model: Hospital/Gurney
-          pose: [7.5, 16.0, 0.0]
-        - name: ward_wheel_chair_1
+          pose: [6.5, 11.6, 0.0]
+
+        - name: ward_wheelchair_1
           model: Hospital/Wheel_Chair
-          pose: [0.5, 28.0, 1.57]
-        - name: ward_supply_cart_1
-          model: Hospital/Supply_Cart_A
-          pose: [7.5, 29.0, 0.0]
+          pose: [0.7, 18.2, 0.0]
+        - name: ward_wheelchair_2
+          model: Hospital/Wheel_Chair
+          pose: [0.7, 17.4, 0.0]
         - name: ward_trashcan_1
           model: Hospital/Trashcan
-          pose: [0.5, 16.0, 0.0]
-        - name: ward_trashcan_2
-          model: Hospital/Trashcan
-          pose: [14.5, 29.0, 0.0]
+          pose: [7.7, 10.3, 0.0]
 
-  # Laboratory - Compact lab space
-  - description: "Laboratory"
-    name: "laboratory"
-    walls:
-      - start: { x: 20.0, y: 20.0 }
-        end: { x: 20.0, y: 30.0 }
-      - start: { x: 20.0, y: 30.0 }
-        end: { x: 28.0, y: 30.0 }
-      - start: { x: 28.0, y: 30.0 }
-        end: { x: 28.0, y: 20.0 }
-      - start: { x: 28.0, y: 20.0 }
-        end: { x: 20.0, y: 20.0 }
-
-    corners:
-      - [20.0, 20.0]
-      - [28.0, 20.0]
-      - [28.0, 30.0]
-      - [20.0, 30.0]
-
-    doors:
-      - name: "laboratory_door"
-        start: [20.0, 28.5]
-        end: [20.0, 30.0]
-        height: 2.0
-        kind: "sliding"
-
-    entities:
-      static:
-        # Lab benches
-        - name: lab_bench_1
-          model: Hospital/Lab_Bench
-          pose: [24.0, 25.0, 0.0]
-        - name: lab_bench_2
-          model: Hospital/Lab_Bench
-          pose: [24.0, 28.0, 0.0]
-        # Microscope stations
-        - name: lab_microscope_1
-          model: Hospital/Microscope_Station
-          pose: [22.0, 25.0, 0.0]
-        - name: lab_microscope_2
-          model: Hospital/Microscope_Station
-          pose: [26.0, 25.0, 0.0]
-        # Lab stools
-        - name: lab_stool_1
-          model: Hospital/Lab_Stool
-          pose: [22.0, 26.0, 0.0]
-        - name: lab_stool_2
-          model: Hospital/Lab_Stool
-          pose: [24.0, 26.0, 0.0]
-        - name: lab_stool_3
-          model: Hospital/Lab_Stool
-          pose: [26.0, 26.0, 0.0]
-        # Equipment and storage
-        - name: lab_refrigerated_unit_1
-          model: Hospital/Refrigerated_Medicine_Unit
-          pose: [27.5, 22.0, 4.71]
-        - name: lab_medical_cabinet_1
-          model: Hospital/Medical_Cabinet
-          pose: [27.5, 28.0, 4.71]
-        - name: lab_shelf_1
-          model: Hospital/Shelf
-          pose: [20.5, 22.0, 1.57]
-        - name: lab_shelf_set_1
-          model: Hospital/Shelf_Set
-          pose: [20.5, 28.0, 1.57]
-        # Supplies
-        - name: lab_materials_1
-          model: Hospital/Materials
-          pose: [22.0, 29.0, 0.0]
-        - name: lab_medical_box_1
-          model: Hospital/Medical_Box
-          pose: [24.0, 29.0, 0.0]
-        - name: lab_medical_bag_1
-          model: Hospital/Medical_Bag
-          pose: [26.0, 29.0, 0.0]
-        # Sanitation
-        - name: lab_wash_basin_1
-          model: Hospital/Wash_Basin
-          pose: [20.5, 25.0, 1.57]
-        - name: lab_biohazard_container_1
-          model: Hospital/Biohazard_Container
-          pose: [27.0, 29.5, 0.0]
-        - name: lab_trashcan_1
-          model: Hospital/Trashcan
-          pose: [21.0, 20.5, 0.0]
-
-  # Pharmacy - Compact dispensing area
+  # Pharmacy (8m × 5m) - Shifted +0.15
   - description: "Pharmacy"
     name: "pharmacy"
+    material: Ceramic_Tiles_Glazed_Square
     walls:
-      - start: { x: 28.0, y: 20.0 }
-        end: { x: 28.0, y: 30.0 }
-      - start: { x: 28.0, y: 30.0 }
-        end: { x: 35.0, y: 30.0 }
-      - start: { x: 35.0, y: 30.0 }
-        end: { x: 35.0, y: 20.0 }
-      - start: { x: 35.0, y: 20.0 }
-        end: { x: 28.0, y: 20.0 }
+      - start: { x: 0.0, y: 25.15 }
+        end: { x: 0.0, y: 30.15 }
+        material: Ceramic_Tile_12
+      - start: { x: 0.0, y: 30.15 }
+        end: { x: 8.0, y: 30.15 }
+        material: Ceramic_Tile_12
+      - start: { x: 8.0, y: 30.15 }
+        end: { x: 8.0, y: 28.40 }
+        material: Ceramic_Tile_12
+      - start: { x: 8.0, y: 26.90 }
+        end: { x: 8.0, y: 25.15 }
+        material: Ceramic_Tile_12
+      - start: { x: 8.0, y: 25.15 }
+        end: { x: 0.0, y: 25.15 }
+        material: Ceramic_Tile_12
 
     corners:
-      - [28.0, 20.0]
-      - [35.0, 20.0]
-      - [35.0, 30.0]
-      - [28.0, 30.0]
+      - [0.0, 25.15]
+      - [8.0, 25.15]
+      - [8.0, 30.15]
+      - [0.0, 30.15]
 
     doors:
       - name: "pharmacy_door"
-        start: [28.0, 28.5]
-        end: [28.0, 30.0]
+        start: [8.0, 26.90]
+        end: [8.0, 28.40]
         height: 2.0
         kind: "sliding"
 
     entities:
       static:
-        # Dispensing counter
         - name: pharmacy_desk_1
-          model: Hospital/Desk
-          pose: [31.5, 22.0, 0.0]
+          model: Hospital/Reception_Desk
+          pose: [4.0, 28.0 , 0.0]
         - name: pharmacy_chair_1
           model: Hospital/Chair
-          pose: [31.5, 23.5, 0.0]
-        # Medication storage
+          pose: [5.1, 26.6, 0.0]
+
         - name: pharmacy_shelf_1
           model: Hospital/Pharmacy_Shelf
-          pose: [29.0, 25.0, 1.57]
+          pose: [0.25, 26.55, 1.57079]
         - name: pharmacy_shelf_2
           model: Hospital/Pharmacy_Shelf
-          pose: [29.0, 27.0, 1.57]
+          pose: [0.25 , 28.5, 1.57079]
         - name: pharmacy_shelf_3
           model: Hospital/Pharmacy_Shelf
-          pose: [34.5, 25.0, 4.71]
+          pose: [3.4, 25.4, 3.14159]
         - name: pharmacy_shelf_4
           model: Hospital/Pharmacy_Shelf
-          pose: [34.5, 27.0, 4.71]
+          pose: [1.4, 25.4, 3.14159]
+
         - name: pharmacy_refrigerated_unit_1
           model: Hospital/Refrigerated_Medicine_Unit
-          pose: [29.0, 29.0, 1.57]
-        # Storage cabinets
+          pose: [3.2, 29.6, 0]
+
         - name: pharmacy_medical_cabinet_1
           model: Hospital/Medical_Cabinet
-          pose: [34.5, 22.0, 4.71]
+          pose: [0.8, 29.4, 0]
+        - name: pharmacy_medical_cabinet_2
+          model: Hospital/Medical_Cabinet
+          pose: [1.7, 29.4, 0]
+
         - name: pharmacy_med_shelf_1
           model: Hospital/Med_Shelf
-          pose: [31.5, 29.5, 0.0]
-        # Supply equipment
-        - name: pharmacy_cart_1
-          model: Hospital/Cart
-          pose: [28.5, 23.0, 1.57]
+          pose: [4.3, 29.6, 0]
+        - name: pharmacy_med_shelf_2
+          model: Hospital/Med_Shelf
+          pose: [5.25, 29.6, 0]
+
         - name: pharmacy_supply_cart_1
+          model: Hospital/Supply_Cart_A
+          pose: [1.3, 28.8, 0.0]
+        - name: pharmacy_supply_cart_2
           model: Hospital/Supply_Cart_B
-          pose: [28.5, 25.5, 1.57]
-        # Sanitation and disposal
-        - name: pharmacy_trashcan_1
-          model: Hospital/Trashcan
-          pose: [29.0, 20.5, 0.0]
+          pose: [7.5, 25.8, 0.0]
+
         - name: pharmacy_biohazard_container_1
           model: Hospital/Biohazard_Container
-          pose: [34.0, 29.5, 0.0]
+          pose: [7.3, 29.8, 0.0]
+        - name: pharmacy_trashcan_1
+          model: Hospital/Trashcan
+          pose: [7.7, 29.8, 0.0]
+
+  # Waiting Area (13m × 10m) - No Shift
+  - description: "Main Waiting Area"
+    name: "waiting_area"
+    material: Porcelain_Tile_4
+    walls:
+      - start: { x: 12.0, y: 0.0 }
+        end: { x: 12.0, y: 10.0 }
+        material: Carpet_Pattern_Squares_Multi
+      - start: { x: 12.0, y: 10.0 }
+        end: { x: 14.25, y: 10.0 }
+        material: Carpet_Pattern_Squares_Multi
+      - start: { x: 15.75, y: 10.0 }
+        end: { x: 21.25, y: 10.0 }
+        material: Carpet_Pattern_Squares_Multi
+      - start: { x: 22.75, y: 10.0 }
+        end: { x: 25.0, y: 10.0 }
+        material: Carpet_Pattern_Squares_Multi
+      - start: { x: 25.0, y: 10.0 }
+        end: { x: 25.0, y: 0.0 }
+        material: Carpet_Pattern_Squares_Multi
+      - start: { x: 25.0, y: 0.0 }
+        end: { x: 12.0, y: 0.0 }
+        material: Carpet_Pattern_Squares_Multi
+
+    corners:
+      - [12.0, 0.0]
+      - [25.0, 0.0]
+      - [25.0, 10.0]
+      - [12.0, 10.0]
+
+    doors:
+      - name: "waiting_to_sub_1"
+        start: [14.25, 10.0]
+        end: [15.75, 10.0]
+        height: 2.0
+        kind: "sliding"
+      - name: "waiting_to_sub_2"
+        start: [21.25, 10.0]
+        end: [22.75, 10.0]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: waiting_sofa_1
+          model: Hospital/Waiting_Room_Sofa
+          pose: [14.0, 8.5, 3.14159]
+        - name: waiting_sofa_2
+          model: Hospital/Waiting_Room_Sofa
+          pose: [17.0, 8.5, 3.14159]
+        - name: waiting_sofa_3
+          model: Hospital/Waiting_Room_Sofa
+          pose: [20.0, 8.5, 3.14159]
+        - name: waiting_sofa_4
+          model: Hospital/Waiting_Room_Sofa
+          pose: [23.0, 8.5, 3.14159]
+        - name: waiting_chair_1
+          model: Hospital/Waiting_Room_Chair
+          pose: [13.0, 6.0, 3.14159]
+        - name: waiting_chair_2
+          model: Hospital/Waiting_Room_Chair
+          pose: [13.8, 6.0, 3.14159]
+        - name: waiting_chair_3
+          model: Hospital/Waiting_Room_Chair
+          pose: [14.6, 6.0, 3.14159]
+        - name: waiting_chair_4
+          model: Hospital/Waiting_Room_Chair
+          pose: [15.4, 6.0, 3.14159]
+        - name: waiting_chair_5
+          model: Hospital/Waiting_Room_Chair
+          pose: [16.2, 6.0, 3.14159]
+        - name: waiting_chair_6
+          model: Hospital/Waiting_Room_Chair
+          pose: [17.0, 6.0, 3.14159]
+        - name: waiting_chair_7
+          model: Hospital/Waiting_Room_Chair
+          pose: [17.8, 6.0, 3.14159]
+        - name: waiting_chair_8
+          model: Hospital/Waiting_Room_Chair
+          pose: [18.6, 6.0, 3.14159]
+        - name: waiting_chair_9
+          model: Hospital/Waiting_Room_Chair
+          pose: [19.4, 6.0, 3.14159]
+        - name: waiting_chair_10
+          model: Hospital/Waiting_Room_Chair
+          pose: [20.2, 6.0, 3.14159]
+        - name: waiting_chair_11
+          model: Hospital/Waiting_Room_Chair
+          pose: [21.0, 6.0, 3.14159]
+        - name: waiting_chair_12
+          model: Hospital/Waiting_Room_Chair
+          pose: [21.8, 6.0, 3.14159]
+        - name: waiting_chair_13
+          model: Hospital/Waiting_Room_Chair
+          pose: [22.6, 6.0, 3.14159]
+        - name: waiting_chair_14
+          model: Hospital/Waiting_Room_Chair
+          pose: [23.4, 6.0, 3.14159]
+        - name: waiting_bench_1
+          model: Hospital/Waiting_Room_Bench
+          pose: [14.0, 3.5, 3.14159]
+        - name: waiting_bench_2
+          model: Hospital/Waiting_Room_Bench
+          pose: [16.5, 3.5, 3.14159]
+        - name: waiting_bench_3
+          model: Hospital/Waiting_Room_Bench
+          pose: [19.0, 3.5, 3.14159]
+        - name: waiting_bench_4
+          model: Hospital/Waiting_Room_Bench
+          pose: [21.5, 3.5, 3.14159]
+        - name: waiting_drinks_machine_1
+          model: Hospital/Drinks_Machine
+          pose: [12.7, 0.9, -1.57079]
+        - name: waiting_water_dispenser_1
+          model: Hospital/Water_Dispenser
+          pose: [12.4, 9.4, 1.57079]
+        - name: waiting_side_table_1
+          model: Hospital/Side_Table
+          pose: [16.0, 4.5, 0.0]
+        - name: waiting_side_table_2
+          model: Hospital/Side_Table
+          pose: [22.0, 4.5, 0.0]
+        - name: waiting_trashcan_1
+          model: Hospital/Trashcan
+          pose: [12.5, 1.0, 0.0]
+        - name: waiting_trashcan_2
+          model: Hospital/Trashcan
+          pose: [24.5, 1.0, 0.0]
+        - name: waiting_mop_set_1
+          model: Hospital/Mop_Set
+          pose: [24.5, 0.5, 0.0]
+
+  # Sub-Hallway (13m × 3m) - Shifted +0.05
+  - description: "Sub-Hallway"
+    name: "sub_hallway"
+    material: Ceramic_Tile_6
+    walls:
+      - start: { x: 12.0, y: 13.05 }
+        end: { x: 25.0, y: 13.05 }
+        material: Concrete_Smooth
+      - start: { x: 25.0, y: 13.05 }
+        end: { x: 25.0, y: 10.05 }
+        material: Concrete_Smooth
+      - start: { x: 25.0, y: 10.05 }
+        end: { x: 22.75, y: 10.05 }
+        material: Concrete_Smooth
+      - start: { x: 21.25, y: 10.05 }
+        end: { x: 15.75, y: 10.05 }
+        material: Concrete_Smooth
+      - start: { x: 14.25, y: 10.05 }
+        end: { x: 12.0, y: 10.05 }
+        material: Concrete_Smooth
+      # Open to Main Hallway at X=12
+
+    corners:
+      - [12.0, 10.05]
+      - [25.0, 10.05]
+      - [25.0, 13.05]
+      - [12.0, 13.05]
+
+    doors: []
+
+    entities:
+      static: []
+
+  # Operating Room (6m × 8.5m) - Shifted +0.10
+  - description: "Operating Room"
+    name: "operating_room"
+    material: Ceramic_Tiles_Glazed_Mosaic_Shifted
+    walls:
+      - start: { x: 12.0, y: 13.10 }
+        end: { x: 12.0, y: 16.60 }
+        material: Ceramic_Tiles_Glazed_Square
+      - start: { x: 12.0, y: 18.10 }
+        end: { x: 12.0, y: 21.60 }
+        material: Ceramic_Tiles_Glazed_Square
+      - start: { x: 12.0, y: 21.60 }
+        end: { x: 18.0, y: 21.60 }
+        material: Ceramic_Tiles_Glazed_Square
+      - start: { x: 18.0, y: 21.60 }
+        end: { x: 18.0, y: 13.10 }
+        material: Ceramic_Tiles_Glazed_Square
+      - start: { x: 18.0, y: 13.10 }
+        end: { x: 12.0, y: 13.10 }
+        material: Ceramic_Tiles_Glazed_Square
+
+    corners:
+      - [12.0, 13.10]
+      - [18.0, 13.10]
+      - [18.0, 21.60]
+      - [12.0, 21.60]
+
+    doors:
+      - name: "or_door"
+        start: [12.0, 16.60]
+        end: [12.0, 18.10]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: or_operating_table_1
+          model: Hospital/Operating_Table
+          pose: [15.0, 19.0, 0.0]
+        - name: or_surgical_table_1
+          model: Hospital/Surgical_Table
+          pose: [15.0, 15.5, 0.0]
+        - name: or_anesthesia_machine_1
+          model: Hospital/Anesthesia_Machine
+          pose: [14.2, 19.0, 1.57079]
+        - name: or_instrument_table_1
+          model: Hospital/Instrument_Table
+          pose: [15.8, 17.7, -1.57079]
+
+        - name: or_surgical_tray_1
+          model: Hospital/Surgical_Instrument_Tray
+          pose: [15.8, 17.7, 0.9, 0.0, 0.0, 0.0]
+        - name: or_vital_monitor_1
+          model: Hospital/Vital_Signal_Station
+          pose: [15.8, 19.0, -1.57079]
+        - name: or_defibrillator_1
+          model: Hospital/Defibrillator
+          pose: [15.8, 17.6, 0.9, 0.0, 0.0, 0.0]
+        - name: or_ventilator_1
+          model: Hospital/Ventilator
+          pose: [14.2, 15.35, 1.57079]
+        - name: or_medical_cabinet_1
+          model: Hospital/Medical_Cabinet
+          pose: [12.7, 20.7, 1.57079]
+        - name: or_supply_cabinet_1
+          model: Hospital/Supply_Cabin
+          pose: [17.05, 21.0, -1.57079]
+        - name: or_biohazard_container_1
+          model: Hospital/Biohazard_Container
+          pose: [17.7, 13.7, 0.0]
+        - name: or_trashcan_1
+          model: Hospital/Trashcan
+          pose: [17.7, 13.3, 0.0]
+
+  # Laboratory (6m × 8.5m) - Shifted +0.15
+  - description: "Laboratory"
+    name: "laboratory"
+    material: Ceramic_Tiles_Glazed_Paseo
+    walls:
+      - start: { x: 12.0, y: 21.65 }
+        end: { x: 12.0, y: 25.15 }
+        material: Ceramic_Smooth_Fired
+      - start: { x: 12.0, y: 26.65 }
+        end: { x: 12.0, y: 30.15 }
+        material: Ceramic_Smooth_Fired
+      - start: { x: 12.0, y: 30.15 }
+        end: { x: 18.0, y: 30.15 }
+        material: Ceramic_Smooth_Fired
+      - start: { x: 18.0, y: 30.15 }
+        end: { x: 18.0, y: 21.65 }
+        material: Ceramic_Smooth_Fired
+      - start: { x: 18.0, y: 21.65 }
+        end: { x: 12.0, y: 21.65 }
+        material: Ceramic_Smooth_Fired
+
+    corners:
+      - [12.0, 21.65]
+      - [18.0, 21.65]
+      - [18.0, 30.15]
+      - [12.0, 30.15]
+
+    doors:
+      - name: "laboratory_door"
+        start: [12.0, 25.15]
+        end: [12.0, 26.65]
+        height: 2.0
+        kind: "sliding"
+
+    entities:
+      static:
+        - name: lab_bench_1
+          model: Hospital/Lab_Bench
+          pose: [15.0, 26.65, 0.0]
+        - name: lab_bench_2
+          model: Hospital/Lab_Bench
+          pose: [15.0, 28.65, 0.0]
+        - name: lab_microscope_1
+          model: Hospital/Microscope_Station
+          pose: [14.4, 26.4, 0.9, 0.0, 0.0, 0.0]
+        - name: lab_microscope_2
+          model: Hospital/Microscope_Station
+          pose: [14.4, 28.4, 0.9, 0.0, 0.0, 0.0]
+
+        - name: lab_stool_1
+          model: Hospital/Lab_Stool
+          pose: [14.5, 25.9, 3.14159]
+        - name: lab_stool_2
+          model: Hospital/Lab_Stool
+          pose: [14.5, 27.9, 3.14159]
+        - name: lab_stool_3
+          model: Hospital/Lab_Stool
+          pose: [15.5, 25.9, 3.14159]
+
+        - name: lab_medical_cabinet_1
+          model: Hospital/Medical_Cabinet
+          pose: [12.7, 29.2, 1.57079]
+        - name: lab_refrigerated_unit_1
+          model: Hospital/Refrigerated_Medicine_Unit
+          pose: [17.5, 29.65, 4.71]
+        - name: lab_shelf_1
+          model: Hospital/Shelf
+          pose: [12.5, 28.5, 1.57079]
+        - name: lab_shelf_2
+          model: Hospital/Shelf
+          pose: [17.5, 28.5, 4.71]
+        - name: lab_biohazard_container_1
+          model: Hospital/Biohazard_Container
+          pose: [16.0, 26.5, 0.0]
+        - name: lab_biohazard_container_2
+          model: Hospital/Biohazard_Container
+          pose: [16.0, 28.5, 0.0]
+        - name: lab_autoclave_1
+          model: Hospital/Autoclave
+          pose: [17.5, 27.5, -1.57079]
+        - name: lab_trashcan_1
+          model: Hospital/Trashcan
+          pose: [16.0, 26.1, 0.0]
+        - name: lab_trashcan_2
+          model: Hospital/Trashcan
+          pose: [16.0, 28.1, 0.0]
