@@ -121,6 +121,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 result=$?
             ;;
             launch)
+		killall -s 9 task_generator_node && sleep 1
                 ros2 launch arena_bringup arena.launch.py "$@"
                 result=$?
             ;;

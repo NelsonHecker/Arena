@@ -159,6 +159,7 @@ class World(PathView):
                 scenarios_dir = self.path / 'scenarios'
                 if not scenarios_dir.is_dir():
                     yield from ()
+                    return
                 yield from (
                     cls(entry.name)
                     for entry

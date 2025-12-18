@@ -11,6 +11,8 @@ import rclpy.qos
 
 import launch
 
+from arena_rclpy_mixins.Time import TimeNode
+
 T = typing.TypeVar('T')
 
 
@@ -42,7 +44,7 @@ class AsyncLaunchManager:
         await asyncio.gather(*self.active_tasks, return_exceptions=True)
 
 
-class AsyncNode(rclpy.node.Node):
+class AsyncNode(TimeNode, rclpy.node.Node):
     """Async utils for rclpy nodes.
     """
 
@@ -70,13 +72,12 @@ class AsyncNode(rclpy.node.Node):
         """
         Asynchronously wait for service to be available
         """
-        start_time = self.get_clock().now()
+        start_time = self.wall_time
         while True:
             if client.wait_for_service(timeout_sec=interval):
                 return True
             if timeout is not None:
-                elapsed = (self.get_clock().now() - start_time).nanoseconds / 1e9
-                if elapsed >= timeout:
+                if (self.wall_time - start_time).to_seconds() >= timeout:
                     return False
             await asyncio.sleep(interval)
 
@@ -149,7 +150,7 @@ class AsyncNode(rclpy.node.Node):
         callback = self.syncify(callback)
         return super().create_service(srv_type, srv_name, callback, qos_profile=qos_profile, callback_group=callback_group)
 
-    def create_client_wrapper(self, srv_type, srv_name: str, timeout: float = 10.0, *, qos_profile: rclpy.client.QoSProfile = rclpy.qos.qos_profile_services_default, callback_group: rclpy.client.CallbackGroup | None = None) -> ClientWrapper:
+    def create_client_wrapper(self, srv_type, srv_name: str, timeout: float = 60.0, *, qos_profile: rclpy.client.QoSProfile = rclpy.qos.qos_profile_services_default, callback_group: rclpy.client.CallbackGroup | None = None) -> ClientWrapper:
         return ClientWrapper(
             self,
             self.create_client(srv_type, srv_name, qos_profile=qos_profile, callback_group=callback_group),

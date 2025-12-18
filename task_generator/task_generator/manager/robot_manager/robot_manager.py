@@ -5,7 +5,7 @@ import typing
 import action_msgs.msg
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
-import geometry_msgs.msg as geometry_msgs
+import geometry_msgs.msg
 import launch.launch_description_sources
 import launch_ros
 import lifecycle_msgs.msg
@@ -105,22 +105,16 @@ class RobotManager(NodeInterface):
         self._is_goal_reached = False
         self._robot_radius = 0.25
 
-        # Parameter handling
-        try:
-            self._goal_tolerance_distance = self.node.conf.Robot.GOAL_TOLERANCE_RADIUS.value
-            self._goal_tolerance_angle = self.node.conf.Robot.GOAL_TOLERANCE_ANGLE.value
-            self._safety_distance = self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
-        except Exception as e:
-            # Fallback values
-            self._goal_tolerance_distance = 1.0
-            self._goal_tolerance_angle = 0.523599
-            self._safety_distance = 0.25
-            self._logger.warn(f"Using default values for robot parameters: {e}")
+        self._goal_tolerance_distance = self.node.conf.Robot.GOAL_TOLERANCE_RADIUS.value
+        self._goal_tolerance_angle = self.node.conf.Robot.GOAL_TOLERANCE_ANGLE.value
+        self._safety_distance = self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
 
         self._robot = robot
         self._robot.extra.setdefault('namespace', self.namespace)
         self._pose = self._start_pos
         self._goal_timer = None
+
+        self._publish_goal_task: typing.Optional[asyncio.Task] = None
 
     async def _odom_base_transform(self):
         """Launch a static transform publisher for odometry to base frame.
@@ -152,7 +146,7 @@ class RobotManager(NodeInterface):
         _gen_goal_topic = self.namespace("goal_pose")
 
         self._goal_pub = self.node.create_publisher(
-            geometry_msgs.PoseStamped,
+            geometry_msgs.msg.PoseStamped,
             _gen_goal_topic,
             10,
         )
@@ -318,7 +312,10 @@ class RobotManager(NodeInterface):
                 )
         if goal_pos is not None:
             self._goal_pos = self._environment_manager.realize(goal_pos)
-            self._publish_goal(self._goal_pos)
+
+            if self._publish_goal_task is not None:
+                self._publish_goal_task.cancel()
+            self._publish_goal_task = asyncio.create_task(self._publish_goal_loop())
 
             if self._robot.record_data_dir:
                 self.node.rosparam[list[float]].set(
@@ -327,58 +324,34 @@ class RobotManager(NodeInterface):
                 )
         return self._pose, self._goal_pos
 
-    async def _publish_goal_callback(self):
-        """Callback to publish the goal periodically.
-        """
-        from geometry_msgs.msg import PoseStamped
-        current_time = self.node.get_clock().now().nanoseconds / 1e9
-        if (current_time - self._goal_start_time) >= 60.0:
-            self._logger.info("Goal publishing duration reached, stopping")
-            if self._goal_timer is not None:
-                self._goal_timer.cancel()
-                self._goal_timer.destroy()
-                self._goal_timer = None
-            return
-
-        if self._is_goal_reached:
-            self._logger.info("Goal reached, stopping goal publication")
-            if self._goal_timer is not None:
-                self._goal_timer.cancel()
-                self._goal_timer.destroy()
-                self._goal_timer = None
-            return
-
-        goal_msg = PoseStamped()
-        goal_msg.header.frame_id = "map"
-        goal_msg.header.stamp = self.node.get_clock().now().to_msg()
-        goal_msg.pose = self._goal_pos.to_msg()
-        self._goal_pub.publish(goal_msg)
-
-    def _publish_goal(self, goal: Pose):
+    async def _publish_goal_loop(self):
         """Publish the goal to the robot.
         """
         # only way to circumvent amcl absolutely trolling us is to create this loop
-        from geometry_msgs.msg import PoseStamped
-        self._logger.info(
-            f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
 
-        self._goal_pos = goal
+        with self.node.sim_time_rate(1.0, 60) as (done, rate):
+            while not done.is_set():
+                await rate.get()
 
-        if self._goal_timer is not None:
-            self._goal_timer.cancel()
-            self._goal_timer.destroy()
+                if self._is_goal_reached:
+                    break
 
-        goal_msg = PoseStamped()
-        goal_msg.header.frame_id = "map"
-        goal_msg.header.stamp = self.node.get_clock().now().to_msg()
-        goal_msg.pose = goal.to_msg()
-        self._goal_pub.publish(goal_msg)
+                goal = self._goal_pos
+                self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
 
-        self._goal_start_time = self.node.get_clock().now().nanoseconds / 1e9
-        self._goal_timer = self.node.create_timer(
-            3.0,
-            self._publish_goal_callback,
-        )
+                self._goal_pos = goal
+
+                if self._goal_timer is not None:
+                    self._goal_timer.cancel()
+                    self._goal_timer.destroy()
+
+                goal_msg = geometry_msgs.msg.PoseStamped()
+                goal_msg.header.frame_id = "map"
+                goal_msg.header.stamp = self.node.sim_time.to_msg()
+                goal_msg.pose = goal.to_msg()
+                self._goal_pub.publish(goal_msg)
+
+                self._goal_start_time = self.node.sim_time
 
     async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot external nodes.

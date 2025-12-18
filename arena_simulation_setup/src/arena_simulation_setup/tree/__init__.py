@@ -125,6 +125,9 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
         List all local assets available.
         """
         source = self.path
+        if not source.is_dir():
+            yield from ()
+            return
         for root, dirs, files in os.walk(source):
             relpath = Path(root).relative_to(source)
             try:

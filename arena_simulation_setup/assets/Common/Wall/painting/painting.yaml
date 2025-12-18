@@ -1,5 +1,5 @@
 main:
-  - material: Metal_Cast
+  - material: Marble
     height: 0.25
     z: 1.75
   - material: Bamboo_Planks

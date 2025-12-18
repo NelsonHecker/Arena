@@ -499,6 +499,9 @@ namespace task_generator_gui
         request->parameters.push_back(world_param);
         sendRequest<rcl_interfaces::srv::SetParameters>(set_param_client, request, "set_param");
 
+        auto wait_for_world_request = std::make_shared<std_srvs::srv::Empty::Request>();
+        sendRequest<std_srvs::srv::Empty>(wait_for_world_client, wait_for_world_request, "wait_for_world");
+
         request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
         rcl_interfaces::msg::Parameter robot_model_param;
         robot_model_param.name = "robot";

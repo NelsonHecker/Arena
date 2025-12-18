@@ -78,4 +78,6 @@ def main(args=None):
 
 
 if __name__ == '__main__':
+    import time
+    time.sleep(5)
     main()

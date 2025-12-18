@@ -305,7 +305,7 @@ class GazeboSimulator(BaseSim):
     def _publish_goal(self, goal: Pose):
         self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation}")
         goal_msg = PoseStamped()
-        goal_msg.header.stamp = self.node.get_clock().now().to_msg()
+        goal_msg.header.stamp = self.node.sim_time.to_msg()
         goal_msg.header.frame_id = "map"
         goal_msg.pose = goal.to_msg()
         self._goal_pub.publish(goal_msg)
