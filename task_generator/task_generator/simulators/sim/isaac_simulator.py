@@ -163,8 +163,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def obstacle_spawn(self, obstacles):
 
-        results = [True] * len(obstacles)
-
         async def impl(obstacle: Obstacle) -> Prim | None:
             try:
                 model = await (await obstacle.model.resolve()).get([ModelType.USD])
@@ -179,15 +177,17 @@ class IsaacSimulator(BaseSim, NodeInterface):
             prim.pose = obstacle.pose.to_msg()
             return prim
 
+        prims = await asyncio.gather(*map(impl, obstacles))
+
         req = SpawnPrims.Request()
-        req.prims = list(filter(None, await asyncio.gather(*map(impl, obstacles))))
+        req.prims = list(filter(None, prims))
         response = await self._clients.SpawnPrims.call_timeout(req)
         if response is None:
             return tuple(False for _ in obstacles)
 
         response_iter = iter(response.ret)
 
-        return tuple(a and next(response_iter) for a in results)
+        return tuple((a is not None) and next(response_iter) for a in prims)
 
     async def obstacle_move(self, obstacles):
         return await self._move_entities([(self._NS_PRIM(o.name), o.pose) for o in obstacles])
