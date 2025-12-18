@@ -21,6 +21,7 @@ dependencies = [
     "pillow>=11.2.1",
     "lxml>=4.9.1",
     "colourings>=0.4.1",
+    "aiofiles>=25.1.0"
 ]
 
 [project.urls]

@@ -6,7 +6,6 @@ import warnings
 
 import attrs
 
-from arena_simulation_setup.tree import Identifier
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.utils.cattrs import (
@@ -15,40 +14,19 @@ from arena_simulation_setup.utils.cattrs import (
     converter,
 )
 from arena_simulation_setup.utils.geometry import Pose, Position
-from arena_simulation_setup.utils.models import ModelWrapper
 import cattrs
+from pathlib import Path
 
 EntityT = typing.TypeVar("EntityT", bound="Entity")
 
 
-@attrs.define
+@attrs.define(kw_only=True)
 class Entity(Parseable, Serializable):
     pose: Pose = attrs.field(converter=Pose.converter)
     name: str
-    model: Identifier[ModelWrapper]
+    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
 
     extra: dict = attrs.field(factory=dict, kw_only=True)
-    path: str = attrs.field(repr=False, default='', kw_only=True)
-
-    def asdict(self, expand_extra: bool = True) -> dict:
-        if expand_extra:
-            return {
-                **attrs.asdict(self, filter=lambda a, v: a.name != 'extra'),
-                **self.extra,
-            }
-        return attrs.asdict(self)
-
-    @classmethod
-    def sanitize_name(cls, name: str) -> str:
-        """Replace special chars in name with underscores.
-
-        Args:
-            name (str): input name
-
-        Returns:
-            str: sanitized name
-        """
-        return re.sub('[^A-Za-z0-9_]', '_', name)
 
     @classmethod
     def parse(cls: typing.Type[EntityT], value: dict) -> EntityT:
@@ -66,10 +44,31 @@ class Entity(Parseable, Serializable):
             result.pop('extra', None)
         return result
 
+    def asdict(self, expand_extra: bool = True) -> dict:
+        if expand_extra:
+            return {
+                **self.extra,
+                **attrs.asdict(self, filter=lambda a, v: a.name != 'extra'),
+            }
+        return attrs.asdict(self)
+
+    @classmethod
+    def sanitize_name(cls, name: str) -> str:
+        """Replace special chars in name with underscores.
+
+        Args:
+            name (str): input name    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
+
+
+        Returns:
+            str: sanitized name
+        """
+        return re.sub('[^A-Za-z0-9_]', '_', name)
+
 
 @attrs.define
 class Obstacle(Entity):
-    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
+    ...
 
 
 @attrs.define

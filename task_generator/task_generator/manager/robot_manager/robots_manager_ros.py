@@ -1,4 +1,6 @@
 import abc
+import asyncio
+import contextlib
 import os
 import re
 import typing
@@ -46,22 +48,23 @@ class RobotsManager(abc.ABC):
     """
 
     @property
-    def robot_managers(self) -> dict[str, RobotManager]:
+    def managers(self) -> dict[str, RobotManager]:
         """Get the robot managers.
 
         Returns:
             dict[str, RobotManager]: The robot managers.
         """
-        return self._robot_managers
+        return self._managers
 
     @abc.abstractmethod
-    def set_up(self):
+    async def set_up(self):
         """Set up the robot managers.
         """
 
-    def __init__(self, environment_manager: EnvironmentManager) -> None:
+    def __init__(self, *args, environment_manager: EnvironmentManager, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self._environment_manager: EnvironmentManager = environment_manager
-        self._robot_managers: dict[str, RobotManager] = {}
+        self._managers: dict[str, RobotManager] = {}
 
 
 class RobotsManagerROS(NodeInterface, RobotsManager):
@@ -73,6 +76,33 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
     _initialpose: typing.Generator
     _robot_configurations: ROSParamT[_RobotDiff]
     _diff: _RobotDiff
+
+    @contextlib.contextmanager
+    def provide_node_paths(self, paths: set[str]):
+        """Context manager to provide node paths.
+
+        Args:
+            paths (set[str]): The set to populate with node paths.
+
+        Yields:
+            asyncio.Task: The task that populates the node paths.
+        """
+        t: asyncio.Task | None = None
+        try:
+            async def task():
+                while True:
+                    latest = self.node.get_node_names_and_namespaces()
+                    paths.update(os.path.join(ns, name) for name, ns in latest)
+                    await asyncio.sleep(1.0)
+            t = asyncio.create_task(task())
+            yield t
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            self._logger.error('Error while providing node paths {e}\n{traceback.format_exc()}')
+        finally:
+            if t and not t.done():
+                t.cancel()
 
     def _parse_robot_configurations(
         self,
@@ -113,7 +143,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
 
         for arg in robot_arg:
             if arg.endswith('.yaml'):
-                for addition in robot_setup.RobotSetup(arg).load():
+                for addition in robot_setup.RobotSetupIdentifier(arg).resolve_sync():
                     add(addition)
             elif (match := re.match(r'(.*)\[(\d+)\]', arg)):
                 # multi-instantiations via model[count]
@@ -126,7 +156,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         existing = {
             k: v.robot
             for k, v
-            in self._robot_managers.items()
+            in self.managers.items()
         }
 
         existing_keys = set(existing.keys())
@@ -189,36 +219,47 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         )
         return self._diff
 
-    def set_up(self):
+    async def set_up(self):
+        futures: list[typing.Awaitable] = []
         for robot_name in self._diff.to_remove:
-            self._robot_managers.pop(robot_name).destroy()
+            futures.append(self.managers.pop(robot_name).destroy())
         self._diff.to_remove.clear()
 
         for robot_name, config in self._diff.to_update.items():
-            self._robot_managers[robot_name].update()
+            futures.append(self.managers[robot_name].update())
             # TODO
         self._diff.to_update.clear()
 
+        node_paths: set[str] = set()
         for robot_name, config in self._diff.to_add.items():
             config = attrs.evolve(config)
             config.name = robot_name
             config.pose = next(self._initialpose)
             manager = RobotManager(
+                node=self.node,
                 namespace=Namespace(self.node.get_namespace())(
                     self.node.get_name(),
                 ),
                 environment_manager=self._environment_manager,
                 robot=config
             )
-            manager.set_up_robot()
-            self._robot_managers[robot_name] = manager
+            futures.append(manager.set_up_robot(node_paths))
+            self.managers[robot_name] = manager
+
+        with self.provide_node_paths(node_paths) as fetch_task:
+            await asyncio.wait(
+                (
+                    fetch_task,
+                    asyncio.gather(*futures),
+                ),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
         self._diff.to_add.clear()
 
-        self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self._robot_managers.values()])
+        self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
 
-    def __init__(self, environment_manager: EnvironmentManager) -> None:
-        NodeInterface.__init__(self)
-        RobotsManager.__init__(self, environment_manager=environment_manager)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self._initialpose = _initialpose_generator(-10, -10, -5)
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](

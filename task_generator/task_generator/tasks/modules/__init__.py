@@ -1,12 +1,16 @@
-from task_generator.tasks import Task, TaskMode
+from task_generator.tasks import TaskMode
+import typing
+
+if typing.TYPE_CHECKING:
+    from task_generator.tasks.task import Task
 
 
 class TM_Module(TaskMode):
 
-    _TASK: Task
+    _TASK: "Task"
 
-    def __init__(self, task: Task, **kwargs):
-        TaskMode.__init__(self, task)
+    def __init__(self, *args, task: "Task", **kwargs):
+        super().__init__(*args, props=task, **kwargs)
         self._TASK = task
 
     def before_reset(self):

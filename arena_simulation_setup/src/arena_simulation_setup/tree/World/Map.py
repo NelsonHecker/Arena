@@ -10,15 +10,10 @@ import shapely
 import shapely.affinity
 import yaml
 
+from arena_simulation_setup.tree import PathView
 
-class Map:
-    def __init__(self, path: Path):
-        self._path = path
 
-    @property
-    def path(self) -> Path:
-        return self._path
-
+class Map(PathView):
     @property
     def map_yaml(self) -> Path:
         return self.path / 'map.yaml'

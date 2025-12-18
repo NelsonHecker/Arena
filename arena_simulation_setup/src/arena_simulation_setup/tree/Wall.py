@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import itertools
 import math
+from pathlib import Path
 import typing
 from collections.abc import Iterable
 
@@ -10,13 +11,17 @@ import attrs
 import yaml
 
 from arena_simulation_setup.shared.entities import Obstacle
-from arena_simulation_setup.tree import AssetType, DynamicProvider, Resolver, Resolvers
-from arena_simulation_setup.tree.assets.Material import MaterialIdentifier
+from arena_simulation_setup.tree import (
+    DomainAssetIdentifier,
+    DynamicPathResolver,
+    DynamicPaths,
+    NetResolver,
+)
+from arena_simulation_setup.tree.assets.Material import Material, MaterialIdentifier
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.utils.cattrs import Parseable, converter
 from arena_simulation_setup.utils.geometry import Orientation, Pose, Position
 
-from arena_simulation_setup.tree.assets.Material import Material
 ###
 # Parsing wall description
 ###
@@ -113,7 +118,11 @@ class FillAsset(SubWall):
         r_start = self.start.realize(start, end)
         r_end = self.end.realize(start, end)
 
-        return (e.realize(r_start, r_end) for e in self.fill) | itertools.chain(())
+        return tuple(
+            itertools.chain.from_iterable(
+                zip(*(e.realize(r_start, r_end) for e in self.fill))
+            )
+        )
 
 
 @attrs.define(kw_only=True)
@@ -152,7 +161,7 @@ class PlaceWallSegmentAsset(SubWall):
     """
     material: MaterialIdentifier = attrs.field(
         converter=MaterialIdentifier.converter,
-        default=MaterialIdentifier(Material.default('wall'))
+        default=Material.default('wall'),
     )
     height: float = attrs.field(converter=float, default=2.0)
     width: float = attrs.field(converter=float, default=0.05)
@@ -189,7 +198,7 @@ class WallSegment:
     width: float
     material: MaterialIdentifier = attrs.field(
         converter=MaterialIdentifier.converter,
-        default=MaterialIdentifier(Material.default('wall'))
+        default=Material.default('wall'),
     )
 
 
@@ -222,13 +231,14 @@ class WallDescription:
         )
 
 
-class WallProvider(DynamicProvider[WallDescription]):
-    def load(self) -> WallDescription:
-        with open(self.path / f'{self.path.name}.yaml') as f:
+class WallIdentifier(DomainAssetIdentifier[WallDescription]):
+    _asset_type = 'Wall'
+
+    def load(self, path: Path, /, **kwargs) -> WallDescription:
+        del kwargs  # unused
+        with open(path / f'{path.name}.yaml') as f:
             return converter.structure(yaml.safe_load(f), WallDescription)
 
 
-WallResolver = Resolver(AssetType.WALL)
-Resolvers.register(WallResolver)
-
-loader = WallProvider.bind(WallResolver)
+WallIdentifier.use(*DynamicPaths.as_resolvers(WallIdentifier))
+WallIdentifier.use(*NetResolver.all(WallIdentifier))

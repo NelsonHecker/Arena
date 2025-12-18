@@ -1,10 +1,12 @@
+from typing_extensions import Self
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Optional
 
 import attrs
 
 from arena_simulation_setup import AB_DIR
-from arena_simulation_setup.tree import StaticProvider
+from arena_simulation_setup.tree import Identifier, PathResolverBase
 
 
 def _get_attrib(
@@ -40,9 +42,27 @@ class ParametrizedConfig:
     DYNAMIC: list[ObstacleConfig]
 
 
-class ParametrizedProvider(StaticProvider):
-    def load(self, *args, **kwargs) -> ParametrizedConfig:
-        tree = ET.parse(self.path)
+class ParametrizedResolver(PathResolverBase):
+    @property
+    def path(self) -> Path:
+        return AB_DIR / 'configs' / 'parametrized'
+
+
+class ParametrizedIdentifier(Identifier[ParametrizedConfig]):
+    @property
+    def shortname(self) -> str:
+        return str(Path(self.name).with_suffix(''))
+
+    @classmethod
+    def from_relpath(cls, relpath: Path) -> Self:
+        if relpath.suffix == '.xml':
+            return cls(name=str(relpath.with_suffix('')))
+        raise FileNotFoundError(f"Invalid file {relpath} for parametrized identifier")
+
+    def load(self, path: Path, /, **kwargs) -> ParametrizedConfig:
+        del kwargs
+
+        tree = ET.parse(path)
         root = tree.getroot()
 
         assert isinstance(
@@ -63,4 +83,4 @@ class ParametrizedProvider(StaticProvider):
         )
 
 
-Parametrized = ParametrizedProvider.bind(AB_DIR / 'configs' / 'parametrized')
+ParametrizedIdentifier.use(ParametrizedResolver(ParametrizedIdentifier))

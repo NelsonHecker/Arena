@@ -1,5 +1,5 @@
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.tree.World import World
+from arena_simulation_setup.tree.World import WorldIdentifier
 from arena_simulation_setup.tree.World.Scenario import RobotGoal
 
 from task_generator.shared import PositionRadius
@@ -18,9 +18,9 @@ class TM_Scenario(TM_Robots):
     _config: ROSParamT[list[RobotGoal]]
 
     def _parse_scenario(self, scenario: str) -> list[RobotGoal]:
-        return World(self.node._world_manager.world_name).scenario(scenario).load().robots
+        return WorldIdentifier(self.node._world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
 
-    def reset(self, **kwargs):
+    async def reset(self, **kwargs):
         """
         Resets the scenario.
 
@@ -31,12 +31,12 @@ class TM_Scenario(TM_Robots):
             None
         """
 
-        super().reset(**kwargs)
+        await super().reset(**kwargs)
 
         SCENARIO_ROBOTS = self._config.value
 
         # check robot manager length
-        managed_robots = list(self._PROPS.robot_managers.values())
+        managed_robots = list(self._PROPS.robots.values())
 
         scenario_robots_length = len(SCENARIO_ROBOTS)
         setup_robot_length = len(managed_robots)
@@ -52,7 +52,7 @@ class TM_Scenario(TM_Robots):
                 "Scenario file contains more robots than setup.", once=True)
 
         for robot, config in zip(managed_robots, SCENARIO_ROBOTS):
-            robot.reset(start_pos=config.start, goal_pos=config.goal)
+            await robot.reset(start_pos=config.start, goal_pos=config.goal)
             self._PROPS.world_manager.forbid(
                 [
                     PositionRadius(

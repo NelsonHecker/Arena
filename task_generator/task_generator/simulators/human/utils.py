@@ -1,9 +1,9 @@
 import enum
 import os
-from pathlib import Path
 import typing
 import xml.etree.ElementTree as ET
 from io import StringIO
+from pathlib import Path
 from typing import Any, Optional, Union
 
 import arena_simulation_setup
@@ -16,8 +16,14 @@ from arena_rclpy_mixins.shared import Namespace
 import task_generator.utils.arena as Utils
 from task_generator.constants import Constants
 from task_generator.manager.world_manager.utils import WorldMap, WorldOccupancy
-from task_generator.shared import (Model, ModelType, ModelWrapper, Obstacle,
-                                   Pose, rosparam_get)
+from task_generator.shared import (
+    Model,
+    ModelType,
+    ModelWrapper,
+    Obstacle,
+    Pose,
+    rosparam_get,
+)
 
 
 class SDFUtil:
@@ -71,7 +77,7 @@ class ObstacleLayer(int, enum.Enum):
     WORLD = 2  # intrinsic part of world
 
 
-ObstacleT = typing.TypeVar('ObstacleT', bound=Obstacle)
+ObstacleT = typing.TypeVar('ObstacleT')
 
 
 @attrs.define()
@@ -156,17 +162,17 @@ class YAMLUtil:
         return yaml.safe_load(content)
 
     @staticmethod
-    def read_yaml(yaml: Union[StringIO, str]) -> Any:
-        if isinstance(yaml, StringIO):
-            return YAMLUtil.parse_yaml(yaml.read())
+    def read_yaml(path: Union[StringIO, str]) -> Any:
+        if isinstance(path, StringIO):
+            return YAMLUtil.parse_yaml(path.read())
 
-        elif isinstance(yaml, str):
-            with open(yaml, "r") as file:
+        elif isinstance(path, str):
+            with open(path, "r") as file:
                 return YAMLUtil.parse_yaml(file.read())
 
         else:
             raise ValueError(
-                f"can't process yaml descriptor of type {type(yaml)}")
+                f"can't process yaml descriptor of type {type(path)}")
 
     @staticmethod
     def serialize(obj: Any):
@@ -253,7 +259,7 @@ def walls_to_obstacle(world_map: WorldMap, height: float = 3) -> Obstacle:
         constant_values=0,
     )
 
-    img_uri = os.path.join(tmp_dir, f"__WALLS.png")
+    img_uri = os.path.join(tmp_dir, "__WALLS.png")
     cv2.imwrite(img_uri, np.iinfo(dtype).max * padded_heightmap)
 
     z_offset = -0.1

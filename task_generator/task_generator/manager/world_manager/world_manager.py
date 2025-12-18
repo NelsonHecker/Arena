@@ -24,10 +24,8 @@ class WorldManager(NodeInterface):
     _map: WorldMap
     _classic_forbidden_zones: list[PositionRadius]
 
-    def __init__(
-        self
-    ):
-        NodeInterface.__init__(self)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._detected_walls = None
         self._classic_forbidden_zones = []
 
@@ -170,7 +168,7 @@ class WorldManager(NodeInterface):
 
             # Select a random cell
             x, y = possible_cells.pop(
-                self.node.conf.General.RNG.integers(
+                self.node.conf.General.RNG.value.integers(
                     len(possible_cells)))
 
             # Check if valid

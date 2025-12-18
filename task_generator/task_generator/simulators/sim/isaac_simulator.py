@@ -1,19 +1,23 @@
+import asyncio
 import itertools
 import os
 import random
-import sys
-import time
 import traceback
+import types
 import typing
 
 import arena_people_msgs.msg
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Material
-import attrs
 import isaacsim_msgs.msg
 import numpy as np
-import rclpy
-import rclpy.client
+import std_srvs.srv
+from arena_rclpy_mixins.Async import ClientWrapper
+from arena_simulation_setup.shared import Door as DoorDefinition
+from arena_simulation_setup.shared import Elevator as ElevatorDefinition
+from arena_simulation_setup.shared import Floor as FloorDefinition
+from arena_simulation_setup.shared import Wall as WallDefinition
+from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
     Door,
     Elevator,
@@ -58,25 +62,7 @@ def material_to_msg(material: arena_simulation_setup.tree.assets.Material.Materi
     )
 
 
-@attrs.define()
-class _Service:
-    type_: typing.Any
-    name: str
-
-    _client: rclpy.client.Client = attrs.field(init=False)
-
-    @property
-    def client(self) -> rclpy.client.Client:
-        if self._client is None:
-            raise RuntimeError(f"client for service {self.name} not initialized")
-        return self._client
-
-    @client.setter
-    def client(self, value: rclpy.client.Client):
-        self._client = value
-
-
-class IsaacSimulator(BaseSim):
+class IsaacSimulator(BaseSim, NodeInterface):
 
     _NS_PRIM = Namespace('Obstacles')
     _NS_PEDESTRIAN = Namespace('Pedestrians')
@@ -85,42 +71,40 @@ class IsaacSimulator(BaseSim):
     _NS_FLOOR = Namespace('Floors')
     _NS_DOOR = Namespace('Doors')
 
-    class _services:
-        DeleteAllPedestrians = _Service(type_=DeletePrims, name="isaac/DeleteAllPedestrians")
-        DeletePrims = _Service(type_=DeletePrims, name="isaac/DeletePrims")
-        EditPrims = _Service(type_=EditPrims, name="isaac/EditPrims")
-        NavigatePedestrians = _Service(type_=NavigatePedestrians, name="isaac/NavigatePedestrians")
-        SpawnDoors = _Service(type_=SpawnDoors, name="isaac/SpawnDoors")
-        SpawnFloors = _Service(type_=SpawnFloors, name='isaac/SpawnFloors')
-        SpawnPedestrians = _Service(type_=SpawnPedestrians, name="isaac/SpawnPedestrians")
-        SpawnPrims = _Service(type_=SpawnPrims, name="isaac/SpawnPrims")
-        SpawnUrdf = _Service(type_=SpawnUrdf, name="isaac/SpawnUrdf")
-        SpawnUsd = _Service(type_=SpawnUsd, name="isaac/SpawnUsd")
-        SpawnWalls = _Service(type_=SpawnWalls, name="isaac/SpawnWalls")
-        SpawnElevators = _Service(type_=SpawnElevators, name="isaac/SpawnElevators")
-
-    def __init__(self, namespace):
+    def __init__(self, *args, **kwargs):
         """Initialize IsaacSimulator
-
-        Args:
-            namespace: Namespace for the simulator
         """
-        NodeInterface.__init__(self)
-        super().__init__(namespace)
+        super().__init__(*args, **kwargs)
 
         self.wall_counter = itertools.count()
         self.floor_counter = itertools.count()
         self._spawned_doors = []
+        self._ped_dict: dict[str, str] = {}
+        self._clients = types.SimpleNamespace(
+            DeleteAllPedestrians=self.node.create_client_wrapper(DeletePrims, "isaac/DeleteAllPedestrians"),
+            DeletePrims=self.node.create_client_wrapper(DeletePrims, "isaac/DeletePrims"),
+            EditPrims=self.node.create_client_wrapper(EditPrims, "isaac/EditPrims"),
+            NavigatePedestrians=self.node.create_client_wrapper(NavigatePedestrians, "isaac/NavigatePedestrians"),
+            SpawnDoors=self.node.create_client_wrapper(SpawnDoors, "isaac/SpawnDoors"),
+            SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "isaac/SpawnFloors"),
+            SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "isaac/SpawnPedestrians"),
+            SpawnPrims=self.node.create_client_wrapper(SpawnPrims, "isaac/SpawnPrims"),
+            SpawnUrdf=self.node.create_client_wrapper(SpawnUrdf, "isaac/SpawnUrdf"),
+            SpawnUsd=self.node.create_client_wrapper(SpawnUsd, "isaac/SpawnUsd"),
+            SpawnWalls=self.node.create_client_wrapper(SpawnWalls, "isaac/SpawnWalls"),
+            SpawnElevators=self.node.create_client_wrapper(SpawnElevators, "isaac/SpawnElevators"),
+            PauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "isaac/PauseSimulation"),
+            UnpauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "isaac/UnpauseSimulation"),
+        )
 
-        self._init_service_clients()
+        # Publisher for external registration messages so IsaacSim's DoorManager
+        # can be informed about spawned entities in the IsaacSim process.
+        self._reg_pub = self.node.create_publisher(StdString, '/isaac/register_entity', 10)
 
-        if hasattr(self, 'node') and self.node is not None:
-            self._logger.info(f"IsaacSimulator initialized with namespace: {namespace}")
-
-    def robot_spawn(self, robots):
-        def impl(robot: Robot) -> bool:
+    async def robot_spawn(self, robots):
+        async def impl(robot: Robot) -> bool:
             try:
-                model = robot.model.load().get(
+                model = await (await robot.model.resolve()).model.get(
                     (
                         ModelType.URDF,
                         # ModelType.USD
@@ -129,11 +113,11 @@ class IsaacSimulator(BaseSim):
                 )
 
                 if model.type == ModelType.URDF:
-                    robot_params = arena_robots.Robot.RobotLoader(robot.model.name).model_params
+                    robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
 
                     fq_name = self._NS_ROBOT(robot.name)
 
-                    self._services.SpawnUrdf.client.call(
+                    await self._clients.SpawnUrdf.call_timeout(
                         SpawnUrdf.Request(
                             name=fq_name,
                             urdf_path=str(model.path),
@@ -161,7 +145,7 @@ class IsaacSimulator(BaseSim):
                         else:
                             self._logger.warning('Registration publisher not available; robot not registered with IsaacSim DoorManager')
                     except Exception as e:
-                        self._logger.warning(f'Failed to publish robot registration: {e}')
+                        self._logger.warning(f'Failed to publish robot registration: {e}\n{traceback.format_exc()}')
 
                     return True
 
@@ -171,222 +155,229 @@ class IsaacSimulator(BaseSim):
                 )
 
             except Exception as e:
-                self._logger.error(repr(e))
+                self._logger.error(f"{repr(e)}\n{traceback.format_exc()}")
                 return False
 
-        return tuple(map(impl, robots))
+        return await asyncio.gather(*map(impl, robots))
 
-    def obstacle_spawn(self, obstacles):
-        req = SpawnPrims.Request()
+    async def obstacle_spawn(self, obstacles):
 
         results = [True] * len(obstacles)
 
-        for i, obstacle in enumerate(obstacles):
+        async def impl(obstacle: Obstacle) -> Prim | None:
             try:
-                model = obstacle.model.load().get([ModelType.USD])
+                model = await (await obstacle.model.resolve()).get([ModelType.USD])
                 if model.type is ModelType.UNKNOWN:
                     raise ValueError(f"obstacle model {obstacle.model.name} has no USD representation")
             except Exception as e:
-                import traceback
                 self._logger.error(f"Failed to load model for obstacle {obstacle.name}: {e}\n{traceback.format_exc()}")
-                results[i] = False
-                continue
+                return None
             prim = Prim()
             prim.usd_path = str(model.path)
             prim.name = self._NS_PRIM(obstacle.name)
             prim.pose = obstacle.pose.to_msg()
-            req.prims.append(prim)  # type: ignore
+            return prim
 
-        response = self._services.SpawnPrims.client.call(req)
+        req = SpawnPrims.Request()
+        req.prims = list(filter(None, await asyncio.gather(*map(impl, obstacles))))
+        response = await self._clients.SpawnPrims.call_timeout(req)
+        if response is None:
+            return tuple(False for _ in obstacles)
+
         response_iter = iter(response.ret)
 
         return tuple(a and next(response_iter) for a in results)
 
-    def obstacle_move(self, obstacles):
-        def move_obstacle(obstacle: Obstacle) -> bool:
-            return self._move_entity(self._NS_PRIM(obstacle.name), obstacle.pose)
-        return tuple(map(move_obstacle, obstacles))
+    async def obstacle_move(self, obstacles):
+        return await asyncio.gather(*(self._move_entity(self._NS_PRIM(o.name), o.pose) for o in obstacles))
 
-    def pedestrian_move(self, pedestrians):
-        def move_pedestrian(pedestrian: DynamicObstacle) -> bool:
-            return self._move_entity(self._NS_PEDESTRIAN(pedestrian.name), pedestrian.pose)
-        return tuple(map(move_pedestrian, pedestrians))
+    async def pedestrian_move(self, pedestrians):
+        return await asyncio.gather(*(self._move_entity(self._NS_PEDESTRIAN(p.name), p.pose) for p in pedestrians))
 
-    def robot_move(self, robots):
-        def move_robot(robot: Robot) -> bool:
-            robot_params = arena_robots.Robot.RobotLoader(robot.model.name).model_params
-            res1 = self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
-            res2 = self._move_entity(self._NS_ROBOT(robot.name, robot_params.base_frame), robot.pose)
-            return res1 and res2
-        return tuple(map(move_robot, robots))
+    async def robot_move(self, robots):
+        async def move_robot(robot: Robot) -> bool:
+            try:
+                robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
+                res1 = await self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
+                res2 = await self._move_entity(self._NS_ROBOT(robot.name, robot_params.base_frame), robot.pose)
+                return res1 and res2
+            except Exception as e:
+                self._logger.error(f"Failed to move robot {robot.name}: {e}\n{traceback.format_exc()}")
+                return False
+        return await asyncio.gather(*map(move_robot, robots))
 
-    def obstacle_delete(self, obstacles):
-        return [True for _obstacle in obstacles]
-        return tuple(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles)
+    async def obstacle_delete(self, obstacles):
+        return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles))
 
-    def pedestrian_delete(self, pedestrians):
-        return (True,) * len(pedestrians)
-        # TODO uncomment when pedestrians aren't deleted immediately
-        return tuple(self._delete_entity(self._NS_PEDESTRIAN(p.name)) for p in pedestrians)
+    async def pedestrian_delete(self, pedestrians):
+        return await asyncio.gather(*(self._delete_entity(self._NS_PEDESTRIAN(p.name)) for p in pedestrians))
 
-    def robot_delete(self, robots):
-        return tuple(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots)
+    async def robot_delete(self, robots):
+        return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots))
 
-    def remove_walls_doors(self):
-        self._delete_entity(self._NS_WALL(self.node._environment_manager._prefix()))
-        self._delete_entity(self._NS_DOOR(self.node._environment_manager._prefix()))
-        self._delete_entity(self._NS_FLOOR(self.node._environment_manager._prefix()))
+    async def remove_world(self):
+        await self._delete_entity(self._NS_WALL(self.node._environment_manager._prefix()))
+        await self._delete_entity(self._NS_DOOR(self.node._environment_manager._prefix()))
+        await self._delete_entity(self._NS_FLOOR(self.node._environment_manager._prefix()))
         return True
 
-    def spawn_walls(self, walls):
+    async def spawn_walls(self, walls):
         # return True
         self._logger.debug("Attempting to spawn walls")
 
+        async def create_segment(segment: WallSegment) -> Wall | None:
+            end = segment.end.to_msg()
+            end.z += segment.height
+            try:
+                wall_name = self.node._environment_manager.realize(f"wall_{next(self.wall_counter)}")
+                return Wall(
+                    name=self._NS_WALL(wall_name),
+                    start=segment.start.to_msg(),
+                    end=end,
+                    material=material_to_msg(await segment.material.resolve()),
+                    thickness=segment.width,
+                )
+
+            except Exception as e:
+                self._logger.error(f"Failed to spawn wall: {e}\n{traceback.format_exc()}")
+                return None
+
+        async def create_obstacle(obstacle: Obstacle) -> Prim | None:
+            try:
+                prim_name = self.node._environment_manager.realize(f"obstacle_{next(self.wall_counter)}")
+                model = await (await obstacle.model.resolve()).get(ModelType.USD)
+                if model.type is ModelType.UNKNOWN:
+                    return None
+                prim = Prim()
+                prim.usd_path = str(model.path)
+                prim.name = self._NS_WALL(prim_name)
+                prim.pose = obstacle.pose.to_msg()
+                return prim
+
+            except Exception as e:
+                self._logger.error(f"Failed to spawn wall obstacle: {e}\n{traceback.format_exc()}")
+                return None
+
+        async def create_wall(wall: WallDefinition):
+            segments, obstacles = await wall.assets()
+            return map(create_segment, segments), map(create_obstacle, obstacles)
+
+        wall_futures = await asyncio.gather(*map(create_wall, walls))
+        segment_futures, obstacle_futures = zip(*wall_futures)
+
         walls_req = SpawnWalls.Request()
         prims_req = SpawnPrims.Request()
+        walls_req.walls = list(filter(None, await asyncio.gather(*itertools.chain.from_iterable(segment_futures))))
+        prims_req.prims = list(filter(None, await asyncio.gather(*itertools.chain.from_iterable(obstacle_futures))))
 
-        for wall in walls:
-
-            segments, obstacles = wall.assets()
-
-            for segment in segments:
-                end = segment.end.to_msg()
-                end.z += segment.height
-                try:
-                    wall_name = self.node._environment_manager.realize(f"wall_{next(self.wall_counter)}")
-                    walls_req.walls.append(  # type: ignore
-                        Wall(
-                            name=self._NS_WALL(wall_name),
-                            start=segment.start.to_msg(),
-                            end=end,
-                            material=material_to_msg(segment.material.load()),
-                            thickness=segment.width,
-                        )
-                    )
-
-                except Exception as e:
-                    self._logger.error("Failed to spawn wall")
-                    self._logger.error(repr(e))
-                    traceback.print_exc(file=sys.stderr)
-
-            for obstacle in obstacles:
-                try:
-                    prim_name = self.node._environment_manager.realize(f"obstacle_{next(self.wall_counter)}")
-                    model = obstacle.model.load().get(ModelType.USD)
-                    if model.type is ModelType.UNKNOWN:
-                        continue
-                    prim = Prim()
-                    prim.usd_path = str(model.path)
-                    prim.name = self._NS_WALL(prim_name)
-                    prim.pose = obstacle.pose.to_msg()
-                    prims_req.prims.append(prim)  # type: ignore
-
-                except Exception as e:
-                    self._logger.error("Failed to spawn wall obstacle")
-                    self._logger.error(repr(e))
-                    traceback.print_exc(file=sys.stderr)
-
-        res = all(self._services.SpawnWalls.client.call(walls_req).ret) and all(self._services.SpawnPrims.client.call(prims_req).ret)
+        walls_res = await self._clients.SpawnWalls.call_timeout(walls_req)
+        prims_res = await self._clients.SpawnPrims.call_timeout(prims_req)
+        res = bool(walls_res) and all(walls_res.ret) and bool(prims_res) and all(prims_res.ret)
 
         self._logger.info("All walls spawned.")
         return res
 
-    def spawn_floors(self, floors) -> bool:
+    async def spawn_floors(self, floors) -> bool:
         self._logger.info("Attempting to spawn floors")
 
-        req = SpawnFloors.Request()
-
-        for floor in floors:
+        async def impl(floor: FloorDefinition) -> Floor | None:
             try:
-                req.floors.append(  # type: ignore
-                    Floor(
-                        name=self._NS_FLOOR(floor.name),
-                        x_length=floor.x_length,
-                        y_length=floor.y_length,
-                        pos=floor.pos.to_msg(),
-                        material=material_to_msg(floor.material.load()),
-                    )
+                return Floor(
+                    name=self._NS_FLOOR(floor.name),
+                    x_length=floor.x_length,
+                    y_length=floor.y_length,
+                    pos=floor.pos.to_msg(),
+                    material=material_to_msg(await floor.material.resolve()),
                 )
 
             except Exception:
-                import traceback
                 self._logger.error(f"Failed to spawn floor: {floor.name}\n{traceback.format_exc()}")
-                traceback.print_exc(file=sys.stderr)
+                return None
 
-        res = all(self._services.SpawnFloors.client.call(req).ret)
+        floors_req = SpawnFloors.Request()
+        floors_req.floors = list(filter(None, await asyncio.gather(*map(impl, floors))))
+        floors_res = await self._clients.SpawnFloors.call_timeout(floors_req)
+
+        res = bool(floors_res) and all(floors_res.ret)
         self._logger.info("All floors spawned successfully.")
         return res
 
-    def spawn_doors(self, doors) -> bool:
-        req = SpawnDoors.Request()
-        for door in doors:
+    async def spawn_doors(self, doors) -> bool:
+        async def impl(door: DoorDefinition) -> Door | None:
             try:
                 end = door.end.to_msg()
                 end.z += door.height
-                req.doors.append(  # type: ignore
-                    Door(
-                        name=self._NS_DOOR(door.name),
-                        start=door.start.to_msg(),
-                        end=end,
-                        material=material_to_msg(door.material.load()),
-                        thickness=0.1,
-                        kind=door.kind,
-                    )
+                return Door(
+                    name=self._NS_DOOR(door.name),
+                    start=door.start.to_msg(),
+                    end=end,
+                    material=material_to_msg(await door.material.resolve()),
+                    thickness=0.1,
+                    kind=door.kind,
                 )
             except Exception as e:
-                self._logger.error("Failed to spawn door")
-                self._logger.error(repr(e))
-                traceback.print_exc(file=sys.stderr)
-        res = all(self._services.SpawnDoors.client.call(req).ret)
+                self._logger.error(f"Failed to spawn door: {e}\n{traceback.format_exc()}")
+                return None
+
+        doors_req = SpawnDoors.Request()
+        doors_req.doors = list(filter(None, await asyncio.gather(*map(impl, doors))))
+        doors_res = await self._clients.SpawnDoors.call_timeout(doors_req)
+
+        res = bool(doors_res) and all(doors_res.ret)
         self._logger.info("All doors spawned successfully.")
         return res
 
-    def spawn_elevators(self, elevators) -> bool:
+    async def spawn_elevators(self, elevators) -> bool:
         self._logger.debug(f"IsaacSimulator.spawn_elevators ENTRY, elevators: {elevators}")
         self._logger.debug(f"IsaacSimulator.spawn_elevators called with: {[e.name for e in elevators]}")
         for e in elevators:
             self._logger.debug(f"Elevator data: {e}")
 
         req = SpawnElevators.Request()
-        for elevator in elevators:
+
+        async def impl(elevator: ElevatorDefinition) -> Elevator | None:
             try:
                 pos = elevator.position
                 size = elevator.size
                 size = Scale(x=size[0], y=size[1], z=size[2])
-                req.elevators.append(  # type: ignore
-                    Elevator(
-                        name=elevator.name,
-                        position=pos,
-                        size=size,
-                        height_min=elevator.height_min,
-                        height_max=elevator.height_max,
-                        material=material_to_msg(elevator.material.load()),
-                    )
+                return Elevator(
+                    name=elevator.name,
+                    position=pos.to_msg(),
+                    size=size,
+                    height_min=elevator.height_min,
+                    height_max=elevator.height_max,
+                    material=material_to_msg(await elevator.material.resolve()),
                 )
             except Exception as e:
-                self._logger.error(f"Failed to append elevator: {elevator.name}, error: {e}")
+                self._logger.error(f"Failed to append elevator: {elevator.name}: {e}\n{traceback.format_exc()}")
+                return None
 
-        res = all(self._services.SpawnElevators.client.call(req).ret)
-        self._logger.debug("All elevators spawned successfully." if res else "Failed to spawn one or more elevators")
+        req.elevators = list(filter(None, await asyncio.gather(*map(impl, elevators))))
+        elevators_res = await self._clients.SpawnElevators.call_timeout(req)
+        res = bool(elevators_res) and all(elevators_res.ret)
+        self._logger.debug("All elevators spawned successfully.")
         return res
 
-    # TODO: update
-    def before_reset_task(self):
-        self._delete_all_pedestrians(self._NS_PEDESTRIAN)
-        time.sleep(0.5)
+    async def before_reset_task(self):
+        await self._pause()
         return True
 
-    # TODO: update
-    def after_reset_task(self):
+    async def after_reset_task(self):
+        await self._unpause()
         return True
 
-    def pedestrian_spawn(self, pedestrians):
+    async def _pause(self):
+        await self._clients.PauseSimulation.call_timeout(std_srvs.srv.Trigger.Request())
 
-        req = SpawnPedestrians.Request()
+    async def _unpause(self):
+        await self._clients.UnpauseSimulation.call_timeout(std_srvs.srv.Trigger.Request())
+
+    async def pedestrian_spawn(self, pedestrians):
+
         on_success: list[tuple[str, str]] = []
 
         # TODO implement targeted pedestrian models
-        for pedestrian in pedestrians:
+        async def impl(pedestrian: DynamicObstacle) -> Pedestrian | None:
             available_models: dict[str, str] = {
                 # "F_Business_02",
                 # "F_Medical_01",
@@ -422,16 +413,20 @@ class IsaacSimulator(BaseSim):
             ped.pose = pedestrian.pose.to_msg()
             ped.controller_stats = False
 
-            req.pedestrians.append(ped)  # type: ignore
             on_success.append((pedestrian.name, model_name))
+            return ped
 
-        res = self._services.SpawnPedestrians.client.call(req)
+        req = SpawnPedestrians.Request()
+        req.pedestrians = list(filter(None, await asyncio.gather(*map(impl, pedestrians))))
+        res = await self._clients.SpawnPedestrians.call_timeout(req)
+        if res is None:
+            return tuple(False for _ in pedestrians)
 
         for status, (name, model_name) in zip(res.ret, on_success):
             if status:
-                self.ped_dict[name] = model_name
+                self._ped_dict[name] = model_name
 
-        self.pedestrian_update(
+        await self.pedestrian_update(
             arena_people_msgs.msg.Pedestrians(pedestrians=[
                 arena_people_msgs.msg.Pedestrian(
                     name=ped.name,
@@ -445,56 +440,60 @@ class IsaacSimulator(BaseSim):
 
         return res.ret
 
-    def pedestrian_update(self, pedestrians):
-        req = NavigatePedestrians.Request()
+    async def pedestrian_update(self, pedestrians):
 
-        def impl(ped: arena_people_msgs.msg.Pedestrian) -> bool:
+        async def impl(ped: arena_people_msgs.msg.Pedestrian) -> PedestrianGoal | None:
             name = ped.name
-            if not name in self.ped_dict:
-                self._logger.warning(f"Pedestrian {name} not found in ped_dict: {list(self.ped_dict.keys())}")
-                return False
+            if name not in self._ped_dict:
+                self._logger.warning(f"Pedestrian {name} not found in ped_dict: {list(self._ped_dict.keys())}")
+                return None
 
             goal = PedestrianGoal()
-            goal.name = self._NS_PEDESTRIAN(name, "ManRoot", self.ped_dict[name])
+            goal.name = self._NS_PEDESTRIAN(name, "ManRoot", self._ped_dict[name])
             goal.position = ped.pose.position
             goal.velocity = np.linalg.norm([ped.twist.linear.x, ped.twist.linear.y])
-            req.goals.append(goal)  # type: ignore
-            return True
+            return goal
 
-        preflight = tuple(map(impl, pedestrians.pedestrians))
-        results = self._services.NavigatePedestrians.client.call(req).ret
+        goals = list(filter(None, await asyncio.gather(*map(impl, pedestrians.pedestrians))))
+        req = NavigatePedestrians.Request()
+        req.goals = goals
+        res = await self._clients.NavigatePedestrians.call_timeout(req)
 
-        return tuple(a and b for a, b in zip(preflight, results))
+        return tuple(a and b for a, b in zip(goals, res and res.ret or ()))
 
-    def _delete_entity(self, name: str) -> bool:
+    async def _delete_entity(self, name: str) -> bool:
         self._logger.debug(f"Attempting to delete prim {name}")
 
-        res = self._services.DeletePrims.client.call(
+        res = await self._clients.DeletePrims.call_timeout(
             DeletePrims.Request(
                 names=[name]
             )
         )
+        if res is None:
+            return False
 
         return res.ret[0]
 
-    def _delete_all_pedestrians(self, prim_path):
+    async def _delete_all_pedestrians(self, prim_path):
         self._logger.info(f"Attempting to delete prim named {prim_path}")
 
-        res = self._services.DeleteAllPedestrians.client.call(
+        res = await self._clients.DeleteAllPedestrians.call_timeout(
             DeletePrims.Request(names=[prim_path])
         )
+        if res is None:
+            return False
 
         return res.ret[0]
 
-    def _move_entity(self, name: str, pose: Pose) -> bool:
+    async def _move_entity(self, name: str, pose: Pose) -> bool:
         self._logger.debug(f"Attempting to move entity: {name}")
         self._logger.debug(f"position: {pose.position.x,pose.position.y}")
         self._logger.debug(f"orientation: {pose.orientation}")
 
-        if name in self.ped_dict:
+        if name in self._ped_dict:
             name = os.path.join('pedestrians', name)
 
-        response = self._services.EditPrims.client.call(
+        response = await self._clients.EditPrims.call_timeout(
             EditPrims.Request(
                 prims=[
                     Prim(
@@ -505,62 +504,25 @@ class IsaacSimulator(BaseSim):
                 pose=True,
             )
         )
+        if response is None:
+            return False
 
         return response.ret[0]
 
-    def _init_service_clients(self):
+    async def setup(self):
         """
         Initialize all ROS 2 service clients and wait for their availability.
         """
-        if hasattr(self, 'node') and self.node is not None:
-            logger = self._logger
-            logger.info("Initializing service clients...")
-        else:
-            logger = None
-            print("Initializing service clients...")
-
+        futures: list[typing.Awaitable] = []
         # Define services with their corresponding client attributes
-        for service in (service for at, service in self._services.__dict__.items() if not at.startswith('_')):
-            service.client = self.node.create_client(service.type_, service.name) if hasattr(self, 'node') and self.node is not None else None
-            if logger:
-                logger.debug(f'Waiting for service "{service.name}"...')
-            else:
-                print(f'Waiting for service "{service.name}"...')
+        for client in self._clients.__dict__.values():
+            futures.append(typing.cast(ClientWrapper, client).ensure())
+        await asyncio.gather(*futures)
 
-            poll_interval: float = 1.0
-            shout_every: int = 30
+        self._logger.info("All service clients initialized and available.")
 
-            polls: int = 0
-            if service._client is not None:
-                while not service._client.wait_for_service(timeout_sec=poll_interval):
-                    polls += 1
-                    if polls % shout_every == 0:
-                        if logger:
-                            logger.warning(f'Service "{service.name}" not available after waiting {poll_interval * polls}s')
-                        else:
-                            print(f'Service "{service.name}" not available after waiting {poll_interval * polls}s')
-                if logger:
-                    logger.debug(f'Service "{service.name}" is now available.')
-                else:
-                    print(f'Service "{service.name}" is now available.')
-
-        self.ped_dict = {}
-
-        # Publisher for external registration messages so IsaacSim's DoorManager
-        # can be informed about spawned entities in the IsaacSim process.
-        try:
-            self._reg_pub = self.node.create_publisher(StdString, '/isaac/register_entity', 10) if hasattr(self, 'node') and self.node is not None else None
-            if logger:
-                logger.info('Created /isaac/register_entity publisher')
-            else:
-                print('Created /isaac/register_entity publisher')
-        except Exception as e:
-            self._reg_pub = None
-            if logger:
-                logger.warning(f'Failed to create registration publisher: {e}')
-            else:
-                print(f'Failed to create registration publisher: {e}')
-        if logger:
-            logger.info("All service clients initialized and available.")
-        else:
-            print("All service clients initialized and available.")
+    @classmethod
+    async def create(cls, *args, namespace, **kwargs):
+        self = cls(*args, namespace=namespace, **kwargs)
+        await self.setup()
+        return self

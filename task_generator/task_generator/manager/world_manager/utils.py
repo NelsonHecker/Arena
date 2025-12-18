@@ -205,7 +205,7 @@ class WorldMap:
                 y=occupancy_grid.info.origin.position.x
             ),
             resolution=occupancy_grid.info.resolution,
-            time=Time.from_time(occupancy_grid.info.map_load_time)
+            time=Time.from_msg(occupancy_grid.info.map_load_time)
         )
 
     @property

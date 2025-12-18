@@ -1,17 +1,18 @@
 import os
 import re
 import subprocess
-import tempfile
 import xml.etree.ElementTree as ET
 from collections.abc import Collection
 from pathlib import Path
+
+import aiofiles
 
 from . import Model, ModelProvider, ModelType
 
 
 class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
     @classmethod
-    def load(cls, model_dir, model, loader_args):
+    async def load(cls, model_dir, model, loader_args) -> Model:
         model_paths = (
             model_dir / f"{model}.usdz",
             model_dir / f"{model}.usd",
@@ -19,36 +20,31 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
             model_dir / f"{model}.usdc",
         )
 
-        def load_model(model_path) -> Model | None:
-            try:
-                with open(model_path, 'rb') as f:
-                    return Model(
-                        type=ModelType.USD,
-                        name=model,
-                        description="",  # TODO add bytes compat
-                        path=model_path
-                    )
-            except FileNotFoundError:
-                pass
-            except Exception as e:
-                del e  # TODO add logging
-            return None
-
-        return next(filter(None, map(load_model, model_paths)), None)
+        found = next(filter(os.path.exists, model_paths), None)
+        if found is None:
+            raise FileNotFoundError(f"USD model for {model} not found in {model_dir}")
+        return Model(
+            type=ModelType.USD,
+            name=model,
+            description="",  # TODO add bytes compat
+            path=found
+        )
 
     @classmethod
     def convertable(cls) -> Collection[ModelType]:
         return (ModelType.SDF,)
 
     @classmethod
-    def convert(cls, model_dir, model, loader_args) -> Model | None:
-        if model.type == ModelType.SDF:
+    async def convert(cls, model_dir, model, loader_args) -> Model | None:
+        if model.type is ModelType.SDF:
             try:
                 # print(model_dir)
                 model_path = model.path
                 model_dir = model_path.parent
-                tree = ET.parse(model_path)
+                async with aiofiles.open(model_path, 'r') as f:
+                    tree = ET.ElementTree(ET.fromstring(await f.read()))
                 root = tree.getroot()
+                assert root is not None
                 # First pass: resolve package:// URIs
                 model_uri_pattern = re.compile(r'^model://([^/]+)(.*)$')
                 package_uri_pattern = re.compile(r'^package://([^/]+)(.*)$')
@@ -65,9 +61,9 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                             print(new_uri)
                             # uri_elem.text = new_uri
                             if str(new_uri).lower().endswith('.dae') and new_uri.is_file():
-                                uri_elem.text = str(process_dae(new_uri, model_dir))
+                                uri_elem.text = str(await process_dae(new_uri, model_dir))
                             elif str(new_uri).lower().endswith('.obj') and new_uri.is_file():
-                                uri_elem.text = str(process_obj(new_uri, model_dir))
+                                uri_elem.text = str(await process_obj(new_uri, model_dir))
                         else:
                             match = package_uri_pattern.match(text)
                             if match:
@@ -78,9 +74,9 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                                 new_uri = model_dir / remaining_path
                                 print(new_uri)
                                 if str(new_uri).lower().endswith('.dae') and new_uri.is_file():
-                                    uri_elem.text = str(process_dae(new_uri, model_dir))
+                                    uri_elem.text = str(await process_dae(new_uri, model_dir))
                                 elif str(new_uri).lower().endswith('.obj') and new_uri.is_file():
-                                    uri_elem.text = str(process_obj(new_uri, model_dir))
+                                    uri_elem.text = str(await process_obj(new_uri, model_dir))
                 model_path = model_dir / model.name / "usd" / f"{model.name}.usd"
                 model_path.parent.mkdir(parents=True, exist_ok=True)
                 if model_path.is_symlink() and not model_path.exists():  # broken symlink
@@ -91,11 +87,11 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
 
                 env = os.environ.copy()
                 env['ARENA_WS_DIR'] = ARENA_DIR
-                with tempfile.NamedTemporaryFile(delete=False, mode='w') as f:
-                    tree.write(f, encoding='unicode')
-                    f.flush()
-                    temp_file_path = f.name
-                    print("Temporary SDF file for converter:", temp_file_path)
+                async with aiofiles.tempfile.NamedTemporaryFile(delete=False, mode='w') as f:
+                    ser = ET.tostring(root, encoding="unicode", method="xml")
+                    await f.write(ser)
+                    await f.flush()
+                    print("Temporary URDF file for converter:", f.name)
                     subprocess.check_output(
 
                         [
@@ -108,7 +104,7 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                     )
 
                 from pxr import Usd
-                stage = Usd.Stage.Open(model_path)
+                stage = Usd.Stage.Open(model_path)  # type: ignore
                 for prim in stage.Traverse():
                     if prim.GetTypeName() == "Xform":
                         first_xform_prim = prim
@@ -120,7 +116,7 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                 stage.SetDefaultPrim(first_xform_prim)
                 root_layer = stage.GetRootLayer()
                 root_layer.Save()
-                return cls.load(model_dir, model.name, loader_args)
+                return await cls.load(model_dir, model.name, loader_args)
 
             except Exception:
                 raise
@@ -128,7 +124,7 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
         return None
 
 
-def process_dae(dae_file, package_dir) -> Path:
+async def process_dae(dae_file, package_dir) -> Path:
     """
     Load a .dae file, update its <init_from> elements by replacing any leading
     '../' with the package_dir, then write to a temporary file and return its path.
@@ -137,6 +133,7 @@ def process_dae(dae_file, package_dir) -> Path:
     file = collada.Collada(dae_file)
     tree = file.xmlnode
     root = tree.getroot()
+    assert root is not None
     for init_elem in root.iterfind('.//init_from'):
         print(init_elem)
         if init_elem.text:
@@ -150,16 +147,16 @@ def process_dae(dae_file, package_dir) -> Path:
                 new_text = os.path.join(package_dir, rel_path)
                 init_elem.text = new_text
 
-    with tempfile.NamedTemporaryFile(mode="wb", suffix=".dae", delete=False) as tmp_file:
+    async with aiofiles.tempfile.NamedTemporaryFile(mode="wb", suffix=".dae", delete=False) as tmp_file:
         # Write the XML tree to the temporary file.
-        tree.write(tmp_file, pretty_print=True, xml_declaration=True, encoding="UTF-8")
-        temp_filename = tmp_file.name
-    return Path(temp_filename)
+        ser = ET.tostring(root, encoding="utf-8", method="xml", xml_declaration=True)
+        await tmp_file.write(ser)
+    return Path(tmp_file.name)
 
     # Write the updated .dae file to a temporary file
 
 
-def process_obj(obj_file, package_dir) -> Path:
+async def process_obj(obj_file, package_dir) -> Path:
     """
     Read an .obj file as text and update any .png file references.
     For any found relative .png path (e.g. starting with "../"), remove the
@@ -167,8 +164,8 @@ def process_obj(obj_file, package_dir) -> Path:
     to a temporary file whose path is returned.
     """
     try:
-        with open(obj_file, 'r', encoding='utf-8') as f:
-            content = f.read()
+        async with aiofiles.open(obj_file, 'r', encoding='utf-8') as f:
+            content = await f.read()
     except Exception as e:
         print(f"Error reading {obj_file}: {e}")
         return obj_file  # fallback: return original file if error occurs
@@ -191,7 +188,6 @@ def process_obj(obj_file, package_dir) -> Path:
     new_content = png_pattern.sub(replace_png, content)
 
     # Write the updated .obj file to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.obj', mode='w', encoding='utf-8') as temp_file:
-        temp_file.write(new_content)
-        temp_filename = temp_file.name
-    return Path(temp_filename)
+    async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix='.obj', mode='w', encoding='utf-8') as temp_file:
+        await temp_file.write(new_content)
+    return Path(temp_file.name)

@@ -42,6 +42,7 @@ dependencies = [
     "google-genai>=1.32.0,<2.0.0",
     "chromadb>=1.3.5",
     "colourings>=0.4.1",
+    "aiofiles>=25.1.0",
 ]
 
 [project.optional-dependencies]
@@ -65,3 +66,8 @@ training = [
 [build-system]
 requires = ["setuptools<80", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "aiomonitor>=0.7.1",
+]

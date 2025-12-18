@@ -1,9 +1,10 @@
 import json
 import sys
 
-from arena_simulation_setup.tree.World.World import World
 import std_srvs.srv
 from arena_rclpy_mixins.ServiceNamespace import ServiceNamespace
+
+from arena_simulation_setup.tree.World.World import WorldIdentifier
 
 from .world_generator import WorldGenerator, WorldGeneratorType
 
@@ -11,7 +12,7 @@ from .world_generator import WorldGenerator, WorldGeneratorType
 class WorldGeneratorROS(WorldGenerator, ServiceNamespace):
     def _get_parameters(self) -> tuple[WorldGeneratorType, dict]:
         name = WorldGeneratorType(self.get_parameter('generator').value)
-        config = json.loads(self.get_parameter('configuration').value)
+        config = json.loads(self.get_parameter('configuration').value)  # type: ignore
 
         self.get_logger().info(f'world generator: "{name}"')
         self.get_logger().info(f'config: {config}')
@@ -21,7 +22,7 @@ class WorldGeneratorROS(WorldGenerator, ServiceNamespace):
     def _cb_generate(self, request: std_srvs.srv.Trigger.Request, response: std_srvs.srv.Trigger.Response) -> std_srvs.srv.Trigger.Response:
         try:
             self.update_generator(*self._get_parameters())
-            World('.generated').save(self.compute())
+            WorldIdentifier('.generated').resolve_sync().save(self.compute())
             response.success = True
         except BaseException as e:
             response.success = False
@@ -49,6 +50,7 @@ def main(argv=sys.argv):
     import os
 
     import rclpy
+    import rclpy.utilities
 
     rclpy.init(args=argv)
     argv = rclpy.utilities.remove_ros_args(argv)

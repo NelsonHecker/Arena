@@ -1,12 +1,13 @@
+import asyncio
 import json
 import os
 import subprocess
 import sys
-import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import attrs
 
 from . import Model, ModelProvider, ModelType
@@ -15,7 +16,7 @@ from . import Model, ModelProvider, ModelType
 class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
 
     @classmethod
-    def load(cls, model_dir, model, loader_args):
+    async def load(cls, model_dir, model, loader_args):
 
         if loader_args is None:
             loader_args = {}
@@ -50,10 +51,14 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
 
         try:
 
-            model_desc = subprocess.check_output(cmd).decode("utf-8")
+            process = await asyncio.subprocess.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode or -1, cmd, output=stdout + stderr)
+            model_desc = stdout.decode("utf-8")
 
-            with open(model_path, 'w') as f:
-                f.write(model_desc)
+            async with aiofiles.open(model_path, 'w') as f:
+                await f.write(model_desc)
 
             base_dir = os.path.dirname(model_path)
             tree = ET.parse(model_path)
@@ -78,16 +83,16 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                         print(f"Updated relative path to absolute: {original_path} -> {abs_path}")
 
             # Write the updated XML tree to a temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".urdf", mode="wb") as tmp:
-                tree.write(tmp, encoding="utf-8", xml_declaration=True)
-                temp_filepath = tmp.name
-                print(f"Converted URDF saved to temporary file: {temp_filepath}")
+            async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".urdf", mode="wb") as tmp:
+                ser = ET.tostring(root, encoding="utf-8", method="xml", xml_declaration=True)
+                await tmp.write(ser)
+                print(f"Converted URDF saved to temporary file: {tmp.name}")
 
             return Model(
                 type=ModelType.URDF,
                 name=model,
                 description=model_desc,
-                path=Path(temp_filepath)
+                path=Path(tmp.name)
             )
 
         except subprocess.CalledProcessError as e:
@@ -96,5 +101,4 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                 file=sys.stderr
             )
             print(f"Command executed: {' '.join(cmd)}", file=sys.stderr)
-
             raise

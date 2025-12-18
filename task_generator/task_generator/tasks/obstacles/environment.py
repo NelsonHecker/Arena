@@ -364,7 +364,7 @@ class TM_Environment(TM_Obstacles):
 
     def _parse_environment(self, environment_file: str) -> _ParsedConfig:
 
-        environment = arena_simulation_setup.tree.configs.environment.Environment(environment_file).load()
+        environment = arena_simulation_setup.tree.configs.environment.EnvironmentIdentifier(environment_file).resolve_sync()
 
         static_obstacles: list[Obstacle] = []
         dynamic_obstacles: list[DynamicObstacle] = []
@@ -382,7 +382,7 @@ class TM_Environment(TM_Obstacles):
         # print(len(rooms))
         # print(rooms)
 
-        groups = environment["groups"]
+        groups = dict(environment)["groups"]
         groups_selection = random.choices(groups, k=len(rooms))
         groups_iter = iter(groups_selection)
 
@@ -493,7 +493,7 @@ class TM_Environment(TM_Obstacles):
             dynamic=dynamic_obstacles
         )
 
-    def reset(self, **kwargs) -> Obstacles:
+    async def reset(self, **kwargs) -> Obstacles:
         return self._config.value.static, self._config.value.dynamic
 
     def __init__(self, **kwargs):
