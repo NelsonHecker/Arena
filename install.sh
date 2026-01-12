@@ -40,6 +40,7 @@ echo "installing ${ARENA_REPO}:${ARENA_BRANCH} on ROS2 ${ARENA_ROS_DISTRO} to $A
 sudo echo 'confirmed'
 mkdir -p "$ARENA_WS_DIR"
 cd "$ARENA_WS_DIR"
+sudo apt update # some deps require initial update on fresh systems
 
 # == remove ros problems ==
 files=$( (grep -l "/ros" /etc/apt/sources.list.d/* | grep -v "ros2") || echo '')
