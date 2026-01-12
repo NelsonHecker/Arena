@@ -125,7 +125,7 @@ sudo apt-get install -y \
     libcunit1-dev \
     libpcl-dev \
     libboost-python-dev \
-    python3-rosdep \
+    python3-rosdep2 \
     libgps-dev \
     graphicsmagick \
     libgraphicsmagick1-dev \
