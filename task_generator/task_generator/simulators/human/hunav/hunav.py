@@ -548,7 +548,11 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                             model = await ref.resolve()
                             model.override(
                                 ModelType.SDF,
-                                lambda m: attrs.evolve(m, description=_PedestrianHelper.create_sdf(obs)),
+                                lambda m: attrs.evolve(
+                                    m,
+                                    type=ModelType.SDF,
+                                    description=_PedestrianHelper.create_sdf(obs)
+                                ),
                                 noload=True
                             )
                             return PedestrianIdentifier.inline(
