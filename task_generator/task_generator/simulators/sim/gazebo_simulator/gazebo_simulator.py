@@ -175,6 +175,7 @@ class GazeboSimulator(BaseSim):
                 return False
 
             if model.type is ModelType.UNKNOWN:
+                self._logger.error(f"Error resolving model for entity {entity.name}: unknown model type {model}")
                 return False
 
             model_description = model.description
@@ -183,18 +184,16 @@ class GazeboSimulator(BaseSim):
             # Set pose
             request.entity_factory.pose = entity.pose.to_msg()
 
-            self._logger.debug(
-                f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}")
+            self._logger.info(f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}")
 
             self._logger.debug(f"Sending spawn request for {entity.name}")
             result = await self._service_spawn_entity.call_timeout(request)
 
             if result is None:
-                self._logger.error(
-                    f"Spawn service call failed for {entity.name}")
+                self._logger.error(f"Spawn service call failed for {entity.name}")
                 return False
 
-            self._logger.debug(
+            self._logger.info(
                 f"Spawn result for {entity.name}: {result.success}")
 
             self.entities[entity.name] = entity
@@ -202,8 +201,7 @@ class GazeboSimulator(BaseSim):
             return result.success
 
         except Exception as e:
-            self._logger.error(
-                f"Error spawning entity {entity.name}: {str(e)}")
+            self._logger.error(f"Error spawning entity {entity.name}: {str(e)}")
             traceback.print_exc()
             return False
 
