@@ -4,7 +4,7 @@ import typing
 from typing import Optional, Type, TypeVar
 
 import attrs
-from arena_rclpy_mixins.shared import Namespace
+from arena_rclpy_mixins.shared import FrameNamespace, Namespace
 from arena_robots.Robot import RobotIdentifier
 from arena_robots.SetupFile import Config as RobotSetupConfig
 from arena_simulation_setup.shared import (  # noqa
@@ -15,8 +15,9 @@ from arena_simulation_setup.shared import (  # noqa
     Floor,
     Obstacle,
     Wall,
+    Elevator,
 )
-from arena_simulation_setup.shared.entities import Entity  # noqa
+from arena_simulation_setup.shared.entities import Entity as _Entity  # noqa
 from arena_simulation_setup.utils.geometry import (  # noqa
     Orientation,
     Pose,
@@ -79,10 +80,12 @@ class Robot(Entity):
         return self.compatible(value) and self.name == value.name and self.record_data_dir == value.record_data_dir
 
     @property
-    def frame(self) -> Namespace:
-        if not self.name:
-            return Namespace('')
-        return Namespace(self.name)
+    def frame(self) -> FrameNamespace:
+        if hasattr(self, 'sim_path'):
+            return FrameNamespace(getattr(self, 'sim_path'))
+        if self.name:
+            return FrameNamespace(self.name)
+        return FrameNamespace('')
 
     @classmethod
     def from_setup(cls, setup: RobotSetupConfig) -> Robot:

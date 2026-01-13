@@ -23,10 +23,14 @@ from task_generator.shared import (
     Pose,
     Robot,
     Wall,
+    FrameNamespace,
 )
 from task_generator.simulators.sim import BaseSim
 
 from .robot_bridge import BridgeConfiguration
+
+# sanitize frames, gazebo does not support slashes
+FrameNamespace.auto_sanitize()
 
 
 class GazeboSimulator(BaseSim):
@@ -124,7 +128,7 @@ class GazeboSimulator(BaseSim):
     # IMPL
 
     async def _move_entity(self, entity: Entity):
-        name = Entity.sanitize_name(entity.name)
+        name = entity.sim_path
         pose = entity.pose
         self._logger.debug(f"Attempting to move entity: {name}")
         self._logger.debug(f"Moving entity {name} to position: {pose}")
@@ -155,12 +159,10 @@ class GazeboSimulator(BaseSim):
 
     async def _spawn_entity(self, entity: Entity) -> bool:
         try:
-            entity.name = Entity.sanitize_name(entity.name)
-
             # Create spawn request
             request = SpawnEntity.Request()
             request.entity_factory = EntityFactory()
-            request.entity_factory.name = entity.name
+            request.entity_factory.name = entity.sim_path
 
             # Get model description
             try:
@@ -206,7 +208,7 @@ class GazeboSimulator(BaseSim):
             return False
 
     async def _delete_entity(self, name: str):
-        name = Entity.sanitize_name(name)
+        name = name
 
         self._logger.debug(f"Attempting to delete entity: {name}")
 
@@ -314,7 +316,7 @@ class GazeboSimulator(BaseSim):
     async def spawn_walls(self, walls) -> bool:
         await self.remove_world()  # Clear existing walls
         for wall in walls:  # only walls, ignore obstacles
-            wall_name = Entity.sanitize_name(self.node._environment_manager.realize(f"wall_{next(self._wall_counter)}"))
+            wall_name = self.node._environment_manager.realize(f"wall_{next(self._wall_counter)}")
             wall_height = 2.0  # Wall height in meters
             wall_thickness = 0.05  # Wall thickness in meters
             base_position = (0, 0, 0)  # Offset the wall to (10, 10, 0)
@@ -376,7 +378,7 @@ class GazeboSimulator(BaseSim):
         mappings = BridgeConfiguration.from_file(
             robot_config.mappings
         ).substitute({
-            'robot_name': robot.name,
+            'robot_name': robot.sim_path,
             'world': '/world/default',
         })
 
@@ -403,7 +405,7 @@ class GazeboSimulator(BaseSim):
                 parameters=[
                     {'use_sim_time': True},
                     {'robot_description': description},
-                    {'frame_prefix': robot.frame('')}  # add trailing slash
+                    {'frame_prefix': robot.frame + '/'}  # add trailing slash
                 ],
             )
         )

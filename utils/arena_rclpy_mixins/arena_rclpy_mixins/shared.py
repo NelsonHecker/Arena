@@ -1,4 +1,5 @@
 import os
+import re
 import typing
 
 import rclpy
@@ -34,6 +35,18 @@ class Namespace(str):
 
     def remove_double_slash(self) -> "Namespace":
         return Namespace(self.replace("//", "/"))
+
+
+class FrameNamespace(Namespace):
+    def __call__(self, *args: str) -> "FrameNamespace":
+        return FrameNamespace(Namespace(self).__call__(*args))
+
+    def sanitize(self) -> str:
+        return re.sub('[^A-Za-z0-9_]', '_', self)
+
+    @classmethod
+    def auto_sanitize(cls):
+        cls.__str__ = cls.sanitize
 
 
 class ParamNamespace(Namespace):

@@ -131,7 +131,8 @@ def generate_launch_description():
     task_generator_node = launch_ros.actions.Node(
         package='task_generator',
         executable='task_generator_node',
-        name=namespace.substitution,
+        namespace=PythonExpression(['os.path.dirname("', namespace.substitution, '")'], ['os']),
+        name=PythonExpression(['os.path.basename("', namespace.substitution, '")'], ['os']),
         output='screen',
         parameters=[
             {

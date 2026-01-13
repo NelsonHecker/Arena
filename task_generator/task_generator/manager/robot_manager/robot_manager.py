@@ -109,7 +109,7 @@ class RobotManager(NodeInterface):
         self._goal_tolerance_angle = self.node.conf.Robot.GOAL_TOLERANCE_ANGLE.value
         self._safety_distance = self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
 
-        self._robot = robot
+        self._robot = self.node._environment_manager.realize(robot)
         self._robot.extra.setdefault('namespace', self.namespace)
         self._pose = self._start_pos
         self._goal_timer = None
@@ -370,7 +370,7 @@ class RobotManager(NodeInterface):
                 'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
                 'namespace': self.namespace,
                 # 'use_namespace': 'True',
-                'frame': self.node._environment_manager.realize(self._robot).frame(''),  # trailing slash
+                'frame': self._robot.frame(''),  # trailing slash
                 'inter_planner': self._robot.inter_planner,
                 'global_planner': self._robot.global_planner,
                 'local_planner': self._robot.local_planner,

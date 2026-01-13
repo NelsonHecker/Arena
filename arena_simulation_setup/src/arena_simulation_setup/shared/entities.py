@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import typing
 import warnings
 
@@ -21,13 +20,17 @@ EntityT = typing.TypeVar("EntityT", bound="Entity")
 
 
 @attrs.define(kw_only=True)
-class Entity(Parseable, Serializable):
-    pose: Pose = attrs.field(converter=Pose.converter)
+class Named(Parseable, Serializable):
     name: str
-    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
+    extra: dict = attrs.field(factory=dict)
 
-    extra: dict = attrs.field(factory=dict, kw_only=True)
-    included_from: Path | None = attrs.field(default=None, kw_only=True, repr=False)
+    @property
+    def sim_path(self) -> str:
+        return self.extra.get('sim_path', self.name)
+
+    @sim_path.setter
+    def sim_path(self, value: str) -> None:
+        self.extra['sim_path'] = str(value)
 
     @classmethod
     def parse(cls: typing.Type[EntityT], value: dict) -> EntityT:
@@ -45,6 +48,14 @@ class Entity(Parseable, Serializable):
             result.pop('extra', None)
         return result
 
+
+@attrs.define(kw_only=True)
+class Entity(Named, Parseable, Serializable):
+    pose: Pose = attrs.field(converter=Pose.converter)
+    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
+
+    included_from: Path | None = attrs.field(default=None, repr=False)
+
     def asdict(self, expand_extra: bool = True) -> dict:
         if expand_extra:
             return {
@@ -52,19 +63,6 @@ class Entity(Parseable, Serializable):
                 **attrs.asdict(self, filter=lambda a, v: a.name != 'extra'),
             }
         return attrs.asdict(self)
-
-    @classmethod
-    def sanitize_name(cls, name: str) -> str:
-        """Replace special chars in name with underscores.
-
-        Args:
-            name (str): input name    model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)
-
-
-        Returns:
-            str: sanitized name
-        """
-        return re.sub('[^A-Za-z0-9_]', '_', name)
 
 
 @attrs.define

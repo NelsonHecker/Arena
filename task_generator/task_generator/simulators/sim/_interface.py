@@ -6,7 +6,6 @@ import abc
 from collections.abc import Sequence
 
 from arena_people_msgs.msg import Pedestrians
-from arena_simulation_setup.shared import Elevator
 from task_generator.shared import (
     Door,
     DynamicObstacle,
@@ -14,6 +13,7 @@ from task_generator.shared import (
     Obstacle,
     Robot,
     Wall,
+    Elevator,
 )
 
 

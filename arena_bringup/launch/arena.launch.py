@@ -151,26 +151,27 @@ def generate_launch_description():
         base_prefix = 'env'
         references = snail_grid(d)
 
-        # first task generator
-        task_generators.append(
-            create_task_generator(
-                headlessness=PythonExpression([headless.substitution, '>1']),
-                namespace=base_namespace,
-                prefix=f'{base_prefix}0' if n > 1 else '',
-                reference=list(next(references))
-            )
-        )
-
-        # all following ones
-        for i in range(1, n):
+        if n == 1:
             task_generators.append(
                 create_task_generator(
-                    headlessness=PythonExpression([headless.substitution, '>-1']),
-                    namespace=base_namespace + '_' + str(i),
-                    prefix=base_prefix + str(i),
+                    headlessness=PythonExpression([headless.substitution, '>1']),
+                    namespace=base_namespace,
+                    prefix='',
                     reference=list(next(references))
                 )
             )
+
+        else:
+            for i in range(n):
+                prefix = base_prefix + str(i)
+                task_generators.append(
+                    create_task_generator(
+                        headlessness=PythonExpression([headless.substitution, '>-1']),
+                        namespace=os.path.join(base_namespace, prefix),
+                        prefix=prefix,
+                        reference=list(next(references))
+                    )
+                )
 
         # Log total task generators
         launch.actions.LogInfo(
