@@ -96,7 +96,7 @@ export ISAAC_PATH="$MY_DIR"
 EOF
     
     echo "Completed Isaac Sim download"
-    echo 'yes' > "$ARENA_DIR/.venv/lib/python3.10/site-packages/omni/EULA_ACCEPTED"
+    echo 'yes' > "$ARENA_DIR/.venv/lib/python3.10/site-packages/omni/EULA_ACCEPTED" || echo 'failed to auto-accept eula'
 
     pushd "$ARENA_DIR" > /dev/null
         git submodule update --init arena_isaac
