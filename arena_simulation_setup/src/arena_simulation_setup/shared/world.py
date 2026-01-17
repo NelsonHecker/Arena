@@ -8,10 +8,11 @@ import numpy as np
 from arena_simulation_setup.utils.geometry import Position
 from arena_simulation_setup.tree.assets.Material import MaterialIdentifier, Material
 
+from .entities import Named
+
 
 @attrs.define
-class Elevator:
-    name: str
+class Elevator(Named):
     position: Position = attrs.field(converter=Position.converter)
     size: list[float] = attrs.field(factory=lambda: [2.0, 2.0, 0.2])
     height_min: float = 0.0
@@ -24,8 +25,7 @@ class Elevator:
 
 
 @attrs.define
-class Door:
-    name: str
+class Door(Named):
     start: Position = attrs.field(converter=Position.converter)
     end: Position = attrs.field(converter=Position.converter)
     kind: typing.Literal['sliding'] = 'sliding'
@@ -51,8 +51,7 @@ class Door:
 
 
 @attrs.define
-class Floor:
-    name: str
+class Floor(Named):
     pos: Position = attrs.field(converter=Position.converter)
     x_length: float = attrs.field(converter=float, default=20.)
     y_length: float = attrs.field(converter=float, default=20.)

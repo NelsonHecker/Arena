@@ -36,10 +36,12 @@ async def main_async(args=None):
     app_task = asyncio.create_task(app_logic(node))
 
     try:
-        done, _ = await asyncio.wait(
-            [spin_future, app_task],
-            return_when=asyncio.FIRST_COMPLETED
-        )
+        import aiomonitor
+        with aiomonitor.start_monitor(loop=loop, locals=locals()):
+            done, _ = await asyncio.wait(
+                [spin_future, app_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
 
         if spin_future in done:
             spin_future.result()
@@ -76,4 +78,6 @@ def main(args=None):
 
 
 if __name__ == '__main__':
+    import time
+    time.sleep(5)
     main()

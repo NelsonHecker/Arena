@@ -104,9 +104,12 @@ fi
 echo "BUILDING: colcon build ${ARGS[*]} $*"
 
 eval "colcon build ${ARGS[*]} $*"
+result=$?
 
 unset _SKIP_OLD
 unset _BUILD_BASE
 unset _INSTALL_BASE
 unset _BASE_PATHS
 unset _BUILD_PACKAGES
+
+exit $result

@@ -1,9 +1,9 @@
 import math
 import typing
 
-from task_generator.utils.time import Time
+from arena_rclpy_mixins.Time import Time
 
-from task_generator.shared import Pose, Orientation
+from task_generator.shared import Orientation, Pose
 from task_generator.tasks.robots.random import TM_Random
 
 
@@ -30,7 +30,7 @@ class TM_Explore(TM_Random):
             bool: True if the task is done for all robots, False otherwise.
         """
         for robot, manager in self._PROPS.robots.items():
-            if manager.is_done:
+            if await manager.is_done:
                 waypoint = self._PROPS.world_manager.get_position_on_map(
                     safe_dist=manager.safe_distance, forbid=False
                 )
@@ -63,7 +63,7 @@ class TM_Explore(TM_Random):
         Args:
             robot (str): The name of the robot.
         """
-        self._timeouts[robot] = typing.cast(Time, self._PROPS.clock.clock)
+        self._timeouts[robot] = typing.cast(Time, self.node.sim_time)
 
     async def _set_position(self, name: str, pose: Pose):
         """

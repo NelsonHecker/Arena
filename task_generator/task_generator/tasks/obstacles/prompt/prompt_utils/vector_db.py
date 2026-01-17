@@ -105,3 +105,21 @@ def get_relevant_bt_nodes(query: str, collection: chromadb.Collection, n_results
     nodes_descriptions = "\n".join(("", *passages))
 
     return nodes_descriptions.encode("utf-8").decode("unicode_escape").strip()
+
+if __name__=="__main__":
+    import os
+    from arena_hunav_sim_bridge import CHROMA_DB_PATH
+
+    inference_client = genai.Client(
+        api_key=os.environ["GEMINI_API_KEY"]
+    )
+    chroma_collection = get_chroma_collection(CHROMA_DB_PATH, inference_client)
+
+    prompt="A group of 5 constructors rapidly organize themselves into a queue in the main central hallway, by the reception room door. As soon as a spot opens at the front, each person immediately steps forward, advancing in sequence toward the waiting area door. After reaching the front of the line, one person waits 20 seconds, then he enters the reception room, toward the reception counter, then he goes to main waiting area and find a seat that hasn't been taken. The lines continuously compress and move forward as people shuffle ahead whenever the person in front moves."
+
+    bt_nodes = get_relevant_bt_nodes(
+        query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\". Use GoTo node to guide agents to isolated places if needed.",
+        collection=chroma_collection,
+    )
+
+    print(bt_nodes)

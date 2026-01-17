@@ -1,3 +1,5 @@
+import asyncio
+
 from task_generator.shared import Pose
 from task_generator.tasks import TaskMode
 
@@ -56,6 +58,6 @@ class TM_Robots(TaskMode):
 
         if not self._PROPS.robots:
             return False
-        if not all(robot_manager.is_done for robot_manager in self._PROPS.robots.values()):
+        if not all(await asyncio.gather(*(robot_manager.is_done for robot_manager in self._PROPS.robots.values()))):
             return False
         return True

@@ -53,6 +53,8 @@ namespace task_generator_gui
 
         get_scenarios_client = service_node->create_client<task_generator_msgs::srv::GetScenarios>(task_generator_node + "/get_scenarios");
 
+        wait_for_world_client = service_node->create_client<std_srvs::srv::Empty>(task_generator_node + "/wait_for_world");
+
         set_param_client = service_node->create_client<rcl_interfaces::srv::SetParameters>(task_generator_node + "/set_parameters");
 
         get_worlds_client = service_node->create_client<task_generator_msgs::srv::GetWorlds>(task_generator_node + "/get_worlds");

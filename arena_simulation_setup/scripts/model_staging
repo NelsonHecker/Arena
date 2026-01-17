@@ -50,14 +50,14 @@ def main(install_dir: str):
 
     base_dir = get_package_share_directory(package_name)
 
-    for name in list(ObjectIdentifier.listall()):
-        handler.add_to_staging(ObjectIdentifier(name).resolve_sync().path, name)
+    for ident in list(ObjectIdentifier.listall()):
+        handler.add_to_staging(ident.resolve_sync().name, ident.name)
 
-    for name in list(PedestrianIdentifier.listall()):
-        handler.add_to_staging(PedestrianIdentifier(name).resolve_sync().path, name)
+    for ident in list(PedestrianIdentifier.listall()):
+        handler.add_to_staging(ident.resolve_sync().name, ident.name)
 
-    for name in list(RobotIdentifier.listall()):
-        handler.add_to_staging(RobotIdentifier(name).resolve_sync().path, name)
+    for ident in list(RobotIdentifier.listall()):
+        handler.add_to_staging(ident.resolve_sync().name, ident.name)
 
     colcon_deps_file = os.path.join(base_dir, '..', 'colcon-core', 'packages', package_name)
     if os.path.isfile(colcon_deps_file):

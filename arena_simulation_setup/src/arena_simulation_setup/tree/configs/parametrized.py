@@ -1,3 +1,4 @@
+from typing_extensions import Self
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional
@@ -5,7 +6,7 @@ from typing import Optional
 import attrs
 
 from arena_simulation_setup import AB_DIR
-from arena_simulation_setup.tree import Identifier, ResolverBase
+from arena_simulation_setup.tree import Identifier, PathResolverBase
 
 
 def _get_attrib(
@@ -41,17 +42,23 @@ class ParametrizedConfig:
     DYNAMIC: list[ObstacleConfig]
 
 
-class ParametrizedResolver(ResolverBase):
-    base_path = AB_DIR / 'configs' / 'parametrized'
-
-    async def resolve(self, identifier):
-        target_path = self.base_path / f'{identifier.name}.yaml'
-        if target_path.exists():
-            return target_path
-        return None
+class ParametrizedResolver(PathResolverBase):
+    @property
+    def path(self) -> Path:
+        return AB_DIR / 'configs' / 'parametrized'
 
 
 class ParametrizedIdentifier(Identifier[ParametrizedConfig]):
+    @property
+    def shortname(self) -> str:
+        return str(Path(self.name).with_suffix(''))
+
+    @classmethod
+    def from_relpath(cls, relpath: Path) -> Self:
+        if relpath.suffix == '.xml':
+            return cls(name=str(relpath.with_suffix('')))
+        raise FileNotFoundError(f"Invalid file {relpath} for parametrized identifier")
+
     def load(self, path: Path, /, **kwargs) -> ParametrizedConfig:
         del kwargs
 

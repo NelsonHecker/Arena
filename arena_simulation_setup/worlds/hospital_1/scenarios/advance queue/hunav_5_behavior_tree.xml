@@ -16,25 +16,31 @@
     <BehaviorTree ID="hunav_5_behavior_tree">
         <Sequence>
             <Sequence>
-                <SetGoal agent_id="{id}" goal_id="14" target_x="8.5" target_y="5.51612878526419" />
-                <GoTo agent_id="{id}" goal_id="14" time_step="0.1" tolerance="1" />
+                <SetGoal agent_id="{id}" goal_id="14" target_x="8.5" target_y="10.0" />
+                <GoTo agent_id="{id}" goal_id="14" time_step="0.1" tolerance="0.5" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
-                <GoTo agent_id="{id}" goal_id="13" time_step="0.1" tolerance="1" />
+                <GoTo agent_id="{id}" goal_id="13" time_step="0.1" tolerance="0.5" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
-                <GoTo agent_id="{id}" goal_id="12" time_step="0.1" tolerance="1" />
+                <GoTo agent_id="{id}" goal_id="12" time_step="0.1" tolerance="0.5" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
-                <GoTo agent_id="{id}" goal_id="11" time_step="0.1" tolerance="1" />
+                <GoTo agent_id="{id}" goal_id="11" time_step="0.1" tolerance="0.5" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
-                <GoTo agent_id="{id}" goal_id="10" time_step="0.1" tolerance="1" />
+                <GoTo agent_id="{id}" goal_id="10" time_step="0.1" tolerance="0.5" />
                 <StopAndWaitTimerAction agent_id="{id}" wait_duration="20.0" />
             </Sequence>
             <Sequence>
-                <SetGoal agent_id="{id}" goal_id="8" target_x="4.0" target_y="1.0" />
+                <SetGoal agent_id="{id}" goal_id="8" target_x="6.0" target_y="2.5" />
                 <GoTo agent_id="{id}" goal_id="8" time_step="0.1" tolerance="0.5" />
+                <StopAndWaitTimerAction agent_id="{id}" wait_duration="5.0" />
             </Sequence>
             <Sequence>
-                <SetGoal agent_id="{id}" goal_id="9" target_x="14.0" target_y="2.0" />
+                <SetGoal agent_id="{id}" goal_id="19" target_x="10.5" target_y="4.0" />
+                <GoTo agent_id="{id}" goal_id="19" time_step="0.1" tolerance="0.5" />
+                <SetGoal agent_id="{id}" goal_id="9" target_x="12.0" target_y="11.0" />
                 <GoTo agent_id="{id}" goal_id="9" time_step="0.1" tolerance="0.5" />
+                <SetGoal agent_id="{id}" goal_id="23" target_x="23.4" target_y="6.0" />
+                <GoTo agent_id="{id}" goal_id="23" time_step="0.1" tolerance="0.5" />
+                <StopAndWaitTimerAction agent_id="{id}" wait_duration="60.0" />
             </Sequence>
         </Sequence>
     </BehaviorTree>

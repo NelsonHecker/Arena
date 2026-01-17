@@ -15,6 +15,7 @@ from task_generator.shared import (
     DynamicObstacle,
     Entity,
     Floor,
+    FrameNamespace,
     Obstacle,
     Orientation,
     Pose,
@@ -42,7 +43,7 @@ class _Realizer:
     def realize(self, target: str) -> str: ...
 
     def _prefix(self, *s: str) -> str:
-        return os.path.join(self._config.prefix, *s)
+        return str(FrameNamespace(self._config.prefix)(*s))
 
     @typing.overload
     def realize(self, target: Position) -> Position: ...
@@ -77,11 +78,11 @@ class _Realizer:
     def realize(self, target: Pose) -> Pose: ...
 
     def _realize_entity(self, entity: EntityPropsT) -> EntityPropsT:
-        return attrs.evolve(
+        entity = attrs.evolve(
             entity,
-            name=self._prefix(entity.name),
             pose=self._realize_pose(entity.pose),
         )
+        return entity
 
     @typing.overload
     def realize(self, target: Wall) -> Wall: ...
@@ -144,22 +145,28 @@ class _Realizer:
         if isinstance(target, Pose):
             return self._realize_pose(target)
 
-        if isinstance(target, Entity):
-            return self._realize_entity(target)
-
         if isinstance(target, Wall):
             return self._realize_wall(target)
 
-        if isinstance(target, Door):
-            return self._realize_door(target)
+        res = None
 
-        if isinstance(target, Floor):
-            return self._realize_floor(target)
+        if isinstance(target, Entity):
+            res = self._realize_entity(target)
 
-        if isinstance(target, Elevator):
-            return self._realize_elevator(target)
+        elif isinstance(target, Door):
+            res = self._realize_door(target)
 
-        raise TypeError(f'realization not implemented for type {type(target)}')
+        elif isinstance(target, Floor):
+            res = self._realize_floor(target)
+
+        elif isinstance(target, Elevator):
+            res = self._realize_elevator(target)
+
+        if res is None:
+            raise TypeError(f'realization not implemented for type {type(target)}')
+
+        res.sim_path = self._prefix(res.name)
+        return res
 
 
 class EnvironmentManager(NodeInterface, _Realizer):
@@ -208,19 +215,19 @@ class EnvironmentManager(NodeInterface, _Realizer):
         elevators = world.all_elevators
 
         if floors:
-            futures.append(self._simulator.spawn_floors(tuple(map(self._realize_floor, floors))))
+            futures.append(self._simulator.spawn_floors(tuple(map(self.realize, floors))))
 
         if walls or doors:
             futures.append(
                 self._human_simulator.spawn_world(
-                    tuple(map(self._realize_wall, walls)),
-                    tuple(map(self._realize_door, doors)),
+                    tuple(map(self.realize, walls)),
+                    tuple(map(self.realize, doors)),
                 )
             )
 
         futures.append(
             self._human_simulator.spawn_obstacles(
-                tuple(map(self._realize_entity, world.all_static_entities)),
+                tuple(map(self.realize, world.all_static_entities)),
                 layer=ObstacleLayer.WORLD,
             )
         )
@@ -228,7 +235,7 @@ class EnvironmentManager(NodeInterface, _Realizer):
             self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
             futures.append(
                 self._simulator.spawn_elevators(
-                    tuple(map(self._realize_elevator, elevators))
+                    tuple(map(self.realize, elevators))
                 )
             )
 
@@ -240,7 +247,7 @@ class EnvironmentManager(NodeInterface, _Realizer):
         """
 
         await self._human_simulator.spawn_dynamic_obstacles(
-            tuple(map(self._realize_entity, setups))
+            tuple(map(self.realize, setups))
         )
 
     async def spawn_obstacles(self, setups: Collection[Obstacle]):
@@ -248,26 +255,26 @@ class EnvironmentManager(NodeInterface, _Realizer):
         Loads given obstacles into the simulator.
         """
 
-        await self._human_simulator.spawn_obstacles(tuple(map(self._realize_entity, setups)))
+        await self._human_simulator.spawn_obstacles(tuple(map(self.realize, setups)))
 
     async def spawn_robot(self, robots: Sequence[Robot]) -> Sequence[Robot]:
         """
         Loads given robot into the simulator
         """
-        await self._human_simulator.spawn_robot(robots=tuple(map(self._realize_entity, robots)))
+        await self._human_simulator.spawn_robot(robots=tuple(map(self.realize, robots)))
         return robots
 
     async def move_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """
         Moves given robot
         """
-        return await self._human_simulator.move_robot(tuple(map(self._realize_entity, robots)))
+        return await self._human_simulator.move_robot(tuple(map(self.realize, robots)))
 
     async def remove_robot(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """
         Deletes given robot
         """
-        return await self._human_simulator.remove_robot(tuple(map(self._realize_entity, robots)))
+        return await self._human_simulator.remove_robot(tuple(map(self.realize, robots)))
 
     async def respawn(self, callback: Callable[[], typing.Awaitable[Any]]):
         """

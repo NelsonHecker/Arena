@@ -1,3 +1,6 @@
+import asyncio
+import traceback
+
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Object
 import arena_simulation_setup.tree.assets.Pedestrian
@@ -6,7 +9,6 @@ import arena_simulation_setup.tree.configs.parametrized
 import arena_simulation_setup.tree.World as World
 import rclpy
 import std_srvs.srv as std_srvs
-from task_generator.tasks import identifier_to_available
 import task_generator_msgs.srv
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import Namespace
@@ -25,8 +27,8 @@ from task_generator.shared import configure_node
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
 from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim, SimulatorRegistry
+from task_generator.tasks import identifier_to_available
 from task_generator.tasks.task import Task
-from task_generator.utils.time import Time
 
 from . import SafeCallbackNode
 
@@ -61,7 +63,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self._auto_reset = self.rosparam[bool].get('auto_reset', True)
         self._train_mode = self.rosparam[bool].get('train_mode', False)
 
-        self._start_time: Time = Time.parse(self.get_clock().now())
+        self._reset_lock: asyncio.Lock = asyncio.Lock()
+        self._start_time = self.time
         self._number_of_resets = 0
         self._task: Task
 
@@ -77,6 +80,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             self.service_namespace('finished'),
             10,
         )
+
+        self._check_status_task: asyncio.Task
 
     async def setup(self):
         self._logger.info("Setting up Task Generator Node")
@@ -101,18 +106,15 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         await self._world_manager.sync()
         await self.reset_task(first_map=True)
 
-        self.rosparam[bool].set('initialized', True)
+        self._check_status_task = asyncio.create_task(self._check_task_status())
 
-        # self._tick = self.create_timer(
-        #     0.5,
-        #     self._check_task_status,
-        #     callback_group=self.default_callback_group,
-        # )
+        self.rosparam[bool].set('initialized', True)
 
     @classmethod
     async def create(cls, *, namespace: str = "task_generator_node", **kwargs):
         self = cls(namespace=namespace, **kwargs)
         await self.setup()
+
         return self
 
     async def _set_up_managers(self):
@@ -164,28 +166,38 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
     # RUNTIME
     async def reset_task(self, **kwargs):
-        self._start_time = Time.parse(self.get_clock().now())
+        async with self._reset_lock:
+            self._start_time = self.sim_time
 
-        await self._simulator.before_reset_task()
+            await self._simulator.before_reset_task()
 
-        self.get_logger().info("resetting")
+            self.get_logger().info("resetting")
 
-        await self._task.reset(**kwargs)
+            await self._task.reset(**kwargs)
 
-        self._pub_task_reset.publish(Int16(data=self._number_of_resets))
-        self._number_of_resets += 1
-        self._send_end_message_on_end()
+            self._pub_task_reset.publish(Int16(data=self._number_of_resets))
+            self._number_of_resets += 1
+            self._send_end_message_on_end()
 
-        await self._simulator.after_reset_task()
+            await self._simulator.after_reset_task()
 
-        self.get_logger().warn("=============")
-        self.get_logger().warn("Task Reset!")
-        self.get_logger().warn("=============")
+            self.get_logger().warn("=============")
+            self.get_logger().warn("Task Reset!")
+            self.get_logger().warn("=============")
 
     async def _check_task_status(self, *args, **kwargs):
         del args, kwargs
-        if self._task.is_done:
-            await self.reset_task()
+        try:
+            while True:
+                await asyncio.sleep(0.5)
+                async with self._reset_lock:
+                    if await self._task.is_done:
+                        await self.reset_task()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            self.get_logger().error(f"Error in task status check: {e}\n{traceback.format_exc()}")
+            raise
 
     def _send_end_message_on_end(self):
         if self.conf.General.DESIRED_EPISODES.value < 0 or self._number_of_resets < self.conf.General.DESIRED_EPISODES.value:
@@ -255,6 +267,14 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         response.robots = list(identifier_to_available(arena_robots.Robot.RobotIdentifier))
         return response
 
+    async def _cb_wait_for_world(
+        self,
+        request: EmptySrv.Request,
+        response: EmptySrv.Response,
+    ):
+        await self._world_manager.sync()
+        return response
+
     async def _set_up_services(self):
         self._logger.info("Setting up services")
 
@@ -299,6 +319,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             task_generator_msgs.srv.GetWorlds,
             self.service_namespace('get_worlds'),
             self._cb_get_worlds,
+        )
+
+        self.create_service(
+            EmptySrv,
+            self.service_namespace('wait_for_world'),
+            self._cb_wait_for_world,
         )
 
         self._logger.info("Services set up")

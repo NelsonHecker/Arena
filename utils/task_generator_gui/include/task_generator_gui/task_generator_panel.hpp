@@ -117,6 +117,8 @@ namespace task_generator_gui
         rclcpp::Client<task_generator_msgs::srv::GetRobots>::SharedPtr get_robots_client;
         // Client to get ROS parameters from Node "/task_generator_node"
         std::shared_ptr<rclcpp::SyncParametersClient> parameters_client;
+        // Client to wait for world to be loaded
+        rclcpp::Client<std_srvs::srv::Empty>::SharedPtr wait_for_world_client;
         // Client to set ROS parameters for Node "/task_generator_node"
         rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr set_param_client;
         // Client to reset task

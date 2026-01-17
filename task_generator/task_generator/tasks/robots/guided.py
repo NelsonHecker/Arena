@@ -49,7 +49,7 @@ class TM_Guided(TM_Random):
             bool: True if the guided task is done, False otherwise.
         """
         for robot, manager in self._PROPS.robots.items():
-            if manager.is_done:
+            if await manager.is_done:
                 waypoints = self._waypoints or [None]
                 self._waypoint_states[manager.name] += 1
                 self._waypoint_states[manager.name] %= len(waypoints)
