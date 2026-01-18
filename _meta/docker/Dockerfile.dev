@@ -1,0 +1,47 @@
+FROM osrf/ros:jazzy-desktop AS base
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    python-is-python3 \
+    python3-pip \
+    pipx \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pipx install git+https://github.com/voshch/vcstool.git
+
+WORKDIR /opt/arena_ws
+
+# install python deps
+FROM base AS python_deps
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /build
+COPY src/Arena/pyproject.toml uv.lock* ./
+
+RUN uv venv /opt/venv && \
+    bash -c 'if [ -f uv.lock ]; then \
+        uv pip install --python /opt/venv/bin/python -r uv.lock; \
+    else \
+        uv pip compile pyproject.toml | uv pip install --python /opt/venv/bin/python -r -; \
+    fi'
+
+
+# merge
+FROM base AS final
+COPY --from=python_deps /opt/venv /opt/venv
+
+WORKDIR /opt/arena_ws
+
+COPY src/Arena/_meta/docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+
+RUN colcon build

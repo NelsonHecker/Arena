@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+
 if [ -n "$ZSH_VERSION" ]; then
     shell='zsh'
     # shellcheck disable=SC2296
@@ -13,15 +14,6 @@ SOURCE_FILE=$(realpath "$THIS_FILE")
 export SOURCE_FILE
 export shell
 
-# increase ulimit to fit pythonpath
-current_stack=$(ulimit -s)
-if [ "$current_stack" != "unlimited" ] && [ "$current_stack" -lt 65536 ]; then
-    ulimit -s 65536 2>/dev/null || {
-        echo "Warning: Could not increase stack limit to 65536KB (current: ${current_stack}KB)"
-        echo "Consider running: echo '* soft stack 65536' | sudo tee -a /etc/security/limits.conf"
-    }
-fi
-unset current_stack
 
 ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
 
@@ -41,23 +33,20 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
 export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
 
-if [ -f "$INSTALLED" ] && grep -q "isaac" "$INSTALLED"; then
-    if [ -z ${ISAAC_PATH+x} ] ; then
-        . "$HOME/isaacsim-4.2.0/setup.sh"
-    fi
-fi
+ARENA_IMAGE="arena:dev"
 
-
-if [ -f "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}" ] ; then
-    . "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}"
-fi
-if [ -f install/local_setup.${shell} ] ; then
-    . "install/local_setup.${shell}"
-fi
-if [ -f "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}" ] ; then
-    . "/opt/ros/${ARENA_ROS_DISTRO}/setup.${shell}"
-fi
-
+ARENA_CMD="docker run --rm -it \
+    -v $ARENA_WS_DIR:$ARENA_WS_DIR \
+    -w $ARENA_WS_DIR \
+    --network host \
+    --env ROS_DOMAIN_ID=$ROS_DOMAIN_ID \
+    --env RMW_IMPLEMENTATION=$RMW_IMPLEMENTATION \
+    --env FASTRTPS_DEFAULT_PROFILES_FILE=$FASTRTPS_DEFAULT_PROFILES_FILE \
+    -v $ARENA_WS_DIR/src:/opt/arena_ws/src \
+    -v $ARENA_WS_DIR/build:/opt/arena_ws/build \
+    -v $ARENA_WS_DIR/install:/opt/arena_ws/install \
+    -v $ARENA_DIR/.venv:/opt/venv \
+    $ARENA_IMAGE"
 
 if [ -f "$ARENA_WS_DIR/.env" ] ; then
     set -a
@@ -66,38 +55,12 @@ if [ -f "$ARENA_WS_DIR/.env" ] ; then
 fi
 
 if [ -z ${ARENA_SOURCED+x} ] ; then
-
-    # stop rviz from flashing
-    export QT_SCREEN_SCALE_FACTORS=1
-    
-    # python env
-    pushd "$ARENA_DIR" > /dev/null || return 1
-        if [ ! -f "$ARENA_DIR/.venv/.installed" ] ; then
-            uv sync
-            touch "$ARENA_DIR/.venv/.installed"
-        fi
-        export VIRTUAL_ENV_DISABLE_PROMPT=1
-        venv_path="$(dirname "$(dirname "$(uv python find)")")"
-
-        # if [ "$venv_path" != "$VIRTUAL_ENV" ] ; then
-        . "$venv_path/bin/activate"
-        dirs=("$venv_path"/lib/*/site-packages)
-        _IFS=$IFS IFS=':'
-        export PYTHONPATH="${dirs[*]}:$PYTHONPATH"
-        IFS=$_IFS
-        unset _IFS
-        unset dirs
-        unset venv_path
-    popd > /dev/null || return 1
-    
     
     export ARENA_SOURCED=1
     PS1_BACKUP=$PS1
     export PS1="(Arena) $PS1"
     export PROMPT="(Arena) $PROMPT"
     echo 'sourced Arena environment'
-    
-    r2st(){ ros2 service call "$1" "$(ros2 service type "$1")";}
     
     arena(){
         local verb="$1"
@@ -110,8 +73,8 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
         
         case "$verb" in
             build)
-                "${TOOLS_DIR}/colcon_build" "$@"
-                . "$SOURCE_FILE"
+                docker build -t $ARENA_IMAGE -f "$ARENA_DIR/_meta/docker/Dockerfile.dev" "$ARENA_WS_DIR" && \
+                $ARENA_CMD bash -c '. src/Arena/_meta/tools/colcon_build "$@"'
                 result=$?
             ;;
             update)
