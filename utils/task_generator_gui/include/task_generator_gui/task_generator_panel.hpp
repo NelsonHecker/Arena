@@ -157,6 +157,7 @@ namespace task_generator_gui
         std::string selected_scenario_config_file;
         std::string typed_prompt;
         bool use_behavior_tree;
+        std::string generation_mode; // Enum from ["arena", "behavior_tree", "crowded_behavior_tree"]
         double top_p;
 
         // UI Components

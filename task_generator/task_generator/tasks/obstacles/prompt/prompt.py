@@ -1,24 +1,53 @@
+from enum import Enum
 import json
 import math
 import os
 import tempfile
 import time
+from typing import Dict, List
 import xml.etree.ElementTree as ET
 
 import attrs
 import yaml
+
+import numpy as np
+
+from google import genai
+
+from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 from ament_index_python.packages import get_package_share_directory
+
 from arena_hunav_sim_bridge.agent.llm_parser import Parser
+
+os.environ["QT_QPA_PLATFORM"] = (
+    "offscreen"  # Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
+)
+from arena_text_crowd.crowd_generation_pipeline.arena_text_crowd_generation_pipeline import (
+    ArenaTextCrowdGenerationPipelineConfig as ATCPConfig,
+    CrowdGenerationPipeline,
+)
+from arena_text_crowd.crowd_generation_pipeline.velocity_field_generation.velocity_field_generation_pipeline import (
+    VelocityFieldGenerationPipelineConfig as VFGPConfig,
+)
+from arena_text_crowd.converters.arena_world_to_text_crowd_scenario import (
+    arena_world_to_text_crowd_scenario,
+)
+
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
+
 from arena_simulation_setup.tree.World import WorldDescription
 from arena_simulation_setup.utils.cattrs import converter
-from google import genai
+
+from hunav_msgs.srv import SetVelocityField, SetArenaWorldSize
 
 from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle
 from task_generator.tasks.obstacles import (
     DynamicObstacle,
     Obstacle,
     TM_Obstacles,
+)
+from task_generator.tasks.obstacles.prompt.velocity_field_marker import (
+    VelocityFieldVisualizer,
 )
 
 from .prompt_utils import (
@@ -44,11 +73,21 @@ class _ParsedConfig:
     dynamic: list[DynamicObstacle]
 
 
+class GenerationMode(Enum):
+    ARENA = "arena"
+    BEHAVIOR_TREE = "behavior_tree"
+    CROWDED_BT = "crowded_behavior_tree"
+
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+
 @attrs.define()
 class PromptConfig:
     user_prompt: ROSParamT[str]
     top_p: ROSParamT[float]
-    behavior_tree: ROSParamT[bool]
+    generation_mode: ROSParamT[str]
 
 
 class TM_Prompt(TM_Obstacles):
@@ -86,7 +125,10 @@ class TM_Prompt(TM_Obstacles):
             parsed_zone = {
                 "name": zone.name,
                 "corners": [[corner.x, corner.y] for corner in zone.corners],
-                "walls": [[[wall.start.x, wall.start.y], [wall.end.x, wall.end.y]] for wall in zone.walls],
+                "walls": [
+                    [[wall.start.x, wall.start.y], [wall.end.x, wall.end.y]]
+                    for wall in zone.walls
+                ],
                 "entities": [
                     {
                         "name": entity.name,
@@ -94,23 +136,54 @@ class TM_Prompt(TM_Obstacles):
                         "pose": [
                             entity.pose.position.x,
                             entity.pose.position.y,
-                            math.degrees(entity.pose.orientation.to_yaw()),  # I use degree for yaw for now (look at `context.py``)
-                        ]
-                    } for entity in zone.entities.static
-                ]
+                            math.degrees(
+                                entity.pose.orientation.to_yaw()
+                            ),  # I use degree for yaw for now (look at `context.py``)
+                        ],
+                    }
+                    for entity in zone.entities.static
+                ],
             }
             parsed["zones"].append(parsed_zone)
 
         return json.dumps(parsed)
 
-    def llm_bt_output_to_config(self, llm_output: dict) -> dict:
+    def llm_bt_output_to_config(
+        self,
+        llm_output: dict,
+        generation_mode: str,
+        *,
+        crowd_pedestrians: None | List[Dict],
+    ) -> dict:
+        if generation_mode == GenerationMode.ARENA.value:
+            return llm_output
+
+        if (
+            generation_mode == GenerationMode.CROWDED_BT.value
+            and crowd_pedestrians is not None
+        ):  # TODO: Use scheme/class instead of Dict
+            for ped in crowd_pedestrians:
+                llm_output["hunav_agents"].append(
+                    {
+                        "name": ped["name"],
+                        "pos": ped["pos"],
+                        "model": "male_adult_construction_01",
+                    }
+                )
+                llm_output["single_agent_nodes"].append(
+                    {
+                        "name": "FollowVelocityField",
+                        "attributes": {
+                            "agent_name": ped["name"],
+                            "velocity_field_group_id": ped["group_id"],
+                            "time_step": 0.1,
+                            "tolerance": 0.2,
+                        },
+                        "order": 0,
+                    }
+                )
         try:
-            config = {
-                "obstacles": {
-                    "static": [],
-                    "dynamic": []
-                }
-            }
+            config = {"obstacles": {"static": [], "dynamic": []}}
 
             parser = Parser(llm_output)
             parser.parse()
@@ -120,30 +193,25 @@ class TM_Prompt(TM_Obstacles):
                     "name": hunav_agent.name,
                     "pos": hunav_agent.pos,
                     "model": hunav_agent.model,
-                    "waypoints": hunav_agent.waypoints
+                    "waypoints": hunav_agent.waypoints,
                 }
 
                 behavior_tree_xml = hunav_agent.to_xml()
 
                 tmp_xml_file = tempfile.NamedTemporaryFile(
-                    mode='w+t',
-                    suffix='.xml',
-                    dir=self.tmp_dir.name,
-                    delete=False
+                    mode="w+t", suffix=".xml", dir=self.tmp_dir.name, delete=False
                 )
 
                 tmp_xml_file.write(
                     ET.tostring(
                         behavior_tree_xml,
                         encoding="UTF-8",
-                        method='xml',
-                        xml_declaration=True
+                        method="xml",
+                        xml_declaration=True,
                     ).decode("utf-8")
                 )
 
-                hunav_config.update({
-                    "behavior_tree": tmp_xml_file.name
-                })
+                hunav_config.update({"behavior_tree": tmp_xml_file.name})
 
                 config["obstacles"]["dynamic"].append(hunav_config)
 
@@ -156,40 +224,88 @@ class TM_Prompt(TM_Obstacles):
 
     def setup_chroma(self):
         if os.path.isdir(CHROMA_DB_PATH):
-            self.chroma_collection = get_chroma_collection(CHROMA_DB_PATH, self.inference_client)
-        else:
-            processed_doc = process_json_doc(
-                BT_REF_DOC_PATH
+            self.chroma_collection = get_chroma_collection(
+                CHROMA_DB_PATH, self.inference_client
             )
-            self._logger.info("Creating Chroma DB from Behavior Tree Nodes Reference...")
+        else:
+            processed_doc = process_json_doc(BT_REF_DOC_PATH)
+            self._logger.info(
+                "Creating Chroma DB from Behavior Tree Nodes Reference..."
+            )
             self.chroma_collection = create_chroma_db(
                 documents=processed_doc,
                 db_path=CHROMA_DB_PATH,
-                client=self.inference_client
+                client=self.inference_client,
             )
 
-    async def _prompt_to_config(self, prompt: str, top_p: float, use_behavior_tree: bool, local: bool = False) -> dict:
+    def send_velocity_msg(self, velocity_field: np.ndarray):
+        n_groups, h, w, c = velocity_field.shape
+        msg = Float32MultiArray()
+        msg.data = velocity_field.astype(np.float32).flatten(order="C").tolist()
+        msg.layout.dim = [
+            MultiArrayDimension(label="G", size=n_groups, stride=n_groups * h * w * c),
+            MultiArrayDimension(label="H", size=h, stride=h * w * c),
+            MultiArrayDimension(label="W", size=w, stride=w * c),
+            MultiArrayDimension(label="C", size=c, stride=c),
+        ]
+
+        req = SetVelocityField.Request()
+        req.velocity_field = msg
+
+        response: SetVelocityField.Response = self.velocity_field_client.call(req)
+
+        return response
+
+    def send_arena_world_size_msg(self):
+        # TODO: Optimize
+        # Get Arena World size
+        x_min, y_min, x_max, y_max = np.inf, np.inf, -np.inf, -np.inf
+
+        for zones in self._PROPS.world_manager.world.zones:
+            x_min, y_min, x_max, y_max = (
+                min(x_min, *(corner.x for corner in zones.corners)),
+                min(y_min, *(corner.y for corner in zones.corners)),
+                max(x_max, *(corner.x for corner in zones.corners)),
+                max(y_max, *(corner.y for corner in zones.corners)),
+            )
+        arena_world_size = [float(x_max - x_min), float(y_max - y_min)]
+
+        msg = Float32MultiArray()
+        msg.data = arena_world_size
+        msg.layout.dim = [
+            MultiArrayDimension(label="size", size=2, stride=2),
+        ]
+
+        req = SetArenaWorldSize.Request()
+        req.arena_world_size = msg
+
+        response: SetArenaWorldSize.Response = self.arena_world_size_client.call(req)
+
+        return response, x_min, y_min, x_max, y_max
+
+    async def _prompt_to_config(
+        self, prompt: str, top_p: float, generation_mode: str, local: bool = False
+    ) -> dict:
         world_info = self.preprocess_world_description(self._PROPS.world_manager.world)
 
         messages = []
+        crowd_pedestrians = None
 
-        if use_behavior_tree:
-            self.setup_chroma()
-
-            if "bt" not in self.cached_context_name.keys():
+        if generation_mode == GenerationMode.BEHAVIOR_TREE.value:
+            if generation_mode not in self.cached_context_name.keys():
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
-                        display_name="bt-context",
+                        display_name=generation_mode + "_context",
                         system_instruction=SYSTEM_INSTRUCTION,
-                        contents=BEHAVIOR_TREE_FORMAT
-                    )
+                        contents=BEHAVIOR_TREE_FORMAT,
+                    ),
                 )
                 if cache.name is not None:
-                    self.cached_context_name.update({"bt": cache.name})
+                    self.cached_context_name.update({generation_mode: cache.name})
 
             bt_nodes = get_relevant_bt_nodes(
-                query=f"What are the nodes should be used for creating the behavior tree as described below: \"{prompt}\". Use GoTo node to guide agents to isolated places if needed.",
+                query=f'What are the nodes should be used for creating the behavior tree as described below: "{prompt}". Use GoTo node to guide agents to isolated places if needed.',
                 collection=self.chroma_collection,
             )
 
@@ -199,21 +315,81 @@ class TM_Prompt(TM_Obstacles):
                 f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
-        else:
-            if "arena" not in self.cached_context_name.keys():
+        elif generation_mode == GenerationMode.ARENA.value:
+            if generation_mode not in self.cached_context_name.keys():
                 cache = self.inference_client.caches.create(
                     model=REMOTE_LM,
                     config=genai.types.CreateCachedContentConfig(
-                        display_name="arena-context",
+                        display_name=generation_mode + "_context",
                         system_instruction=SYSTEM_INSTRUCTION,
-                        contents=ARENA_FORMAT
-                    )
+                        contents=ARENA_FORMAT,
+                    ),
                 )
                 if cache.name is not None:
-                    self.cached_context_name.update({"arena": cache.name})
+                    self.cached_context_name.update({generation_mode: cache.name})
 
             messages.append(
                 f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
+            )
+
+        elif generation_mode == GenerationMode.CROWDED_BT.value:
+            if generation_mode not in self.cached_context_name.keys():
+                cache = self.inference_client.caches.create(
+                    model=REMOTE_LM,
+                    config=genai.types.CreateCachedContentConfig(
+                        display_name=generation_mode + "_context",
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        contents=BEHAVIOR_TREE_FORMAT,
+                    ),
+                )
+                if cache.name is not None:
+                    self.cached_context_name.update({generation_mode: cache.name})
+
+            bt_nodes = get_relevant_bt_nodes(
+                query=f'What are the nodes should be used for creating the behavior tree as described below: "{prompt}". Use GoTo node to guide agents to isolated places if needed.',
+                collection=self.chroma_collection,
+            )
+
+            self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
+
+            messages.append(
+                f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
+            )
+
+            cgp_config = ATCPConfig(visual=False, model=REMOTE_LM, top_p=top_p)
+            # text_crowd_unet_dir = os.path.join(
+            #     get_package_share_directory("arena_text_crowd"),
+            #     "models",
+            #     "velocity_field_generation",
+            #     "sd_unet_2d_conditioned",
+            # )
+            text_crowd_unet_dir = "/home/linh/ductai_nguyen_ws/Text-Crowd/text_crowd/Language_Crowd_Animation/Models_Server_ForTest/Field-Full-V2/checkpoint-270000/unet"
+            vfgp_config = VFGPConfig(unet_dir=text_crowd_unet_dir)
+            cgp = CrowdGenerationPipeline(cgp_config, vfgp_config)
+
+            scenario = arena_world_to_text_crowd_scenario(
+                self._PROPS.world_manager.world, scenario_size=(1024, 1024)
+            )
+
+            self._logger.info("Generating velocity field...")
+            velocity_field, crowd_pedestrians = cgp.generate(
+                prompt=prompt,
+                scenario=scenario,
+                arena_world_description=self._PROPS.world_manager.world,
+            )  # (n_groups, 64, 64, 2)
+
+            vel_res = self.send_velocity_msg(velocity_field)
+            self._logger.info(
+                f"Set velocity field response: {vel_res.success}, {vel_res.message}"
+            )
+            arena_world_size_res, x_min, y_min, x_max, y_max = (
+                self.send_arena_world_size_msg()
+            )
+            self._logger.info(
+                f"Set Arena World size response: {arena_world_size_res.success}, {arena_world_size_res.message}"
+            )
+            self.velocity_field_visualizer.update_world_bounds(
+                x_min, y_min, x_max, y_max
             )
 
         if local:  # Currently not supported
@@ -245,10 +421,10 @@ class TM_Prompt(TM_Obstacles):
             )
 
             # Extract generated tokens (excluding prompt)
-            generated_ids = outputs[0][len(inputs.input_ids[0]):]
+            generated_ids = outputs[0][len(inputs.input_ids[0]) :]
             answer = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
             end = time.time()
-            self._logger.info(f"Inference done, took: {end-start:.1f}s")
+            self._logger.info(f"Inference done, took: {end - start:.1f}s")
 
         else:
             self._logger.warn("Start inference...")
@@ -257,7 +433,7 @@ class TM_Prompt(TM_Obstacles):
                 model=REMOTE_LM,
                 contents=messages,
                 config=genai.types.GenerateContentConfig(
-                    cached_content=self.cached_context_name["bt"] if use_behavior_tree else self.cached_context_name["arena"],
+                    cached_content=self.cached_context_name[generation_mode],
                     top_p=top_p,
                     temperature=0.2,  # Most of the example prompts use this set of parameters (except for top_p), see https://docs.cloud.google.com/vertex-ai/generative-ai/docs/prompt-gallery/samples/extract_tech_specs
                     top_k=40,
@@ -269,7 +445,7 @@ class TM_Prompt(TM_Obstacles):
             self._logger.warn(f"LLM raw output for the prompt: {prompt}")
             self._logger.warn(answer)
             end = time.time()
-            self._logger.warn(f"Inference done, took: {end-start:.1f}s")
+            self._logger.warn(f"Inference done, took: {end - start:.1f}s")
 
         assert answer is not None
         if answer.startswith("```json"):
@@ -278,32 +454,33 @@ class TM_Prompt(TM_Obstacles):
             answer = answer.strip("```").strip()
 
         # Parse it into a Python dict
-        try:
-            if use_behavior_tree:
-                # with open("/home/nguyen/test_llm_output.json", "w") as file:
-                #     json.dump(json.loads(answer), file)
-                config = self.llm_bt_output_to_config(json.loads(answer))
-            else:
-                config = json.loads(answer)
-
-        except json.JSONDecodeError as e:
-            self._logger.error(f"Failed to parse JSON from LLM response: {e}")
-            self._logger.error("Returning empty config!")
-            config = {}
+        config = self.llm_bt_output_to_config(
+            json.loads(answer),
+            generation_mode,
+            crowd_pedestrians=crowd_pedestrians,
+        )
 
         if DEBUG:
-            with open(f"{os.environ['HOME']}/Desktop/raw_llm_output.txt", 'wt') as file:
+            with open(f"{os.environ['HOME']}/Desktop/raw_llm_output.txt", "wt") as file:
                 file.write(answer)
-            with open(f"{os.environ['HOME']}/Desktop/full_llm_input.txt", 'wt') as file:
+            with open(f"{os.environ['HOME']}/Desktop/full_llm_input.txt", "wt") as file:
                 file.write(messages[0])
             self._logger.info(f"Saved LLM output to {file.name}")
-            with tempfile.NamedTemporaryFile(delete=False, prefix='scenario', suffix=".json", dir=os.environ["HOME"], mode='w') as file:
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                prefix="scenario",
+                suffix=".json",
+                dir=os.environ["HOME"],
+                mode="w",
+            ) as file:
                 json.dump(config, file)
             self._logger.warning(f"Saved LLM output to {file.name}")
 
         return config
 
-    async def _parse_prompt(self, prompt: str, top_p: float, use_behavior_tree: bool) -> _ParsedConfig:
+    async def _parse_prompt(
+        self, prompt: str, top_p: float, generation_mode: str
+    ) -> _ParsedConfig:
         """
         Parses the prompt to generate obstacles config.
 
@@ -313,7 +490,8 @@ class TM_Prompt(TM_Obstacles):
         Returns:
             _ParsedConfig: Parsed configuration containing static and dynamic obstacles.
         """
-        config = await self._prompt_to_config(prompt, top_p, use_behavior_tree)
+        assert GenerationMode.has_value(generation_mode)
+        config = await self._prompt_to_config(prompt, top_p, generation_mode)
 
         static_obstacles: list[Obstacle]
         dynamic_obstacles: list[DynamicObstacle]
@@ -329,18 +507,20 @@ class TM_Prompt(TM_Obstacles):
         ]
 
         dynamic_obstacles = [
-            obs
-            for obs
-            in config.get("obstacles", {}).get("dynamic", [])
+            obs for obs in config.get("obstacles", {}).get("dynamic", [])
         ]
 
-        result = converter.structure(dict(static=static_obstacles, dynamic=dynamic_obstacles), _ParsedConfig)
+        result = converter.structure(
+            dict(static=static_obstacles, dynamic=dynamic_obstacles), _ParsedConfig
+        )
 
         if DEBUG:
-            target_dir = os.path.join(os.environ["HOME"], 'scenarios', f"{int(time.time())}_{prompt[:30]}")
+            target_dir = os.path.join(
+                os.environ["HOME"], "scenarios", f"{int(time.time())}_{prompt[:30]}"
+            )
             os.makedirs(target_dir, exist_ok=True)
-            with open(os.path.join(target_dir, 'scenario.json'), 'w') as file:
-                json.dump({'obstacles': converter.unstructure(result)}, file, indent=2)
+            with open(os.path.join(target_dir, "scenario.json"), "w") as file:
+                json.dump({"obstacles": converter.unstructure(result)}, file, indent=2)
             self._logger.warning(f"Saved parsed prompt result to {target_dir}")
 
         # import attrs
@@ -352,7 +532,7 @@ class TM_Prompt(TM_Obstacles):
         parsed_config = await self._parse_prompt(
             self._config.user_prompt.value,
             self._config.top_p.value,
-            self._config.behavior_tree.value,
+            self._config.generation_mode.value,
         )
 
         return parsed_config.static, parsed_config.dynamic
@@ -372,15 +552,17 @@ class TM_Prompt(TM_Obstacles):
                 get_package_share_directory("arena_bringup"),
                 "configs",
                 "hunav_agents",
-                filename
+                filename,
             )
 
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path, "r") as f:
                     config = yaml.safe_load(f)
 
-                assert isinstance(config, dict), "Config file is not properly formatted."
-                agent_config = config['hunav_loader']['ros__parameters']['agent1']
+                assert isinstance(config, dict), (
+                    "Config file is not properly formatted."
+                )
+                agent_config = config["hunav_loader"]["ros__parameters"]["agent1"]
                 return agent_config
 
             except Exception as e:
@@ -390,26 +572,24 @@ class TM_Prompt(TM_Obstacles):
 
         self._config = PromptConfig(
             user_prompt=self.node.ROSParam[str](
-                self.namespace('user_prompt'),
-                value='An empty space with no pedestrian.',
+                self.namespace("user_prompt"),
+                value="An empty space with no pedestrian.",
             ),
             top_p=self.node.ROSParam[float](
-                self.namespace('top_p'),
+                self.namespace("top_p"),
                 value=0.3,
             ),
-            behavior_tree=self.node.ROSParam[bool](
-                self.namespace('behavior_tree'),
-                value=False,
-            )
+            generation_mode=self.node.ROSParam[str](
+                self.namespace("generation_mode"),
+                value=GenerationMode.ARENA.value,
+            ),
         )
 
         if "GEMINI_API_KEY" not in os.environ:
             self._logger.error("GEMINI_API_KEY environment variable not set!")
             raise OSError("GEMINI_API_KEY environment variable not set!")
 
-        self.inference_client = genai.Client(
-            api_key=os.environ["GEMINI_API_KEY"]
-        )
+        self.inference_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
         try:
             caches = self.inference_client.caches.list()
@@ -419,9 +599,34 @@ class TM_Prompt(TM_Obstacles):
         except Exception as e:
             print(e)
 
-        self.cached_context_name: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
+        self.cached_context_name: dict[
+            str, str
+        ] = {}  # Whether the prompt context need to be changed and fed into LLM model
 
-        self.tmp_dir = tempfile.TemporaryDirectory()  # Temporary directory to store behavior tree XML files
+        self.setup_chroma()
+
+        self.tmp_dir = (
+            tempfile.TemporaryDirectory()
+        )  # Temporary directory to store behavior tree XML files
+
+        # Velocity field generation
+        self.velocity_field_client = self.node.create_client(
+            SetVelocityField, "/task_generator_node/set_velocity_field"
+        )
+        while not self.velocity_field_client.wait_for_service(timeout_sec=1.0):
+            self.node.get_logger().info(
+                "Waiting for service /task_generator_node/set_velocity_field"
+            )
+        self.velocity_field_visualizer = VelocityFieldVisualizer(
+            self.node, service_name="/task_generator_node/velocity_field_marker"
+        )
+        self.arena_world_size_client = self.node.create_client(
+            SetArenaWorldSize, "/task_generator_node/set_arena_world_size"
+        )
+        while not self.arena_world_size_client.wait_for_service(timeout_sec=1.0):
+            self.node.get_logger().info(
+                "Waiting for service /task_generator_node/set_arena_world_size"
+            )
 
     def __del__(self):
         try:

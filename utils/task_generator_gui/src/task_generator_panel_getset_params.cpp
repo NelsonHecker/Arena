@@ -139,9 +139,20 @@ namespace task_generator_gui
 
                 typed_prompt = prompt;
 
-                auto use_bt = parameters_client->get_parameter<bool>("task.prompt.behavior_tree", false);
+                auto gm = parameters_client->get_parameter<std::string>("task.prompt.generation_mode", "arena");
 
-                use_behavior_tree = use_bt;
+                if (gm == "arena") {
+                  generation_mode="ARENA";
+                }
+                else if (gm=="behavior_tree") {
+                  generation_mode="BEHAVIOR_TREE";
+                }
+                else if (gm =="crowded_behavior_tree") {
+                  generation_mode="CROWDED_BT";
+                }
+                else{
+                  throw std::runtime_error("Invalid value of Generation Mode: " + generation_mode);
+                }
 
                 auto p = parameters_client->get_parameter<double>("task.prompt.top_p", 0.3);
 
@@ -396,10 +407,22 @@ namespace task_generator_gui
 
             request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
             parameter = rcl_interfaces::msg::Parameter();
-            parameter.name = "task.prompt.behavior_tree";
-            parameter.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
-            parameter.value.bool_value = use_behavior_tree;
-            RCLCPP_WARN(service_node->get_logger(), "use_behavior_tree: %d", parameter.value.bool_value);
+            parameter.name = "task.prompt.generation_mode";
+            parameter.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_STRING;
+            if (generation_mode=="ARENA") {
+              generation_mode = "arena";
+            }
+            else if (generation_mode=="BEHAVIOR_TREE") {
+              generation_mode="behavior_tree";
+            }
+            else if (generation_mode=="CROWDED_BT") {
+              generation_mode="crowded_behavior_tree";
+            }
+            else{
+              throw std::runtime_error("Invalid value of Generation Mode: " + generation_mode);
+            }
+            parameter.value.string_value = generation_mode;
+            RCLCPP_WARN(service_node->get_logger(), "generation_mode: %s", parameter.value.string_value.c_str());
             request->parameters.push_back(parameter);
             sendRequest<rcl_interfaces::srv::SetParameters>(set_param_client, request, "set_param");
 
