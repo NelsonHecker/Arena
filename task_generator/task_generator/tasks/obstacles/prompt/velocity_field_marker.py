@@ -17,7 +17,8 @@ class VelocityFieldVisualizer:
         map_min_y: float = 0.0,
         map_max_x: float = 0.0,
         map_max_y: float = 0.0,
-        service_name: str = "/velocity_field_maker",
+        topic_name: str = "/velocity_field_maker",
+        service_name: str = "/set_velocity_field",
     ):
         self.node = node
         self._logger = node.get_logger()
@@ -29,7 +30,7 @@ class VelocityFieldVisualizer:
         self.map_max_y = map_max_y
 
         # RViz Publisher
-        self.marker_pub = self.node.create_publisher(MarkerArray, service_name, 10)
+        self.marker_pub = self.node.create_publisher(MarkerArray, topic_name, 10)
 
         # Initialize the Service to listen for velocity field updates
         self.srv = self.node.create_service(
@@ -82,8 +83,14 @@ class VelocityFieldVisualizer:
         # Calculate cell sizes in world coordinates
         world_width = self.map_max_x - self.map_min_x
         world_height = self.map_max_y - self.map_min_y
+        assert world_width * world_height > 0, (
+            f"Invalid world size: {world_height}x{world_width}"
+        )
         dx = world_width / w
         dy = world_height / h
+        self._logger.info(
+            f"Publishing marbers for grid: {h}x{w}, world: {world_height}x{world_width}"
+        )
 
         # Downsample for performance if grid is too dense
         step = 2 if h > 32 else 1
@@ -101,6 +108,7 @@ class VelocityFieldVisualizer:
 
                 # Skip near-zero vectors
                 if np.hypot(vx, vy) < 0.05:
+                    self._logger.warn("Velocity too small")
                     continue
 
                 marker = Marker()

@@ -19,9 +19,9 @@ from ament_index_python.packages import get_package_share_directory
 
 from arena_hunav_sim_bridge.agent.llm_parser import Parser
 
-os.environ["QT_QPA_PLATFORM"] = (
-    "offscreen"  # Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
-)
+# Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
+os.environ["PYGLET_HEADLESS"] = "true"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 from arena_text_crowd.crowd_generation_pipeline.arena_text_crowd_generation_pipeline import (
     ArenaTextCrowdGenerationPipelineConfig as ATCPConfig,
     CrowdGenerationPipeline,
@@ -356,7 +356,15 @@ class TM_Prompt(TM_Obstacles):
                 f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
-            cgp_config = ATCPConfig(visual=False, model=REMOTE_LM, top_p=top_p)
+            cgp_config = ATCPConfig(
+                visual=False,
+                # save_path=os.path.join(
+                #     get_package_share_directory("arena_text_crowd"),
+                #     "generated_velocity_field",
+                # ),
+                model=REMOTE_LM,
+                top_p=top_p,
+            )
             # text_crowd_unet_dir = os.path.join(
             #     get_package_share_directory("arena_text_crowd"),
             #     "models",
@@ -366,6 +374,16 @@ class TM_Prompt(TM_Obstacles):
             text_crowd_unet_dir = "/home/linh/ductai_nguyen_ws/Text-Crowd/text_crowd/Language_Crowd_Animation/Models_Server_ForTest/Field-Full-V2/checkpoint-270000/unet"
             vfgp_config = VFGPConfig(unet_dir=text_crowd_unet_dir)
             cgp = CrowdGenerationPipeline(cgp_config, vfgp_config)
+
+            arena_world_size_res, x_min, y_min, x_max, y_max = (
+                self.send_arena_world_size_msg()
+            )
+            self._logger.info(
+                f"Set Arena World size response: {arena_world_size_res.success}, {arena_world_size_res.message}"
+            )
+            self.velocity_field_visualizer.update_world_bounds(
+                x_min, y_min, x_max, y_max
+            )
 
             scenario = arena_world_to_text_crowd_scenario(
                 self._PROPS.world_manager.world, scenario_size=(1024, 1024)
@@ -381,15 +399,6 @@ class TM_Prompt(TM_Obstacles):
             vel_res = self.send_velocity_msg(velocity_field)
             self._logger.info(
                 f"Set velocity field response: {vel_res.success}, {vel_res.message}"
-            )
-            arena_world_size_res, x_min, y_min, x_max, y_max = (
-                self.send_arena_world_size_msg()
-            )
-            self._logger.info(
-                f"Set Arena World size response: {arena_world_size_res.success}, {arena_world_size_res.message}"
-            )
-            self.velocity_field_visualizer.update_world_bounds(
-                x_min, y_min, x_max, y_max
             )
 
         if local:  # Currently not supported
@@ -618,7 +627,9 @@ class TM_Prompt(TM_Obstacles):
                 "Waiting for service /task_generator_node/set_velocity_field"
             )
         self.velocity_field_visualizer = VelocityFieldVisualizer(
-            self.node, service_name="/task_generator_node/velocity_field_marker"
+            self.node,
+            topic_name="/task_generator_node/velocity_field_marker",
+            service_name="/task_generator_node/set_velocity_field",
         )
         self.arena_world_size_client = self.node.create_client(
             SetArenaWorldSize, "/task_generator_node/set_arena_world_size"
