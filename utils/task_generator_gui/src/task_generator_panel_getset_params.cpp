@@ -81,6 +81,18 @@ namespace task_generator_gui
             RCLCPP_WARN(service_node->get_logger(), "Current Robots Task Mode: %s", current_robots_tm.c_str());
 
             // rclcpp::SyncParametersClient::SharedPtr does not support nested parameters for has_parameter function
+            if (parameters_client->has_parameter("robot"))
+            {
+                auto current_robot_model = parameters_client->get_parameter<std::string>("robot");
+                selected_robot_model = current_robot_model;
+            }
+
+            if (parameters_client->has_parameter("world"))
+            {
+                auto current_world = parameters_client->get_parameter<std::string>("world");
+                selected_world = current_world;
+            }
+
             if (current_obstacles_tm == "environment")
             {
                 auto config_file = parameters_client->get_parameter<std::string>("task.environment.file", environment_config_files.empty() ? "" : environment_config_files[0]);
@@ -159,20 +171,7 @@ namespace task_generator_gui
                 top_p = p;
             }
 
-
             RCLCPP_INFO(service_node->get_logger(), "Current Robot Task Mode: %s", current_robots_tm.c_str());
-
-            if (parameters_client->has_parameter("robot"))
-            {
-                auto current_robot_model = parameters_client->get_parameter<std::string>("robot");
-                selected_robot_model = current_robot_model;
-            }
-
-            if (parameters_client->has_parameter("world"))
-            {
-                auto current_world = parameters_client->get_parameter<std::string>("world");
-                selected_world = current_world;
-            }
         }
         catch (const std::exception &e)
         {
@@ -409,19 +408,20 @@ namespace task_generator_gui
             parameter = rcl_interfaces::msg::Parameter();
             parameter.name = "task.prompt.generation_mode";
             parameter.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_STRING;
+            std::string gm;
             if (generation_mode=="ARENA") {
-              generation_mode = "arena";
+              gm = "arena";
             }
             else if (generation_mode=="BEHAVIOR_TREE") {
-              generation_mode="behavior_tree";
+              gm ="behavior_tree";
             }
             else if (generation_mode=="CROWDED_BT") {
-              generation_mode="crowded_behavior_tree";
+              gm ="crowded_behavior_tree";
             }
             else{
               throw std::runtime_error("Invalid value of Generation Mode: " + generation_mode);
             }
-            parameter.value.string_value = generation_mode;
+            parameter.value.string_value = gm;
             RCLCPP_WARN(service_node->get_logger(), "generation_mode: %s", parameter.value.string_value.c_str());
             request->parameters.push_back(parameter);
             sendRequest<rcl_interfaces::srv::SetParameters>(set_param_client, request, "set_param");

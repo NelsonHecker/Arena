@@ -1,12 +1,11 @@
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 import numpy as np
 
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
-
-from hunav_msgs.srv import SetVelocityField
 
 
 class VelocityFieldVisualizer:
@@ -17,8 +16,7 @@ class VelocityFieldVisualizer:
         map_min_y: float = 0.0,
         map_max_x: float = 0.0,
         map_max_y: float = 0.0,
-        topic_name: str = "/velocity_field_maker",
-        service_name: str = "/set_velocity_field",
+        topic_name: str = "/velocity_field_marker",
     ):
         self.node = node
         self._logger = node.get_logger()
@@ -30,14 +28,15 @@ class VelocityFieldVisualizer:
         self.map_max_y = map_max_y
 
         # RViz Publisher
-        self.marker_pub = self.node.create_publisher(MarkerArray, topic_name, 10)
-
-        # Initialize the Service to listen for velocity field updates
-        self.srv = self.node.create_service(
-            SetVelocityField, service_name, self._handle_set_velocity_field
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,  # This is the "magic" setting
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
         )
-
-        self._logger.info(f"Velocity Visualizer initialized on {service_name}")
+        self.marker_pub = self.node.create_publisher(
+            MarkerArray, topic_name, qos_profile
+        )
 
     def update_world_bounds(self, x_min, y_min, x_max, y_max):
         """Update bounds used for coordinate mapping."""
@@ -45,32 +44,6 @@ class VelocityFieldVisualizer:
         self.map_min_y = y_min
         self.map_max_x = x_max
         self.map_max_y = y_max
-
-    def _handle_set_velocity_field(
-        self, request: SetVelocityField.Request, response: SetVelocityField.Response
-    ):
-        """Callback when the generation pipeline sends a new velocity field."""
-        try:
-            # Extract dimensions from MultiArrayLayout
-            # Layout: [groups, H, W, C]
-            dims = {d.label: d.size for d in request.velocity_field.layout.dim}
-            g, h, w, c = dims["G"], dims["H"], dims["W"], dims["C"]
-
-            # Reshape data
-            raw_data = np.array(request.velocity_field.data)
-            # We take the first group [0] for visualization
-            field = raw_data.reshape(g, h, w, c)[0]
-
-            self.publish_markers(field)
-
-            response.success = True
-            response.message = "Markers published to RViz"
-        except Exception as e:
-            response.success = False
-            response.message = f"Visualization failed: {str(e)}"
-            self._logger.error(response.message)
-
-        return response
 
     def publish_markers(self, field: np.ndarray):
         """
@@ -88,9 +61,6 @@ class VelocityFieldVisualizer:
         )
         dx = world_width / w
         dy = world_height / h
-        self._logger.info(
-            f"Publishing marbers for grid: {h}x{w}, world: {world_height}x{world_width}"
-        )
 
         # Downsample for performance if grid is too dense
         step = 2 if h > 32 else 1
@@ -108,7 +78,7 @@ class VelocityFieldVisualizer:
 
                 # Skip near-zero vectors
                 if np.hypot(vx, vy) < 0.05:
-                    self._logger.warn("Velocity too small")
+                    self._logger.warn("Velocity too small for visualization")
                     continue
 
                 marker = Marker()
@@ -127,13 +97,41 @@ class VelocityFieldVisualizer:
                 marker.points = [start, end]
 
                 # Aesthetics
-                marker.scale.x = 0.05  # Shaft diameter
-                marker.scale.y = 0.1  # Head diameter
-                marker.scale.z = 0.1  # Head length
-                marker.color = ColorRGBA(r=0.0, g=1.0, b=1.0, a=0.8)  # Cyan
+                marker.scale.x = 0.08  # Shaft diameter
+                marker.scale.y = 0.15  # Head diameter
+                marker.scale.z = 0.15  # Head length
+                marker.color = ColorRGBA(r=1.0, g=0.5, b=0.0, a=1.0)  # Orange
 
                 marker_array.markers.append(marker)
                 id_counter += 1
 
-        # Clear previous markers if the new set is smaller
+        self._logger.info(
+            f"Publishing {id_counter} markers for grid: {h}x{w}, world: {world_height}x{world_width}"
+        )
         self.marker_pub.publish(marker_array)
+
+
+if __name__ == "__main__":
+    import rclpy
+    from rclpy.executors import MultiThreadedExecutor
+
+    rclpy.init()
+
+    node = rclpy.create_node("velocity_field_marker_test_node")
+
+    visualizer = VelocityFieldVisualizer(node)
+
+    visualizer.update_world_bounds(0.0, 0.0, 30.0, 23.0)
+
+    visualizer.publish_markers(np.random.uniform(-1, 1, size=(64, 64, 2)))
+
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

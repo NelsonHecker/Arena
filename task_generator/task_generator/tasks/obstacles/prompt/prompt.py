@@ -401,6 +401,8 @@ class TM_Prompt(TM_Obstacles):
                 f"Set velocity field response: {vel_res.success}, {vel_res.message}"
             )
 
+            self.velocity_field_visualizer.publish_markers(velocity_field[0])
+
         if local:  # Currently not supported
             return {}
             from huggingface_hub import InferenceClient
@@ -629,7 +631,6 @@ class TM_Prompt(TM_Obstacles):
         self.velocity_field_visualizer = VelocityFieldVisualizer(
             self.node,
             topic_name="/task_generator_node/velocity_field_marker",
-            service_name="/task_generator_node/set_velocity_field",
         )
         self.arena_world_size_client = self.node.create_client(
             SetArenaWorldSize, "/task_generator_node/set_arena_world_size"
