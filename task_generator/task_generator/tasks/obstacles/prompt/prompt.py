@@ -38,7 +38,7 @@ from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree.World import WorldDescription
 from arena_simulation_setup.utils.cattrs import converter
 
-from hunav_msgs.srv import SetVelocityField, SetArenaWorldSize
+from hunav_msgs.srv import SetVelocityField, SetArenaWorldBounds
 
 from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle
 from task_generator.tasks.obstacles import (
@@ -54,6 +54,7 @@ from .prompt_utils import (
     SYSTEM_INSTRUCTION,
     ARENA_FORMAT,
     BEHAVIOR_TREE_FORMAT,
+    SPLIT_PROMPT_INSTRUCTION,
     BT_REF_DOC_PATH,
     CHROMA_DB_PATH,
     LOCAL_LM,
@@ -167,7 +168,7 @@ class TM_Prompt(TM_Obstacles):
                     {
                         "name": ped["name"],
                         "pos": ped["pos"],
-                        "model": "male_adult_construction_01",
+                        "model": ped["model"],
                     }
                 )
                 llm_output["single_agent_nodes"].append(
@@ -256,7 +257,7 @@ class TM_Prompt(TM_Obstacles):
 
         return response
 
-    def send_arena_world_size_msg(self):
+    def send_arena_world_bounds_msg(self):
         # TODO: Optimize
         # Get Arena World size
         x_min, y_min, x_max, y_max = np.inf, np.inf, -np.inf, -np.inf
@@ -268,18 +269,20 @@ class TM_Prompt(TM_Obstacles):
                 max(x_max, *(corner.x for corner in zones.corners)),
                 max(y_max, *(corner.y for corner in zones.corners)),
             )
-        arena_world_size = [float(x_max - x_min), float(y_max - y_min)]
+        arena_world_bounds = [x_min, y_min, x_max, y_max]
 
         msg = Float32MultiArray()
-        msg.data = arena_world_size
+        msg.data = arena_world_bounds
         msg.layout.dim = [
-            MultiArrayDimension(label="size", size=2, stride=2),
+            MultiArrayDimension(label="bounds", size=4, stride=4),
         ]
 
-        req = SetArenaWorldSize.Request()
-        req.arena_world_size = msg
+        req = SetArenaWorldBounds.Request()
+        req.arena_world_bounds = msg
 
-        response: SetArenaWorldSize.Response = self.arena_world_size_client.call(req)
+        response: SetArenaWorldBounds.Response = self.arena_world_bounds_client.call(
+            req
+        )
 
         return response, x_min, y_min, x_max, y_max
 
@@ -290,6 +293,7 @@ class TM_Prompt(TM_Obstacles):
 
         messages = []
         crowd_pedestrians = None
+        pipeline_start = time.time()
 
         if generation_mode == GenerationMode.BEHAVIOR_TREE.value:
             if generation_mode not in self.cached_context_name.keys():
@@ -345,6 +349,37 @@ class TM_Prompt(TM_Obstacles):
                 if cache.name is not None:
                     self.cached_context_name.update({generation_mode: cache.name})
 
+            # Split prompts for Ambient Agents and Spotlight agent
+            split_prompt_res = self.inference_client.models.generate_content(
+                model=REMOTE_LM,
+                contents=f"Split prompts given this user prompt: {prompt}",
+                config=genai.types.GenerateContentConfig(
+                    system_instruction=SPLIT_PROMPT_INSTRUCTION,
+                    top_p=top_p,
+                    temperature=0.2,
+                    top_k=40,
+                    thinking_config=genai.types.ThinkingConfig(
+                        include_thoughts=False, thinking_level="low"
+                    ),
+                ),
+            )
+            split_prompt_answer = split_prompt_res.text
+            assert split_prompt_answer is not None
+            if split_prompt_answer.startswith("```json"):
+                split_prompt_answer = (
+                    split_prompt_answer.strip("```json").strip("```").strip()
+                )
+            elif split_prompt_answer.startswith("```"):
+                split_prompt_answer = split_prompt_answer.strip("```").strip()
+            split_prompt_answer = json.loads(split_prompt_answer)
+
+            prompt = split_prompt_answer["spotlight_agents_prompt"]
+            ambient_agent_prompt = split_prompt_answer["ambient_agents_prompt"]
+
+            self._logger.info(
+                f"Spotlight Agents prompts: {prompt}\nAmbient_agents_prompt:{ambient_agent_prompt}"
+            )
+
             bt_nodes = get_relevant_bt_nodes(
                 query=f'What are the nodes should be used for creating the behavior tree as described below: "{prompt}". Use GoTo node to guide agents to isolated places if needed.',
                 collection=self.chroma_collection,
@@ -358,10 +393,10 @@ class TM_Prompt(TM_Obstacles):
 
             cgp_config = ATCPConfig(
                 visual=False,
-                # save_path=os.path.join(
-                #     get_package_share_directory("arena_text_crowd"),
-                #     "generated_velocity_field",
-                # ),
+                save_path=os.path.join(
+                    get_package_share_directory("arena_text_crowd"),
+                    "generated_velocity_field",
+                ),
                 model=REMOTE_LM,
                 top_p=top_p,
             )
@@ -375,33 +410,40 @@ class TM_Prompt(TM_Obstacles):
             vfgp_config = VFGPConfig(unet_dir=text_crowd_unet_dir)
             cgp = CrowdGenerationPipeline(cgp_config, vfgp_config)
 
-            arena_world_size_res, x_min, y_min, x_max, y_max = (
-                self.send_arena_world_size_msg()
+            arena_world_bounds_res, x_min, y_min, x_max, y_max = (
+                self.send_arena_world_bounds_msg()
             )
             self._logger.info(
-                f"Set Arena World size response: {arena_world_size_res.success}, {arena_world_size_res.message}"
+                f"Set Arena World bounds response: {arena_world_bounds_res.success}, {arena_world_bounds_res.message}"
             )
             self.velocity_field_visualizer.update_world_bounds(
                 x_min, y_min, x_max, y_max
             )
 
-            scenario = arena_world_to_text_crowd_scenario(
-                self._PROPS.world_manager.world, scenario_size=(1024, 1024)
+            scenario, arena_entity_to_semantic_entity_map = (
+                arena_world_to_text_crowd_scenario(
+                    self._PROPS.world_manager.world, scenario_size=(1024, 1024)
+                )
             )
 
             self._logger.info("Generating velocity field...")
             velocity_field, crowd_pedestrians = cgp.generate(
-                prompt=prompt,
+                prompt=ambient_agent_prompt,
                 scenario=scenario,
                 arena_world_description=self._PROPS.world_manager.world,
-            )  # (n_groups, 64, 64, 2)
+                arena_entity_to_semantic_entity_map=arena_entity_to_semantic_entity_map,
+            )  # (n_groups, 64, 64, 2) (g, y, x, 2)
 
             vel_res = self.send_velocity_msg(velocity_field)
             self._logger.info(
                 f"Set velocity field response: {vel_res.success}, {vel_res.message}"
             )
+            if DEBUG:
+                np.save(
+                    f"{os.environ['HOME']}/Desktop/velocity_field.npy", velocity_field
+                )
 
-            self.velocity_field_visualizer.publish_markers(velocity_field[0])
+            self.velocity_field_visualizer.publish_markers(velocity_field)
 
         if local:  # Currently not supported
             return {}
@@ -438,7 +480,7 @@ class TM_Prompt(TM_Obstacles):
             self._logger.info(f"Inference done, took: {end - start:.1f}s")
 
         else:
-            self._logger.warn("Start inference...")
+            self._logger.info("Start inference...")
             start = time.time()
             response = await self.inference_client.aio.models.generate_content(
                 model=REMOTE_LM,
@@ -453,10 +495,10 @@ class TM_Prompt(TM_Obstacles):
             )
 
             answer = response.text
-            self._logger.warn(f"LLM raw output for the prompt: {prompt}")
-            self._logger.warn(answer)
+            self._logger.info(f"LLM raw output for the prompt: {prompt}")
+            self._logger.info(answer)
             end = time.time()
-            self._logger.warn(f"Inference done, took: {end - start:.1f}s")
+            self._logger.info(f"Inference done, took: {end - start:.1f}s")
 
         assert answer is not None
         if answer.startswith("```json"):
@@ -469,6 +511,11 @@ class TM_Prompt(TM_Obstacles):
             json.loads(answer),
             generation_mode,
             crowd_pedestrians=crowd_pedestrians,
+        )
+
+        pipeline_end = time.time()
+        self._logger.info(
+            f"Generation pipeline took: {pipeline_end - pipeline_start:.1f}s"
         )
 
         if DEBUG:
@@ -485,7 +532,7 @@ class TM_Prompt(TM_Obstacles):
                 mode="w",
             ) as file:
                 json.dump(config, file)
-            self._logger.warning(f"Saved LLM output to {file.name}")
+            self._logger.info(f"Saved LLM output to {file.name}")
 
         return config
 
@@ -632,12 +679,12 @@ class TM_Prompt(TM_Obstacles):
             self.node,
             topic_name="/task_generator_node/velocity_field_marker",
         )
-        self.arena_world_size_client = self.node.create_client(
-            SetArenaWorldSize, "/task_generator_node/set_arena_world_size"
+        self.arena_world_bounds_client = self.node.create_client(
+            SetArenaWorldBounds, "/task_generator_node/set_arena_world_bounds"
         )
-        while not self.arena_world_size_client.wait_for_service(timeout_sec=1.0):
+        while not self.arena_world_bounds_client.wait_for_service(timeout_sec=1.0):
             self.node.get_logger().info(
-                "Waiting for service /task_generator_node/set_arena_world_size"
+                "Waiting for service /task_generator_node/set_arena_world_bounds"
             )
 
     def __del__(self):

@@ -70,7 +70,7 @@ repositories:
   deps/hunav/hunav_sim:
     type: git
     url: https://github.com/voshch/hunav_sim.git
-    version: feature/follow-velocity-field@fd9333f
+    version: feature/follow-velocity-field@eecab46
   deps/hunav/people_msgs:
     type: git
     url: https://github.com/wg-perception/people.git
@@ -82,7 +82,7 @@ repositories:
   deps/hunav/arena_text_crowd:
     type: git
     url: https://github.com/ductaingn/arena_text_crowd.git
-    version: humble@23daeb0
+    version: humble@1d436fe
   
   gazebo/turtlebot4_simulator:
     type: git

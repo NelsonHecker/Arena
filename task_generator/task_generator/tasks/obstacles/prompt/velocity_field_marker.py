@@ -1,4 +1,5 @@
 from rclpy.node import Node
+from rclpy.publisher import Publisher
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 import numpy as np
@@ -28,14 +29,17 @@ class VelocityFieldVisualizer:
         self.map_max_y = map_max_y
 
         # RViz Publisher
-        qos_profile = QoSProfile(
+        self.qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,  # This is the "magic" setting
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.marker_pub = self.node.create_publisher(
-            MarkerArray, topic_name, qos_profile
+
+        self.marker_publisher: Publisher = self.node.create_publisher(
+            MarkerArray,
+            topic_name,
+            self.qos_profile,
         )
 
     def update_world_bounds(self, x_min, y_min, x_max, y_max):
@@ -47,10 +51,35 @@ class VelocityFieldVisualizer:
 
     def publish_markers(self, field: np.ndarray):
         """
+        field: np.ndarray of shape (G, H, W, 2)
+        """
+        assert len(field.shape) == 4
+        g = field.shape[0]
+
+        marker_array = MarkerArray()
+
+        id_counter = 0
+
+        for group_idx in range(g):
+            n_makers = self._add_markers(
+                field[group_idx], f"group_{group_idx}", marker_array, id_counter
+            )
+            id_counter += n_makers
+
+        self._logger.info(f"Publishing {id_counter} markers")
+        self.marker_publisher.publish(marker_array)
+
+    def _add_markers(
+        self,
+        field: np.ndarray,
+        namespace: str,
+        marker_array: MarkerArray,
+        start_id: int,
+    ):
+        """
         Converts normalized grid to RViz Markers.
         field: np.ndarray of shape (H, W, 2)
         """
-        marker_array = MarkerArray()
         h, w, _ = field.shape
 
         # Calculate cell sizes in world coordinates
@@ -65,26 +94,24 @@ class VelocityFieldVisualizer:
         # Downsample for performance if grid is too dense
         step = 2 if h > 32 else 1
 
-        id_counter = 0
-        for i in range(0, h, step):
-            for j in range(0, w, step):
+        id_counter = start_id
+        for grid_y in range(0, h, step):
+            for grid_x in range(0, w, step):
                 # Center of the cell in world coordinates
-                # Note: Grid index i is usually Y, j is X
-                world_x = self.map_min_x + (j + 0.5) * dx
-                world_y = self.map_min_y + (i + 0.5) * dy
+                world_x = self.map_min_x + (grid_x + 1.0) * dx
+                world_y = self.map_min_y + (grid_y + 1.0) * dy
 
-                vx = field[i, j, 0]
-                vy = field[i, j, 1]
+                vx = field[grid_y, grid_x, 0]
+                vy = field[grid_y, grid_x, 1]
 
                 # Skip near-zero vectors
                 if np.hypot(vx, vy) < 0.05:
-                    self._logger.warn("Velocity too small for visualization")
                     continue
 
                 marker = Marker()
                 marker.header.frame_id = "map"
                 marker.header.stamp = self.node.get_clock().now().to_msg()
-                marker.ns = "velocity_field"
+                marker.ns = namespace
                 marker.id = id_counter
                 marker.type = Marker.ARROW
                 marker.action = Marker.ADD
@@ -105,13 +132,12 @@ class VelocityFieldVisualizer:
                 marker_array.markers.append(marker)
                 id_counter += 1
 
-        self._logger.info(
-            f"Publishing {id_counter} markers for grid: {h}x{w}, world: {world_height}x{world_width}"
-        )
-        self.marker_pub.publish(marker_array)
+        return id_counter
 
 
 if __name__ == "__main__":
+    import os
+
     import rclpy
     from rclpy.executors import MultiThreadedExecutor
 
@@ -121,9 +147,11 @@ if __name__ == "__main__":
 
     visualizer = VelocityFieldVisualizer(node)
 
-    visualizer.update_world_bounds(0.0, 0.0, 30.0, 23.0)
+    visualizer.update_world_bounds(0.0, 0.0, 25.0, 34.2)
 
-    visualizer.publish_markers(np.random.uniform(-1, 1, size=(64, 64, 2)))
+    # visualizer.publish_markers(np.random.uniform(-1, 1, size=(3, 64, 64, 2)))
+    velocity_field = np.load(f"{os.environ['HOME']}/Desktop/velocity_field.npy")
+    visualizer.publish_markers(velocity_field)
 
     executor = MultiThreadedExecutor()
     executor.add_node(node)
