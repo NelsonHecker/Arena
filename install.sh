@@ -41,6 +41,10 @@ docker build --progress=plain -t arena:dev -f src/Arena/_meta/docker/Dockerfile.
     --build-arg group="$(id -gn)" \
     --build-arg uid="$(id -u)" \
     --build-arg gid="$(id -g)"
-ln -sf "$ARENA_WS_DIR/src/Arena/_meta/docker/source" ./arena
+
+ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/docker/source" ./arena
+ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/tools/Arena.code-workspace" ./ws-arena.code-workspace
 
 echo 'Installed Arena'
+echo 'run the following to get started:'
+echo "  cd $ARENA_WS_DIR && source arena"
