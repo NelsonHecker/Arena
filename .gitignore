@@ -65,3 +65,4 @@ __pycache__/
 
 # folders
 /_assets
+/.venv/.installed

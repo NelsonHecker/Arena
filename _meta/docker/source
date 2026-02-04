@@ -1,121 +1,44 @@
 #!/usr/bin/env bash
 
-
-if [ -n "$ZSH_VERSION" ]; then
-    shell='zsh'
-    # shellcheck disable=SC2296
-    THIS_FILE="${(%):-%N}"
-    unsetopt PUSHD_IGNORE_DUPS
-else
-    shell='bash'
-    THIS_FILE="${BASH_SOURCE[0]}"
-fi
-SOURCE_FILE=$(realpath "$THIS_FILE")
-export SOURCE_FILE
-export shell
-
-
 ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
 
 export ARENA_WS_DIR
 export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
 
-export INSTALLED="$ARENA_DIR/.installed"
-export TOOLS_DIR="$ARENA_DIR/_meta/tools"
-export ARENA_ASSETS_DIR="$ARENA_DIR/_assets/"
-export ARENA_ASSETS_DIR_LOCAL="$ARENA_ASSETS_DIR/_local"
-
-export ARENA_ROS_DISTRO=humble
-
-export FASTRTPS_DEFAULT_PROFILES_FILE=${FASTRTPS_DEFAULT_PROFILES_FILE:-~/.ros/fastdds.xml}
-export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
-export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
-export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
+mkdir -p "$ARENA_DIR/.venv"
+mkdir -p "$ARENA_WS_DIR/build"
+mkdir -p "$ARENA_WS_DIR/install"
+mkdir -p "$ARENA_WS_DIR/log"
 
 ARENA_IMAGE="arena:dev"
+CONTAINER_PID_FILE="$ARENA_WS_DIR/.container.pid"
 
-ARENA_CMD="docker run --rm -it \
-    -v $ARENA_WS_DIR:$ARENA_WS_DIR \
-    -w $ARENA_WS_DIR \
+HOST_UID=$(id -u)
+HOST_GID=$(id -g)
+
+if [[ -f "$CONTAINER_PID_FILE" ]]; then
+    CONTAINER_ID="$(cat "$CONTAINER_PID_FILE")"
+    if docker inspect "$CONTAINER_ID" > /dev/null 2>&1; then
+        docker start "$CONTAINER_ID" > /dev/null
+        docker container exec -it "$CONTAINER_ID" /entrypoint.sh bash
+        # docker stop "$CONTAINER_ID"
+        return $?
+    else
+        rm -f "$CONTAINER_PID_FILE"
+    fi
+fi
+
+docker run \
+    -it \
+    --cidfile "$CONTAINER_PID_FILE" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -w /opt/arena_ws \
     --network host \
-    --env ROS_DOMAIN_ID=$ROS_DOMAIN_ID \
-    --env RMW_IMPLEMENTATION=$RMW_IMPLEMENTATION \
-    --env FASTRTPS_DEFAULT_PROFILES_FILE=$FASTRTPS_DEFAULT_PROFILES_FILE \
-    -v $ARENA_WS_DIR/src:/opt/arena_ws/src \
-    -v $ARENA_WS_DIR/build:/opt/arena_ws/build \
-    -v $ARENA_WS_DIR/install:/opt/arena_ws/install \
-    -v $ARENA_DIR/.venv:/opt/venv \
-    $ARENA_IMAGE"
-
-if [ -f "$ARENA_WS_DIR/.env" ] ; then
-    set -a
-    . "$ARENA_WS_DIR/.env"
-    set +a
-fi
-
-if [ -z ${ARENA_SOURCED+x} ] ; then
-    
-    export ARENA_SOURCED=1
-    PS1_BACKUP=$PS1
-    export PS1="(Arena) $PS1"
-    export PROMPT="(Arena) $PROMPT"
-    echo 'sourced Arena environment'
-    
-    arena(){
-        local verb="$1"
-        if [ -n "$verb" ] ; then
-            shift
-        fi
-
-        pushd "$ARENA_WS_DIR" > /dev/null || return $?
-        trap 'popd > /dev/null' EXIT
-        
-        case "$verb" in
-            build)
-                docker build -t $ARENA_IMAGE -f "$ARENA_DIR/_meta/docker/Dockerfile.dev" "$ARENA_WS_DIR" && \
-                $ARENA_CMD bash -c '. src/Arena/_meta/tools/colcon_build "$@"'
-                result=$?
-            ;;
-            update)
-                "${TOOLS_DIR}/pull" "$@"
-                result=$?
-            ;;
-            launch)
-		killall -s 9 task_generator_node && sleep 1
-                ros2 launch arena_bringup arena.launch.py "$@"
-                result=$?
-            ;;
-            deactivate)
-                deactivate || true
-                export PS1=$PS1_BACKUP
-                unset PS1_BACKUP
-                unset ARENA_SOURCED
-                unset -f arena
-                result=0
-            ;;
-            feature)
-                if [ $# -lt 1 ]; then
-                    echo "Usage: arena feature <name> <install|uninstall|...>"
-                    echo "Available packages: $(cd "$ARENA_DIR/_meta/installers" && ls *.sh | sed 's/\.sh$//' | paste -sd' ' -)"
-                    return 1
-                else
-                    package="$1"
-                    shift
-                    ($SHELL -c "source '$SOURCE_FILE' && $shell '$ARENA_DIR/_meta/installers/${package}.sh' $*")
-                    result=$?
-                fi
-            ;;
-            *)
-                echo 'Usage: arena <build|update|launch|deactivate|feature> [args...]'
-                result=1
-            ;;
-        esac
-
-        trap - EXIT
-        popd > /dev/null || return $?
-        return $result
-    }
-    
-    export -f arena 2>/dev/null || true
-fi
+    -v "$ARENA_WS_DIR/src":/opt/arena_ws/src \
+    -v "$ARENA_WS_DIR/build":/opt/arena_ws/build \
+    -v "$ARENA_WS_DIR/install":/opt/arena_ws/install \
+    -v "$ARENA_WS_DIR/log":/opt/arena_ws/log \
+    -e "ARENA_IMAGE=${ARENA_IMAGE}" \
+    --user "${HOST_UID}:${HOST_GID}" \
+    "$ARENA_IMAGE" \
+    bash

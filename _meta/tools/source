@@ -32,8 +32,9 @@ export INSTALLED="$ARENA_DIR/.installed"
 export TOOLS_DIR="$ARENA_DIR/_meta/tools"
 export ARENA_ASSETS_DIR="$ARENA_DIR/_assets/"
 export ARENA_ASSETS_DIR_LOCAL="$ARENA_ASSETS_DIR/_local"
+export ARENA_VENV_DIR="${ARENA_VENV_DIR:-$ARENA_DIR/.venv}"
 
-export ARENA_ROS_DISTRO=humble
+export ARENA_ROS_DISTRO="${ARENA_ROS_DISTRO:-humble}"
 
 export FASTRTPS_DEFAULT_PROFILES_FILE=${FASTRTPS_DEFAULT_PROFILES_FILE:-~/.ros/fastdds.xml}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
@@ -72,16 +73,18 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     
     # python env
     pushd "$ARENA_DIR" > /dev/null || return 1
-        if [ ! -f "$ARENA_DIR/.venv/.installed" ] ; then
-            uv sync
-            touch "$ARENA_DIR/.venv/.installed"
+        if [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
+            uv venv "$ARENA_VENV_DIR" --allow-existing 
+            if [ ! -f uv.lock ]; then
+                uv pip compile pyproject.toml > uv.lock
+            fi
+            uv pip install --python "$ARENA_VENV_DIR/bin/python" -r uv.lock
+            touch "$ARENA_VENV_DIR/.installed"
         fi
-        export VIRTUAL_ENV_DISABLE_PROMPT=1
-        venv_path="$(dirname "$(dirname "$(uv python find)")")"
 
         # if [ "$venv_path" != "$VIRTUAL_ENV" ] ; then
-        . "$venv_path/bin/activate"
-        dirs=("$venv_path"/lib/*/site-packages)
+        . "$ARENA_VENV_DIR/bin/activate"
+        dirs=("$ARENA_VENV_DIR"/lib/*/site-packages)
         _IFS=$IFS IFS=':'
         export PYTHONPATH="${dirs[*]}:$PYTHONPATH"
         IFS=$_IFS
@@ -119,7 +122,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 result=$?
             ;;
             launch)
-		killall -s 9 task_generator_node && sleep 1
+		        killall -s 9 task_generator_node && sleep 1
                 ros2 launch arena_bringup arena.launch.py "$@"
                 result=$?
             ;;
