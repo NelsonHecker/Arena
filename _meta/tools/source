@@ -75,11 +75,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     pushd "$ARENA_DIR" > /dev/null || return 1
         if [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
             uv venv "$ARENA_VENV_DIR" --allow-existing 
-            if [ ! -f uv.lock ]; then
-                uv pip compile pyproject.toml > uv.lock
-            fi
-            uv pip install --python "$ARENA_VENV_DIR/bin/python" -r uv.lock
-            touch "$ARENA_VENV_DIR/.installed"
+            UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project .
         fi
 
         # if [ "$venv_path" != "$VIRTUAL_ENV" ] ; then

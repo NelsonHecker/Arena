@@ -29,12 +29,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /build
 COPY src/Arena/pyproject.toml uv.lock* ./
 
-RUN uv venv /opt/venv && \
-    bash -c 'if [ -f uv.lock ]; then \
-        uv pip install --python /opt/venv/bin/python -r uv.lock; \
-    else \
-        uv pip compile pyproject.toml | uv pip install --python /opt/venv/bin/python -r -; \
-    fi'
+RUN uv venv /opt/venv
 
 
 # merge
