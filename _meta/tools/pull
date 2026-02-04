@@ -11,6 +11,8 @@ _ROSDEP=${ROSDEP:-1}
 
 export ROSDEP_EXCLUDES='libignition-gazebo6-dev gazebo_dev gazebo_ros gazebo_plugins gazebo_ros2_control'
 
+sudo apt update
+
 # update vcstool
 echo updating vcstool...
 python -m pip install git+https://github.com/voshch/vcstool.git || echo 'failed vcstool upgrade, ignoring'
