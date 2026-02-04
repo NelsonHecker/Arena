@@ -1,0 +1,10 @@
+controller_plugins:
+  - FollowPath
+controller_plugins_dict:
+  FollowPath:
+    plugin: "rosnav_rl_planner::DRLController"
+    service_name: "get_command"  # Full path to match environment
+    subgoal_frequency: 2.0        # The frequency in Hz at which the subgoal is published.
+    min_lookahead_dist: 0.5       # The minimum lookahead distance in meters (used at low speeds).
+    max_lookahead_dist: 2.5       # The maximum lookahead distance in meters (used at high speeds).
+    lookahead_time: 1.5           # The time in seconds to look ahead on the path.
