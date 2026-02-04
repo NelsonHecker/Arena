@@ -45,8 +45,6 @@ dependencies = [
     "aiofiles>=25.1.0",
 ]
 
-[tool.poetry.group.training.dependencies]
-arena_training = { path = "./arena_training", develop = true }
 
 [build-system]
 requires = ["setuptools<80", "wheel"]
@@ -56,3 +54,9 @@ build-backend = "setuptools.build_meta"
 dev = [
     "aiomonitor>=0.7.1",
 ]
+training = [
+    "arena-training",
+]
+
+[tool.uv.sources]
+arena-training = { path = "./arena_training" }
