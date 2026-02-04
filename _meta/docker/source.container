@@ -4,6 +4,11 @@ export ARENA_WS_DIR="/opt/arena_ws"
 export ARENA_ROS_DISTRO=jazzy
 export ARENA_VENV_DIR="/opt/venv"
 
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init - bash)"
+
+
 source src/Arena/_meta/tools/source
 
 update_docker(){

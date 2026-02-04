@@ -81,8 +81,10 @@ RUN chown -R ${uid}:${gid} /opt/arena_ws
 
 COPY src/Arena/_meta/docker/entrypoint.sh /entrypoint.sh
 COPY --chown=${uid}:${gid} src/Arena/_meta/docker/source.container source.container
+
 RUN chmod +x /entrypoint.sh
 USER ${username}
+RUN curl -fsSL https://pyenv.run | bash
 ENTRYPOINT ["/entrypoint.sh"]
 
 

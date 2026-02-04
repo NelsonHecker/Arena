@@ -27,11 +27,16 @@ if [[ -f "$CONTAINER_PID_FILE" ]]; then
     fi
 fi
 
+xhost +local:docker
+
 docker run \
     -it \
     --cidfile "$CONTAINER_PID_FILE" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -w /opt/arena_ws \
+    --env="DISPLAY" \
+    --env="QT_X11_NO_MITSHM=1" \
+    --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
     --network host \
     -v "$ARENA_WS_DIR/src":/opt/arena_ws/src \
     -v "$ARENA_WS_DIR/build":/opt/arena_ws/build \
