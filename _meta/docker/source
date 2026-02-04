@@ -14,7 +14,6 @@ ARENA_IMAGE="arena:dev"
 CONTAINER_PID_FILE="$ARENA_WS_DIR/.container.pid"
 
 HOST_UID=$(id -u)
-HOST_GID=$(id -g)
 
 if [[ -f "$CONTAINER_PID_FILE" ]]; then
     CONTAINER_ID="$(cat "$CONTAINER_PID_FILE")"
@@ -39,6 +38,7 @@ docker run \
     -v "$ARENA_WS_DIR/install":/opt/arena_ws/install \
     -v "$ARENA_WS_DIR/log":/opt/arena_ws/log \
     -e "ARENA_IMAGE=${ARENA_IMAGE}" \
-    --user "${HOST_UID}:${HOST_GID}" \
+    --user "${HOST_UID}" \
+    --group-add sudo \
     "$ARENA_IMAGE" \
     bash

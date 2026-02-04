@@ -74,8 +74,9 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     # python env
     pushd "$ARENA_DIR" > /dev/null || return 1
         if [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
-            uv venv "$ARENA_VENV_DIR" --allow-existing 
-            UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project .
+            uv venv "$ARENA_VENV_DIR" --allow-existing && \
+            UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project . && \
+            touch "$ARENA_VENV_DIR/.installed"
         fi
 
         # if [ "$venv_path" != "$VIRTUAL_ENV" ] ; then

@@ -7,7 +7,7 @@ export ARENA_VENV_DIR="/opt/venv"
 source src/Arena/_meta/tools/source
 
 update_docker(){
-    docker build --progress=plain -t "$ARENA_IMAGE" -f src/Arena/_meta/docker/Dockerfile.dev . \
+    sudo docker build --progress=plain -t "$ARENA_IMAGE" -f src/Arena/_meta/docker/Dockerfile.dev . \
         --build-arg ROS_DISTRO="$ARENA_ROS_DISTRO" \
         --build-arg username="$(whoami)" \
         --build-arg group="$(id -gn)" \

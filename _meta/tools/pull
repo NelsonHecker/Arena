@@ -46,7 +46,7 @@ fi
 
 if [ $_PYTHON -eq 1 ] ; then
     echo updating python deps...
-    uv sync --inexact
+    uv sync --inexact --active
 fi
 
 # update links
