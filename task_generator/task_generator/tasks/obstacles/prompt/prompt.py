@@ -2,6 +2,7 @@ from enum import Enum
 import json
 import math
 import os
+import pickle
 import tempfile
 import time
 from typing import Dict, List
@@ -35,7 +36,7 @@ from arena_text_crowd.converters.arena_world_to_text_crowd_scenario import (
 
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 
-from arena_simulation_setup.tree.World import WorldDescription
+from arena_simulation_setup.tree.World import WorldDescription, WorldIdentifier
 from arena_simulation_setup.utils.cattrs import converter
 
 from hunav_msgs.srv import SetVelocityField, SetArenaWorldBounds
@@ -427,7 +428,7 @@ class TM_Prompt(TM_Obstacles):
             )
 
             self._logger.info("Generating velocity field...")
-            velocity_field, crowd_pedestrians = cgp.generate(
+            velocity_field, crowd_pedestrians, text_crowd_scenario = cgp.generate(
                 prompt=ambient_agent_prompt,
                 scenario=scenario,
                 arena_world_description=self._PROPS.world_manager.world,
@@ -438,10 +439,6 @@ class TM_Prompt(TM_Obstacles):
             self._logger.info(
                 f"Set velocity field response: {vel_res.success}, {vel_res.message}"
             )
-            if DEBUG:
-                np.save(
-                    f"{os.environ['HOME']}/Desktop/velocity_field.npy", velocity_field
-                )
 
             self.velocity_field_visualizer.publish_markers(velocity_field)
 
@@ -519,20 +516,34 @@ class TM_Prompt(TM_Obstacles):
         )
 
         if DEBUG:
-            with open(f"{os.environ['HOME']}/Desktop/raw_llm_output.txt", "wt") as file:
-                file.write(answer)
-            with open(f"{os.environ['HOME']}/Desktop/full_llm_input.txt", "wt") as file:
-                file.write(messages[0])
-            self._logger.info(f"Saved LLM output to {file.name}")
             with tempfile.NamedTemporaryFile(
                 delete=False,
-                prefix="scenario",
+                prefix="scenario_",
                 suffix=".json",
-                dir=os.environ["HOME"],
+                dir=self.tmp_dir.name,
                 mode="w",
             ) as file:
-                json.dump(config, file)
-            self._logger.info(f"Saved LLM output to {file.name}")
+                json.dump(config, file, indent=2)
+                self._logger.warning(f"Saved parsed prompt result to {file.name}")
+
+            if generation_mode == GenerationMode.CROWDED_BT.value:
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    prefix="velocity_field_",
+                    suffix=".npy",
+                    dir=self.tmp_dir.name,
+                    mode="wb",
+                ) as file:
+                    np.save(file, velocity_field)
+                    self._logger.info(f"Saved velocity field to {file.name}")
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    prefix="text_crowd_scenario_",
+                    suffix=".pkl",
+                    dir=self.tmp_dir.name,
+                    mode="wb",
+                ) as file:
+                    pickle.dump(text_crowd_scenario, file)
 
         return config
 
@@ -572,18 +583,6 @@ class TM_Prompt(TM_Obstacles):
             dict(static=static_obstacles, dynamic=dynamic_obstacles), _ParsedConfig
         )
 
-        if DEBUG:
-            target_dir = os.path.join(
-                os.environ["HOME"], "scenarios", f"{int(time.time())}_{prompt[:30]}"
-            )
-            os.makedirs(target_dir, exist_ok=True)
-            with open(os.path.join(target_dir, "scenario.json"), "w") as file:
-                json.dump({"obstacles": converter.unstructure(result)}, file, indent=2)
-            self._logger.warning(f"Saved parsed prompt result to {target_dir}")
-
-        # import attrs
-        # self._logger.warning("Final result:")
-        # self._logger.warning(pprint.pformat(attrs.asdict(result)))
         return result
 
     async def reset(self, **kwargs):
@@ -663,8 +662,13 @@ class TM_Prompt(TM_Obstacles):
 
         self.setup_chroma()
 
-        self.tmp_dir = (
-            tempfile.TemporaryDirectory()
+        self.tmp_dir = tempfile.TemporaryDirectory(
+            dir=os.path.join(
+                WorldIdentifier(self.node._world_manager.world_name)
+                .resolve_sync()
+                .path,
+                "scenarios",
+            )
         )  # Temporary directory to store behavior tree XML files
 
         # Velocity field generation

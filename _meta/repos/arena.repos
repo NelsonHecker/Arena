@@ -82,7 +82,7 @@ repositories:
   deps/hunav/arena_text_crowd:
     type: git
     url: https://github.com/ductaingn/arena_text_crowd.git
-    version: humble@1d436fe
+    version: humble
   
   gazebo/turtlebot4_simulator:
     type: git
