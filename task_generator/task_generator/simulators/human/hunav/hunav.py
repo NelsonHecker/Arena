@@ -5,6 +5,8 @@ import traceback
 import typing
 from pathlib import Path
 
+import yaml
+
 import attrs
 import geometry_msgs.msg
 import numpy as np
@@ -31,6 +33,7 @@ from task_generator.shared import (
     Orientation,
     Pose,
     Position,
+    Wall,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.dummy import DummyHumanSimulator
@@ -499,6 +502,53 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             pass
         except Exception as e:
             self._logger.error(f"Failed to update agent positions: {e}\n{traceback.format_exc()}")
+
+    async def _spawn_obstacles_impl(self, obstacles):
+        self._logger.debug(f'Spawning walls for {len(obstacles)} obstacles')
+
+        async def obstacle_to_walls(obstacle: Obstacle) -> list[Wall]:
+            model = obstacle.model
+            try:
+                annotation_path = (await model.resolve_path()) / 'annotation.yaml'
+                with open(annotation_path, 'r') as f:
+                    annotation: dict = yaml.safe_load(f.read())
+
+                (min_x, min_y), (max_x, max_y), (min_z, max_z) = annotation['bounding_box']
+
+                rotation_mat = np.array([
+                    [np.cos(obstacle.pose.orientation.to_yaw()), -np.sin(obstacle.pose.orientation.to_yaw())],
+                    [np.sin(obstacle.pose.orientation.to_yaw()), np.cos(obstacle.pose.orientation.to_yaw())]
+                ])
+                corners = np.array([
+                    [obstacle.pose.position.x - min_x, obstacle.pose.position.y - min_y],
+                    [obstacle.pose.position.x - min_x, obstacle.pose.position.y + max_y],
+                    [obstacle.pose.position.x + max_x, obstacle.pose.position.y + max_y],
+                    [obstacle.pose.position.x + max_x, obstacle.pose.position.y - min_y],
+                ])
+                corners = corners @ rotation_mat.T
+
+                obstacle_walls: list[Wall] = []
+                for start, end in zip(corners, np.roll(corners, -1, axis=0)):
+                    obstacle_walls.append(Wall(
+                        start=Position(x=start[0], y=start[1]),
+                        end=Position(x=end[0], y=end[1])
+                    ))
+
+                self._logger.debug(f'spawning wall segments for obstacle {obstacle.name}')
+                for wall in obstacle_walls:
+                    self._logger.debug(f'  Wall from ({wall.start.x:.2f}, {wall.start.y:.2f}) to ({wall.end.x:.2f}, {wall.end.y:.2f})')
+
+                return obstacle_walls
+            except Exception as e:
+                self._logger.warning(f"failed to spawn bounding walls for obstacle '{obstacle.name}': {e}")
+                return []
+
+        self._logger.debug('Spawning walls for obstacles...')
+        all_walls = await asyncio.gather(*(obstacle_to_walls(obs) for obs in obstacles))
+        self._logger.debug('Finished spawning walls for obstacles.')
+
+        await self._spawn_walls_impl([wall for walls in all_walls for wall in walls])
+        return obstacles
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles):
         async with self._agents_lock:
