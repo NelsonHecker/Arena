@@ -123,6 +123,7 @@ def generate_launch_description():
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(gz_sim_launch_file),
         launch_arguments={
+            "gz_version": "8",
             "gz_args": [
                 world_path,
                 # " -v 4",

@@ -4,8 +4,7 @@ import typing
 from typing import Optional, Type, TypeVar
 
 import attrs
-from arena_rclpy_mixins.ROSParamServer import ROSParamServer
-from arena_rclpy_mixins.shared import Namespace
+from arena_rclpy_mixins.shared import FrameNamespace, Namespace
 from arena_robots.Robot import RobotIdentifier
 from arena_robots.SetupFile import Config as RobotSetupConfig
 from arena_simulation_setup.shared import (  # noqa
@@ -16,8 +15,9 @@ from arena_simulation_setup.shared import (  # noqa
     Floor,
     Obstacle,
     Wall,
+    Elevator,
 )
-from arena_simulation_setup.shared.entities import Entity  # noqa
+from arena_simulation_setup.shared.entities import Entity as _Entity  # noqa
 from arena_simulation_setup.utils.geometry import (  # noqa
     Orientation,
     Pose,
@@ -26,12 +26,15 @@ from arena_simulation_setup.utils.geometry import (  # noqa
 )
 from arena_simulation_setup.utils.models import Model, ModelType, ModelWrapper  # noqa
 
+from . import TaskGenerator
 
-def configure_node(node: ROSParamServer):
+
+def configure_node(node: TaskGenerator) -> None:
     global _node
     _node = node
 
 
+# -- PREPARE REMOVAL, ONLY USED IN LEGACY FILES
 T = TypeVar("T")
 
 
@@ -55,6 +58,7 @@ def rosparam_set(
     # TODO deprecate in favor of ROSParamServer.rosparam[T].set
     """
     return _node.rosparam.set(param_name, value)
+# -- END
 
 
 @attrs.define
@@ -76,10 +80,12 @@ class Robot(Entity):
         return self.compatible(value) and self.name == value.name and self.record_data_dir == value.record_data_dir
 
     @property
-    def frame(self) -> Namespace:
-        if not self.name:
-            return Namespace('')
-        return Namespace(self.name)
+    def frame(self) -> FrameNamespace:
+        if hasattr(self, 'sim_path'):
+            return FrameNamespace(getattr(self, 'sim_path'))
+        if self.name:
+            return FrameNamespace(self.name)
+        return FrameNamespace('')
 
     @classmethod
     def from_setup(cls, setup: RobotSetupConfig) -> Robot:
@@ -92,26 +98,19 @@ class Robot(Entity):
         if setup.planner is not None:
             dict_value['global_planner'] = setup.planner
         dict_value.update(setup.extra)
+        dict_value['name'] = setup.name or ''
         return cls.parse(dict_value)
 
     @classmethod
     def parse(cls, value: dict) -> "Robot":
-        name = str(value.get("name", ""))
+        name = str(value['name'])
+        model = str(value['model'])
         pose = Pose(value.get("pos", (0, 0, 0)))
-        inter_planner = str(
-            value.get("inter_planner", rosparam_get(str, "inter_planner", ""))
-        )
-        local_planner = str(
-            value.get("local_planner", rosparam_get(str, "local_planner", ""))
-        )
-        global_planner = str(
-            value.get("global_planner", rosparam_get(str, "global_planner", ""))
-        )
-        model = str(value.get("model", rosparam_get(str, "model", "")))
-        agent = str(value.get("agent", rosparam_get(str, "agent_name", "")))
-        record_data = value.get(
-            "record_data_dir", rosparam_get(str, "record_data_dir", None)
-        )
+        inter_planner = str(value.get("inter_planner", _node.conf.Robot.BEHAVIOR.value))
+        local_planner = str(value.get("local_planner", _node.conf.Robot.CONTROLLER.value))
+        global_planner = str(value.get("global_planner", _node.conf.Robot.PLANNER.value))
+        agent = str(value.get("agent", _node.conf.Robot.AGENT.value))
+        record_data = value.get("record_data_dir", _node.conf.Robot.RECORD_DATA_DIR.value)
 
         return cls(
             name=name,

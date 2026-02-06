@@ -388,15 +388,18 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
     def relpath(self) -> Path:
         return Path(self.name)
 
-    async def resolve(self, **kwargs) -> T:
+    async def resolve_path(self) -> Path:
         for resolver in self._resolvers:
             resolved = await resolver.resolve(self)
             if resolved is not None:
-                return self.load(resolved, **kwargs)
+                return resolved
         msg = f'{self} not found among'
         for resolver in self._resolvers:
             msg += f'\n\t{repr(resolver)}'
         raise FileNotFoundError(msg)
+
+    async def resolve(self, **kwargs) -> T:
+        return self.load(await self.resolve_path(), **kwargs)
 
     def resolve_sync(self, **kwargs) -> T:
         """Synchronously load the asset referenced by this identifier.

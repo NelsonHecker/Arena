@@ -40,6 +40,7 @@ echo "installing ${ARENA_REPO}:${ARENA_BRANCH} on ROS2 ${ARENA_ROS_DISTRO} to $A
 sudo echo 'confirmed'
 mkdir -p "$ARENA_WS_DIR"
 cd "$ARENA_WS_DIR"
+sudo apt update # some deps require initial update on fresh systems
 
 # == remove ros problems ==
 files=$( (grep -l "/ros" /etc/apt/sources.list.d/* | grep -v "ros2") || echo '')
@@ -81,6 +82,7 @@ fi
 if ! which uv ; then
     echo "Installing uv...:"
     curl -LsSf https://astral.sh/uv/install.sh | sh
+    . "$HOME/.local/bin/env" # source uv
 fi
 
 # for building python
@@ -123,7 +125,7 @@ sudo apt-get install -y \
     libcunit1-dev \
     libpcl-dev \
     libboost-python-dev \
-    python3-rosdep \
+    python3-rosdep2 \
     libgps-dev \
     graphicsmagick \
     libgraphicsmagick1-dev \

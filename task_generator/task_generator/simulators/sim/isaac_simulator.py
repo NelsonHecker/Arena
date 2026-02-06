@@ -1,11 +1,11 @@
 import asyncio
-from collections.abc import Sequence
 import itertools
 import os
 import random
 import traceback
 import types
 import typing
+from collections.abc import Sequence
 
 import arena_people_msgs.msg
 import arena_robots.Robot
@@ -15,11 +15,8 @@ import numpy as np
 import std_msgs.msg
 import std_srvs.srv
 from arena_rclpy_mixins.Async import ClientWrapper
-from arena_simulation_setup.shared import Door as DoorDefinition
-from arena_simulation_setup.shared import Elevator as ElevatorDefinition
-from arena_simulation_setup.shared import Floor as FloorDefinition
-from arena_simulation_setup.shared import Wall as WallDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
+from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from isaacsim_msgs.msg import (
     Door,
     Elevator,
@@ -46,6 +43,7 @@ from isaacsim_msgs.srv import (
 )
 from std_msgs.msg import String as StdString
 
+from task_generator.shared import Door as DoorDefinition
 from task_generator.shared import (
     DynamicObstacle,
     ModelType,
@@ -54,6 +52,9 @@ from task_generator.shared import (
     Pose,
     Robot,
 )
+from task_generator.shared import Elevator as ElevatorDefinition
+from task_generator.shared import Floor as FloorDefinition
+from task_generator.shared import Wall as WallDefinition
 from task_generator.simulators.sim import BaseSim, NodeInterface
 
 
@@ -82,20 +83,20 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self.floor_counter = itertools.count()
         self._spawned_doors = []
         self._clients = types.SimpleNamespace(
-            DeletePedestrians=self.node.create_client_wrapper(DeletePrims, "isaac/DeletePedestrians"),
-            DeletePrims=self.node.create_client_wrapper(DeletePrims, "isaac/DeletePrims"),
-            EditPrims=self.node.create_client_wrapper(EditPrims, "isaac/EditPrims"),
-            NavigatePedestrians=self.node.create_client_wrapper(NavigatePedestrians, "isaac/NavigatePedestrians"),
-            SpawnDoors=self.node.create_client_wrapper(SpawnDoors, "isaac/SpawnDoors"),
-            SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "isaac/SpawnFloors"),
-            SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "isaac/SpawnPedestrians"),
-            SpawnPrims=self.node.create_client_wrapper(SpawnPrims, "isaac/SpawnPrims"),
-            SpawnUrdf=self.node.create_client_wrapper(SpawnUrdf, "isaac/SpawnUrdf"),
-            SpawnUsd=self.node.create_client_wrapper(SpawnUsd, "isaac/SpawnUsd"),
-            SpawnWalls=self.node.create_client_wrapper(SpawnWalls, "isaac/SpawnWalls"),
-            SpawnElevators=self.node.create_client_wrapper(SpawnElevators, "isaac/SpawnElevators"),
-            PauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "isaac/PauseSimulation"),
-            UnpauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "isaac/UnpauseSimulation"),
+            DeletePedestrians=self.node.create_client_wrapper(DeletePrims, "/isaac/DeletePedestrians"),
+            DeletePrims=self.node.create_client_wrapper(DeletePrims, "/isaac/DeletePrims"),
+            EditPrims=self.node.create_client_wrapper(EditPrims, "/isaac/EditPrims"),
+            NavigatePedestrians=self.node.create_client_wrapper(NavigatePedestrians, "/isaac/NavigatePedestrians"),
+            SpawnDoors=self.node.create_client_wrapper(SpawnDoors, "/isaac/SpawnDoors"),
+            SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "/isaac/SpawnFloors"),
+            SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "/isaac/SpawnPedestrians"),
+            SpawnPrims=self.node.create_client_wrapper(SpawnPrims, "/isaac/SpawnPrims"),
+            SpawnUrdf=self.node.create_client_wrapper(SpawnUrdf, "/isaac/SpawnUrdf"),
+            SpawnUsd=self.node.create_client_wrapper(SpawnUsd, "/isaac/SpawnUsd"),
+            SpawnWalls=self.node.create_client_wrapper(SpawnWalls, "/isaac/SpawnWalls"),
+            SpawnElevators=self.node.create_client_wrapper(SpawnElevators, "/isaac/SpawnElevators"),
+            PauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "/isaac/PauseSimulation"),
+            UnpauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "/isaac/UnpauseSimulation"),
         )
 
         # Publisher for external registration messages so IsaacSim's DoorManager
@@ -116,7 +117,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 if model.type == ModelType.URDF:
                     robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
 
-                    fq_name = self._NS_ROBOT(robot.name)
+                    fq_name = self._NS_ROBOT(robot.sim_path)
 
                     await self._clients.SpawnUrdf.call_timeout(
                         SpawnUrdf.Request(
@@ -163,8 +164,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def obstacle_spawn(self, obstacles):
 
-        results = [True] * len(obstacles)
-
         async def impl(obstacle: Obstacle) -> Prim | None:
             try:
                 model = await (await obstacle.model.resolve()).get([ModelType.USD])
@@ -175,26 +174,28 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 return None
             prim = Prim()
             prim.usd_path = str(model.path)
-            prim.name = self._NS_PRIM(obstacle.name)
+            prim.name = self._NS_PRIM(obstacle.sim_path)
             prim.pose = obstacle.pose.to_msg()
             return prim
 
+        prims = await asyncio.gather(*map(impl, obstacles))
+
         req = SpawnPrims.Request()
-        req.prims = list(filter(None, await asyncio.gather(*map(impl, obstacles))))
+        req.prims = list(filter(None, prims))
         response = await self._clients.SpawnPrims.call_timeout(req)
         if response is None:
             return tuple(False for _ in obstacles)
 
         response_iter = iter(response.ret)
 
-        return tuple(a and next(response_iter) for a in results)
+        return tuple((a is not None) and next(response_iter) for a in prims)
 
     async def obstacle_move(self, obstacles):
-        return await self._move_entities([(self._NS_PRIM(o.name), o.pose) for o in obstacles])
+        return await self._move_entities([(self._NS_PRIM(o.sim_path), o.pose) for o in obstacles])
 
     async def pedestrian_move(self, pedestrians):
         await self._clients.DeletePedestrians.call_timeout(
-            DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.name) for p in pedestrians])
+            DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.sim_path) for p in pedestrians])
         )
         res = await self.pedestrian_spawn(pedestrians)
         if res is None:
@@ -208,8 +209,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         async def move_robot(robot: Robot) -> bool:
             try:
                 robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
-                res1 = await self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
-                res2 = await self._move_entity(self._NS_ROBOT(robot.name, robot_params.base_frame), robot.pose)
+                res1 = await self._move_entity(self._NS_ROBOT(robot.sim_path), robot.pose)
+                res2 = await self._move_entity(self._NS_ROBOT(robot.sim_path, robot_params.base_frame), robot.pose)
                 return res1 and res2
             except Exception as e:
                 self._logger.error(f"Failed to move robot {robot.name}: {e}\n{traceback.format_exc()}")
@@ -217,11 +218,11 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await asyncio.gather(*map(move_robot, robots))
 
     async def obstacle_delete(self, obstacles):
-        return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles))
+        return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.sim_path)) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians):
         res = await self._clients.DeletePedestrians.call_timeout(
-            DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.name) for p in pedestrians])
+            DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.sim_path) for p in pedestrians])
         )
         if res is None:
             ret = tuple(False for _ in pedestrians)
@@ -230,7 +231,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return ret
 
     async def robot_delete(self, robots):
-        return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots))
+        return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.sim_path)) for r in robots))
 
     async def remove_world(self):
         await self._delete_entity(self._NS_WALL(self.node._environment_manager._prefix()))
@@ -259,7 +260,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 self._logger.error(f"Failed to spawn wall: {e}\n{traceback.format_exc()}")
                 return None
 
-        async def create_obstacle(obstacle: Obstacle) -> Prim | None:
+        async def create_obstacle(obstacle: ObstacleDefinition) -> Prim | None:
             try:
                 prim_name = self.node._environment_manager.realize(f"obstacle_{next(self.wall_counter)}")
                 model = await (await obstacle.model.resolve()).get(ModelType.USD)
@@ -300,7 +301,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         async def impl(floor: FloorDefinition) -> Floor | None:
             try:
                 return Floor(
-                    name=self._NS_FLOOR(floor.name),
+                    name=self._NS_FLOOR(floor.sim_path),
                     x_length=floor.x_length,
                     y_length=floor.y_length,
                     pos=floor.pos.to_msg(),
@@ -358,7 +359,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 size = elevator.size
                 size = Scale(x=size[0], y=size[1], z=size[2])
                 return Elevator(
-                    name=elevator.name,
+                    name=elevator.sim_path,
                     position=pos.to_msg(),
                     size=size,
                     height_min=elevator.height_min,
@@ -425,7 +426,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 model_name = random.choice(tuple(available_models.keys()))
 
             ped = Pedestrian()
-            ped.name = self._NS_PEDESTRIAN(pedestrian.name)
+            ped.name = self._NS_PEDESTRIAN(pedestrian.sim_path)
             ped.character_name = available_models[model_name]
             ped.pose = pedestrian.pose.to_msg()
             ped.controller_stats = False
@@ -442,7 +443,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         await self.pedestrian_update(
             arena_people_msgs.msg.Pedestrians(pedestrians=[
                 arena_people_msgs.msg.Pedestrian(
-                    name=ped.name,
+                    name=ped.sim_path,
                     pose=ped.pose.to_msg(),
                 )
                 for status, ped
@@ -518,11 +519,16 @@ class IsaacSimulator(BaseSim, NodeInterface):
         """
         Initialize all ROS 2 service clients and wait for their availability.
         """
+        self._logger.info("Setting up IsaacSimulator service clients...")
         futures: list[typing.Awaitable] = []
         # Define services with their corresponding client attributes
         for client in self._clients.__dict__.values():
-            futures.append(typing.cast(ClientWrapper, client).ensure())
+            client = typing.cast(ClientWrapper, client)
+            self._logger.info(f"Initializing service client: {client.client.srv_name}")
+            futures.append(client.ensure())
         await asyncio.gather(*futures)
+
+        self._logger.info("All service clients are available.")
 
         self.node.create_publisher(std_msgs.msg.String, '/isaac/add_pedestrians_topic', 10).publish(
             std_msgs.msg.String(data=self.node.service_namespace('arena_peds'))
@@ -533,5 +539,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
     @classmethod
     async def create(cls, *args, namespace, **kwargs):
         self = cls(*args, namespace=namespace, **kwargs)
+        self._logger.info("Creating IsaacSimulator instance...")
         await self.setup()
         return self
