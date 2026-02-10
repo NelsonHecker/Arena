@@ -5,13 +5,12 @@ import traceback
 import typing
 from pathlib import Path
 
-import yaml
-
 import attrs
 import geometry_msgs.msg
 import numpy as np
 import rclpy.client
 import rclpy.node
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_people_msgs.srv import DeleteActors
@@ -23,6 +22,7 @@ from geometry_msgs.msg import Point
 from hunav_msgs.msg import Agent, AgentBehavior, Agents, WallSegment
 from hunav_msgs.srv import ComputeAgent, ComputeAgents, GetAgents, GetWalls, MoveAgent
 from std_srvs.srv import Trigger
+from visualization_msgs.msg import Marker, MarkerArray
 
 from task_generator.constants import Constants
 from task_generator.shared import (
@@ -260,6 +260,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
     # Publishers
     _arena_peds_publisher: rclpy.node.Publisher
+    _wall_markers_publisher: rclpy.node.Publisher
 
     def __init__(self, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
         """Initialize HunavManager with debug logging"""
@@ -397,6 +398,12 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 10
             )
 
+            self._wall_markers_publisher = self.node.create_publisher(
+                MarkerArray,
+                self._namespace('wall_markers'),
+                10
+            )
+
             self._logger.info("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
             return True
 
@@ -513,19 +520,20 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 with open(annotation_path, 'r') as f:
                     annotation: dict = yaml.safe_load(f.read())
 
-                (min_x, min_y), (max_x, max_y), (min_z, max_z) = annotation['bounding_box']
+                (min_x, max_x), (min_y, max_y), (min_z, max_z) = annotation['bounding_box']
 
                 rotation_mat = np.array([
                     [np.cos(obstacle.pose.orientation.to_yaw()), -np.sin(obstacle.pose.orientation.to_yaw())],
                     [np.sin(obstacle.pose.orientation.to_yaw()), np.cos(obstacle.pose.orientation.to_yaw())]
                 ])
                 corners = np.array([
-                    [obstacle.pose.position.x - min_x, obstacle.pose.position.y - min_y],
-                    [obstacle.pose.position.x - min_x, obstacle.pose.position.y + max_y],
-                    [obstacle.pose.position.x + max_x, obstacle.pose.position.y + max_y],
-                    [obstacle.pose.position.x + max_x, obstacle.pose.position.y - min_y],
+                    [min_x, min_y],
+                    [min_x, max_y],
+                    [max_x, max_y],
+                    [max_x, min_y],
                 ])
                 corners = corners @ rotation_mat.T
+                corners += np.array([[obstacle.pose.position.x, obstacle.pose.position.y]])
 
                 obstacle_walls: list[Wall] = []
                 for start, end in zip(corners, np.roll(corners, -1, axis=0)):
@@ -547,7 +555,8 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         all_walls = await asyncio.gather(*(obstacle_to_walls(obs) for obs in obstacles))
         self._logger.debug('Finished spawning walls for obstacles.')
 
-        await self._spawn_walls_impl([wall for walls in all_walls for wall in walls])
+        for wall in [wall for walls in all_walls for wall in walls]:
+            self._add_wall(wall)
         return obstacles
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles):
@@ -670,20 +679,26 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         points.append(end.to_msg())
         return points
 
-    async def _spawn_walls_impl(self, walls) -> bool:
+    def _add_wall(self, wall: Wall):
+        """Add a single wall segment to the local list and update wall points"""
+        segment = WallSegment()
+        segment.id = len(self._wall_segments)
+        segment.start = wall.start.to_msg()
+        segment.end = wall.end.to_msg()
+        segment.length = (wall.start - wall.end).norm()
 
+        self._wall_segments.append(segment)
+        self._wall_points.extend(self._wall_to_points(wall.start, wall.end))
+
+        self._logger.debug(f"Added wall segment {segment.id} from ({segment.start.x:.2f}, {segment.start.y:.2f}) to ({segment.end.x:.2f}, {segment.end.y:.2f})")
+        self._logger.debug(f"Total wall segments: {len(self._wall_segments)}, Total wall points: {len(self._wall_points)}")
+
+    async def _spawn_walls_impl(self, walls) -> bool:
         self._wall_segments = []
         self._wall_points = []
 
-        for i, wall in enumerate(walls):
-            segment = WallSegment()
-            segment.id = i
-            segment.start = wall.start.to_msg()
-            segment.end = wall.end.to_msg()
-            segment.length = (wall.start - wall.end).norm()
-
-            self._wall_segments.append(segment)
-            self._wall_points.extend(self._wall_to_points(wall.start, wall.end))
+        for wall in walls:
+            self._add_wall(wall)
 
         self._logger.debug(f"Cached {len(self._wall_segments)} wall segments")
         self._logger.debug(f"Wallsegments{self._wall_segments} ")
@@ -904,12 +919,38 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                             self._logger.debug(f"Publishing pedestrian {ped.name} at ({ped.pose.position.x}, {ped.pose.position.y}) with velocity ({ped.twist.linear.x}, {ped.twist.linear.y})")
 
                         self._arena_peds_publisher.publish(self._arena_pedestrians_container)
+                        self._publish_wall_markers()
 
         except asyncio.CancelledError:
             pass
 
         except Exception as e:
             self._logger.error(f"Error in arena_peds loop: {e}\n{traceback.format_exc()}")
+
+    def _publish_wall_markers(self):
+        """Publish wall segments as visualization markers"""
+        marker_array = MarkerArray()
+
+        for wall in self._wall_segments:
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.node.sim_time.to_msg()
+            marker.ns = f"hunav_walls_{wall.id}"
+            marker.id = wall.id
+            marker.type = Marker.LINE_STRIP
+            marker.action = Marker.ADD
+            marker.scale.x = 0.05  # Line width
+            marker.color.a = 1.0  # Alpha
+            marker.color.r = 1.0  # Red
+            marker.lifetime.sec = 1
+
+            # Add start and end points of the wall segment
+            marker.points.append(wall.start)
+            marker.points.append(wall.end)
+
+            marker_array.markers.append(marker)
+
+        self._wall_markers_publisher.publish(marker_array)
 
     def _smooth_yaw(self, new_yaw, current_yaw):
         import math
