@@ -85,7 +85,6 @@ class ConfigFileGenerator(Node):
             'Displays': []
         }
 
-
         # Check if pedestrian topics exist
         pedestrian_topics = []
         for topic_name, topic_types in self.topics:
@@ -93,6 +92,8 @@ class ConfigFileGenerator(Node):
                 pedestrian_topics.append((topic_name, 'arena_people_msgs/msg/Pedestrians'))
             # Check for converted pedestrian markers
             elif topic_name.endswith('/pedestrian_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
+                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
+            elif topic_name.endswith('/wall_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
                 pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
             # Check for legacy people topics (fallback)
             elif topic_name.endswith('/people') and 'people_msgs/msg/People' in topic_types:
@@ -110,10 +111,10 @@ class ConfigFileGenerator(Node):
             if topic_type == 'arena_people_msgs/msg/Pedestrians':
                 self.get_logger().info(f"Found arena_peds topic: {topic_name} - using pedestrian_markers")
                 # Note: We rely on pedestrian_marker_publisher to convert this to MarkerArray
-                
+
             elif topic_type == 'visualization_msgs/msg/MarkerArray':
                 # Use MarkerArray display for converted pedestrian markers
-                display = Utils.Displays.pedestrians(topic_name)
+                display = Utils.Displays.pedestrians(topic_name, name=os.path.basename(topic_name), enabled=not topic_name.endswith('/wall_markers'))
                 pedestrian_group['Displays'].append(display)
                 self.get_logger().info(f"Added MarkerArray display for pedestrians: {topic_name}")
 
@@ -137,7 +138,7 @@ class ConfigFileGenerator(Node):
             'Show Arrows': True,
             'Show Axes': False,
             'Show Names': True,
-            
+
         }
         pedestrian_group['Displays'].append(tf_display)
 
