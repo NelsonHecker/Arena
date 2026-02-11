@@ -277,15 +277,15 @@ class Utils:
 
         # Hunavsim-Pedestrian Display Methods
         @classmethod
-        def pedestrians(cls, topic, queue_size=20):
+        def pedestrians(cls, topic, queue_size=20, name: str = "Pedestrians", enabled: bool = True):
             """
             Create a MarkerArray display specifically for pedestrians using people_msgs/msg/People topic.
             This will be used with a custom node that converts People messages to MarkerArray.
             """
             return {
                 'Class': 'rviz_default_plugins/MarkerArray',
-                'Name': 'Pedestrians',
-                'Enabled': True,
+                'Name': name,
+                'Enabled': enabled,
                 'Topic': {
                     'Value': topic,
                     'Depth': queue_size,
