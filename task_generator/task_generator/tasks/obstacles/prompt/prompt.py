@@ -164,6 +164,11 @@ class TM_Prompt(TM_Obstacles):
             generation_mode == GenerationMode.CROWDED_BT.value
             and crowd_pedestrians is not None
         ):  # TODO: Use scheme/class instead of Dict
+            llm_output = {
+                "hunav_agents": [],
+                "single_agent_nodes": [],
+                "multi_agent_nodes": [],
+            }
             for ped in crowd_pedestrians:
                 llm_output["hunav_agents"].append(
                     {
@@ -172,6 +177,33 @@ class TM_Prompt(TM_Obstacles):
                         "model": ped["model"],
                     }
                 )
+                # for zone in self.node._world_manager.world.zones:
+                #     if (
+                #         zone.floor.pos.x - zone.floor.x_length / 2
+                #         <= ped["pos"][0]
+                #         <= zone.floor.pos.x + zone.floor.x_length / 2
+                #         and zone.floor.pos.y - zone.floor.y_length / 2
+                #         <= ped["pos"][1]
+                #         <= zone.floor.pos.y + zone.floor.y_length / 2
+                #     ):
+                #         for door in zone.doors:
+                #             x, y, z = (door.start + door.end) / 2
+                #             llm_output["single_agent_nodes"].append(
+                #                 {
+                #                     "name": "GoTo",
+                #                     "attributes": {
+                #                         "agent_name": ped["name"],
+                #                         "time_step": 0.1,
+                #                         "target_x": x,
+                #                         "target_y": y,
+                #                         "tolerance": 0.5,
+                #                     },
+                #                     "order": 0,
+                #                 }
+                #             )
+                #             break
+                #         break
+
                 llm_output["single_agent_nodes"].append(
                     {
                         "name": "FollowVelocityField",
@@ -181,11 +213,16 @@ class TM_Prompt(TM_Obstacles):
                             "time_step": 0.1,
                             "tolerance": 0.2,
                         },
-                        "order": 0,
+                        "order": 1,
                     }
                 )
         try:
-            config = {"obstacles": {"static": [], "dynamic": []}}
+            config = {
+                "obstacles": {
+                    "static": [],
+                    "dynamic": []
+                }
+            }
 
             parser = Parser(llm_output)
             parser.parse()
