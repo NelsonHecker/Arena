@@ -78,7 +78,15 @@ repositories:
   deps/hunav/arena_hunav_sim_bridge:
     type: git
     url: https://github.com/ductaingn/arena_hunav_sim_bridge.git
-    version: humble@dc66bfd
+    version: humble@e647ad9
+  deps/hunav/arena_text_crowd:
+    type: git
+    url: https://github.com/ductaingn/arena_text_crowd.git
+    version: humble
+  deps/pal_gazebo_worlds:
+    type: git
+    url: https://github.com/ductaingn/pal_gazebo_worlds.git
+    version: humble-devel
   
   gazebo/turtlebot4_simulator:
     type: git
