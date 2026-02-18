@@ -153,22 +153,21 @@ namespace task_generator_gui
 
                 auto gm = parameters_client->get_parameter<std::string>("task.prompt.generation_mode", "arena");
 
-                if (gm == "arena") {
-                  generation_mode="ARENA";
+                if (gm == "emergency") {
+                  generation_mode="EMERGENCY";
                 }
-                else if (gm=="behavior_tree") {
-                  generation_mode="BEHAVIOR_TREE";
+                else if (gm=="flexible") {
+                  generation_mode="FLEXIBLE";
                 }
-                else if (gm =="crowded_behavior_tree") {
-                  generation_mode="CROWDED_BT";
+                else if (gm =="normal") {
+                  generation_mode="NORMAL";
+                }
+                else if (gm =="queuing") {
+                  generation_mode="QUEUING";
                 }
                 else{
                   throw std::runtime_error("Invalid value of Generation Mode: " + generation_mode);
                 }
-
-                auto p = parameters_client->get_parameter<double>("task.prompt.top_p", 0.3);
-
-                top_p = p;
             }
 
             RCLCPP_INFO(service_node->get_logger(), "Current Robot Task Mode: %s", current_robots_tm.c_str());
@@ -409,29 +408,23 @@ namespace task_generator_gui
             parameter.name = "task.prompt.generation_mode";
             parameter.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_STRING;
             std::string gm;
-            if (generation_mode=="ARENA") {
-              gm = "arena";
+            if (generation_mode=="EMERGENCY") {
+              gm = "emergency";
             }
-            else if (generation_mode=="BEHAVIOR_TREE") {
-              gm ="behavior_tree";
+            else if (generation_mode=="FLEXIBLE") {
+              gm = "flexible";
             }
-            else if (generation_mode=="CROWDED_BT") {
-              gm ="crowded_behavior_tree";
+            else if (generation_mode=="NORMAL") {
+              gm = "normal";
+            }
+            else if (generation_mode=="QUEUING") {
+              gm = "queuing";
             }
             else{
               throw std::runtime_error("Invalid value of Generation Mode: " + generation_mode);
             }
             parameter.value.string_value = gm;
             RCLCPP_WARN(service_node->get_logger(), "generation_mode: %s", parameter.value.string_value.c_str());
-            request->parameters.push_back(parameter);
-            sendRequest<rcl_interfaces::srv::SetParameters>(set_param_client, request, "set_param");
-
-            request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
-            parameter = rcl_interfaces::msg::Parameter();
-            parameter.name = "task.prompt.top_p";
-            parameter.value.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE;
-            parameter.value.double_value = top_p;
-            RCLCPP_WARN(service_node->get_logger(), "top_p: %lf", parameter.value.double_value);
             request->parameters.push_back(parameter);
             sendRequest<rcl_interfaces::srv::SetParameters>(set_param_client, request, "set_param");
         }

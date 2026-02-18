@@ -1,15 +1,13 @@
-from enum import Enum
 import json
-import math
 import os
 import pickle
 import tempfile
 import time
-from typing import Dict, List
+from typing import Dict, List, Literal, get_args
 import xml.etree.ElementTree as ET
 
 import attrs
-import yaml
+from pydantic import TypeAdapter
 
 import numpy as np
 
@@ -52,18 +50,36 @@ from task_generator.tasks.obstacles.prompt.velocity_field_marker import (
 )
 
 from .prompt_utils import (
+    GenerationMode,
     SYSTEM_INSTRUCTION,
-    ARENA_FORMAT,
-    BEHAVIOR_TREE_FORMAT,
+    EMERGENCY_MODE,
+    FLEXIBLE_MODE,
+    NORMAL_MODE,
+    QUEUING_MODE,
     SPLIT_PROMPT_INSTRUCTION,
     BT_REF_DOC_PATH,
     CHROMA_DB_PATH,
     LOCAL_LM,
-    REMOTE_LM,
+    REMOTE_FAST_LM,
+    REMOTE_REASONING_LM,
     create_chroma_db,
     get_chroma_collection,
     get_relevant_bt_nodes,
     process_json_doc,
+    get_world_detail_info,
+    get_world_metatdata,
+    FlexibleResponseSchema,
+    EmergencyResponseSchema,
+    NormalResponseSchema,
+    QueuingResponseSchema,
+    EmegencySingleAgentNodeName,
+    EmergencyMultiAgentNodeName,
+    FlexibleSingleAgentNodeName,
+    FlexibleMultiAgentNodeName,
+    NormalSingleAgentNodeName,
+    NormalMultiAgentNodeName,
+    QueuingSingleAgentNodeName,
+    QueuingMultiAgentNodeName,
 )
 
 DEBUG: bool = bool(os.environ.get("ARENA_DEBUG", True))  # TODO change to false
@@ -75,20 +91,9 @@ class _ParsedConfig:
     dynamic: list[DynamicObstacle]
 
 
-class GenerationMode(Enum):
-    ARENA = "arena"
-    BEHAVIOR_TREE = "behavior_tree"
-    CROWDED_BT = "crowded_behavior_tree"
-
-    @classmethod
-    def has_value(cls, value):
-        return value in cls._value2member_map_
-
-
 @attrs.define()
 class PromptConfig:
     user_prompt: ROSParamT[str]
-    top_p: ROSParamT[float]
     generation_mode: ROSParamT[str]
 
 
@@ -108,123 +113,18 @@ class TM_Prompt(TM_Obstacles):
 
     _config: PromptConfig
 
-    def preprocess_world_description(self, world_description: WorldDescription) -> str:
-        """
-        Preprocesses the world description, keeps corners and walls only and converts them to 2D format.
-
-        Args:
-            world_description : WorldDescription
-                The world description to preprocess.
-
-        Returns:
-            parsed : str
-                The preprocessed JSON formatted str world description.
-        """
-        parsed = {}
-
-        parsed["zones"] = []
-        for zone in world_description.zones:
-            parsed_zone = {
-                "name": zone.name,
-                "corners": [[corner.x, corner.y] for corner in zone.corners],
-                "walls": [
-                    [[wall.start.x, wall.start.y], [wall.end.x, wall.end.y]]
-                    for wall in zone.walls
-                ],
-                "entities": [
-                    {
-                        "name": entity.name,
-                        "model": entity.model.serialize(),
-                        "pose": [
-                            entity.pose.position.x,
-                            entity.pose.position.y,
-                            math.degrees(
-                                entity.pose.orientation.to_yaw()
-                            ),  # I use degree for yaw for now (look at `context.py``)
-                        ],
-                    }
-                    for entity in zone.entities.static
-                ],
-            }
-            parsed["zones"].append(parsed_zone)
-
-        return json.dumps(parsed)
-
     def llm_bt_output_to_config(
         self,
-        llm_output: dict,
-        generation_mode: str,
+        llm_response: EmergencyResponseSchema
+        | FlexibleResponseSchema
+        | NormalResponseSchema
+        | QueuingResponseSchema,
         *,
         crowd_pedestrians: None | List[Dict],
     ) -> dict:
-        if generation_mode == GenerationMode.ARENA.value:
-            return llm_output
-
-        if (
-            generation_mode == GenerationMode.CROWDED_BT.value
-            and crowd_pedestrians is not None
-        ):  # TODO: Use scheme/class instead of Dict
-            llm_output = {
-                "hunav_agents": [],
-                "single_agent_nodes": [],
-                "multi_agent_nodes": [],
-            }
-            for ped in crowd_pedestrians:
-                llm_output["hunav_agents"].append(
-                    {
-                        "name": ped["name"],
-                        "pos": ped["pos"],
-                        "model": ped["model"],
-                    }
-                )
-                # for zone in self.node._world_manager.world.zones:
-                #     if (
-                #         zone.floor.pos.x - zone.floor.x_length / 2
-                #         <= ped["pos"][0]
-                #         <= zone.floor.pos.x + zone.floor.x_length / 2
-                #         and zone.floor.pos.y - zone.floor.y_length / 2
-                #         <= ped["pos"][1]
-                #         <= zone.floor.pos.y + zone.floor.y_length / 2
-                #     ):
-                #         for door in zone.doors:
-                #             x, y, z = (door.start + door.end) / 2
-                #             llm_output["single_agent_nodes"].append(
-                #                 {
-                #                     "name": "GoTo",
-                #                     "attributes": {
-                #                         "agent_name": ped["name"],
-                #                         "time_step": 0.1,
-                #                         "target_x": x,
-                #                         "target_y": y,
-                #                         "tolerance": 0.5,
-                #                     },
-                #                     "order": 0,
-                #                 }
-                #             )
-                #             break
-                #         break
-
-                llm_output["single_agent_nodes"].append(
-                    {
-                        "name": "FollowVelocityField",
-                        "attributes": {
-                            "agent_name": ped["name"],
-                            "velocity_field_group_id": ped["group_id"],
-                            "time_step": 0.1,
-                            "tolerance": 0.2,
-                        },
-                        "order": 1,
-                    }
-                )
         try:
-            config = {
-                "obstacles": {
-                    "static": [],
-                    "dynamic": []
-                }
-            }
-
-            parser = Parser(llm_output)
+            config = {"static": [], "dynamic": []}
+            parser = Parser(llm_response.model_dump())
             parser.parse()
             for hunav_agent in parser.agents.values():
                 hunav_config = {
@@ -252,7 +152,7 @@ class TM_Prompt(TM_Obstacles):
 
                 hunav_config.update({"behavior_tree": tmp_xml_file.name})
 
-                config["obstacles"]["dynamic"].append(hunav_config)
+                config["dynamic"].append(hunav_config)
 
         except Exception as e:
             self._logger.error(f"Failed to parse Behavior tree from LLM response: {e}")
@@ -324,109 +224,223 @@ class TM_Prompt(TM_Obstacles):
 
         return response, x_min, y_min, x_max, y_max
 
-    async def _prompt_to_config(
-        self, prompt: str, top_p: float, generation_mode: str, local: bool = False
-    ) -> dict:
-        world_info = self.preprocess_world_description(self._PROPS.world_manager.world)
+    def get_relevant_zones(self, prompt: str) -> str:
+        world_metadata: str = get_world_metatdata(self._PROPS.world_manager.world)
 
-        messages = []
-        crowd_pedestrians = None
-        pipeline_start = time.time()
+        res = self.inference_client.models.generate_content(
+            model=REMOTE_FAST_LM,
+            contents=f"Prompt: {prompt}\nWorld metadata: {world_metadata}",
+            config=genai.types.GenerateContentConfig(
+                system_instruction=(
+                    "Extract the relevant zones of the world from the user prompt. "
+                    "A relevant zone is where an agent could be spawned or disposed "
+                    "based on the user's prompt. Return a JSON list of zone names."
+                ),
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                thinking_config=genai.types.ThinkingConfig(
+                    include_thoughts=False, thinking_budget=0
+                ),
+                temperature=0.2,  # Most of the example prompts use this set of parameters, see https://docs.cloud.google.com/vertex-ai/generative-ai/docs/prompt-gallery/samples/extract_tech_specs
+                top_k=40,
+            ),
+        )
 
-        if generation_mode == GenerationMode.BEHAVIOR_TREE.value:
+        if res.text is None:
+            self._logger.warn(
+                "Couldn't get relevant zones, returning full world description"
+            )
+            relevant_zones_names = [
+                zone.name for zone in self.node._world_manager.world.zones
+            ]
+        else:
+            adapter = TypeAdapter(List[str])
+            relevant_zones_names = adapter.validate_json(res.text)
+
+        relevant_zones = get_world_detail_info(
+            self.node._world_manager.world, relevant_zones_names
+        )
+
+        return relevant_zones
+
+    def cache_context(self, generation_mode: str):
+        self._logger.info(f"Caching context for generation mode: {generation_mode}")
+        if generation_mode == GenerationMode.EMERGENCY.value:
             if generation_mode not in self.cached_context_name.keys():
                 cache = self.inference_client.caches.create(
-                    model=REMOTE_LM,
+                    model=REMOTE_REASONING_LM,
                     config=genai.types.CreateCachedContentConfig(
                         display_name=generation_mode + "_context",
                         system_instruction=SYSTEM_INSTRUCTION,
-                        contents=BEHAVIOR_TREE_FORMAT,
+                        contents=EMERGENCY_MODE,
                     ),
                 )
                 if cache.name is not None:
                     self.cached_context_name.update({generation_mode: cache.name})
 
+        elif generation_mode == GenerationMode.FLEXIBLE.value:
+            if generation_mode not in self.cached_context_name.keys():
+                cache = self.inference_client.caches.create(
+                    model=REMOTE_REASONING_LM,
+                    config=genai.types.CreateCachedContentConfig(
+                        display_name=generation_mode + "_context",
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        contents=FLEXIBLE_MODE,
+                    ),
+                )
+                if cache.name is not None:
+                    self.cached_context_name.update({generation_mode: cache.name})
+
+        elif generation_mode == GenerationMode.NORMAL.value:
+            if generation_mode not in self.cached_context_name.keys():
+                cache = self.inference_client.caches.create(
+                    model=REMOTE_REASONING_LM,
+                    config=genai.types.CreateCachedContentConfig(
+                        display_name=generation_mode + "_context",
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        contents=NORMAL_MODE,
+                    ),
+                )
+                if cache.name is not None:
+                    self.cached_context_name.update({generation_mode: cache.name})
+
+        elif generation_mode == GenerationMode.QUEUING.value:
+            if generation_mode not in self.cached_context_name.keys():
+                cache = self.inference_client.caches.create(
+                    model=REMOTE_REASONING_LM,
+                    config=genai.types.CreateCachedContentConfig(
+                        display_name=generation_mode + "_context",
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        contents=QUEUING_MODE,
+                    ),
+                )
+                if cache.name is not None:
+                    self.cached_context_name.update({generation_mode: cache.name})
+
+    async def _prompt_to_config(
+        self, prompt: str, generation_mode: str, local: bool = False
+    ) -> dict:
+        messages = []
+        crowd_pedestrians = None
+
+        pipeline_start = time.time()
+        self.cache_context(generation_mode)
+
+        relevant_zones = self.get_relevant_zones(prompt)
+        response_schema = None
+
+        if generation_mode == GenerationMode.EMERGENCY.value:
+            response_schema = EmergencyResponseSchema
+
             bt_nodes = get_relevant_bt_nodes(
-                query=f'What are the nodes should be used for creating the behavior tree as described below: "{prompt}". Use GoTo node to guide agents to isolated places if needed.',
+                query=f"Retrieve information of these nodes: {str(list(get_args(EmegencySingleAgentNodeName)) + list(get_args(EmergencyMultiAgentNodeName)))}",
                 collection=self.chroma_collection,
             )
 
             self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
 
             messages.append(
-                f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate hunav agents data for a simulation where {prompt}. "
+                f"Generate data base on this world data as below <WORLD_DESCRIPTION>: {relevant_zones}. "
+                f"Use these behavior tree nodes only: {bt_nodes}."
             )
 
-        elif generation_mode == GenerationMode.ARENA.value:
-            if generation_mode not in self.cached_context_name.keys():
-                cache = self.inference_client.caches.create(
-                    model=REMOTE_LM,
-                    config=genai.types.CreateCachedContentConfig(
-                        display_name=generation_mode + "_context",
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        contents=ARENA_FORMAT,
-                    ),
+            arena_world_bounds_res, x_min, y_min, x_max, y_max = (
+                self.send_arena_world_bounds_msg()
+            )
+            self._logger.info(
+                f"Set Arena World bounds response: {arena_world_bounds_res.success}, {arena_world_bounds_res.message}"
+            )
+            self.velocity_field_visualizer.update_world_bounds(
+                x_min, y_min, x_max, y_max
+            )
+
+            scenario, arena_entity_to_semantic_entity_map = (
+                arena_world_to_text_crowd_scenario(
+                    self._PROPS.world_manager.world, scenario_size=(1024, 1024)
                 )
-                if cache.name is not None:
-                    self.cached_context_name.update({generation_mode: cache.name})
+            )
+
+            self._logger.info("Generating velocity field...")
+            # velocity_field, crowd_pedestrians, text_crowd_scenario = cgp.generate(
+            #     prompt=prompt,
+            #     scenario=scenario,
+            #     arena_world_description=self._PROPS.world_manager.world,
+            #     arena_entity_to_semantic_entity_map=arena_entity_to_semantic_entity_map,
+            # )  # (n_groups, 64, 64, 2) (g, y, x, 2)
+            #
+            # vel_res = self.send_velocity_msg(velocity_field)
+            # self._logger.info(
+            #     f"Set velocity field response: {vel_res.success}, {vel_res.message}"
+            # )
+            #
+            # self.velocity_field_visualizer.publish_markers(velocity_field)
+            #
+            # with tempfile.NamedTemporaryFile(
+            #     delete=False,
+            #     prefix="velocity_field_",
+            #     suffix=".npy",
+            #     dir=self.tmp_dir.name,
+            #     mode="wb",
+            # ) as file:
+            #     np.save(file, velocity_field)
+            #     self._logger.info(f"Saved velocity field to {file.name}")
+            # with tempfile.NamedTemporaryFile(
+            #     delete=False,
+            #     prefix="text_crowd_scenario_",
+            #     suffix=".pkl",
+            #     dir=self.tmp_dir.name,
+            #     mode="wb",
+            # ) as file:
+            #     pickle.dump(text_crowd_scenario, file)
+
+        elif generation_mode == GenerationMode.FLEXIBLE.value:
+            response_schema = FlexibleResponseSchema
+
+            bt_nodes = get_relevant_bt_nodes(
+                query=f"Retrieve information of these nodes: {str(list(get_args(FlexibleSingleAgentNodeName)) + list(get_args(FlexibleMultiAgentNodeName)))}",
+                collection=self.chroma_collection,
+            )
+
+            self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
 
             messages.append(
-                f"Generate dynamic obstacles data for a simulation where: {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Only return valid JSON under the 'dynamic' field, using the format declared in the system context, with no explanation, thoughts, or extra text."
+                f"Generate hunav agents data for a simulation where {prompt}. "
+                f"Generate data base on this world data as below <WORLD_DESCRIPTION>: {relevant_zones}. "
+                f"Use these behavior tree nodes only: {bt_nodes}."
             )
-
-        elif generation_mode == GenerationMode.CROWDED_BT.value:
-            if generation_mode not in self.cached_context_name.keys():
-                cache = self.inference_client.caches.create(
-                    model=REMOTE_LM,
-                    config=genai.types.CreateCachedContentConfig(
-                        display_name=generation_mode + "_context",
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        contents=BEHAVIOR_TREE_FORMAT,
-                    ),
-                )
-                if cache.name is not None:
-                    self.cached_context_name.update({generation_mode: cache.name})
 
             # Split prompts for Ambient Agents and Spotlight agent
             split_prompt_res = self.inference_client.models.generate_content(
-                model=REMOTE_LM,
+                model=REMOTE_FAST_LM,
                 contents=f"Split prompts given this user prompt: {prompt}",
                 config=genai.types.GenerateContentConfig(
                     system_instruction=SPLIT_PROMPT_INSTRUCTION,
-                    top_p=top_p,
                     temperature=0.2,
                     top_k=40,
+                    response_mime_type="application/json",
+                    response_json_schema=Dict[
+                        Literal["spotlight_agents_prompt", "ambient_agents_prompt"], str
+                    ],
                     thinking_config=genai.types.ThinkingConfig(
-                        include_thoughts=False, thinking_level="low"
+                        include_thoughts=False, thinking_budget=0
                     ),
                 ),
             )
-            split_prompt_answer = split_prompt_res.text
-            assert split_prompt_answer is not None
-            if split_prompt_answer.startswith("```json"):
-                split_prompt_answer = (
-                    split_prompt_answer.strip("```json").strip("```").strip()
-                )
-            elif split_prompt_answer.startswith("```"):
-                split_prompt_answer = split_prompt_answer.strip("```").strip()
-            split_prompt_answer = json.loads(split_prompt_answer)
+            splited_prompts = split_prompt_res.text
+            assert splited_prompts is not None
+            splited_prompts = TypeAdapter(
+                Dict[Literal["spotlight_agents_prompt", "ambient_agents_prompt"], str]
+            ).validate_json(splited_prompts)
 
-            prompt = split_prompt_answer["spotlight_agents_prompt"]
-            ambient_agent_prompt = split_prompt_answer["ambient_agents_prompt"]
+            prompt = splited_prompts["spotlight_agents_prompt"]
+            ambient_agent_prompt = splited_prompts["ambient_agents_prompt"]
 
             self._logger.info(
                 f"Spotlight Agents prompts: {prompt}\nAmbient_agents_prompt:{ambient_agent_prompt}"
-            )
-
-            bt_nodes = get_relevant_bt_nodes(
-                query=f'What are the nodes should be used for creating the behavior tree as described below: "{prompt}". Use GoTo node to guide agents to isolated places if needed.',
-                collection=self.chroma_collection,
-            )
-
-            self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
-
-            messages.append(
-                f"Generate hunav agents data for a simulation where {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Use these behavior tree nodes only: {bt_nodes}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
             )
 
             cgp_config = ATCPConfig(
@@ -435,8 +449,7 @@ class TM_Prompt(TM_Obstacles):
                     get_package_share_directory("arena_text_crowd"),
                     "generated_velocity_field",
                 ),
-                model=REMOTE_LM,
-                top_p=top_p,
+                model=REMOTE_REASONING_LM,
             )
             # text_crowd_unet_dir = os.path.join(
             #     get_package_share_directory("arena_text_crowd"),
@@ -479,6 +492,58 @@ class TM_Prompt(TM_Obstacles):
 
             self.velocity_field_visualizer.publish_markers(velocity_field)
 
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                prefix="velocity_field_",
+                suffix=".npy",
+                dir=self.tmp_dir.name,
+                mode="wb",
+            ) as file:
+                np.save(file, velocity_field)
+                self._logger.info(f"Saved velocity field to {file.name}")
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                prefix="text_crowd_scenario_",
+                suffix=".pkl",
+                dir=self.tmp_dir.name,
+                mode="wb",
+            ) as file:
+                pickle.dump(text_crowd_scenario, file)
+
+        elif generation_mode == GenerationMode.NORMAL.value:
+            response_schema = NormalResponseSchema
+
+            bt_nodes = get_relevant_bt_nodes(
+                query=f"Retrieve information of these nodes: {str(list(get_args(NormalSingleAgentNodeName)) + list(get_args(NormalMultiAgentNodeName)))}",
+                collection=self.chroma_collection,
+            )
+
+            self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
+
+            messages.append(
+                f"Generate hunav agents data for a simulation where {prompt}. "
+                f"Generate data base on this world data as below <WORLD_DESCRIPTION>: {relevant_zones}. "
+                f"Use these behavior tree nodes only: {bt_nodes}."
+            )
+
+        elif generation_mode == GenerationMode.QUEUING.value:
+            response_schema = QueuingResponseSchema
+
+            bt_nodes = get_relevant_bt_nodes(
+                query=f"Retrieve information of these nodes: {str(list(get_args(QueuingSingleAgentNodeName)) + list(get_args(QueuingMultiAgentNodeName)))}",
+                collection=self.chroma_collection,
+            )
+
+            self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
+
+            messages.append(
+                f"Generate hunav agents data for a simulation where {prompt}. "
+                f"Generate data base on this world data as below <WORLD_DESCRIPTION>: {relevant_zones}. "
+                f"Use these behavior tree nodes only: {bt_nodes}."
+            )
+        else:
+            raise ValueError()
+
         if local:  # Currently not supported
             return {}
             from huggingface_hub import InferenceClient
@@ -517,33 +582,29 @@ class TM_Prompt(TM_Obstacles):
             self._logger.info("Start inference...")
             start = time.time()
             response = await self.inference_client.aio.models.generate_content(
-                model=REMOTE_LM,
+                model=REMOTE_REASONING_LM,
                 contents=messages,
                 config=genai.types.GenerateContentConfig(
                     cached_content=self.cached_context_name[generation_mode],
-                    top_p=top_p,
-                    temperature=0.2,  # Most of the example prompts use this set of parameters (except for top_p), see https://docs.cloud.google.com/vertex-ai/generative-ai/docs/prompt-gallery/samples/extract_tech_specs
+                    temperature=0.2,  # Most of the example prompts use this set of parameters, see https://docs.cloud.google.com/vertex-ai/generative-ai/docs/prompt-gallery/samples/extract_tech_specs
                     top_k=40,
-                    thinking_config=genai.types.ThinkingConfig(thinking_level="low"),
+                    thinking_config=genai.types.ThinkingConfig(
+                        thinking_level=genai.types.ThinkingLevel(value="LOW")
+                    ),
+                    response_mime_type="application/json",
+                    response_json_schema=response_schema.model_json_schema(),
                 ),
             )
 
-            answer = response.text
-            self._logger.info(f"LLM raw output for the prompt: {prompt}")
-            self._logger.info(answer)
+            assert response.text is not None
+            answer = response_schema.model_validate_json(response.text)
+
             end = time.time()
             self._logger.info(f"Inference done, took: {end - start:.1f}s")
 
-        assert answer is not None
-        if answer.startswith("```json"):
-            answer = answer.strip("```json").strip("```").strip()
-        elif answer.startswith("```"):
-            answer = answer.strip("```").strip()
-
         # Parse it into a Python dict
         config = self.llm_bt_output_to_config(
-            json.loads(answer),
-            generation_mode,
+            answer,
             crowd_pedestrians=crowd_pedestrians,
         )
 
@@ -562,31 +623,9 @@ class TM_Prompt(TM_Obstacles):
             ) as file:
                 json.dump(config, file, indent=2)
                 self._logger.warning(f"Saved parsed prompt result to {file.name}")
-
-            if generation_mode == GenerationMode.CROWDED_BT.value:
-                with tempfile.NamedTemporaryFile(
-                    delete=False,
-                    prefix="velocity_field_",
-                    suffix=".npy",
-                    dir=self.tmp_dir.name,
-                    mode="wb",
-                ) as file:
-                    np.save(file, velocity_field)
-                    self._logger.info(f"Saved velocity field to {file.name}")
-                with tempfile.NamedTemporaryFile(
-                    delete=False,
-                    prefix="text_crowd_scenario_",
-                    suffix=".pkl",
-                    dir=self.tmp_dir.name,
-                    mode="wb",
-                ) as file:
-                    pickle.dump(text_crowd_scenario, file)
-
         return config
 
-    async def _parse_prompt(
-        self, prompt: str, top_p: float, generation_mode: str
-    ) -> _ParsedConfig:
+    async def _parse_prompt(self, prompt: str, generation_mode: str) -> _ParsedConfig:
         """
         Parses the prompt to generate obstacles config.
 
@@ -597,7 +636,7 @@ class TM_Prompt(TM_Obstacles):
             _ParsedConfig: Parsed configuration containing static and dynamic obstacles.
         """
         assert GenerationMode.has_value(generation_mode)
-        config = await self._prompt_to_config(prompt, top_p, generation_mode)
+        config = await self._prompt_to_config(prompt, generation_mode)
 
         static_obstacles: list[Obstacle]
         dynamic_obstacles: list[DynamicObstacle]
@@ -612,9 +651,7 @@ class TM_Prompt(TM_Obstacles):
             # This causes bug so temporarily disabled
         ]
 
-        dynamic_obstacles = [
-            obs for obs in config.get("obstacles", {}).get("dynamic", [])
-        ]
+        dynamic_obstacles = [obs for obs in config.get("dynamic", [])]
 
         result = converter.structure(
             dict(static=static_obstacles, dynamic=dynamic_obstacles), _ParsedConfig
@@ -625,7 +662,6 @@ class TM_Prompt(TM_Obstacles):
     async def reset(self, **kwargs):
         parsed_config = await self._parse_prompt(
             self._config.user_prompt.value,
-            self._config.top_p.value,
             self._config.generation_mode.value,
         )
 
@@ -638,30 +674,30 @@ class TM_Prompt(TM_Obstacles):
         #     api_key=os.environ["HF_TOKEN"],
         # )
 
-        def _load_config(filename: str = "default.yaml") -> "HunavDynamicObstacle":
-            """Load config from YAML file in arena_bringup configs."""
-
-            # second priority: Install space
-            config_path = os.path.join(
-                get_package_share_directory("arena_bringup"),
-                "configs",
-                "hunav_agents",
-                filename,
-            )
-
-            try:
-                with open(config_path, "r") as f:
-                    config = yaml.safe_load(f)
-
-                assert isinstance(config, dict), (
-                    "Config file is not properly formatted."
-                )
-                agent_config = config["hunav_loader"]["ros__parameters"]["agent1"]
-                return agent_config
-
-            except Exception as e:
-                raise RuntimeError(f"Error loading config from {config_path}") from e
-
+        # def _load_config(filename: str = "default.yaml") -> "HunavDynamicObstacle":
+        #     """Load config from YAML file in arena_bringup configs."""
+        #
+        #     # second priority: Install space
+        #     config_path = os.path.join(
+        #         get_package_share_directory("arena_bringup"),
+        #         "configs",
+        #         "hunav_agents",
+        #         filename,
+        #     )
+        #
+        #     try:
+        #         with open(config_path, "r") as f:
+        #             config = yaml.safe_load(f)
+        #
+        #         assert isinstance(config, dict), (
+        #             "Config file is not properly formatted."
+        #         )
+        #         agent_config = config["hunav_loader"]["ros__parameters"]["agent1"]
+        #         return agent_config
+        #
+        #     except Exception as e:
+        #         raise RuntimeError(f"Error loading config from {config_path}") from e
+        #
         # default_hunav_config = _load_config() # Is not used yet
 
         self._config = PromptConfig(
@@ -669,13 +705,9 @@ class TM_Prompt(TM_Obstacles):
                 self.namespace("user_prompt"),
                 value="An empty space with no pedestrian.",
             ),
-            top_p=self.node.ROSParam[float](
-                self.namespace("top_p"),
-                value=0.3,
-            ),
             generation_mode=self.node.ROSParam[str](
                 self.namespace("generation_mode"),
-                value=GenerationMode.ARENA.value,
+                value=GenerationMode.QUEUING.value,
             ),
         )
 
@@ -689,7 +721,8 @@ class TM_Prompt(TM_Obstacles):
             caches = self.inference_client.caches.list()
             if caches:
                 for cache in caches:
-                    self.inference_client.caches.delete(name=cache.name)
+                    if cache.name is not None:
+                        self.inference_client.caches.delete(name=cache.name)
         except Exception as e:
             print(e)
 

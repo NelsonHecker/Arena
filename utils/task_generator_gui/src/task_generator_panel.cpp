@@ -295,7 +295,7 @@ namespace task_generator_gui
         else if (obstacles_task_mode == "Prompt")
         {
             auto generation_mode_combobox = new QComboBox();
-            generation_mode_combobox->addItems(QStringList({"ARENA", "BEHAVIOR_TREE", "CROWDED_BT"}));
+            generation_mode_combobox->addItems(QStringList({"EMERGENCY", "FLEXIBLE", "NORMAL", "QUEUING"}));
             generation_mode_combobox->setCurrentText(QString::fromStdString(selected_scenario_config_file));
             auto item = new QTreeWidgetItem(obstacles_tree);
             item->setText(0, "Generation Mode");
@@ -303,20 +303,9 @@ namespace task_generator_gui
             connect(generation_mode_combobox, &QComboBox::currentTextChanged, this, [this](const QString &text)
                     { generation_mode = text.toStdString(); });
 
-            auto top_p_spin_box = new QDoubleSpinBox();
-            top_p_spin_box->setMinimum(0.0);
-            top_p_spin_box->setMaximum(1.0);
-            top_p_spin_box->setSingleStep(0.1);
-            top_p_spin_box->setValue(top_p);
-            auto top_p_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            top_p_widgetitem->setText(0, "Nucleus sampling threshold (top_p)");
-            obstacles_tree->setItemWidget(top_p_widgetitem, 1, top_p_spin_box);
-            connect(top_p_spin_box, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](const double &value)
-                    { top_p = value; });
-
             auto prompt_text_edit = new QTextEdit();
             prompt_text_edit->setPlaceholderText("Type your prompt here");
-            prompt_text_edit->setMinimumHeight(50);
+            prompt_text_edit->setMinimumHeight(100);
             prompt_text_edit->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
             prompt_text_edit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
             // prompt_text_edit->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
