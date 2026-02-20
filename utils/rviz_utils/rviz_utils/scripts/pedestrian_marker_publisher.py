@@ -2,12 +2,18 @@
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy
+from rclpy.qos import (
+    QoSProfile,
+    QoSReliabilityPolicy,
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+)
 
 from arena_people_msgs.msg import Pedestrians, Pedestrian
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Vector3
 from std_msgs.msg import ColorRGBA
+from tf_transformations import quaternion_from_euler, quaternion_multiply
 import math
 
 
@@ -18,7 +24,7 @@ class PedestrianMarkerPublisher(Node):
     """
 
     def __init__(self):
-        super().__init__('pedestrian_marker_publisher')
+        super().__init__("pedestrian_marker_publisher")
 
         # Get namespace parameter for multi-environment support
         namespace = self.get_namespace()
@@ -28,7 +34,7 @@ class PedestrianMarkerPublisher(Node):
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             durability=QoSDurabilityPolicy.VOLATILE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=10,
         )
 
         # QoS Settings for marker output
@@ -36,39 +42,42 @@ class PedestrianMarkerPublisher(Node):
             reliability=QoSReliabilityPolicy.RELIABLE,
             durability=QoSDurabilityPolicy.VOLATILE,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=10,
         )
 
         # Build namespaced topic names
-        pedestrians_topic = f'{namespace}/arena_peds'
-        marker_topic = f'{namespace}/pedestrian_markers'
+        pedestrians_topic = f"{namespace}/arena_peds"
+        marker_topic = f"{namespace}/pedestrian_markers"
 
         # Subscriber to arena_peds topic
         self.pedestrians_subscriber = self.create_subscription(
-            Pedestrians,
-            pedestrians_topic,
-            self.pedestrians_callback,
-            pedestrians_qos
+            Pedestrians, pedestrians_topic, self.pedestrians_callback, pedestrians_qos
         )
 
         # Publisher for pedestrian markers
         self.marker_publisher = self.create_publisher(
-            MarkerArray,
-            marker_topic,
-            marker_qos
+            MarkerArray, marker_topic, marker_qos
         )
 
         # Parameters for visualization
-        self.declare_parameter('body_height', 1.6)  # Height of pedestrian body
-        self.declare_parameter('body_radius', 0.25)  # Radius of pedestrian body
-        self.declare_parameter('head_radius', 0.15)  # Radius of pedestrian head
-        self.declare_parameter('arrow_length', 0.6)  # Length of direction arrow
-        self.declare_parameter('show_labels', True)  # Show name labels
-        self.declare_parameter('show_velocity_arrows', True)  # Show velocity arrows
-        self.declare_parameter('show_orientation_arrows', True)  # Show orientation arrows
+        self.declare_parameter("body_height", 1.6)  # Height of pedestrian body
+        self.declare_parameter("body_radius", 0.25)  # Radius of pedestrian body
+        self.declare_parameter("head_radius", 0.15)  # Radius of pedestrian head
+        self.declare_parameter("arrow_length", 0.6)  # Length of direction arrow
+        self.declare_parameter("show_labels", True)  # Show name labels
+        self.declare_parameter("show_velocity_arrows", True)  # Show velocity arrows
+        self.declare_parameter(
+            "show_orientation_arrows", True
+        )  # Show orientation arrows
+        self.declare_parameter(
+            "mesh_resource",
+            "package://pal_gazebo_worlds/models/citizen_extras_male_03/meshes/mesh.dae",
+        )
 
-        self.get_logger().info('Pedestrian Marker Publisher initialized')
-        self.get_logger().info(f'Subscribing to {pedestrians_topic}, publishing to {marker_topic}')
+        self.get_logger().info("Pedestrian Marker Publisher initialized")
+        self.get_logger().info(
+            f"Subscribing to {pedestrians_topic}, publishing to {marker_topic}"
+        )
 
     def pedestrians_callback(self, msg: Pedestrians):
         """Convert Pedestrians message to MarkerArray with stylized human figures"""
@@ -77,13 +86,12 @@ class PedestrianMarkerPublisher(Node):
         markers = []
 
         # Get parameters
-        body_height = self.get_parameter('body_height').value
-        body_radius = self.get_parameter('body_radius').value
-        head_radius = self.get_parameter('head_radius').value
-        arrow_length = self.get_parameter('arrow_length').value
-        show_labels = self.get_parameter('show_labels').value
-        show_velocity_arrows = self.get_parameter('show_velocity_arrows').value
-        show_orientation_arrows = self.get_parameter('show_orientation_arrows').value
+        body_height = self.get_parameter("body_height").value
+        body_radius = self.get_parameter("body_radius").value
+        arrow_length = self.get_parameter("arrow_length").value
+        show_labels = self.get_parameter("show_labels").value
+        show_velocity_arrows = self.get_parameter("show_velocity_arrows").value
+        show_orientation_arrows = self.get_parameter("show_orientation_arrows").value
 
         # Clear existing markers first (important for dynamic number of people)
         delete_marker = Marker()
@@ -98,34 +106,40 @@ class PedestrianMarkerPublisher(Node):
             # Determine colors based on animation state
             body_color, head_color = self._get_pedestrian_colors(pedestrian)
 
-            # 1. Body (Cylinder)
-            body_marker = self._create_body_marker(pedestrian, pedestrian_id, body_color,
-                                                   body_height, body_radius, msg.header)
+            # 1. Body (mesh)
+            body_marker = self._create_body_marker(
+                pedestrian,
+                pedestrian_id,
+                body_color,
+                body_height,
+                body_radius,
+                msg.header,
+            )
             markers.append(body_marker)
-
-            # 2. Head (Sphere)
-            head_marker = self._create_head_marker(pedestrian, pedestrian_id, head_color,
-                                                   head_radius, body_height, msg.header)
-            markers.append(head_marker)
 
             # 3. Velocity Arrow (if pedestrian is moving)
             if show_velocity_arrows:
-                velocity_magnitude = math.sqrt(pedestrian.twist.linear.x**2 + pedestrian.twist.linear.y**2)
+                velocity_magnitude = math.sqrt(
+                    pedestrian.twist.linear.x**2 + pedestrian.twist.linear.y**2
+                )
                 if velocity_magnitude > 0.1:  # Only show if moving fast enough
-                    arrow_marker = self._create_velocity_arrow(pedestrian, pedestrian_id,
-                                                               arrow_length, body_height, msg.header)
+                    arrow_marker = self._create_velocity_arrow(
+                        pedestrian, pedestrian_id, arrow_length, body_height, msg.header
+                    )
                     markers.append(arrow_marker)
 
             # 4. Orientation Arrow (shows where pedestrian is facing)
             if show_orientation_arrows:
-                orientation_marker = self._create_orientation_arrow(pedestrian, pedestrian_id,
-                                                                    arrow_length, body_height, msg.header)
+                orientation_marker = self._create_orientation_arrow(
+                    pedestrian, pedestrian_id, arrow_length, body_height, msg.header
+                )
                 markers.append(orientation_marker)
 
             # 5. Name Label
             if show_labels:
-                label_marker = self._create_name_label(pedestrian, pedestrian_id,
-                                                       body_height, msg.header)
+                label_marker = self._create_name_label(
+                    pedestrian, pedestrian_id, body_height, msg.header
+                )
                 markers.append(label_marker)
 
         marker_array.markers = markers
@@ -160,62 +174,63 @@ class PedestrianMarkerPublisher(Node):
 
         return body_color, head_color
 
-    def _create_body_marker(self, pedestrian: Pedestrian, pedestrian_id: int, color: ColorRGBA,
-                            body_height: float, body_radius: float, header) -> Marker:
-        """Create cylinder marker for pedestrian body"""
+    def _create_body_marker(
+        self,
+        pedestrian: Pedestrian,
+        pedestrian_id: int,
+        color: ColorRGBA,
+        body_height: float,
+        body_radius: float,
+        header,
+    ) -> Marker:
+        """Create mesh marker for pedestrian body"""
         marker = Marker()
         marker.header = header
-        marker.ns = "pedestrian_bodies"
+        marker.ns = "pedestrian_meshes"
         marker.id = pedestrian_id
-        marker.type = Marker.CYLINDER
+        marker.type = Marker.MESH_RESOURCE
+        marker.mesh_resource = self.get_parameter("mesh_resource").value
+        marker.mesh_use_embedded_materials = True
         marker.action = Marker.ADD
 
         # Position - use pedestrian position
         marker.pose.position.x = pedestrian.pose.position.x
         marker.pose.position.y = pedestrian.pose.position.y
-        marker.pose.position.z = body_height / 2  # Center of cylinder
-        marker.pose.orientation.w = 1.0
+        marker.pose.position.z = body_height / 2  # Center
 
-        # Size
-        marker.scale = Vector3(x=body_radius * 2, y=body_radius * 2, z=body_height)
+        # Align the mesh model's yaw with the true ped's pose (pi/2 offset)
+        q_org = [
+            pedestrian.pose.orientation.x,
+            pedestrian.pose.orientation.y,
+            pedestrian.pose.orientation.z,
+            pedestrian.pose.orientation.w,
+        ]
+        rotation = quaternion_from_euler(0, 0, math.pi / 2)
+        q = quaternion_multiply(q_org, rotation)
+
+        marker.pose.orientation.x = q[0]
+        marker.pose.orientation.y = q[1]
+        marker.pose.orientation.z = q[2]
+        marker.pose.orientation.w = q[3]
+
+        marker.scale = Vector3(x=body_height, y=body_height, z=body_height)
 
         # Color
-        marker.color = color
+        # marker.color = color
 
         # Lifetime
         marker.lifetime.sec = 1
 
         return marker
 
-    def _create_head_marker(self, pedestrian: Pedestrian, pedestrian_id: int, color: ColorRGBA,
-                            head_radius: float, body_height: float, header) -> Marker:
-        """Create sphere marker for pedestrian head"""
-        marker = Marker()
-        marker.header = header
-        marker.ns = "pedestrian_heads"
-        marker.id = pedestrian_id
-        marker.type = Marker.SPHERE
-        marker.action = Marker.ADD
-
-        # Position on top of body
-        marker.pose.position.x = pedestrian.pose.position.x
-        marker.pose.position.y = pedestrian.pose.position.y
-        marker.pose.position.z = body_height + head_radius
-        marker.pose.orientation.w = 1.0
-
-        # Size
-        marker.scale = Vector3(x=head_radius * 2, y=head_radius * 2, z=head_radius * 2)
-
-        # Color
-        marker.color = color
-
-        # Lifetime
-        marker.lifetime.sec = 1
-
-        return marker
-
-    def _create_orientation_arrow(self, pedestrian: Pedestrian, pedestrian_id: int,
-                                  arrow_length: float, body_height: float, header) -> Marker:
+    def _create_orientation_arrow(
+        self,
+        pedestrian: Pedestrian,
+        pedestrian_id: int,
+        arrow_length: float,
+        body_height: float,
+        header,
+    ) -> Marker:
         """Create arrow marker showing pedestrian orientation"""
         marker = Marker()
         marker.header = header
@@ -243,8 +258,14 @@ class PedestrianMarkerPublisher(Node):
 
         return marker
 
-    def _create_velocity_arrow(self, pedestrian: Pedestrian, pedestrian_id: int,
-                               arrow_length: float, body_height: float, header) -> Marker:
+    def _create_velocity_arrow(
+        self,
+        pedestrian: Pedestrian,
+        pedestrian_id: int,
+        arrow_length: float,
+        body_height: float,
+        header,
+    ) -> Marker:
         """Create arrow marker showing pedestrian velocity direction"""
         marker = Marker()
         marker.header = header
@@ -279,8 +300,9 @@ class PedestrianMarkerPublisher(Node):
 
         return marker
 
-    def _create_name_label(self, pedestrian: Pedestrian, pedestrian_id: int,
-                           body_height: float, header) -> Marker:
+    def _create_name_label(
+        self, pedestrian: Pedestrian, pedestrian_id: int, body_height: float, header
+    ) -> Marker:
         """Create text marker with pedestrian name"""
         marker = Marker()
         marker.header = header
@@ -318,11 +340,11 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info('Shutting down pedestrian marker publisher')
+        node.get_logger().info("Shutting down pedestrian marker publisher")
     finally:
         node.destroy_node()
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
