@@ -207,27 +207,6 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
             raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
         return stdout
 
-    async def _do_fetch(self, root_path, target_path, relpath: Path) -> Optional[Path]:
-        try:
-            logging.info(f"Fetching asset {relpath} from network provider {self._provider}...")
-            await self.check_output_async([
-                'ros2',
-                'run',
-                'arena_models',
-                'arena_models',
-                '-s',
-                'net',
-                self._provider,
-                'fetch',
-                str(relpath),
-                '-o',
-                str(root_path),
-            ])
-            return target_path
-
-        except subprocess.CalledProcessError:
-            return None
-
     async def _network_fetch(self, provider: str, identifier: IdentifierT) -> Optional[Path]:
         relpath = identifier.relpath()
         root_path = ARENA_ASSETS_DIR / provider
