@@ -52,7 +52,7 @@ SimulatorRegistry = Registry[Constants.SimSimulator, BaseSim]()
 @SimulatorRegistry.register(Constants.SimSimulator.DUMMY)
 async def lazy_dummy(**kwargs):
     from .dummy_simulator import DummySimulator
-    return DummySimulator(**kwargs)
+    return await DummySimulator.create(**kwargs)
 
 
 # @SimulatorRegistry.register(Constants.SimSimulator.FLATLAND)

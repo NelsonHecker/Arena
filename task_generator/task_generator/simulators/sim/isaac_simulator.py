@@ -1,3 +1,4 @@
+from typing_extensions import Self
 import asyncio
 import itertools
 import os
@@ -541,7 +542,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._logger.info("All service clients initialized and available.")
 
     @classmethod
-    async def create(cls, *args, namespace, **kwargs):
+    async def create(cls, *args, namespace, **kwargs) -> Self:
         self = cls(*args, namespace=namespace, **kwargs)
         self._logger.info("Creating IsaacSimulator instance...")
         await self.setup()

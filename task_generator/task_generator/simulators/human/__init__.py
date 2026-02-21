@@ -5,13 +5,19 @@ from collections.abc import Sequence
 
 import rclpy
 import rclpy.publisher
+from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins.shared import Namespace
 from geometry_msgs.msg import PoseStamped
+from visualization_msgs.msg import MarkerArray
 
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Robot, Wall
-from task_generator.simulators.human.utils import KnownObstacle, KnownObstacles, ObstacleLayer
+from task_generator.simulators.human.utils import (
+    KnownObstacle,
+    KnownObstacles,
+    ObstacleLayer,
+)
 from task_generator.simulators.sim import BaseSim
 from task_generator.utils.registry import Registry
 
@@ -20,6 +26,9 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
     _goal_pub: rclpy.publisher.Publisher
     _known_obstacles: KnownObstacles
+
+    _arena_peds_publisher: rclpy.publisher.Publisher
+    _wall_markers_publisher: rclpy.publisher.Publisher
 
     def __init__(
         self,
@@ -46,6 +55,21 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             self._namespace("/goal"),
             1
         )
+
+        self._arena_peds_publisher = self.node.create_publisher(
+            Pedestrians,
+            self._namespace('arena_peds'),
+            10
+        )
+
+        self._wall_markers_publisher = self.node.create_publisher(
+            MarkerArray,
+            self._namespace('wall_markers'),
+            10
+        )
+
+    def _publish_peds(self, pedestrians: Pedestrians):
+        self._arena_peds_publisher.publish(pedestrians)
 
     async def spawn_obstacles(
         self,
@@ -328,6 +352,12 @@ async def dummy(**kwargs):
 async def lazy_hunavsim(**kwargs):
     from .hunav.hunav import HunavHumanSimulator
     return await HunavHumanSimulator.create(**kwargs)
+
+
+@HumanSimulatorRegistry.register(Constants.HumanSimulator.SOCNAV)
+async def lazy_socnav(**kwargs):
+    from .socnav.socnav import SocNavHumanSimulator
+    return SocNavHumanSimulator(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.ISAAC)

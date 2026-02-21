@@ -106,7 +106,6 @@ class ConfigFileGenerator(Node):
             return pedestrian_group
 
         # Add displays for found pedestrian topics
-        # Add displays for found pedestrian topics
         for topic_name, topic_type in pedestrian_topics:
             if topic_type == 'arena_people_msgs/msg/Pedestrians':
                 self.get_logger().info(f"Found arena_peds topic: {topic_name} - using pedestrian_markers")
@@ -117,16 +116,6 @@ class ConfigFileGenerator(Node):
                 display = Utils.Displays.pedestrians(topic_name, name=os.path.basename(topic_name), enabled=not topic_name.endswith('/wall_markers'))
                 pedestrian_group['Displays'].append(display)
                 self.get_logger().info(f"Added MarkerArray display for pedestrians: {topic_name}")
-
-            elif topic_type == 'people_msgs/msg/People':
-                # Add raw people display as fallback
-                display = Utils.Displays.pedestrians_raw(topic_name)
-                pedestrian_group['Displays'].append(display)
-                self.get_logger().info(f"Added raw People display: {topic_name}")
-
-            elif topic_type == 'hunav_msgs/msg/Agents':
-                # Could add custom agent display here if needed
-                self.get_logger().info(f"Found HuNav agents topic: {topic_name} (not yet implemented)")
 
         # Add TF display for pedestrian frames (disabled fallback only)
         tf_display = {
