@@ -166,10 +166,12 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "lark" },
     { name = "lxml" },
+    { name = "matplotlib" },
     { name = "netifaces" },
     { name = "numpy" },
     { name = "openai" },
     { name = "opencv-python" },
+    { name = "pathfinding3d" },
     { name = "pillow" },
     { name = "pip" },
     { name = "pycollada" },
@@ -240,12 +242,14 @@ requires-dist = [
     { name = "huggingface-hub", specifier = "<0.26.0" },
     { name = "lark" },
     { name = "lxml", specifier = ">=4.9.1,<5.0.0" },
+    { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "mpi4py", marker = "extra == 'training'", specifier = ">=3.1.4,<4.0.0" },
     { name = "netifaces", specifier = ">=0.11.0,<1.0.0" },
     { name = "numpy", specifier = ">=1.25.4,<2.0.0" },
     { name = "openai", specifier = ">=1.97.1,<2.0.0" },
     { name = "opencv-python", specifier = ">=4.2.0,<5.0.0" },
     { name = "opencv-python", marker = "extra == 'training'", specifier = ">=4.8,<5.0.0" },
+    { name = "pathfinding3d", specifier = ">=0.7.2" },
     { name = "pillow", specifier = ">=11.2.1,<12.0.0" },
     { name = "pip" },
     { name = "pycollada", specifier = ">=0.9.2,<1.0.0" },
@@ -2047,6 +2051,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/df/91/82cc5169b6b25440a7fc0ef3a694582418d875c8e3ebf796a6d6470aa578/pandas-2.3.3-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:4793891684806ae50d1288c9bae9330293ab4e083ccd1c5e383c34549c6e4250", size = 13200444, upload-time = "2025-09-29T23:17:49.341Z" },
     { url = "https://files.pythonhosted.org/packages/10/ae/89b3283800ab58f7af2952704078555fa60c807fff764395bb57ea0b0dbd/pandas-2.3.3-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:28083c648d9a99a5dd035ec125d42439c6c1c525098c58af0fc38dd1a7a1b3d4", size = 13858459, upload-time = "2025-09-29T23:18:03.722Z" },
     { url = "https://files.pythonhosted.org/packages/85/72/530900610650f54a35a19476eca5104f38555afccda1aa11a92ee14cb21d/pandas-2.3.3-cp310-cp310-win_amd64.whl", hash = "sha256:503cf027cf9940d2ceaa1a93cfb5f8c8c7e6e90720a2850378f0b3f3b1e06826", size = 11346086, upload-time = "2025-09-29T23:18:18.505Z" },
+]
+
+[[package]]
+name = "pathfinding3d"
+version = "0.7.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/98/c1/67dcddcc647f8cef6c9096e9d249f9e3255918046e25fbdd3e6aa4fc9053/pathfinding3d-0.7.2.tar.gz", hash = "sha256:5dfa91b2d248357f41d451f5167d2079901156c0bb8a1193d2cf630d7e8810e8", size = 30039, upload-time = "2024-03-21T13:18:34.562Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f1/2c/1972b527e0120ca32540ab389b82dabd787fd4221fcb991aee51473e9695/pathfinding3d-0.7.2-py3-none-any.whl", hash = "sha256:e7c9286a504607a12e89f5c43d6e973480a3ed81952e148f7934f0a9b3a0bbc9", size = 31470, upload-time = "2024-03-21T13:18:33.251Z" },
 ]
 
 [[package]]

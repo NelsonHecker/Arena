@@ -295,8 +295,8 @@ namespace task_generator_gui
         else if (obstacles_task_mode == "Prompt")
         {
             auto generation_mode_combobox = new QComboBox();
-            generation_mode_combobox->addItems(QStringList({"EMERGENCY", "FLEXIBLE", "NORMAL", "QUEUING"}));
-            generation_mode_combobox->setCurrentText(QString::fromStdString(selected_scenario_config_file));
+            generation_mode_combobox->addItems(QStringList({"AUTO", "EMERGENCY", "NORMAL", "QUEUING", "CUSTOM"}));
+            generation_mode_combobox->setCurrentText(QString::fromStdString(generation_mode));
             auto item = new QTreeWidgetItem(obstacles_tree);
             item->setText(0, "Generation Mode");
             obstacles_tree->setItemWidget(item, 1, generation_mode_combobox);

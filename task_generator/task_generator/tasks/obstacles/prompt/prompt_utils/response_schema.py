@@ -1,4 +1,4 @@
-from typing import Any, List, Literal, Tuple, Dict, Generic, TypeVar
+from typing import Any, List, Literal, Tuple, Dict, TypeVar
 from pydantic import BaseModel, Field
 
 from .const import (
@@ -6,8 +6,8 @@ from .const import (
     GenerationMode,
     EmegencySingleAgentNodeName,
     EmergencyMultiAgentNodeName,
-    FlexibleSingleAgentNodeName,
-    FlexibleMultiAgentNodeName,
+    CustomSingleAgentNodeName,
+    CustomMultiAgentNodeName,
     NormalSingleAgentNodeName,
     NormalMultiAgentNodeName,
     QueuingSingleAgentNodeName,
@@ -49,14 +49,14 @@ class EmergencyMultiAgentNode(_MultiAgentNodeBase):
     )
 
 
-class FlexibleSingleAgentNode(_SingleAgentNodeBase):
-    name: FlexibleSingleAgentNodeName = Field(
+class CustomSingleAgentNode(_SingleAgentNodeBase):
+    name: CustomSingleAgentNodeName = Field(
         description="Name of the node, only use provided node name, do not modify!"
     )
 
 
-class FlexibleMultiAgentNode(_MultiAgentNodeBase):
-    name: FlexibleMultiAgentNodeName = Field(
+class CustomMultiAgentNode(_MultiAgentNodeBase):
+    name: CustomMultiAgentNodeName = Field(
         description="Name of the node, only use provided node name, do not modify!"
     )
 
@@ -94,12 +94,12 @@ class Agent(BaseModel):
     model: AgentModel = Field(description="The model of the agent")
 
 
-class FlexibleResponseSchema(BaseModel):
+class CustomResponseSchema(BaseModel):
     hunav_agents: List[Agent] = Field(description="Contains a list of hunav agents")
-    single_agent_nodes: List[FlexibleSingleAgentNode] = Field(
+    single_agent_nodes: List[CustomSingleAgentNode] = Field(
         description="Contains a list of behavior tree nodes that one and only one agent involved in"
     )
-    multi_agent_nodes: List[FlexibleMultiAgentNodeName] = Field(
+    multi_agent_nodes: List[CustomMultiAgentNodeName] = Field(
         description="Contains a list of behavior tree nodes that more than one agent involved in"
     )
 

@@ -4,9 +4,10 @@ from enum import Enum
 
 class GenerationMode(Enum):
     EMERGENCY = "emergency"
-    FLEXIBLE = "flexible"
+    CUSTOM = "custom"
     NORMAL = "normal"
     QUEUING = "queuing"
+    AUTO = "auto"
 
     @classmethod
     def has_value(cls, value):
@@ -52,7 +53,7 @@ AllSingleAgentNodeName = Literal[
 ]
 
 EmegencySingleAgentNodeName = Literal["FollowVelocityField", "GoTo"]
-FlexibleSingleAgentNodeName = AllSingleAgentNodeName
+CustomSingleAgentNodeName = AllSingleAgentNodeName
 NormalSingleAgentNodeName = Literal[
     "ApproachAgent",
     "BlockAgent",
@@ -85,6 +86,6 @@ AllMultiAgentNodeType = Literal[
 ]
 
 EmergencyMultiAgentNodeName = Literal["GroupWalk"]
-FlexibleMultiAgentNodeName = AllMultiAgentNodeType
+CustomMultiAgentNodeName = AllMultiAgentNodeType
 NormalMultiAgentNodeName = Literal["ConversationFormation", "GroupWalk"]
 QueuingMultiAgentNodeName = Literal["AdvanceQueue", "FormQueue"]

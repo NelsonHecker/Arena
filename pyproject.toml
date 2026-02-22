@@ -51,6 +51,8 @@ dependencies = [
     "tokenizers>=0.15.2",
     "rasterio>=1.4.4",
     "pyglet>=2.1.12",
+    "pathfinding3d>=0.7.2",
+    "matplotlib>=3.10.7",
 ]
 
 [project.optional-dependencies]

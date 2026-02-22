@@ -53,7 +53,7 @@ from .prompt_utils import (
     GenerationMode,
     SYSTEM_INSTRUCTION,
     EMERGENCY_MODE,
-    FLEXIBLE_MODE,
+    CUSTOM_MODE,
     NORMAL_MODE,
     QUEUING_MODE,
     SPLIT_PROMPT_INSTRUCTION,
@@ -68,14 +68,14 @@ from .prompt_utils import (
     process_json_doc,
     get_world_detail_info,
     get_world_metatdata,
-    FlexibleResponseSchema,
+    CustomResponseSchema,
     EmergencyResponseSchema,
     NormalResponseSchema,
     QueuingResponseSchema,
     EmegencySingleAgentNodeName,
     EmergencyMultiAgentNodeName,
-    FlexibleSingleAgentNodeName,
-    FlexibleMultiAgentNodeName,
+    CustomSingleAgentNodeName,
+    CustomMultiAgentNodeName,
     NormalSingleAgentNodeName,
     NormalMultiAgentNodeName,
     QueuingSingleAgentNodeName,
@@ -116,7 +116,7 @@ class TM_Prompt(TM_Obstacles):
     def llm_bt_output_to_config(
         self,
         llm_response: EmergencyResponseSchema
-        | FlexibleResponseSchema
+        | CustomResponseSchema
         | NormalResponseSchema
         | QueuingResponseSchema,
         *,
@@ -281,14 +281,14 @@ class TM_Prompt(TM_Obstacles):
                 if cache.name is not None:
                     self.cached_context_name.update({generation_mode: cache.name})
 
-        elif generation_mode == GenerationMode.FLEXIBLE.value:
+        elif generation_mode == GenerationMode.CUSTOM.value:
             if generation_mode not in self.cached_context_name.keys():
                 cache = self.inference_client.caches.create(
                     model=REMOTE_REASONING_LM,
                     config=genai.types.CreateCachedContentConfig(
                         display_name=generation_mode + "_context",
                         system_instruction=SYSTEM_INSTRUCTION,
-                        contents=FLEXIBLE_MODE,
+                        contents=CUSTOM_MODE,
                     ),
                 )
                 if cache.name is not None:
@@ -397,11 +397,11 @@ class TM_Prompt(TM_Obstacles):
             # ) as file:
             #     pickle.dump(text_crowd_scenario, file)
 
-        elif generation_mode == GenerationMode.FLEXIBLE.value:
-            response_schema = FlexibleResponseSchema
+        elif generation_mode == GenerationMode.CUSTOM.value:
+            response_schema = CustomResponseSchema
 
             bt_nodes = get_relevant_bt_nodes(
-                query=f"Retrieve information of these nodes: {str(list(get_args(FlexibleSingleAgentNodeName)) + list(get_args(FlexibleMultiAgentNodeName)))}",
+                query=f"Retrieve information of these nodes: {str(list(get_args(CustomSingleAgentNodeName)) + list(get_args(CustomMultiAgentNodeName)))}",
                 collection=self.chroma_collection,
             )
 

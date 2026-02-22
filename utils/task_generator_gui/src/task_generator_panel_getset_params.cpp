@@ -156,14 +156,17 @@ namespace task_generator_gui
                 if (gm == "emergency") {
                   generation_mode="EMERGENCY";
                 }
-                else if (gm=="flexible") {
-                  generation_mode="FLEXIBLE";
+                else if (gm=="custom") {
+                  generation_mode="CUSTOM";
                 }
                 else if (gm =="normal") {
                   generation_mode="NORMAL";
                 }
                 else if (gm =="queuing") {
                   generation_mode="QUEUING";
+                }
+                else if (gm =="auto") {
+                  generation_mode="AUTO";
                 }
                 else{
                   throw std::runtime_error("Invalid value of Generation Mode: " + generation_mode);
@@ -411,8 +414,11 @@ namespace task_generator_gui
             if (generation_mode=="EMERGENCY") {
               gm = "emergency";
             }
-            else if (generation_mode=="FLEXIBLE") {
-              gm = "flexible";
+            else if (generation_mode=="CUSTOM") {
+              gm = "custom";
+            }
+            else if (generation_mode=="AUTO") {
+              gm = "auto";
             }
             else if (generation_mode=="NORMAL") {
               gm = "normal";

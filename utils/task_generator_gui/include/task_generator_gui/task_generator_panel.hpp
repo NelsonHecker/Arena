@@ -157,7 +157,7 @@ namespace task_generator_gui
         std::string selected_scenario_config_file;
         std::string typed_prompt;
         bool use_behavior_tree;
-        std::string generation_mode; // Enum from ["emergency", "flexible", "normal", "queuing"]
+        std::string generation_mode; // Enum from ["emergency", "custom", "normal", "queuing", "auto"]
 
         // UI Components
         QVBoxLayout *root_layout;
