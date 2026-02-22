@@ -1,3 +1,4 @@
+from typing_extensions import Self
 import asyncio
 import itertools
 import os
@@ -176,6 +177,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
             prim.usd_path = str(model.path)
             prim.name = self._NS_PRIM(obstacle.sim_path)
             prim.pose = obstacle.pose.to_msg()
+            if obstacle.scale is not None:
+                prim.scale.x = obstacle.scale.x
+                prim.scale.y = obstacle.scale.y
+                prim.scale.z = obstacle.scale.z
             return prim
 
         prims = await asyncio.gather(*map(impl, obstacles))
@@ -537,7 +542,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._logger.info("All service clients initialized and available.")
 
     @classmethod
-    async def create(cls, *args, namespace, **kwargs):
+    async def create(cls, *args, namespace, **kwargs) -> Self:
         self = cls(*args, namespace=namespace, **kwargs)
         self._logger.info("Creating IsaacSimulator instance...")
         await self.setup()

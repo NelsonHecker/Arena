@@ -1,0 +1,9 @@
+zones:
+  - description: "Empty Zone"
+    name: "empty_zone"
+    mat: ""
+    entities:
+      static:
+      - name: shelf_0
+        model: shelf
+        pose: [5,5,0]

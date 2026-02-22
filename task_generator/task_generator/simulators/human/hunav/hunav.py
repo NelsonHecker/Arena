@@ -259,7 +259,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     _get_walls_service: rclpy.node.Service
 
     # Publishers
-    _arena_peds_publisher: rclpy.node.Publisher
     _wall_markers_publisher: rclpy.node.Publisher
 
     def __init__(self, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
@@ -323,12 +322,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         else:
             self._logger.error("Service setup failed!")
 
-        if self._setup_arena_peds_publisher():
-            self._logger.info("Arena peds publisher setup complete")
-        else:
-            self._logger.error("Arena peds publisher setup failed!")
-
-            # Setup obstacle subscriber
+        # Setup obstacle subscriber
         if not self._setup_obstacle_subscriber():
             self._logger.error("Failed to setup obstacle subscriber")
 
@@ -385,31 +379,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.info("All required services are available")
         self._logger.info("=== SETUP_SERVICES COMPLETE ===")
         return True
-
-    def _setup_arena_peds_publisher(self):
-        """Setup arena_peds publisher and loops - separate from services"""
-        try:
-            self._logger.info("=== ARENA PEDS PUBLISHER SETUP START ===")
-
-            # Create publisher
-            self._arena_peds_publisher = self.node.create_publisher(
-                Pedestrians,
-                self._namespace('arena_peds'),
-                10
-            )
-
-            self._wall_markers_publisher = self.node.create_publisher(
-                MarkerArray,
-                self._namespace('wall_markers'),
-                10
-            )
-
-            self._logger.info("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
-            return True
-
-        except Exception as e:
-            self._logger.error(f"Arena peds publisher setup failed: {e}")
-            return False
 
     def _setup_obstacle_subscriber(self):
         """Setup obstacle subscriber for closest_obs from HuNavSystemPlugin"""
@@ -918,7 +887,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                         for ped in self._arena_pedestrians_container.pedestrians:
                             self._logger.debug(f"Publishing pedestrian {ped.name} at ({ped.pose.position.x}, {ped.pose.position.y}) with velocity ({ped.twist.linear.x}, {ped.twist.linear.y})")
 
-                        self._arena_peds_publisher.publish(self._arena_pedestrians_container)
+                        self._publish_peds(self._arena_pedestrians_container)
                         self._publish_wall_markers()
 
         except asyncio.CancelledError:

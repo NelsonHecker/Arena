@@ -1,11 +1,14 @@
+import rosgraph_msgs.msg
 import asyncio
-
+import typing
 from collections.abc import Sequence
 
+import launch_ros
+from typing_extensions import Self
 
+import launch
 from task_generator.shared import Entity, Wall
 from task_generator.simulators.sim import BaseSim
-import typing
 
 T = typing.TypeVar('T')
 
@@ -14,6 +17,33 @@ class DummySimulator(BaseSim):
     """
     Does nothing.
     """
+
+    @classmethod
+    async def create(cls, *args, **kwargs) -> Self:
+        self = cls(*args, **kwargs)
+        await self.node.do_launch(launch.LaunchDescription([
+            launch_ros.actions.Node(
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                name='map_to_odom_tfpublisher',
+                arguments=['0', '0', '0', '0', '0', '0', 'map', 'dummy']
+            ),
+            launch_ros.actions.Node(
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                name='map_to_odom_tfpublisher',
+                arguments=['0', '0', '0', '0', '0', '0', 'map', 'dummy']
+            ),
+        ]))
+        self._clock_task = asyncio.create_task(self.clock_publisher_task())
+        return self
+
+    async def clock_publisher_task(self):
+        clock_pub = self.node.create_publisher(rosgraph_msgs.msg.Clock, '/clock', 10)
+        start_time = self.node.wall_time
+        while True:
+            clock_pub.publish((self.node.wall_time - start_time).to_rosgraph_msg())
+            await asyncio.sleep(1 / 60)
 
     async def before_reset_task(self):
         self._logger.debug("pausing")

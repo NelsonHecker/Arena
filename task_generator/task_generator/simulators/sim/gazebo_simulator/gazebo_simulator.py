@@ -3,8 +3,8 @@ import itertools
 import math
 import time
 import traceback
-from pathlib import Path
 import typing
+from pathlib import Path
 
 import arena_robots.Robot
 import launch_ros
@@ -13,17 +13,18 @@ from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from ros_gz_interfaces.msg import Entity as EntityMsg
 from ros_gz_interfaces.msg import EntityFactory, WorldControl
 from ros_gz_interfaces.srv import ControlWorld, DeleteEntity, SetEntityPose, SpawnEntity
+from typing_extensions import Self
 
 import launch
 from task_generator.shared import (
     Entity,
+    FrameNamespace,
     Model,
     ModelType,
     ModelWrapper,
     Pose,
     Robot,
     Wall,
-    FrameNamespace,
 )
 from task_generator.simulators.sim import BaseSim
 
@@ -553,7 +554,7 @@ class GazeboSimulator(BaseSim):
         self._logger.info("All Gazebo services are available now.")
 
     @classmethod
-    async def create(cls, *args, namespace, **kwargs) -> "GazeboSimulator":
+    async def create(cls, *args, namespace, **kwargs) -> Self:
         simulator = cls(*args, namespace=namespace, **kwargs)
         await simulator._set_up_services()
         return simulator
