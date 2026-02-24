@@ -238,6 +238,13 @@ class RobotManager(NodeInterface):
         Args:
             pose(Pose): The target pose for the robot.
         """
+        # Override to fixed position (8, 8, 0) for testing
+        from task_generator.shared import Position
+        pose = Pose(
+            position=Position(x=8.0, y=8.0, z=0.0),
+            orientation=pose.orientation
+        )
+        
         pose.position.z += self._config.model_params.z_offset
         self.robot.pose = pose
         await self._environment_manager.move_robot((self.robot,))
