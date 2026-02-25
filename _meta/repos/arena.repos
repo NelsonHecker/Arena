@@ -78,7 +78,7 @@ repositories:
   deps/hunav/arena_hunav_sim_bridge:
     type: git
     url: https://github.com/ductaingn/arena_hunav_sim_bridge.git
-    version: humble@e647ad9
+    version: humble
   deps/hunav/arena_text_crowd:
     type: git
     url: https://github.com/ductaingn/arena_text_crowd.git

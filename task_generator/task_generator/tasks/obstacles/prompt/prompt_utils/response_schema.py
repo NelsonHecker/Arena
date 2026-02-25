@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from .const import (
     AgentModel,
     GenerationMode,
-    EmegencySingleAgentNodeName,
+    EmergencySingleAgentNodeName,
     EmergencyMultiAgentNodeName,
     CustomSingleAgentNodeName,
     CustomMultiAgentNodeName,
@@ -37,9 +37,25 @@ class _MultiAgentNodeBase(BaseModel):
     )
 
 
-class EmergencySingleAgentNode(_SingleAgentNodeBase):
-    name: EmegencySingleAgentNodeName = Field(
+class FollowVelocityFieldAttributes(BaseModel):
+    agent_name: str
+    velocity_field_group_id: int
+    time_step: float = 0.1
+    tolerance: float = 1
+
+
+class EmergencySingleAgentNode(BaseModel):
+    name: EmergencySingleAgentNodeName = Field(
         description="Name of the node, only use provided node name, do not modify!"
+    )
+    attributes: FollowVelocityFieldAttributes = Field(
+        description="Parameters of the node"
+    )
+    order: int = Field(
+        description=(
+            "Execution order in the agent behavior tree. "
+            "Must be unique across all nodes for that agent."
+        )
     )
 
 
@@ -110,7 +126,9 @@ class EmergencyResponseSchema(BaseModel):
         description="Contains a list of behavior tree nodes that one and only one agent involved in"
     )
     multi_agent_nodes: List[EmergencyMultiAgentNode] = Field(
-        description="Contains a list of behavior tree nodes that more than one agent involved in"
+        description="Leave this as empty list, as we currently do not have multi-agent nodes for emergency scenario")
+    exit_pos: Tuple[float, float] = Field(
+        description="(x, y) coordinate of the exit door"
     )
 
 

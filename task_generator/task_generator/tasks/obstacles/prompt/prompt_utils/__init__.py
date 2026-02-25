@@ -22,7 +22,7 @@ from .response_schema import (
 )
 from .const import (
     GenerationMode,
-    EmegencySingleAgentNodeName,
+    EmergencySingleAgentNodeName,
     EmergencyMultiAgentNodeName,
     CustomSingleAgentNodeName,
     CustomMultiAgentNodeName,
@@ -56,7 +56,7 @@ __all__ = [
     "NormalResponseSchema",
     "CustomResponseSchema",
     "QueuingResponseSchema",
-    "EmegencySingleAgentNodeName",
+    "EmergencySingleAgentNodeName",
     "EmergencyMultiAgentNodeName",
     "CustomSingleAgentNodeName",
     "CustomMultiAgentNodeName",

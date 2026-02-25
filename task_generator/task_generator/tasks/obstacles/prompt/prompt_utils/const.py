@@ -52,7 +52,7 @@ AllSingleAgentNodeName = Literal[
     "StopMovement",
 ]
 
-EmegencySingleAgentNodeName = Literal["FollowVelocityField", "GoTo"]
+EmergencySingleAgentNodeName = Literal["FollowVelocityField"]  # GoTo could be in here
 CustomSingleAgentNodeName = AllSingleAgentNodeName
 NormalSingleAgentNodeName = Literal[
     "ApproachAgent",
@@ -85,7 +85,7 @@ AllMultiAgentNodeType = Literal[
     "GroupWalk",
 ]
 
-EmergencyMultiAgentNodeName = Literal["GroupWalk"]
+EmergencyMultiAgentNodeName = Literal[""]  # GroupWalk could be in here
 CustomMultiAgentNodeName = AllMultiAgentNodeType
 NormalMultiAgentNodeName = Literal["ConversationFormation", "GroupWalk"]
 QueuingMultiAgentNodeName = Literal["AdvanceQueue", "FormQueue"]

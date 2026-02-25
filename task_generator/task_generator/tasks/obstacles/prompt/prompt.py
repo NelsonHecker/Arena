@@ -6,6 +6,9 @@ import time
 from typing import Dict, List, Literal, get_args
 import xml.etree.ElementTree as ET
 
+# Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
+os.environ["PYGLET_HEADLESS"] = "true"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 import attrs
 from pydantic import TypeAdapter
 
@@ -16,11 +19,12 @@ from google import genai
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 from ament_index_python.packages import get_package_share_directory
 
+import pyglet
+
+pyglet.options["headless"] = True
+
 from arena_hunav_sim_bridge.agent.llm_parser import Parser
 
-# Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
-os.environ["PYGLET_HEADLESS"] = "true"
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
 from arena_text_crowd.crowd_generation_pipeline.arena_text_crowd_generation_pipeline import (
     ArenaTextCrowdGenerationPipelineConfig as ATCPConfig,
     CrowdGenerationPipeline,
@@ -39,7 +43,7 @@ from arena_simulation_setup.utils.cattrs import converter
 
 from hunav_msgs.srv import SetVelocityField, SetArenaWorldBounds
 
-from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle
+# from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle
 from task_generator.tasks.obstacles import (
     DynamicObstacle,
     Obstacle,
@@ -47,6 +51,13 @@ from task_generator.tasks.obstacles import (
 )
 from task_generator.tasks.obstacles.prompt.velocity_field_marker import (
     VelocityFieldVisualizer,
+)
+from arena_hunav_sim_bridge.global_planner.waypoints_visualizer import (
+    WaypointVisualizer,
+)
+from arena_text_crowd.crowd_generation_pipeline.velocity_field_generation.arena_velocity_field_generation_pipeline import (
+    ArenaVelocityFieldGenerationPipelineConfig,
+    ArenaVelocityFieldGenerationPipeline,
 )
 
 from .prompt_utils import (
@@ -72,7 +83,7 @@ from .prompt_utils import (
     EmergencyResponseSchema,
     NormalResponseSchema,
     QueuingResponseSchema,
-    EmegencySingleAgentNodeName,
+    EmergencySingleAgentNodeName,
     EmergencyMultiAgentNodeName,
     CustomSingleAgentNodeName,
     CustomMultiAgentNodeName,
@@ -124,8 +135,51 @@ class TM_Prompt(TM_Obstacles):
     ) -> dict:
         try:
             config = {"static": [], "dynamic": []}
-            parser = Parser(llm_response.model_dump())
-            parser.parse()
+
+            # Emergency mode does not use global planner
+            if isinstance(llm_response, EmergencyResponseSchema):
+                parser = Parser(llm_response.model_dump())
+                parser.parse()
+                
+                self._logger.info("Generating velocity field...")
+
+                vfgp = ArenaVelocityFieldGenerationPipeline(
+                    ArenaVelocityFieldGenerationPipelineConfig(),
+                    self.node._world_manager.world,
+                )
+
+                velocity_field = vfgp.generate(
+                    llm_response
+                )  # (n_groups, 64, 64, 2) (g, y, x, 2)
+
+                vel_res = self.send_velocity_msg(velocity_field)
+                self._logger.info(
+                    f"Set velocity field response: {vel_res.success}, {vel_res.message}"
+                )
+
+                self.velocity_field_visualizer.publish_markers(velocity_field)
+
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    prefix="velocity_field_",
+                    suffix=".npy",
+                    dir=self.tmp_dir.name,
+                    mode="wb",
+                ) as file:
+                    np.save(file, velocity_field)
+                    self._logger.info(f"Saved velocity field to {file.name}")
+
+
+            else:
+                parser = Parser(
+                    llm_response.model_dump(),
+                    use_global_planner=True,
+                    world=self.node._world_manager.world,
+                )
+                parser.parse()
+                waypoints = parser.waypoints
+                self.waypoint_visualizer.publish_markers(waypoints)
+
             for hunav_agent in parser.agents.values():
                 hunav_config = {
                     "id": hunav_agent.id,
@@ -336,8 +390,9 @@ class TM_Prompt(TM_Obstacles):
             response_schema = EmergencyResponseSchema
 
             bt_nodes = get_relevant_bt_nodes(
-                query=f"Retrieve information of these nodes: {str(list(get_args(EmegencySingleAgentNodeName)) + list(get_args(EmergencyMultiAgentNodeName)))}",
+                query=f"Retrieve information of these nodes: {str(list(get_args(EmergencySingleAgentNodeName)) + list(get_args(EmergencyMultiAgentNodeName)))}",
                 collection=self.chroma_collection,
+                n_results=3
             )
 
             self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
@@ -357,45 +412,6 @@ class TM_Prompt(TM_Obstacles):
             self.velocity_field_visualizer.update_world_bounds(
                 x_min, y_min, x_max, y_max
             )
-
-            scenario, arena_entity_to_semantic_entity_map = (
-                arena_world_to_text_crowd_scenario(
-                    self._PROPS.world_manager.world, scenario_size=(1024, 1024)
-                )
-            )
-
-            self._logger.info("Generating velocity field...")
-            # velocity_field, crowd_pedestrians, text_crowd_scenario = cgp.generate(
-            #     prompt=prompt,
-            #     scenario=scenario,
-            #     arena_world_description=self._PROPS.world_manager.world,
-            #     arena_entity_to_semantic_entity_map=arena_entity_to_semantic_entity_map,
-            # )  # (n_groups, 64, 64, 2) (g, y, x, 2)
-            #
-            # vel_res = self.send_velocity_msg(velocity_field)
-            # self._logger.info(
-            #     f"Set velocity field response: {vel_res.success}, {vel_res.message}"
-            # )
-            #
-            # self.velocity_field_visualizer.publish_markers(velocity_field)
-            #
-            # with tempfile.NamedTemporaryFile(
-            #     delete=False,
-            #     prefix="velocity_field_",
-            #     suffix=".npy",
-            #     dir=self.tmp_dir.name,
-            #     mode="wb",
-            # ) as file:
-            #     np.save(file, velocity_field)
-            #     self._logger.info(f"Saved velocity field to {file.name}")
-            # with tempfile.NamedTemporaryFile(
-            #     delete=False,
-            #     prefix="text_crowd_scenario_",
-            #     suffix=".pkl",
-            #     dir=self.tmp_dir.name,
-            #     mode="wb",
-            # ) as file:
-            #     pickle.dump(text_crowd_scenario, file)
 
         elif generation_mode == GenerationMode.CUSTOM.value:
             response_schema = CustomResponseSchema
@@ -623,6 +639,15 @@ class TM_Prompt(TM_Obstacles):
             ) as file:
                 json.dump(config, file, indent=2)
                 self._logger.warning(f"Saved parsed prompt result to {file.name}")
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                prefix="llm_response_",
+                suffix=".json",
+                dir=self.tmp_dir.name,
+                mode="w",
+            ) as file:
+                json.dump(answer.model_dump_json(), file, indent=2)
+                self._logger.warning(f"Saved LLM response to {file.name}")
         return config
 
     async def _parse_prompt(self, prompt: str, generation_mode: str) -> _ParsedConfig:
@@ -760,6 +785,10 @@ class TM_Prompt(TM_Obstacles):
             self.node.get_logger().info(
                 "Waiting for service /task_generator_node/set_arena_world_bounds"
             )
+
+        self.waypoint_visualizer = WaypointVisualizer(
+            self.node, "/task_generator_node/waypoint_marker"
+        )
 
     def __del__(self):
         try:
