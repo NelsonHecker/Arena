@@ -196,7 +196,7 @@ class PedestrianMarkerPublisher(Node):
         # Position - use pedestrian position
         marker.pose.position.x = pedestrian.pose.position.x
         marker.pose.position.y = pedestrian.pose.position.y
-        marker.pose.position.z = body_height / 2  # Center
+        marker.pose.position.z = 0.01  # Center
 
         # Align the mesh model's yaw with the true ped's pose (pi/2 offset)
         q_org = [
