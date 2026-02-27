@@ -26,6 +26,7 @@ from task_generator.shared import (
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim
+from arena_simulation_setup.utils.geometry import Position
 
 EntityPropsT = typing.TypeVar('EntityPropsT', bound=Entity)
 
@@ -120,12 +121,10 @@ class _Realizer:
 
     def _realize_elevator(self, elevator: Elevator) -> Elevator:
         pos = list(elevator.position)
-        self._logger.warn(f"ELEVATOR DEBUG: Realizing {elevator}")
         if len(pos) >= 2:
             pos[0] += self._config.x
             pos[1] += self._config.y
         # Create Position object from modified list
-        from arena_simulation_setup.utils.geometry import Position
         new_position = Position(x=pos[0], y=pos[1], z=pos[2] if len(pos) > 2 else 0.0)
         name = self._prefix(elevator.name)
         destination = self._prefix(elevator.destination) if getattr(elevator, 'destination', None) else elevator.destination
@@ -236,21 +235,14 @@ class EnvironmentManager(NodeInterface, _Realizer):
         )
         #Checked
         if elevators:
-            self._logger.warn(f"ELEVATOR DEBUG: Spawning {len(elevators)} elevators")
-            try:
-                realized = tuple(map(self.realize, elevators))
-                self._logger.warn(f"ELEVATOR DEBUG: Realized OK, adding to futures")
-                futures.append(
-                    self._simulator.spawn_elevators(realized)
+            self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
+            futures.append(
+                self._simulator.spawn_elevators(
+                    tuple(map(self.realize, elevators))
                 )
-            except Exception as e:
-                self._logger.error(f"ELEVATOR DEBUG ERROR: {e}")
-                import traceback
-                self._logger.error(traceback.format_exc())
+            )
 
-        self._logger.warn(f"ELEVATOR DEBUG: Awaiting {len(futures)} futures")
         await asyncio.gather(*futures)
-        self._logger.warn("ELEVATOR DEBUG: Done")
 
     async def spawn_dynamic_obstacles(self, setups: Collection[DynamicObstacle]):
         """

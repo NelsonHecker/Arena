@@ -118,14 +118,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
 
                     fq_name = self._NS_ROBOT(robot.sim_path)
-
-                    # Override spawn position to (2, 2, 0) for testing
-                    import geometry_msgs.msg as gm
-                    fixed_pose = gm.Pose()
-                    fixed_pose.position.x = 8.0
-                    fixed_pose.position.y = 8.0
-                    fixed_pose.position.z = 0.0
-                    fixed_pose.orientation.w = 1.0  # identity quaternion
                     
                     await self._clients.SpawnUrdf.call_timeout(
                         SpawnUrdf.Request(
@@ -136,7 +128,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                             tf_prefix=robot.name,
                             base_frame=robot_params.base_frame,
                             odom_frame=robot_params.odom_frame,
-                            pose=fixed_pose,  # Use fixed position instead of robot.pose.to_msg()
+                            pose=robot.pose.to_msg(),
                             cmd_vel_topic=self.node.service_namespace(robot.name, 'cmd_vel'),
                             joint_states_topic=self.node.service_namespace(robot.name, 'joint_states'),
                             odom_topic=self.node.service_namespace(robot.name, 'odom'),
@@ -356,25 +348,21 @@ class IsaacSimulator(BaseSim, NodeInterface):
         res = bool(doors_res) and all(doors_res.ret)
         self._logger.info("All doors spawned successfully.")
         return res
-    #Checked
     async def spawn_elevators(self, elevators) -> bool:
-        self._logger.warn(f"IsaacSimulator.spawn_elevators ENTRY, elevators: {elevators}")
-        self._logger.warn(f"IsaacSimulator.spawn_elevators called with: {[e.name for e in elevators]}")
-        # for e in elevators:
-        #     self._logger.warn(f"Elevator data: {e}")
+        self._logger.debug(f"IsaacSimulator.spawn_elevators ENTRY, elevators: {elevators}")
+        self._logger.debug(f"IsaacSimulator.spawn_elevators called with: {[e.name for e in elevators]}")
+        for e in elevators:
+            self._logger.debug(f"Elevator data: {e}")
 
         req = SpawnElevators.Request()
 
         async def impl(elevator: ElevatorDefinition) -> Elevator | None:
             try:
-                self._logger.warn(f"ELEVATOR impl: Processing {type(elevator.destination)}")
                 pos = elevator.position
                 size = elevator.size
                 size = Scale(x=size[0], y=size[1], z=size[2])
                 des = elevator.destination
-                self._logger.warn(f"ELEVATOR impl: Resolving material for {elevator.name}")
                 material_resolved = await elevator.material.resolve()
-                self._logger.warn(f"ELEVATOR impl: Material resolved for {elevator.name}: {material_resolved}")
                 result = Elevator(
                     name=elevator.sim_path,
                     position=pos.to_msg(),
@@ -384,21 +372,15 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     material=material_to_msg(material_resolved),
                     destination=des if hasattr(elevator, 'destination') else '',
                 )
-                self._logger.warn(f"ELEVATOR impl: Created Elevator msg for {elevator.name}")
                 return result
             except Exception as e:
                 self._logger.error(f"Failed to append elevator: {elevator.name}: {e}\n{traceback.format_exc()}")
                 return None
         
-        self._logger.warn(f"ELEVATOR DEBUG: About to gather impl for {len(elevators)} elevators")
         req.elevators = list(filter(None, await asyncio.gather(*map(impl, elevators))))
-        self._logger.warn(f"ELEVATOR DEBUG: Gathered {len(req.elevators)} elevators")
-        self._logger.warn(f"ELEVATOR DEBUG: Elevator names: {[e.name for e in req.elevators]}")
-        self._logger.warn(f"ELEVATOR DEBUG: Calling SpawnElevators with {len(req.elevators)} elevators")
         elevators_res = await self._clients.SpawnElevators.call_timeout(req)
-        self._logger.warn(f"ELEVATOR DEBUG: SpawnElevators response: {elevators_res}")
         res = bool(elevators_res) and all(elevators_res.ret)
-        self._logger.info("All elevators spawned successfully.")
+        self._logger.debug("All elevators spawned successfully.")
         return res
 
     async def before_reset_task(self):
