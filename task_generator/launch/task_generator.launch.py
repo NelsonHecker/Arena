@@ -72,6 +72,10 @@ def generate_launch_description():
         name="debug",
         default_value="False",
     )
+    train_mode = LaunchArgument(
+        name="train_mode",
+        default_value="false",
+    )
 
     map_server_node = launch.actions.IncludeLaunchDescription(
         launch.launch_description_sources.PythonLaunchDescriptionSource(
@@ -145,6 +149,7 @@ def generate_launch_description():
                 **reference.param(typing.List[float]),
                 **prefix.str_param,
                 **debug.param(bool),
+                **train_mode.param(bool),
             },
             {"use_sim_time": False},
             parameter_file.substitution,

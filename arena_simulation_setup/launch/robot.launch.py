@@ -30,6 +30,7 @@ def generate_launch_description():
 
     record_data_dir = LaunchArgument('record_data_dir', default_value='')
     amcl = LaunchArgument('amcl', default_value='false')
+    train_mode = LaunchArgument('train_mode', default_value='false')
 
     # Include the Nav2 launch file
     nav2_launch = launch.actions.IncludeLaunchDescription(
@@ -51,6 +52,7 @@ def generate_launch_description():
             **inter_planner.dict,
             **frame.dict,
             **amcl.dict,
+            **train_mode.dict,
         }.items(),
     )
 
@@ -84,11 +86,6 @@ def generate_launch_description():
 
     ld = launch.LaunchDescription([
         *ld_items,
-        launch.actions.DeclareLaunchArgument(
-            name='train_mode',
-            default_value='false',
-            description='If false, start the Rosnav Deployment launch.actions.Nodes'
-        ),
         launch.actions.DeclareLaunchArgument(
             name='agent_name',
             default_value='',

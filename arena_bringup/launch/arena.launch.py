@@ -115,6 +115,11 @@ def generate_launch_description():
         default_value='False',
         description='Enable debug features'
     )
+    train_mode = LaunchArgument(
+        name='train_mode',
+        default_value='false',
+        description='If true, RL env publishes cmd_vel directly; nav2 controller output is silenced'
+    )
 
     def create_task_generators(
         context: launch.LaunchContext,
@@ -228,6 +233,7 @@ def generate_launch_description():
                     'reference': str(reference),
                     'prefix': prefix,
                     'parameter_file': os.path.join(get_package_share_directory('arena_bringup'), 'configs', 'task_generator.yaml'),
+                    **train_mode.dict,
                 }.items(),
             )
         ])

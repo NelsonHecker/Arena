@@ -8,6 +8,9 @@ import typing
 
 import arena_robots.Robot
 import launch_ros
+import rclpy.time
+import rclpy.duration
+import tf2_ros
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from ros_gz_interfaces.msg import Entity as EntityMsg
@@ -49,19 +52,33 @@ class GazeboSimulator(BaseSim):
         self._walls_entities: list[str] = []
         self._wall_counter = itertools.count()
 
+        # TF buffer for looking up current odom→base_link transforms
+        # Used to compute correct map→odom TF after robot teleportation
+        self._tf_buffer = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self.node)
+
     async def before_reset_task(self):
-        self._logger.info("Pausing simulation before reset")
-        return bool(await self.pause_simulation())
+        # self._logger.warn("Pausing simulation before reset")
+        # return bool(await self.pause_simulation())
+        return True
 
     async def after_reset_task(self):
-        self._logger.info("Unpausing simulation after reset")
-        try:
-            return await self.unpause_simulation()
-        except Exception as e:
-            self._logger.error(
-                f"Error unpausing simulation: {str(e)}")
-            traceback.print_exc()
-            raise
+        # self._logger.warn("⏭️ after_reset_task: Ensuring simulation is running")
+
+        # # Explicitly unpause the simulation to ensure it stays running after reset
+        # # This is needed because Gazebo may pause after entity operations
+        # unpause_result = await self.unpause_simulation()
+
+        # if not unpause_result:
+        #     self._logger.warning("Failed to unpause simulation after reset")
+        # else:
+        #     self._logger.warn("✓ Simulation unpause successful")
+
+        # # Small delay for sensors and physics to stabilize after reset
+        # await asyncio.sleep(0.3)
+
+        # return unpause_result
+        return True
 
     async def obstacle_spawn(self, obstacles):
         return await asyncio.gather(*map(self._spawn_entity, obstacles))
@@ -74,13 +91,17 @@ class GazeboSimulator(BaseSim):
         async def impl(robot: Robot) -> bool:
             if not await self._spawn_entity(robot):
                 return False
-            model = await (await robot.model.resolve()).model.get(ModelType.URDF, loader_args=robot.asdict())
+            _loader_args = {**robot.asdict(), 'sim_path': getattr(robot, 'sim_path', robot.name)}
+            model = await (await robot.model.resolve()).model.get(
+                ModelType.URDF, loader_args=_loader_args
+            )
             if model.type is ModelType.UNKNOWN:
                 return False
             model_description = model.description
             self._robot_initialpose(robot)
             await self._robot_bridge(robot, model_description)
             return True
+
         success = await asyncio.gather(*map(impl, robots))
         return success
 
@@ -94,6 +115,7 @@ class GazeboSimulator(BaseSim):
     async def robot_move(self, robots):
         async def impl(robot: Robot) -> bool:
             return (await self._move_entity(robot)) and (await self._robot_move(robot))
+
         return await asyncio.gather(*map(impl, robots))
 
     async def obstacle_delete(self, obstacles):
@@ -104,7 +126,9 @@ class GazeboSimulator(BaseSim):
         return (True,) * len(pedestrians)
 
     async def robot_delete(self, robots):
-        return await asyncio.gather(*(self._delete_entity(robot.name) for robot in robots))
+        return await asyncio.gather(
+            *(self._delete_entity(robot.name) for robot in robots)
+        )
 
     async def pedestrian_update(self, pedestrians):
         # Gazebo does not support modifying actors after spawning
@@ -167,15 +191,22 @@ class GazeboSimulator(BaseSim):
             # Get model description
             try:
                 if isinstance(entity, Robot):
-                    model = await (await entity.model.resolve()).model.get(ModelType.URDF, loader_args=entity.asdict())
+                    _loader_args = {**entity.asdict(), 'sim_path': getattr(entity, 'sim_path', entity.name)}
+                    model = await (await entity.model.resolve()).model.get(
+                        ModelType.URDF, loader_args=_loader_args
+                    )
                 else:
                     model = await (await entity.model.resolve()).get(ModelType.SDF)
             except Exception as e:
-                self._logger.error(f"Error resolving model for entity {entity.name}: {e}\n{traceback.format_exc()}")
+                self._logger.error(
+                    f"Error resolving model for entity {entity.name}: {e}\n{traceback.format_exc()}"
+                )
                 return False
 
             if model.type is ModelType.UNKNOWN:
-                self._logger.error(f"Error resolving model for entity {entity.name}: unknown model type {model}")
+                self._logger.error(
+                    f"Error resolving model for entity {entity.name}: unknown model type {model}"
+                )
                 return False
 
             model_description = model.description
@@ -184,7 +215,9 @@ class GazeboSimulator(BaseSim):
             # Set pose
             request.entity_factory.pose = entity.pose.to_msg()
 
-            self._logger.info(f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}")
+            self._logger.info(
+                f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}"
+            )
 
             self._logger.debug(f"Sending spawn request for {entity.name}")
             result = await self._service_spawn_entity.call_timeout(request)
@@ -193,8 +226,7 @@ class GazeboSimulator(BaseSim):
                 self._logger.error(f"Spawn service call failed for {entity.name}")
                 return False
 
-            self._logger.info(
-                f"Spawn result for {entity.name}: {result.success}")
+            self._logger.info(f"Spawn result for {entity.name}: {result.success}")
 
             self.entities[entity.name] = entity
 
@@ -261,7 +293,7 @@ class GazeboSimulator(BaseSim):
             return False
 
     async def unpause_simulation(self):
-        self._logger.debug("Attempting to unpause simulation")
+        self._logger.warn("Attempting to unpause simulation")
         request = ControlWorld.Request()
         request.world_control = WorldControl()
         request.world_control.pause = False
@@ -273,7 +305,7 @@ class GazeboSimulator(BaseSim):
                 self._logger.error("Unpause service call failed")
                 return False
 
-            self._logger.debug(f"Unpause result: {result.success}")
+            self._logger.warn(f"Unpause result: {result.success}")
             return result.success
 
         except Exception as e:
@@ -282,7 +314,7 @@ class GazeboSimulator(BaseSim):
             return False
 
     async def step_simulation(self, steps):
-        self._logger.info(f"Stepping simulation by {steps} steps")
+        self._logger.error(f"Stepping simulation by {steps} steps")
         request = ControlWorld.Request()
         request.world_control = WorldControl()
         request.world_control.multi_step = steps
@@ -294,7 +326,7 @@ class GazeboSimulator(BaseSim):
                 self._logger.error("Step service call failed")
                 return False
 
-            self._logger.debug(f"Step result: {result.success}")
+            self._logger.error(f"Step result: {result.success}")
             return result.success
 
         except Exception as e:
@@ -303,7 +335,9 @@ class GazeboSimulator(BaseSim):
             return False
 
     def _publish_goal(self, goal: Pose):
-        self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation}")
+        self._logger.info(
+            f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation}"
+        )
         goal_msg = PoseStamped()
         goal_msg.header.stamp = self.node.sim_time.to_msg()
         goal_msg.header.frame_id = "map"
@@ -314,12 +348,16 @@ class GazeboSimulator(BaseSim):
     async def spawn_walls(self, walls) -> bool:
         await self.remove_world()  # Clear existing walls
         for wall in walls:  # only walls, ignore obstacles
-            wall_name = self.node._environment_manager.realize(f"wall_{next(self._wall_counter)}")
+            wall_name = self.node._environment_manager.realize(
+                f"wall_{next(self._wall_counter)}"
+            )
             wall_height = 2.0  # Wall height in meters
             wall_thickness = 0.05  # Wall thickness in meters
             base_position = (0, 0, 0)  # Offset the wall to (10, 10, 0)
 
-            self._logger.info(f"Attempting to spawn wall: {wall_name} from {wall.start} to {wall.end}")
+            self._logger.info(
+                f"Attempting to spawn wall: {wall_name} from {wall.start} to {wall.end}"
+            )
 
             # Generate the SDF string for walls
             wall_sdf = _generate_wall_sdf(
@@ -327,7 +365,7 @@ class GazeboSimulator(BaseSim):
                 walls=[wall],
                 height=wall_height,
                 thickness=wall_thickness,
-                base_position=base_position
+                base_position=base_position,
             )
 
             if not wall_sdf:
@@ -342,7 +380,7 @@ class GazeboSimulator(BaseSim):
                             type=ModelType.SDF,
                             name=wall_name,
                             description=wall_sdf,
-                            path=Path(''),
+                            path=Path(""),
                         )
                     )
                 ),
@@ -371,14 +409,16 @@ class GazeboSimulator(BaseSim):
             )
         )
 
-        robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+        robot_config = arena_robots.Robot.RobotIdentifier(
+            robot.model.name
+        ).resolve_sync()
 
-        mappings = BridgeConfiguration.from_file(
-            robot_config.mappings
-        ).substitute({
-            'robot_name': robot.sim_path,
-            'world': '/world/default',
-        })
+        mappings = BridgeConfiguration.from_file(robot_config.mappings).substitute(
+            {
+                "robot_name": robot.sim_path,
+                "world": "/world/default",
+            }
+        )
 
         bridge_arguments = mappings.as_args()
         remappings = mappings.as_remappings()
@@ -386,24 +426,24 @@ class GazeboSimulator(BaseSim):
         # Add parameter_bridge node
         launch_description.add_action(
             launch_ros.actions.Node(
-                package='ros_gz_bridge',
-                executable='parameter_bridge',
-                output='screen',
+                package="ros_gz_bridge",
+                executable="parameter_bridge",
+                output="screen",
                 arguments=bridge_arguments,
                 remappings=remappings,
-                parameters=[{'use_sim_time': True}],
+                parameters=[{"use_sim_time": True}],
             )
         )
         launch_description.add_action(
             launch_ros.actions.Node(
-                package='robot_state_publisher',
-                executable='robot_state_publisher',
-                name='robot_state_publisher',
-                output='screen',
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                name="robot_state_publisher",
+                output="screen",
                 parameters=[
-                    {'use_sim_time': True},
-                    {'robot_description': description},
-                    {'frame_prefix': robot.frame + '/'}  # add trailing slash
+                    {"use_sim_time": True},
+                    {"robot_description": description},
+                    {"frame_prefix": robot.frame + "/"},  # add trailing slash
                 ],
             )
         )
@@ -432,6 +472,93 @@ class GazeboSimulator(BaseSim):
             self.node.service_namespace(robot.name, "initialpose"),
             qos_profile=1,
         ).publish(pose)
+
+    @staticmethod
+    def _quaternion_to_yaw(qx, qy, qz, qw):
+        """Extract yaw angle from quaternion."""
+        siny_cosp = 2 * (qw * qz + qx * qy)
+        cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
+        return math.atan2(siny_cosp, cosy_cosp)
+
+    @staticmethod
+    def _yaw_to_quaternion(yaw):
+        """Convert yaw angle to quaternion (x, y, z, w)."""
+        return 0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)
+
+    def _compute_map_to_odom_tf(
+        self,
+        desired_x, desired_y, desired_z,
+        desired_qx, desired_qy, desired_qz, desired_qw,
+        odom_frame_name: str,
+        base_frame_name: str,
+    ):
+        """Compute the correct map→odom TF accounting for current DiffDrive odom.
+
+        The DiffDrive odometry plugin integrates wheel rotations and does NOT
+        reset when the robot is teleported. So after teleportation, the odom
+        frame still has the accumulated wheel motion offset. We must compute:
+            map_to_odom = desired_map_pose * inv(current_odom_to_base)
+        so that the robot appears at the desired position in the map frame.
+
+        Returns:
+            tuple: (tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw)
+        """
+        try:
+            # Look up odom → base_link TF (the current DiffDrive odom value)
+            odom_tf = self._tf_buffer.lookup_transform(
+                odom_frame_name,
+                base_frame_name,
+                rclpy.time.Time(),  # latest available
+                timeout=rclpy.duration.Duration(seconds=2.0),
+            )
+
+            odom_x = odom_tf.transform.translation.x
+            odom_y = odom_tf.transform.translation.y
+            odom_yaw = self._quaternion_to_yaw(
+                odom_tf.transform.rotation.x,
+                odom_tf.transform.rotation.y,
+                odom_tf.transform.rotation.z,
+                odom_tf.transform.rotation.w,
+            )
+
+            desired_yaw = self._quaternion_to_yaw(
+                desired_qx, desired_qy, desired_qz, desired_qw,
+            )
+
+            # Compute map→odom TF: desired_map_pos = TF * odom_pos
+            # Orientation: tf_yaw = desired_yaw - odom_yaw
+            tf_yaw = desired_yaw - odom_yaw
+
+            # Position: desired = tf_translation + R(tf_yaw) * odom_translation
+            # => tf_translation = desired - R(tf_yaw) * odom_translation
+            cos_tf = math.cos(tf_yaw)
+            sin_tf = math.sin(tf_yaw)
+            tf_x = desired_x - (odom_x * cos_tf - odom_y * sin_tf)
+            tf_y = desired_y - (odom_x * sin_tf + odom_y * cos_tf)
+            tf_z = desired_z
+
+            tf_qx, tf_qy, tf_qz, tf_qw = self._yaw_to_quaternion(tf_yaw)
+
+            self._logger.info(
+                f"Corrected map→odom TF: "
+                f"odom=({odom_x:.2f}, {odom_y:.2f}, {math.degrees(odom_yaw):.1f}°) "
+                f"desired=({desired_x:.2f}, {desired_y:.2f}) "
+                f"TF=({tf_x:.2f}, {tf_y:.2f}, {math.degrees(tf_yaw):.1f}°)"
+            )
+
+            return tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw
+
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException) as e:
+            self._logger.warn(
+                f"Could not look up odom TF ({odom_frame_name} → {base_frame_name}), "
+                f"using desired position directly (OK for first spawn): {e}"
+            )
+            # Fallback: use desired position directly (correct when odom = identity)
+            return (
+                desired_x, desired_y, desired_z,
+                desired_qx, desired_qy, desired_qz, desired_qw,
+            )
 
     async def _robot_move(self, robot: Robot) -> bool:
         name = robot.name
@@ -468,27 +595,46 @@ class GazeboSimulator(BaseSim):
                     f"Failed to set initial pose for {name} after {max_attempts} attempts"
                 )
 
-            odom_frame = 'odom'
+            robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+            odom_frame = robot_config.model_params.odom_frame
+            base_frame = robot_config.model_params.base_frame
 
-            odom_frame = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync().model_params.odom_frame
+            # Get frame names as raw strings (FrameNamespace.__str__ is sanitized
+            # by auto_sanitize, but TF frames in the tree use unsanitized '/' names)
+            odom_frame_name = str.__str__(robot.frame(odom_frame))
+            base_frame_name = str.__str__(robot.frame(base_frame))
 
-            qx, qy, qz, qw = robot.pose.orientation.x, robot.pose.orientation.y, robot.pose.orientation.z, robot.pose.orientation.w
+            # Compute the correct map→odom TF accounting for DiffDrive odom offset
+            tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw = self._compute_map_to_odom_tf(
+                desired_x=robot.pose.position.x,
+                desired_y=robot.pose.position.y,
+                desired_z=robot.pose.position.z,
+                desired_qx=robot.pose.orientation.x,
+                desired_qy=robot.pose.orientation.y,
+                desired_qz=robot.pose.orientation.z,
+                desired_qw=robot.pose.orientation.w,
+                odom_frame_name=odom_frame_name,
+                base_frame_name=base_frame_name,
+            )
+
             transform_pub_node = launch_ros.actions.Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
                 name="map_to_odomframe_publisher",
                 arguments=[
-                    str(robot.pose.position.x), str(robot.pose.position.y), str(robot.pose.position.z),
-                    str(qx), str(qy), str(qz), str(qw),
+                    str(tf_x),
+                    str(tf_y),
+                    str(tf_z),
+                    str(tf_qx),
+                    str(tf_qy),
+                    str(tf_qz),
+                    str(tf_qw),
                     "map",
                     robot.frame(odom_frame),
                 ],
-                parameters=[{'use_sim_time': True}],
+                parameters=[{"use_sim_time": True}],
             )
             await self.node.do_launch(launch.LaunchDescription([transform_pub_node]))
-            # time.sleep(1)
-            # self.node.get_logger().info("Destroying the static_transform_publisher node after 3 seconds.")
-            # transform_pub_node.destroy_node() # won't work like this, a topic/service to trigger self-destruction
 
             return True
 
@@ -500,21 +646,23 @@ class GazeboSimulator(BaseSim):
         futures: list[typing.Awaitable] = []
         futures.append(
             self.node.do_launch(
-                launch.LaunchDescription([
-                    launch_ros.actions.Node(
-                        package='ros_gz_bridge',
-                        executable='parameter_bridge',
-                        name='gz_services_bridge',
-                        output='screen',
-                        arguments=[
-                            '/world/default/create@ros_gz_interfaces/srv/SpawnEntity',
-                            '/world/default/remove@ros_gz_interfaces/srv/DeleteEntity',
-                            '/world/default/set_pose@ros_gz_interfaces/srv/SetEntityPose',
-                            '/world/default/control@ros_gz_interfaces/srv/ControlWorld',
-                        ],
-                        parameters=[{'use_sim_time': True}],
-                    )
-                ])
+                launch.LaunchDescription(
+                    [
+                        launch_ros.actions.Node(
+                            package="ros_gz_bridge",
+                            executable="parameter_bridge",
+                            name="gz_services_bridge",
+                            output="screen",
+                            arguments=[
+                                "/world/default/create@ros_gz_interfaces/srv/SpawnEntity",
+                                "/world/default/remove@ros_gz_interfaces/srv/DeleteEntity",
+                                "/world/default/set_pose@ros_gz_interfaces/srv/SetEntityPose",
+                                "/world/default/control@ros_gz_interfaces/srv/ControlWorld",
+                            ],
+                            parameters=[{"use_sim_time": True}],
+                        )
+                    ]
+                )
             )
         )
 
@@ -522,19 +670,19 @@ class GazeboSimulator(BaseSim):
         # https://gazebosim.org/api/sim/8/entity_creation.html
         self._service_spawn_entity = self.node.create_client_wrapper(
             SpawnEntity,
-            '/world/default/create',
+            "/world/default/create",
         )
         self._service_delete_entity = self.node.create_client_wrapper(
             DeleteEntity,
-            '/world/default/remove',
+            "/world/default/remove",
         )
         self._service_set_entity_pose = self.node.create_client_wrapper(
             SetEntityPose,
-            '/world/default/set_pose',
+            "/world/default/set_pose",
         )
         self._service_control_world = self.node.create_client_wrapper(
             ControlWorld,
-            '/world/default/control',
+            "/world/default/control",
         )
 
         self._logger.info("Waiting for gazebo services...")
@@ -565,8 +713,6 @@ def _generate_wall_sdf(
     height: float,
     thickness: float,
     base_position: tuple[float, float, float] = (0, 0, 0),
-
-
 ) -> str:
     """
     Generate an SDF string for a wall structure based on given parameters and base position.
@@ -622,14 +768,10 @@ def _generate_wall_sdf(
                 x=x,
                 y=y,
                 z=z + base_z,
-                orientation=orientation
+                orientation=orientation,
             )
         )
 
     return sdf_template.format(
-        name=name,
-        base_x=base_x,
-        base_y=base_y,
-        base_z=base_z,
-        links="\n".join(links)
+        name=name, base_x=base_x, base_y=base_y, base_z=base_z, links="\n".join(links)
     )
