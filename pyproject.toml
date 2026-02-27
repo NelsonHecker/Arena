@@ -59,4 +59,4 @@ training = [
 ]
 
 [tool.uv.sources]
-arena-training = { path = "./arena_training" }
+arena-training = { path = "./arena_training", editable = true}
