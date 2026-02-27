@@ -187,6 +187,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
     async def _check_task_status(self, *args, **kwargs):
         del args, kwargs
+        if self._train_mode or not self._auto_reset:
+            self.get_logger().info(
+                "Auto-reset disabled (train_mode=%s, auto_reset=%s). "
+                "Task resets are driven externally via the reset_task service.",
+                self._train_mode, self._auto_reset,
+            )
+            return
         try:
             while True:
                 await asyncio.sleep(0.5)
