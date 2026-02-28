@@ -233,7 +233,6 @@ class EnvironmentManager(NodeInterface, _Realizer):
                 layer=ObstacleLayer.WORLD,
             )
         )
-        #Checked
         if elevators:
             self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
             futures.append(
