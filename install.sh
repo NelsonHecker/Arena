@@ -203,3 +203,15 @@ fi
 
 BUILD_ALL=1 arena build
 echo 'installation finished'
+
+# == Optional: Install training support ==
+echo ""
+if [[ "$(read_default "Install DRL training support (arena_training + rosnav_rl)? (y/N)" "N")" =~ ^[Yy]$ ]]; then
+    echo "Installing training feature..."
+    . "$ARENA_WS_DIR/src/Arena/_meta/tools/source"
+    arena feature training install
+    echo "Training support installed."
+else
+    echo "Skipping training installation."
+    echo "You can install it later with: arena feature training install"
+fi
