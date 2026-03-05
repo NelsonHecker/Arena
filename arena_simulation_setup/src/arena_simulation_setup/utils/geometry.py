@@ -6,7 +6,7 @@ from collections.abc import Iterator, Sequence
 
 import attrs
 import numpy as np
-
+from typing_extensions import Self
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable
 
 try:
@@ -123,7 +123,7 @@ class Position(Parseable, Idempotent, Vector3):
     """
 
     @classmethod
-    def parse(cls, value: geometry_msgs.msg.Point | Sequence[float]) -> Position:
+    def parse(cls, value: geometry_msgs.msg.Point | Sequence[float]) -> Self:
         """
         parse value into Position
         formats: [x,y], [x,y,z]
@@ -145,7 +145,7 @@ class Position(Parseable, Idempotent, Vector3):
     def from_msg(
         cls,
         point: geometry_msgs.msg.Point
-    ) -> "Position":
+    ) -> Self:
         """
         parse geometry_msgs.msg.Point
         """
@@ -178,7 +178,7 @@ class Orientation(Parseable, Idempotent):
     z: float = attrs.field(converter=float)
 
     @classmethod
-    def parse(cls, value: geometry_msgs.msg.Quaternion | Sequence[float] | float) -> Orientation:
+    def parse(cls, value: geometry_msgs.msg.Quaternion | Sequence[float] | float) -> Self:
         """
         parse value into Orientation
         formats: yaw, [roll, pitch, yaw], [w,x,y,z]
@@ -207,7 +207,7 @@ class Orientation(Parseable, Idempotent):
     def from_msg(
         cls,
         quaternion: geometry_msgs.msg.Quaternion
-    ) -> "Orientation":
+    ) -> Self:
         """
         parse geometry_msgs.msg.Quaternion
         """
@@ -230,7 +230,7 @@ class Orientation(Parseable, Idempotent):
         )
 
     @classmethod
-    def from_euler(cls, angles: typing.Tuple[float, float, float], order: EulerOrder = 'xyz') -> Orientation:
+    def from_euler(cls, angles: typing.Tuple[float, float, float], order: EulerOrder = 'xyz') -> Self:
         x, y, z = (angles[index] for index in _EulerIndices[order])
 
         cr = math.cos(x * 0.5)
@@ -285,7 +285,7 @@ class Orientation(Parseable, Idempotent):
         return self.to_euler()[2]
 
     @typing.overload
-    def __mul__(self, other: Orientation) -> Orientation:
+    def __mul__(self, other: Orientation) -> Self:
         ...
 
     @typing.overload
@@ -325,7 +325,7 @@ class Pose(Parseable, Idempotent):
     orientation: Orientation = attrs.field(factory=lambda: Orientation(1, 0, 0, 0))
 
     @classmethod
-    def parse(cls, value: geometry_msgs.msg.Pose | Sequence[float] | Sequence[Sequence[float]]) -> Pose:
+    def parse(cls, value: geometry_msgs.msg.Pose | Sequence[float] | Sequence[Sequence[float]]) -> Self:
         """
         parse value into Pose
         formats: [x,y], [x,y,yaw], [x,y,z,roll,pitch,yaw], [x,y,z,w,x,y,z], [[*position], [*orientation]]
@@ -369,7 +369,7 @@ class Pose(Parseable, Idempotent):
     def from_msg(
         cls,
         pose: geometry_msgs.msg.Pose
-    ) -> "Pose":
+    ) -> Self:
         """
         parse geometry_msgs.msg.Pose
         """
@@ -399,7 +399,7 @@ class PositionRadius(Position, Idempotent):
     radius: float = attrs.field(converter=float, default=1.0)
 
     @classmethod
-    def parse(cls, value: geometry_msgs.msg.Point | Sequence[float]) -> PositionRadius:
+    def parse(cls, value: geometry_msgs.msg.Point | Sequence[float]) -> Self:
         """
         parse value into PositionRadius
         formats: [x,y,radius], [x,y,z,radius]
@@ -418,6 +418,53 @@ class PositionRadius(Position, Idempotent):
     def __iter__(self) -> Iterator[float]:
         yield from super().__iter__()
         yield self.radius
+
+
+@attrs.define
+class Scale(Parseable, Idempotent):
+    x: float = attrs.field(converter=float, default=1.0)
+    y: float = attrs.field(converter=float, default=1.0)
+    z: float = attrs.field(converter=float, default=1.0)
+
+    @classmethod
+    def parse(cls, value: geometry_msgs.msg.Point | Sequence[float]) -> Self:
+        """
+        parse value into Position
+        formats: [x,y,z]
+        """
+        if isinstance(value, geometry_msgs.msg.Point):
+            return cls.from_msg(value)
+
+        if len(value) == 3:
+            return cls(*value)
+
+        raise ValueError(
+            f"{cls.__name__} must be [x,y,z], got {value}"
+        )
+
+    @classmethod
+    def from_msg(
+        cls,
+        point: geometry_msgs.msg.Point
+    ) -> Self:
+        """
+        parse geometry_msgs.msg.Point
+        """
+        return cls(
+            x=point.x,
+            y=point.y,
+            z=point.z
+        )
+
+    def to_msg(self) -> geometry_msgs.msg.Point:
+        """
+        return self as geometry_msgs.msg.Point
+        """
+        return geometry_msgs.msg.Point(
+            x=self.x,
+            y=self.y,
+            z=self.z
+        )
 
 
 def angle_diff(a: float, b: float) -> float:

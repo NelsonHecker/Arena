@@ -100,7 +100,14 @@ class ScenarioView(PathView):
 
         legacy_exc: Exception
         try:
-            return self.load_legacy()
+            scenario = self.load_legacy()
+            import warnings
+            warnings.warn(
+                "Loading Scenario in legacy format.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            return scenario
         except Exception as e:
             legacy_exc = e
 

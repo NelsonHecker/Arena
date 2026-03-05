@@ -176,6 +176,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
             prim.usd_path = str(model.path)
             prim.name = self._NS_PRIM(obstacle.sim_path)
             prim.pose = obstacle.pose.to_msg()
+            if obstacle.scale is not None:
+                prim.scale.x = obstacle.scale.x
+                prim.scale.y = obstacle.scale.y
+                prim.scale.z = obstacle.scale.z
             return prim
 
         prims = await asyncio.gather(*map(impl, obstacles))

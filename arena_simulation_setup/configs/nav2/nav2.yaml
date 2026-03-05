@@ -256,7 +256,7 @@ collision_monitor:
   ros__parameters:
     observation_sources: ${observation_sources}
     ${**observation_sources_dict}: ''
-    polygons: [StopPolygon, SlowPolygon]
+    polygons: ${polygons}
     ${**polygons_dict}: ''
 
 
