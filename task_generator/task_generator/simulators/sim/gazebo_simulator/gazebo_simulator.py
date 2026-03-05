@@ -58,27 +58,21 @@ class GazeboSimulator(BaseSim):
         self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self.node)
 
     async def before_reset_task(self):
-        # self._logger.warn("Pausing simulation before reset")
-        # return bool(await self.pause_simulation())
-        return True
+        self._logger.warn("Pausing simulation before reset")
+        return bool(await self.pause_simulation())
 
     async def after_reset_task(self):
-        # self._logger.warn("⏭️ after_reset_task: Ensuring simulation is running")
+        unpause_result = await self.unpause_simulation()
 
-        # # Explicitly unpause the simulation to ensure it stays running after reset
-        # # This is needed because Gazebo may pause after entity operations
-        # unpause_result = await self.unpause_simulation()
+        if not unpause_result:
+            self._logger.warning("Failed to unpause simulation after reset")
+        else:
+            self._logger.warn("✓ Simulation unpause successful")
 
-        # if not unpause_result:
-        #     self._logger.warning("Failed to unpause simulation after reset")
-        # else:
-        #     self._logger.warn("✓ Simulation unpause successful")
+        # Small delay for sensors and physics to stabilize after reset
+        await asyncio.sleep(0.3)
 
-        # # Small delay for sensors and physics to stabilize after reset
-        # await asyncio.sleep(0.3)
-
-        # return unpause_result
-        return True
+        return unpause_result
 
     async def obstacle_spawn(self, obstacles):
         return await asyncio.gather(*map(self._spawn_entity, obstacles))
