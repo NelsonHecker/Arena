@@ -522,8 +522,6 @@ class HunavHumanSimulator(
             )
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles):
-        # Skipping spawning and HuNav registration for now
-        return obstacles
         async with self._agents_lock:
             results = []
 
