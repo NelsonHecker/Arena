@@ -2,6 +2,7 @@ import launch_ros
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import LaunchArgument
+from launch.conditions import IfCondition
 from launch_ros.actions import PushRosNamespace
 
 import launch
@@ -84,6 +85,24 @@ def generate_launch_description():
         condition=launch.conditions.IfCondition(PythonExpression(['bool("', record_data_dir.substitution, '")'])),
     )
 
+    # Launch the rosnav_rl action server when using DRL local planner
+    rosnav_rl_action_server = launch.actions.IncludeLaunchDescription(
+        launch.launch_description_sources.PythonLaunchDescriptionSource(
+            launch.substitutions.PathJoinSubstitution([
+                get_package_share_directory('rosnav_rl'),
+                'launch',
+                'action_server.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'agent_name': launch.substitutions.LaunchConfiguration('agent_name'),
+            'namespace': namespace.substitution,
+        }.items(),
+        condition=IfCondition(
+            PythonExpression(["'", local_planner.substitution, "' == 'rosnav_rl' and '", train_mode.substitution, "' == 'false'"])
+        ),
+    )
+
     ld = launch.LaunchDescription([
         *ld_items,
         launch.actions.DeclareLaunchArgument(
@@ -99,6 +118,7 @@ def generate_launch_description():
         # robot_localization_node,
         nav2_launch,
         # state_pub_launch,
+        rosnav_rl_action_server,
         data_recorder,
     ])
     return ld
