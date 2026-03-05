@@ -294,13 +294,14 @@ namespace task_generator_gui
 
         else if (obstacles_task_mode == "Prompt")
         {
-            auto use_behavior_tree_checkbox = new QCheckBox();
-            use_behavior_tree_checkbox->setChecked(use_behavior_tree);
-            auto use_behavior_tree_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            use_behavior_tree_widgetitem->setText(0, "Use Behavior Tree");
-            obstacles_tree->setItemWidget(use_behavior_tree_widgetitem, 1, use_behavior_tree_checkbox);
-            connect(use_behavior_tree_checkbox, &QCheckBox::stateChanged, this, [this](const bool &value)
-                    { use_behavior_tree = value; });
+            auto generation_mode_combobox = new QComboBox();
+            generation_mode_combobox->addItems(QStringList({"ARENA", "BEHAVIOR_TREE", "CROWDED_BT"}));
+            generation_mode_combobox->setCurrentText(QString::fromStdString(selected_scenario_config_file));
+            auto item = new QTreeWidgetItem(obstacles_tree);
+            item->setText(0, "Generation Mode");
+            obstacles_tree->setItemWidget(item, 1, generation_mode_combobox);
+            connect(generation_mode_combobox, &QComboBox::currentTextChanged, this, [this](const QString &text)
+                    { generation_mode = text.toStdString(); });
 
             auto top_p_spin_box = new QDoubleSpinBox();
             top_p_spin_box->setMinimum(0.0);
