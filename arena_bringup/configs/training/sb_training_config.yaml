@@ -22,7 +22,7 @@ agent_cfg:
       #     - .*
       #   exclude: null  # regex patterns for layers to exclude
       parameters:
-        batch_size: 192  # Number of samples per gradient update (per environment)
+        batch_size: 256  # Number of samples per gradient update (per environment)
         clip_range: 0.2  # Clipping parameter for PPO (limits policy update size)
         clip_range_vf: null  # Clipping parameter for value function (if None, no clipping)
         device: cuda  # Device to use for training (cpu, cuda, auto)
@@ -43,7 +43,7 @@ agent_cfg:
         stats_window_size: 100  # Window size for the rolling statistics in evaluation
         target_kl: 1.0  # Target KL divergence threshold (early stops policy updates if exceeded)
         tensorboard_log: null  # Directory for tensorboard logs (if None, no tensorboard logging)
-        total_batch_size: 576  # Total batch size for training (across all environments; 192 × 3)
+        total_batch_size: 512  # Total batch size for training (across all environments; 192 × 3)
         use_sde: false  # Whether to use state-dependent exploration for action sampling
         verbose: 2  # Verbosity level (0: no output, 1: info, 2: debug)
         vf_coef: 0.22  # Coefficient for the value function loss in the total loss
@@ -90,7 +90,7 @@ arena_cfg:
     debug_mode: false  # Enable debugging features (no saving, no wandb, simplified multiprocessing)
     goal_radius: 0.5  # Radius within which the goal is considered reached
     max_num_moves_per_eps: 600  # Maximum number of steps per episode before termination
-    n_envs: 3  # Number of parallel training environments
+    n_envs: 2  # Number of parallel training environments
     n_timesteps: 4000000  # Total number of timesteps to train for
     no_gpu: true  # Set to true to force CPU training even if GPU is available
     safety_distance: 1.0  # Minimum distance to maintain from obstacles for safety

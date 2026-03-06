@@ -16,10 +16,10 @@ agent_cfg:
 
     # General framework settings
     general:
-      logdir: /home/tar/catkin_ws/src/planners/rosnav/agents  # Directory for logs and checkpoints
-      device: cpu  # Device to use (cpu, cuda:0, etc.)
+      logdir: null  # Set automatically by the trainer; override to use a custom path
+      device: cuda:0  # Device to use (cpu, cuda:0, etc.)
       seed: 0  # Random seed for reproducibility
-      precision: 32  # Floating point precision (16 or 32)
+      precision: 16  # Floating point precision (16 = bfloat16 AMP, 32 = full precision); 16 is faster and safe on Ampere/Ada GPUs
       debug: false  # Enable debug mode
       compile: true  # Use torch.compile for faster execution (requires PyTorch 2.0+)
       deterministic_run: false  # Force deterministic execution
@@ -61,11 +61,11 @@ agent_cfg:
       encoder:
         act: SiLU  # Activation function (Sigmoid Linear Unit) - smooth alternative to ReLU
         cnn_depth: 32  # Depth of convolutional networks for processing image-like inputs
-        cnn_keys: PEDESTRIAN_SOCIAL_STATE|PEDESTRIAN_TYPE|PEDESTRIAN_VEL_X|PEDESTRIAN_VEL_Y|STACKED_LASER_MAP  # Observation keys to process with CNNs
+        cnn_keys: PedestrianSocialStateSpace|PedestrianTypeSpace|PedestrianVelXSpace|PedestrianVelYSpace|StackedLaserMapSpace  # Observation keys to process with CNNs
         is_channels_first: true  # Whether input tensor format is channels-first (NCHW) vs channels-last (NHWC)
         kernel_size: 4  # Size of convolutional kernels
         minres: 5  # Minimum resolution for CNN processing
-        mlp_keys: DIST_ANGLE_TO_SUBGOAL  # Observation keys to process with MLPs
+        mlp_keys: DistAngleToSubgoalSpace  # Observation keys to process with MLPs
         mlp_layers: 5  # Number of layers in MLPs
         mlp_units: 1024  # Number of units per MLP layer
         norm: true  # Whether to use layer normalization
@@ -75,13 +75,13 @@ agent_cfg:
       decoder:
         act: SiLU  # Activation function for decoder networks
         cnn_depth: 32  # Depth of convolutional networks in decoder
-        cnn_keys: PEDESTRIAN_SOCIAL_STATE|PEDESTRIAN_TYPE|PEDESTRIAN_VEL_X|PEDESTRIAN_VEL_Y|STACKED_LASER_MAP  # Keys to reconstruct with CNNs
+        cnn_keys: PedestrianSocialStateSpace|PedestrianTypeSpace|PedestrianVelXSpace|PedestrianVelYSpace|StackedLaserMapSpace  # Keys to reconstruct with CNNs
         cnn_sigmoid: false  # Whether to apply sigmoid to CNN outputs
         image_dist: mse  # Distribution for image reconstruction loss (mean squared error)
         is_channels_first: true  # Channels-first format for image-like data
         kernel_size: 4  # Kernel size for transpose convolutions
         minres: 5  # Minimum resolution for CNN outputs
-        mlp_keys: DIST_ANGLE_TO_SUBGOAL  # Keys to reconstruct with MLPs
+        mlp_keys: DistAngleToSubgoalSpace  # Keys to reconstruct with MLPs
         mlp_layers: 5  # Number of layers in decoder MLPs
         mlp_units: 1024  # Units per decoder MLP layer
         norm: true  # Use layer normalization in decoder
@@ -167,21 +167,21 @@ agent_cfg:
       unimix_ratio: 0.01  # Uniform mixture ratio for exploration
       weight_decay: 0.0  # L2 regularization strength (0.0 = no weight decay)
 
-      # Training parameters - defines the overall training process
-      training:
-        steps: 1e8  # Total environment steps for training
-        batch_size: 16  # Number of sequences per batch
-        batch_length: 64  # Length of each sequence in batch
-        train_ratio: 16  # Ratio of gradient updates to environment steps
-        dataset_size: 200  # Replay buffer capacity in thousands of steps (200k steps)
-        prefill_steps: 200  # Initial random steps to fill buffer before training
-        pretrain_steps: 100  # World model pretraining steps before actor-critic learning
-        model_lr: 0.0001  # Learning rate for world model components
-        opt: adam  # Optimizer algorithm
-        opt_eps: 1.0e-08  # Epsilon parameter for optimizer numerical stability
-        grad_clip: 1000  # Global gradient clipping threshold
-        eval_episode_num: 20  # Number of episodes for each evaluation
-        eval_every: 1e4  # Evaluate every N updates
+    # Training parameters - defines the overall training process
+    training:
+      steps: 1.0e+8  # Total environment steps for training
+      batch_size: 16  # Number of sequences per batch
+      batch_length: 64  # Length of each sequence in batch
+      train_ratio: 16  # Ratio of gradient updates to environment steps
+      dataset_size: 200  # Replay buffer capacity in thousands of steps (200k steps)
+      prefill_steps: 200  # Initial random steps to fill buffer before training
+      pretrain_steps: 100  # World model pretraining steps before actor-critic learning
+      model_lr: 0.0001  # Learning rate for world model components
+      opt: adam  # Optimizer algorithm
+      opt_eps: 1.0e-08  # Epsilon parameter for optimizer numerical stability
+      grad_clip: 1000  # Global gradient clipping threshold
+      eval_episode_num: 20  # Number of episodes for each evaluation
+      eval_every: 1.0e+4  # Evaluate every N updates
   
   # Reward function configuration - defines how agent is incentivized
   reward:
@@ -241,9 +241,10 @@ arena_cfg:
     debug_mode: false  # Enable debugging features
     goal_radius: 0.4  # Radius within which goal is considered reached
     max_num_moves_per_eps: 300  # Maximum steps per episode
-    n_envs: 4  # Number of parallel environments (should match agent settings)
+    n_envs: 2  # Number of parallel environments (should match agent settings)
     no_gpu: false  # Force CPU even if GPU is available
     safety_distance: 1.0  # Minimum safety distance from obstacles
+    observations_config: /home/le/arena5_ws/src/Arena/arena_bringup/configs/training/observations/observations.yaml
   
   # Monitoring and logging settings
   monitoring:
@@ -270,7 +271,7 @@ arena_cfg:
       upper_threshold: 0.9  # Performance threshold to advance to next stage
       lower_threshold: 0.3  # Performance threshold to stay at current stage
 
-      parameter_node_template: "/task_generator_node"  # Template for task generator node name
+      parameter_node_template: "/task_generator_node/env{i}"  # Template for task generator node name
       timeout: 5.0  # Timeout for ROS2 parameter service calls (seconds)
       curriculum_definition:
         # Stage 1: No obstacles (safe start)

@@ -84,11 +84,11 @@ datasources:
       # up_to_date_required: true
 
   # Social navigation - people detection
-  # people_detections:
-  #   type: PeopleCollector              # Processes people_msgs/People → PedestrianDetections
-  #   params:
-  #     topic: "/task_generator_node/people"                  # People tracker output
-  #     up_to_date_required: true
+  people_detections:
+    type: PeopleCollector              # Processes people_msgs/People → PedestrianDetections
+    params:
+      topic: "/task_generator_node/people"                  # People tracker output
+      up_to_date_required: false
 
   # Arena pedestrian detection (arena_people_msgs)
   # arena_pedestrian_detections:
@@ -183,32 +183,31 @@ datasources:
   # analysis, and social state extraction for human-robot interaction.
   
   # Pedestrian position processing
-  # pedestrian_relative_locations:
-  #   type: PedestrianRelativeLocationGenerator    # Transforms pedestrian positions to robot frame
+  pedestrian_relative_locations:
+    type: PedestrianRelativeLocationGenerator    # Transforms pedestrian positions to robot frame
 
   # pedestrian_world_locations:
   #   type: PedestrianLocationGenerator            # Extracts world coordinates of pedestrians
 
-  # # Pedestrian motion analysis
-  # pedestrian_relative_velocities:
-  #   type: PedestrianRelativeVelGenerator         # Computes pedestrian velocities in robot frame
+  # Pedestrian motion analysis
+  pedestrian_relative_velocities:
+    type: PedestrianRelativeVelGenerator         # Computes pedestrian velocities in robot frame
 
-  # pedestrian_vel_x:
-  #   type: PedestrianRelativeVelXGenerator        # Forward/backward velocity component
+  pedestrian_vel_x:
+    type: PedestrianRelativeVelXGenerator        # Forward/backward velocity component
 
-  # pedestrian_vel_y:
-  #   type: PedestrianRelativeVelYGenerator        # Left/right velocity component  
+  pedestrian_vel_y:
+    type: PedestrianRelativeVelYGenerator        # Left/right velocity component
 
-  # # Social navigation metrics
-  # pedestrian_distances:
-  #   type: PedestrianDistanceGenerator            # Minimum distances to each pedestrian group
+  # Pedestrian classification and social states
+  pedestrian_distances:
+    type: PedestrianDistanceGenerator            # Minimum distances to each pedestrian group
 
-  # # Pedestrian classification and social states
-  # pedestrian_types:
-  #   type: PedestrianTypeGenerator                # Extracts pedestrian group/type classifications
+  pedestrian_types:
+    type: PedestrianTypeGenerator                # Extracts pedestrian group/type classifications
 
-  # pedestrian_social_states:
-  #   type: PedestrianSocialStateGenerator         # Extracts social behavior states
+  pedestrian_social_states:
+    type: PedestrianSocialStateGenerator         # Extracts social behavior states
 
   # ---------------------------------------------------------------------------
   # ARENA PEDESTRIAN ANALYSIS GENERATORS - Arena-specific pedestrian features
