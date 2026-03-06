@@ -192,26 +192,8 @@ if [ ! -d /usr/local/include/lightsfm ] ; then
     rm -rf lightsfm || echo 'failed to install lightsfm'
 fi
 
-
-# Initialize arena_training submodules
-if [ -d "$ARENA_WS_DIR/src/Arena/arena_training" ]; then
-    echo "Initializing arena_training submodules..."
-    cd "$ARENA_WS_DIR/src/Arena/arena_training"
-    git submodule update --init --recursive
-    cd "$ARENA_WS_DIR"
-fi
-
 BUILD_ALL=1 arena build
 echo 'installation finished'
-
-# == Optional: Install training support ==
-echo ""
-if [[ "$(read_default "Install DRL training support (arena_training + rosnav_rl)? (y/N)" "N")" =~ ^[Yy]$ ]]; then
-    echo "Installing training feature..."
-    . "$ARENA_WS_DIR/src/Arena/_meta/tools/source"
-    arena feature training install
-    echo "Training support installed."
-else
-    echo "Skipping training installation."
-    echo "You can install it later with: arena feature training install"
-fi
+echo ''
+echo 'To install optional features, use: arena feature <name> install'
+echo 'e.g. arena feature training install'
