@@ -13,7 +13,7 @@ install(){
 
     # Install Python training dependencies via uv
     echo "Installing training Python dependencies..."
-    uv sync --inexact --extra training
+    uv sync --inexact --group training
 
     # Rebuild the workspace to compile rosnav_rl C++ plugin and install Python packages
     echo "Building rosnav_rl and arena_training packages..."
@@ -24,7 +24,8 @@ install(){
     echo "=== Training feature installed successfully ==="
     echo ""
     echo "Usage:"
-    echo "  Train:   ros2 run arena_training train_agent.py --config sb_training_config.yaml"
+    echo "  Train:   [without simulation] ros2 run arena_training train_agent.py --config sb_training_config.yaml"
+    echo "  Train:   arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path to config.yaml>"
     echo "  Deploy:  arena launch local_planner:=rosnav_rl agent_name:=<your_agent>"
     echo ""
 }
