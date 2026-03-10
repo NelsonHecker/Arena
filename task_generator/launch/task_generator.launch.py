@@ -1,4 +1,3 @@
-
 import os
 import typing
 
@@ -14,80 +13,73 @@ import launch
 
 def generate_launch_description():
 
-    bringup_dir = get_package_share_directory('arena_bringup')
+    bringup_dir = get_package_share_directory("arena_bringup")
 
     ld_items = []
     LaunchArgument.auto_append(ld_items)
 
-    namespace = LaunchArgument(
-        name='namespace',
-        default_value='task_generator_node'
-    )
+    namespace = LaunchArgument(name="namespace", default_value="task_generator_node")
 
-    sim = LaunchArgument(
-        name='sim',
-        description='[dummy, gazebo, isaac]'
-    )
-    human = LaunchArgument(
-        name='human',
-        description='[dummy]'
-    )
+    sim = LaunchArgument(name="sim", description="[dummy, gazebo, isaac]")
+    human = LaunchArgument(name="human", description="[dummy]")
     robot = LaunchArgument(
-        name='robot',
-        description='robot type [burger, jackal, ridgeback, agvota, rto, ...]'
+        name="robot",
+        description="robot type [burger, jackal, ridgeback, agvota, rto, ...]",
     )
 
     tm_robots = LaunchArgument(
-        name='tm_robots',
+        name="tm_robots",
     )
     tm_obstacles = LaunchArgument(
-        name='tm_obstacles',
+        name="tm_obstacles",
     )
     tm_modules = LaunchArgument(
-        name='tm_modules',
+        name="tm_modules",
     )
     world = LaunchArgument(
-        name='world',
+        name="world",
     )
 
     local_planner = LaunchArgument(
-        name='local_planner',
+        name="local_planner",
     )
     inter_planner = LaunchArgument(
-        name='inter_planner',
+        name="inter_planner",
     )
     global_planner = LaunchArgument(
-        name='global_planner',
+        name="global_planner",
     )
     record_data_dir = LaunchArgument(
-        name='record_data_dir',
-        default_value='',
+        name="record_data_dir",
+        default_value="",
     )
 
-    parameter_file = LaunchArgument(
-        name='parameter_file'
-    )
+    parameter_file = LaunchArgument(name="parameter_file")
 
     headless = LaunchArgument(
-        name='headless',
-        default_value='False',
+        name="headless",
+        default_value="False",
     )
     reference = LaunchArgument(
-        name='reference',
-        default_value='[0, 0]',
+        name="reference",
+        default_value="[0, 0]",
     )
     prefix = LaunchArgument(
-        name='prefix',
-        default_value='',
+        name="prefix",
+        default_value="",
     )
     debug = LaunchArgument(
-        name='debug',
-        default_value='False',
+        name="debug",
+        default_value="False",
+    )
+    train_mode = LaunchArgument(
+        name="train_mode",
+        default_value="false",
     )
 
     map_server_node = launch.actions.IncludeLaunchDescription(
         launch.launch_description_sources.PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch/utils/map_server.launch.py')
+            os.path.join(bringup_dir, "launch/utils/map_server.launch.py")
         )
     )
 
@@ -108,7 +100,9 @@ def generate_launch_description():
             {"namespace": namespace.substitution},
         ],
         output="screen",
-        condition=launch.conditions.IfCondition(PythonExpression(['"', human.substitution, '" == "hunav"'])),
+        condition=launch.conditions.IfCondition(
+            PythonExpression(['"', human.substitution, '" == "hunav"'])
+        ),
     )
     # Start the rviz config generator which launches also rviz2 with desired config file
     rviz_node = launch_ros.actions.Node(
@@ -129,13 +123,18 @@ def generate_launch_description():
     )
 
     task_generator_node = launch_ros.actions.Node(
-        package='task_generator',
-        executable='task_generator_node',
-        namespace=PythonExpression(['os.path.dirname("', namespace.substitution, '")'], ['os']),
-        name=PythonExpression(['os.path.basename("', namespace.substitution, '")'], ['os']),
-        output='screen',
+        package="task_generator",
+        executable="task_generator_node",
+        namespace=PythonExpression(
+            ['os.path.dirname("', namespace.substitution, '")'], ["os"]
+        ),
+        name=PythonExpression(
+            ['os.path.basename("', namespace.substitution, '")'], ["os"]
+        ),
+        output="screen",
         parameters=[
             {
+                "use_sim_time": True,
                 **sim.str_param,
                 **human.str_param,
                 **robot.str_param,
@@ -150,8 +149,9 @@ def generate_launch_description():
                 **reference.param(typing.List[float]),
                 **prefix.str_param,
                 **debug.param(bool),
+                **train_mode.param(bool),
             },
-            {'use_sim_time': False},
+            {"use_sim_time": False},
             parameter_file.substitution,
         ],
     )
@@ -160,40 +160,50 @@ def generate_launch_description():
         target_action=task_generator_node,
         on_start=[
             launch.actions.ExecuteProcess(
-                cmd=['/usr/bin/x-terminal-emulator', '-e', 'bash -c "sleep 5; python -m aiomonitor.cli"'],
-                output='screen',
+                cmd=[
+                    "/usr/bin/x-terminal-emulator",
+                    "-e",
+                    'bash -c "sleep 5; python -m aiomonitor.cli"',
+                ],
+                output="screen",
             )
-        ]
+        ],
     )
 
-    ld = launch.LaunchDescription([
-        *ld_items,
-        launch.actions.GroupAction([
-            launch_ros.actions.PushRosNamespace(namespace=namespace.substitution),
-            map_server_node,
-            pedestrian_marker_node,
-            rviz_node
-        ]),
-        launch.actions.RegisterEventHandler(
-            debug_window_cb,
-            condition=launch.conditions.IfCondition(debug.substitution),
-        ),
-        task_generator_node,
-        # launch_ros.actions.Node(
-        #     package='task_generator',
-        #     executable='server',
-        #     name='task_generator_server',
-        #     output='screen'
-        # ),
-        # launch_ros.actions.Node(
-        #     package='task_generator',
-        #     executable='filewatcher',
-        #     name='task_generator_filewatcher',
-        #     output='screen'
-        # )
-    ])
+    ld = launch.LaunchDescription(
+        [
+            *ld_items,
+            launch.actions.GroupAction(
+                [
+                    launch_ros.actions.PushRosNamespace(
+                        namespace=namespace.substitution
+                    ),
+                    map_server_node,
+                    pedestrian_marker_node,
+                    rviz_node,
+                ]
+            ),
+            launch.actions.RegisterEventHandler(
+                debug_window_cb,
+                condition=launch.conditions.IfCondition(debug.substitution),
+            ),
+            task_generator_node,
+            # launch_ros.actions.Node(
+            #     package='task_generator',
+            #     executable='server',
+            #     name='task_generator_server',
+            #     output='screen'
+            # ),
+            # launch_ros.actions.Node(
+            #     package='task_generator',
+            #     executable='filewatcher',
+            #     name='task_generator_filewatcher',
+            #     output='screen'
+            # )
+        ]
+    )
     return ld
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     generate_launch_description()

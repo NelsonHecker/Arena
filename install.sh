@@ -192,6 +192,8 @@ if [ ! -d /usr/local/include/lightsfm ] ; then
     rm -rf lightsfm || echo 'failed to install lightsfm'
 fi
 
-
 BUILD_ALL=1 arena build
 echo 'installation finished'
+echo ''
+echo 'To install optional features, use: arena feature <name> install'
+echo 'e.g. arena feature training install'

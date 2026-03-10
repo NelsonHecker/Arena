@@ -32,6 +32,7 @@ def generate_launch_description():
     inter_planner = LaunchArgument('inter_planner')
 
     amcl = LaunchArgument('amcl')
+    train_mode = LaunchArgument('train_mode', default_value='false')
 
     substitutions = YAMLMergeSubstitution(
         YAMLFileSubstitution(
@@ -87,6 +88,12 @@ def generate_launch_description():
                 'frame': frame.substitution,
                 **task_generator_node.dict,
                 'namespace': namespace.substitution,
+                # In train_mode the RL environment publishes cmd_vel directly.
+                # Redirect the collision_monitor output to a dead topic so it
+                # never overwrites the RL agent's velocity commands.
+                'cmd_vel_out_topic': PythonExpression(
+                    ['"cmd_vel_sink" if "', train_mode.substitution, '" == "true" else "cmd_vel"']
+                ),
                 'default_nav_to_pose_bt_xml': YAMLRetrieveSubstitution(
                     YAMLFileSubstitution(
                         PathJoinSubstitution([

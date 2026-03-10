@@ -30,10 +30,10 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
 
         def to_string(v: Any) -> str:
             if attrs.has(type(v)):
-                v = repr(attrs.asdict(v))
+                v = attrs.asdict(v)
             if isinstance(v, dict):
-                return repr(json.dumps(v))
-            return repr(str(v))
+                return json.dumps(v)
+            return str(v)
 
         cmd = [
             "ros2",
