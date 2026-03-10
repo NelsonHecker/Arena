@@ -66,8 +66,6 @@ class GazeboSimulator(BaseSim):
 
         if not unpause_result:
             self._logger.warning("Failed to unpause simulation after reset")
-        else:
-            self._logger.warn("✓ Simulation unpause successful")
 
         # Small delay for sensors and physics to stabilize after reset
         await asyncio.sleep(0.3)
@@ -287,7 +285,7 @@ class GazeboSimulator(BaseSim):
             return False
 
     async def unpause_simulation(self):
-        self._logger.warn("Attempting to unpause simulation")
+        self._logger.debug("Attempting to unpause simulation")
         request = ControlWorld.Request()
         request.world_control = WorldControl()
         request.world_control.pause = False
@@ -299,7 +297,7 @@ class GazeboSimulator(BaseSim):
                 self._logger.error("Unpause service call failed")
                 return False
 
-            self._logger.warn(f"Unpause result: {result.success}")
+            self._logger.debug(f"Unpause result: {result.success}")
             return result.success
 
         except Exception as e:
@@ -308,7 +306,7 @@ class GazeboSimulator(BaseSim):
             return False
 
     async def step_simulation(self, steps):
-        self._logger.error(f"Stepping simulation by {steps} steps")
+        self._logger.debug(f"Stepping simulation by {steps} steps")
         request = ControlWorld.Request()
         request.world_control = WorldControl()
         request.world_control.multi_step = steps
@@ -320,7 +318,7 @@ class GazeboSimulator(BaseSim):
                 self._logger.error("Step service call failed")
                 return False
 
-            self._logger.error(f"Step result: {result.success}")
+            self._logger.debug(f"Step result: {result.success}")
             return result.success
 
         except Exception as e:
@@ -349,7 +347,7 @@ class GazeboSimulator(BaseSim):
             wall_thickness = 0.05  # Wall thickness in meters
             base_position = (0, 0, 0)  # Offset the wall to (10, 10, 0)
 
-            self._logger.info(
+            self._logger.debug(
                 f"Attempting to spawn wall: {wall_name} from {wall.start} to {wall.end}"
             )
 
