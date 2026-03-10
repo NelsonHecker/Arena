@@ -26,6 +26,7 @@ source arena
 arena launch sim:=gazebo                         # default — Gazebo simulator
 arena launch sim:=isaac                          # Isaac Sim
 arena launch local_planner:=rosnav_rl agent_name:=<your_agent>  # DRL planner
+arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path to config.yaml> # DRL training 
 ```
 
 ### Key launch arguments
@@ -38,4 +39,4 @@ arena launch local_planner:=rosnav_rl agent_name:=<your_agent>  # DRL planner
 | `train_mode` | `false` | Set `true` during active training — suppresses the RL action server |
 | `global_planner` | `navfn` | Global planner |
 
-> **DRL quick-start**: place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `local_planner:=rosnav_rl agent_name:=<agent_name>`.
+> **DRL quick-start**: place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `local_planner:=rosnav_rl agent_name:=<agent_name>`. Refer to the [arena_training README](arena_training/README.md) for training instructions.
