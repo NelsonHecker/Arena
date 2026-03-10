@@ -98,6 +98,18 @@ arena_cfg:
     control_hz: 10.0  # Control frequency in Hz (wall-clock rate ≈ sim_realtime_factor × control_hz)
     observations_config: /home/le/arena5_ws/src/Arena/arena_bringup/configs/training/observations/observations.yaml
 
+  # Logging levels for rosnav_rl subsystems and this trainer
+  # default_level applies to the entire rosnav_rl.* namespace;
+  # overrides silence noisy per-step subsystems.
+  logging:
+    default_level: INFO          # rosnav_rl root level
+    overrides:
+      rosnav_rl.observations: WARNING   # silence per-step obs noise
+      rosnav_rl.reward: WARNING          # silence per-step reward breakdown
+      rosnav_rl.spaces: WARNING          # silence space auto-load info
+    ros_level: WARNING  # ROS 2 root logger (rcutils); equivalent to --log-level warn
+    ros_overrides: {}  # per-node overrides, e.g. Arena_Trainer: INFO
+
   # task modules configuration
   task:
     tm_modules: staged  # Task module setup (staged for curriculum learning)

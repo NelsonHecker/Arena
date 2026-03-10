@@ -1,6 +1,7 @@
 import os
 import typing
 
+import launch.conditions
 import launch.launch_description_sources
 import launch.utilities
 import launch.utilities.type_utils
@@ -115,10 +116,15 @@ def generate_launch_description():
         default_value='False',
         description='Enable debug features'
     )
+    train_config = LaunchArgument(
+        name='train_config',
+        default_value='',
+        description='Path to training config YAML. When provided, train_mode is implied true and train_agent.py is started automatically.'
+    )
     train_mode = LaunchArgument(
         name='train_mode',
-        default_value='false',
-        description='If true, RL env publishes cmd_vel directly; nav2 controller output is silenced'
+        default_value=PythonExpression(['"', train_config.substitution, '" != ""']),
+        description='If true, RL env publishes cmd_vel directly; nav2 controller output is silenced. Implied when train_config is provided.'
     )
 
     def create_task_generators(
@@ -278,6 +284,14 @@ def generate_launch_description():
         launch_task_generators,
         IsolatedGroupAction([launch_simulator]),
         world_generator_node,
+        launch.actions.ExecuteProcess(
+            cmd=['ros2', 'run', 'arena_training', 'train_agent',
+                 '--config', train_config.substitution],
+            output='screen',
+            condition=launch.conditions.IfCondition(
+                PythonExpression(['"', train_config.substitution, '" != ""'])
+            ),
+        ),
     ])
     return ld
 

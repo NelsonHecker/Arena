@@ -245,8 +245,20 @@ arena_cfg:
     no_gpu: false  # Force CPU even if GPU is available
     safety_distance: 1.0  # Minimum safety distance from obstacles
     observations_config: /home/le/arena5_ws/src/Arena/arena_bringup/configs/training/observations/observations.yaml
+    control_hz: 10.0  # Step frequency cap in Hz (TimeSyncWrapper)
+    verbose: 1  # 0=warnings only  1=stage transitions  2=debug details
   
   # Monitoring and logging settings
+  logging:
+    default_level: CRITICAL  # Applied to entire 'rosnav_rl' namespace
+    overrides:
+      rosnav_rl.observations: WARNING   # silence per-step obs noise
+      rosnav_rl.reward: WARNING          # silence per-step reward breakdown
+      rosnav_rl.spaces: WARNING          # silence space auto-load info
+      rosnav_rl.model.dreamerv3.helper: INFO  # stage banners
+    ros_level: WARNING  # ROS 2 root logger (rcutils); equivalent to --log-level warn
+    ros_overrides: {}  # per-node overrides, e.g. Arena_Trainer: INFO
+
   monitoring:
     episode_logging:
       last_n_episodes: 20  # Number of episodes for stats calculation
