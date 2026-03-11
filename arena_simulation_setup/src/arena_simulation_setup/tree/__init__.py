@@ -212,6 +212,8 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
         root_path = ARENA_ASSETS_DIR / provider
         target_path = root_path / relpath
 
+        formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
+
         try:
             if (await self.check_output_async([
                 'ros2',
@@ -237,6 +239,7 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
                     str(relpath),
                     '-o',
                     str(root_path),
+                    *(f'--format {format}' for format in formats),
                 ])
                 return target_path
 

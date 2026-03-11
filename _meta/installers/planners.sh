@@ -24,6 +24,8 @@ case "$1" in
     uninstall)
         uninstall
     ;;
+    source)
+    ;;
     *)
         help
         exit 1

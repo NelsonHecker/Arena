@@ -1,6 +1,8 @@
 #!/bin/bash -i
 
 install(){
+    set -e
+    
     cd "$ARENA_DIR"
 
     # Initialize arena_training submodules (rosnav_rl)
@@ -57,6 +59,8 @@ case "$1" in
     ;;
     uninstall)
         uninstall
+    ;;
+    source)
     ;;
     *)
         help

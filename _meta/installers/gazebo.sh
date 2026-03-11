@@ -1,9 +1,10 @@
 #!/bin/bash -i
-set -e
 
 name="gazebo"
 
 install(){
+  set -e
+  
   # Define Arena workspace directory
   cd "$ARENA_WS_DIR"
 
@@ -90,6 +91,14 @@ uninstall(){
   sed -i "/$name/d" "$INSTALLED"
 }
 
+
+source_fn(){
+  if [[ ! "$ARENA_MODELS_FORMATS" =~ sdf ]]; then
+    export ARENA_MODELS_FORMATS="${ARENA_MODELS_FORMATS},sdf"
+  fi
+}
+
+
 # === MAIN SCRIPT ===
 help(){
   echo "Usage: gazebo.sh <install|uninstall>"
@@ -104,6 +113,9 @@ case "$1" in
     ;;
   uninstall)
     uninstall
+    ;;
+  source)
+    source_fn
     ;;
   *)
     help

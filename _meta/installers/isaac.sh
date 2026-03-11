@@ -1,10 +1,9 @@
 #!/bin/bash -i
 
-set -e
-
 name="isaac"
 
 install(){
+    set -e
     sudo apt install libfuse2
     
     if [ ! -d ~/isaacsim-4.2.0 ]; then
@@ -121,6 +120,15 @@ uninstall(){
     sed -i "/$name/d" "$INSTALLED"
 }
 
+source_fn(){
+    if [ -z ${ISAAC_PATH+x} ] ; then
+        . "$HOME/isaacsim-4.2.0/setup.sh"
+    fi
+    if [[ ! "$ARENA_MODELS_FORMATS" =~ usd ]]; then
+        export ARENA_MODELS_FORMATS="${ARENA_MODELS_FORMATS},usdz,usd,usda,usdc"
+    fi
+}
+
 # === MAIN SCRIPT ===
 help(){
     echo "Usage: isaac.sh <install|uninstall>"
@@ -135,6 +143,9 @@ case "$1" in
     ;;
     uninstall)
         uninstall
+    ;;
+    source)
+        source_fn
     ;;
     *)
         help

@@ -44,10 +44,16 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
 export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
 
-if [ -f "$INSTALLED" ] && grep -q "isaac" "$INSTALLED"; then
-    if [ -z ${ISAAC_PATH+x} ] ; then
-        . "$HOME/isaacsim-4.2.0/setup.sh"
-    fi
+if [ -f "$INSTALLED" ]; then
+    exit(){
+        echo "Failed to source $1, skipping"
+    }
+    while read -r feature; do 
+        if [ -f "$ARENA_DIR/_meta/installers/${feature}.sh" ] ; then
+            . "$ARENA_DIR/_meta/installers/${feature}.sh" source
+        fi
+    done < "$INSTALLED"
+    unset -f exit
 fi
 
 
