@@ -1,9 +1,9 @@
 import launch_ros
-from ament_index_python.packages import get_package_share_directory
 from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import LaunchArgument
 from launch.conditions import IfCondition
 from launch_ros.actions import PushRosNamespace
+from launch_ros.substitutions import FindPackageShare
 
 import launch
 import launch.actions
@@ -13,7 +13,7 @@ import launch.substitutions
 
 def generate_launch_description():
 
-    ss_path = get_package_share_directory('arena_simulation_setup')
+    ss_path = FindPackageShare('arena_simulation_setup')
 
     ld_items = []
     LaunchArgument.auto_append(ld_items)
@@ -89,7 +89,7 @@ def generate_launch_description():
     rosnav_rl_action_server = launch.actions.IncludeLaunchDescription(
         launch.launch_description_sources.PythonLaunchDescriptionSource(
             launch.substitutions.PathJoinSubstitution([
-                get_package_share_directory('rosnav_rl'),
+                FindPackageShare('rosnav_rl'),
                 'launch',
                 'action_server.launch.py',
             ])
