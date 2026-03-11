@@ -44,6 +44,8 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
 export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
 
+export ARENA_MODELS_FORMATS="yaml"
+
 if [ -f "$INSTALLED" ]; then
     exit(){
         echo "Failed to source $1, skipping"
