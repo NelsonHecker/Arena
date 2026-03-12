@@ -15,11 +15,9 @@ install(){
     git submodule update --init --recursive
     popd > /dev/null
 
-    # Install Python training dependencies via uv (from inside arena_training)
-    echo "Installing training Python dependencies..."
-    pushd "$ARENA_DIR/arena_training" > /dev/null
-    uv sync --inexact
-    popd > /dev/null
+    # Install training Python dependencies into the Arena venv
+    echo "Installing training Python dependencies into Arena venv..."
+    uv sync --inexact --group training
 
     # Rebuild the workspace to compile rosnav_rl C++ plugin and install Python packages
     echo "Building rosnav_rl and arena_training packages..."
