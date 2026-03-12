@@ -25,7 +25,7 @@ class Model:
     type: ModelType
     name: str
     description: str
-    path: Path
+    path: Path | None
 
     @property
     def mapper(self) -> Callable[[Model], Model]:

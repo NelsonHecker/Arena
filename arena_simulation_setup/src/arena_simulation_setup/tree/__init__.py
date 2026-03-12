@@ -239,11 +239,13 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
                     str(relpath),
                     '-o',
                     str(root_path),
-                    *(f'--format {format}' for format in formats),
+                    *itertools.chain.from_iterable(('--format', format) for format in formats if format),
                 ])
                 return target_path
 
         except subprocess.CalledProcessError:
+            import traceback
+            logging.warning(traceback.format_exc())
             return None
 
     async def resolve(self, identifier):

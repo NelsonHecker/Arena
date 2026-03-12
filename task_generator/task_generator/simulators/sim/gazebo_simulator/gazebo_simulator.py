@@ -41,6 +41,8 @@ class GazeboSimulator(BaseSim):
     def __init__(self, *args, namespace, **kwargs):
         super().__init__(*args, namespace=namespace, **kwargs)
 
+        self._semaphore = asyncio.Semaphore(5)
+
         self._logger.info(f"Initializing GazeboSimulator with namespace: {namespace}")
 
         self._goal_pub = self.node.create_publisher(
@@ -144,187 +146,231 @@ class GazeboSimulator(BaseSim):
     # IMPL
 
     async def _move_entity(self, entity: Entity):
-        name = entity.sim_path
-        pose = entity.pose
-        self._logger.debug(f"Attempting to move entity: {name}")
-        self._logger.debug(f"Moving entity {name} to position: {pose}")
+        async with self._semaphore:
+            name = entity.sim_path
+            pose = entity.pose
+            self._logger.debug(f"Attempting to move entity: {name}")
+            self._logger.debug(f"Moving entity {name} to position: {pose}")
 
-        request = SetEntityPose.Request()
-        request.entity = EntityMsg(
-            name=name,
-            type=EntityMsg.MODEL,
-        )
-        request.pose = pose.to_msg()
+            request = SetEntityPose.Request()
+            request.entity = EntityMsg(
+                name=name,
+                type=EntityMsg.MODEL,
+            )
+            request.pose = pose.to_msg()
 
-        try:
-            await self._service_set_entity_pose.ensure()
-            result = await self._service_set_entity_pose.call_timeout(request)
+            try:
+                await self._service_set_entity_pose.ensure()
+                result = await self._service_set_entity_pose.call_timeout(request)
 
-            if result is None:
-                self._logger.error(f"Move service call failed for {name}")
+                if result is None:
+                    self._logger.error(f"Move service call failed for {name}")
+                    return False
+
+                self._logger.info(f"Move result for {name}: {result.success}")
+
+                return result.success
+
+            except Exception as e:
+                self._logger.error(f"Error moving entity {name}: {str(e)}")
+                traceback.print_exc()
                 return False
-
-            self._logger.info(f"Move result for {name}: {result.success}")
-
-            return result.success
-
-        except Exception as e:
-            self._logger.error(f"Error moving entity {name}: {str(e)}")
-            traceback.print_exc()
-            return False
 
     async def _spawn_entity(self, entity: Entity) -> bool:
-        try:
-            # Create spawn request
-            request = SpawnEntity.Request()
-            request.entity_factory = EntityFactory()
-            request.entity_factory.name = entity.sim_path
-
-            # Get model description
+        async with self._semaphore:
             try:
-                if isinstance(entity, Robot):
-                    _loader_args = {**entity.asdict(), 'sim_path': getattr(entity, 'sim_path', entity.name)}
-                    model = await (await entity.model.resolve()).model.get(
-                        ModelType.URDF, loader_args=_loader_args
+
+                # Get model description
+                try:
+                    if isinstance(entity, Robot):
+                        _loader_args = {**entity.asdict(), 'sim_path': getattr(entity, 'sim_path', entity.name)}
+                        model = await (await entity.model.resolve()).model.get(
+                            ModelType.URDF, loader_args=_loader_args
+                        )
+                    else:
+                        model = await (await entity.model.resolve()).get(ModelType.SDF)
+                except Exception as e:
+                    self._logger.error(
+                        f"Error resolving model for entity {entity.name}: {e}\n{traceback.format_exc()}"
                     )
+                    return False
+
+                if model.type is ModelType.UNKNOWN:
+                    self._logger.error(
+                        f"Error resolving model for entity {entity.name}: unknown model type {model}"
+                    )
+                    return False
+
+                if model.path and model.type not in (ModelType.URDF,):
+                    # direct path available, use gz cli call
+                    world_name =  "default"
+                    sdf_path = model.path
+                    model_name = entity.sim_path
+                    service_name = f"/world/{world_name}/create"
+                    
+                    req_payload = (
+                        f'sdf_filename: "{sdf_path}", '
+                        f'name: "{model_name}", '
+                        f'pose: {{ '
+                        f'  position: {{ x: {entity.pose.position.x}, y: {entity.pose.position.y}, z: {entity.pose.position.z} }} '
+                        f'  orientation: {{ x: {entity.pose.orientation.x}, y: {entity.pose.orientation.y}, z: {entity.pose.orientation.z}, w: {entity.pose.orientation.w} }} '
+                        f'}}'
+                    )
+
+                    process = await asyncio.create_subprocess_exec(
+                        'gz', 'service', '-s', service_name,
+                        '--reqtype', 'gz.msgs.EntityFactory',
+                        '--reptype', 'gz.msgs.Boolean',
+                        '--timeout', '2000',
+                        '--req', req_payload,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+
+                    stdout, stderr = await process.communicate()
+
+                    if process.returncode == 0:
+                        return True
+                    else:
+                        self._logger.error(f"Failed to spawn {model_name}. Error: {stderr.decode().strip()}")
+                        return False
+
                 else:
-                    model = await (await entity.model.resolve()).get(ModelType.SDF)
+                    # no direct path available, use ros_gz_bridge
+
+                    # Create spawn request
+                    request = SpawnEntity.Request()
+                    request.entity_factory = EntityFactory()
+                    request.entity_factory.name = entity.sim_path
+                    model_description = model.description
+                    request.entity_factory.sdf = model_description
+
+                    # Set pose
+                    request.entity_factory.pose = entity.pose.to_msg()
+
+                    self._logger.info(
+                        f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}"
+                    )
+
+                    self._logger.debug(f"Sending spawn request for {entity.name}")
+                    result = await self._service_spawn_entity.call_timeout(request)
+
+                    if result is None:
+                        self._logger.error(f"Spawn service call failed for {entity.name}")
+                        return False
+
+                    self._logger.info(f"Spawn result for {entity.name}: {result.success}")
+
+                    self.entities[entity.name] = entity
+
+                    return result.success
+
             except Exception as e:
-                self._logger.error(
-                    f"Error resolving model for entity {entity.name}: {e}\n{traceback.format_exc()}"
-                )
+                self._logger.error(f"Error spawning entity {entity.name}: {str(e)}")
+                traceback.print_exc()
                 return False
-
-            if model.type is ModelType.UNKNOWN:
-                self._logger.error(
-                    f"Error resolving model for entity {entity.name}: unknown model type {model}"
-                )
-                return False
-
-            model_description = model.description
-            request.entity_factory.sdf = model_description
-
-            # Set pose
-            request.entity_factory.pose = entity.pose.to_msg()
-
-            self._logger.info(
-                f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}"
-            )
-
-            self._logger.debug(f"Sending spawn request for {entity.name}")
-            result = await self._service_spawn_entity.call_timeout(request)
-
-            if result is None:
-                self._logger.error(f"Spawn service call failed for {entity.name}")
-                return False
-
-            self._logger.info(f"Spawn result for {entity.name}: {result.success}")
-
-            self.entities[entity.name] = entity
-
-            return result.success
-
-        except Exception as e:
-            self._logger.error(f"Error spawning entity {entity.name}: {str(e)}")
-            traceback.print_exc()
-            return False
 
     async def _delete_entity(self, name: str):
-        name = name
+        return True
+        async with self._semaphore:
+            name = name
 
-        self._logger.debug(f"Attempting to delete entity: {name}")
+            self._logger.debug(f"Attempting to delete entity: {name}")
 
-        if name not in self.entities:
-            return False
-
-        self._logger.debug(f"Attempting to delete entity: {name}")
-        request = DeleteEntity.Request()
-        request.entity = EntityMsg(
-            name=name,
-            type=EntityMsg.MODEL,
-        )
-
-        try:
-            result = await self._service_delete_entity.call_timeout(request)
-
-            if result is None:
-                self._logger.error(f"Delete service call failed for {name}")
+            if name not in self.entities:
                 return False
 
-            self._logger.debug(f"Delete result for {name}: {result.success}")
+            self._logger.debug(f"Attempting to delete entity: {name}")
+            request = DeleteEntity.Request()
+            request.entity = EntityMsg(
+                name=name,
+                type=EntityMsg.MODEL,
+            )
 
-            if result.success:
-                del self.entities[name]
+            try:
+                result = await self._service_delete_entity.call_timeout(request)
 
-            return result.success
+                if result is None:
+                    self._logger.error(f"Delete service call failed for {name}")
+                    return False
 
-        except Exception as e:
-            self._logger.error(f"Error deleting entity {name}: {str(e)}")
-            traceback.print_exc()
-            return False
+                self._logger.debug(f"Delete result for {name}: {result.success}")
+
+                if result.success:
+                    del self.entities[name]
+
+                return result.success
+
+            except Exception as e:
+                self._logger.error(f"Error deleting entity {name}: {str(e)}")
+                traceback.print_exc()
+                return False
 
     async def pause_simulation(self):
-        self._logger.debug("Attempting to pause simulation")
-        request = ControlWorld.Request()
-        request.world_control = WorldControl()
-        request.world_control.pause = True
+        async with self._semaphore:
+            self._logger.debug("Attempting to pause simulation")
+            request = ControlWorld.Request()
+            request.world_control = WorldControl()
+            request.world_control.pause = True
 
-        try:
-            result = await self._service_control_world.call_timeout(request)
+            try:
+                result = await self._service_control_world.call_timeout(request)
 
-            if result is None:
-                self._logger.error("Pause service call failed")
+                if result is None:
+                    self._logger.error("Pause service call failed")
+                    return False
+
+                self._logger.debug(f"Pause result: {result.success}")
+                return result.success
+
+            except Exception as e:
+                self._logger.error(f"Error pausing simulation: {str(e)}")
+                traceback.print_exc()
                 return False
-
-            self._logger.debug(f"Pause result: {result.success}")
-            return result.success
-
-        except Exception as e:
-            self._logger.error(f"Error pausing simulation: {str(e)}")
-            traceback.print_exc()
-            return False
 
     async def unpause_simulation(self):
-        self._logger.debug("Attempting to unpause simulation")
-        request = ControlWorld.Request()
-        request.world_control = WorldControl()
-        request.world_control.pause = False
+        async with self._semaphore:
+            self._logger.debug("Attempting to unpause simulation")
+            request = ControlWorld.Request()
+            request.world_control = WorldControl()
+            request.world_control.pause = False
 
-        try:
-            result = await self._service_control_world.call_timeout(request)
+            try:
+                result = await self._service_control_world.call_timeout(request)
 
-            if result is None:
-                self._logger.error("Unpause service call failed")
+                if result is None:
+                    self._logger.error("Unpause service call failed")
+                    return False
+
+                self._logger.debug(f"Unpause result: {result.success}")
+                return result.success
+
+            except Exception as e:
+                self._logger.error(f"Error unpausing simulation: {str(e)}")
+                traceback.print_exc()
                 return False
-
-            self._logger.debug(f"Unpause result: {result.success}")
-            return result.success
-
-        except Exception as e:
-            self._logger.error(f"Error unpausing simulation: {str(e)}")
-            traceback.print_exc()
-            return False
 
     async def step_simulation(self, steps):
-        self._logger.debug(f"Stepping simulation by {steps} steps")
-        request = ControlWorld.Request()
-        request.world_control = WorldControl()
-        request.world_control.multi_step = steps
+        async with self._semaphore:
+            self._logger.debug(f"Stepping simulation by {steps} steps")
+            request = ControlWorld.Request()
+            request.world_control = WorldControl()
+            request.world_control.multi_step = steps
 
-        try:
-            result = await self._service_control_world.call_timeout(request)
+            try:
+                result = await self._service_control_world.call_timeout(request)
 
-            if result is None:
-                self._logger.error("Step service call failed")
+                if result is None:
+                    self._logger.error("Step service call failed")
+                    return False
+
+                self._logger.debug(f"Step result: {result.success}")
+                return result.success
+
+            except Exception as e:
+                self._logger.error(f"Error stepping simulation: {str(e)}")
+                traceback.print_exc()
                 return False
-
-            self._logger.debug(f"Step result: {result.success}")
-            return result.success
-
-        except Exception as e:
-            self._logger.error(f"Error stepping simulation: {str(e)}")
-            traceback.print_exc()
-            return False
 
     def _publish_goal(self, goal: Pose):
         self._logger.info(
@@ -372,7 +418,7 @@ class GazeboSimulator(BaseSim):
                             type=ModelType.SDF,
                             name=wall_name,
                             description=wall_sdf,
-                            path=Path(""),
+                            path=None,
                         )
                     )
                 ),

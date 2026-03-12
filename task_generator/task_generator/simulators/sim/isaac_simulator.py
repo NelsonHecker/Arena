@@ -115,6 +115,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 )
 
                 if model.type == ModelType.URDF:
+                    assert model.path is not None, f"URDF model {model.name} must have a valid file path"
                     robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
 
                     fq_name = self._NS_ROBOT(robot.sim_path)
@@ -172,6 +173,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             except Exception as e:
                 self._logger.error(f"Failed to load model for obstacle {obstacle.name}: {e}\n{traceback.format_exc()}")
                 return None
+            assert model.path is not None, f"USD model {model.name} must have a valid file path"
             prim = Prim()
             prim.usd_path = str(model.path)
             prim.name = self._NS_PRIM(obstacle.sim_path)
@@ -270,6 +272,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 model = await (await obstacle.model.resolve()).get(ModelType.USD)
                 if model.type is ModelType.UNKNOWN:
                     return None
+                assert model.path is not None, f"USD model {model.name} must have a valid file path"
                 prim = Prim()
                 prim.usd_path = str(model.path)
                 prim.name = self._NS_WALL(prim_name)
