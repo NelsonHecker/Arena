@@ -10,3 +10,7 @@
 [submodule "arena_robots"]
 	path = arena_robots
 	url = https://github.com/voshch/robots.git
+[submodule "arena_training"]
+	path = arena_training
+	url = git@github.com:Arena-Rosnav/Arena-Training.git
+	update = none
