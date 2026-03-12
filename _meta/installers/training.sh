@@ -6,11 +6,11 @@ install(){
     cd "$ARENA_DIR"
 
     echo "Initializing arena_training submodule..."
-    git submodule update --init --checkout --remote arena_training
+    git submodule update --init --checkout --remote --depth 1 arena_training
 
     echo "Initializing rosnav_rl submodule..."
     pushd "$ARENA_DIR/arena_training" > /dev/null
-    git submodule update --init deps/rosnav_rl
+    git submodule update --init --depth 1 deps/rosnav_rl
     popd > /dev/null
 
     echo "Installing training Python dependencies into Arena venv..."
@@ -33,11 +33,6 @@ install(){
     echo "  Deploy:  arena launch local_planner:=rosnav_rl agent_name:=<your_agent>"
     echo "  Deploy:  arena launch local_planner:=rosnav_rl agent_name:=<your_agent> agents_dir:=<path/to/agents>"
     echo "  Tune:    python3 scripts/tune_agent.py --config tuning_config.yaml"
-    echo ""
-    echo "Agent directory resolution (checked in order):"
-    echo "  1. agents_dir launch argument"
-    echo "  2. ROSNAV_AGENTS_DIR environment variable"
-    echo "  3. Default: arena_training/agents/"
     echo ""
 }
 
