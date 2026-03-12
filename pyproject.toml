@@ -49,9 +49,3 @@ build-backend = "setuptools.build_meta"
 dev = [
     "aiomonitor>=0.7.1",
 ]
-training = [
-    "arena-training",
-]
-
-[tool.uv.sources]
-arena-training = { path = "./arena_training", editable = true}

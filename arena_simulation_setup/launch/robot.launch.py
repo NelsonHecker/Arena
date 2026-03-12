@@ -32,6 +32,15 @@ def generate_launch_description():
     record_data_dir = LaunchArgument('record_data_dir', default_value='')
     amcl = LaunchArgument('amcl', default_value='false')
     train_mode = LaunchArgument('train_mode', default_value='false')
+    agents_dir = LaunchArgument(
+        'agents_dir',
+        default_value=launch.substitutions.EnvironmentVariable('ROSNAV_AGENTS_DIR', default_value=''),
+        description=(
+            'Base directory for agent artifacts. '
+            'Forwarded as ROSNAV_AGENTS_DIR to the action server. '
+            'Defaults to the ROSNAV_AGENTS_DIR env var.'
+        ),
+    )
 
     # Include the Nav2 launch file
     nav2_launch = launch.actions.IncludeLaunchDescription(
@@ -97,6 +106,7 @@ def generate_launch_description():
         launch_arguments={
             'agent_name': launch.substitutions.LaunchConfiguration('agent_name'),
             'namespace': namespace.substitution,
+            'agents_dir': agents_dir.substitution,
         }.items(),
         condition=IfCondition(
             PythonExpression(["'", local_planner.substitution, "' == 'rosnav_rl' and '", train_mode.substitution, "' == 'false'"])

@@ -14,6 +14,7 @@ install(
 install(
   DIRECTORY configs
   DESTINATION share/${PROJECT_NAME}/
+  PATTERN "training" EXCLUDE
 )
 
 # add scripts
