@@ -73,6 +73,9 @@ class PedestrianMarkerPublisher(Node):
             "mesh_resource",
             "package://pal_gazebo_worlds/models/citizen_extras_male_03/meshes/mesh.dae",
         )
+        self.declare_parameter(
+            "robot_mesh", "file:///home/linh/ductai_nguyen_ws/Arena_ws/jackal.dae"
+        )
 
         self.get_logger().info("Pedestrian Marker Publisher initialized")
         self.get_logger().info(
@@ -189,29 +192,35 @@ class PedestrianMarkerPublisher(Node):
         marker.ns = "pedestrian_meshes"
         marker.id = pedestrian_id
         marker.type = Marker.MESH_RESOURCE
-        marker.mesh_resource = self.get_parameter("mesh_resource").value
+        if pedestrian.name == "robot":
+            marker.mesh_resource = self.get_parameter("robot_mesh").value
+            marker.pose = pedestrian.pose
+            marker.pose.position.z = 0.1
+        else:
+            marker.mesh_resource = self.get_parameter("mesh_resource").value
+            # Align the mesh model's yaw with the true ped's pose (pi/2 offset)
+            q_org = [
+                pedestrian.pose.orientation.x,
+                pedestrian.pose.orientation.y,
+                pedestrian.pose.orientation.z,
+                pedestrian.pose.orientation.w,
+            ]
+            rotation = quaternion_from_euler(0, 0, math.pi / 2)
+            q = quaternion_multiply(q_org, rotation)
+
+            marker.pose.orientation.x = q[0]
+            marker.pose.orientation.y = q[1]
+            marker.pose.orientation.z = q[2]
+            marker.pose.orientation.w = q[3]
+
+            marker.pose.position.z = 0.01  # Center
+
         marker.mesh_use_embedded_materials = True
         marker.action = Marker.ADD
 
         # Position - use pedestrian position
         marker.pose.position.x = pedestrian.pose.position.x
         marker.pose.position.y = pedestrian.pose.position.y
-        marker.pose.position.z = body_height / 2  # Center
-
-        # Align the mesh model's yaw with the true ped's pose (pi/2 offset)
-        q_org = [
-            pedestrian.pose.orientation.x,
-            pedestrian.pose.orientation.y,
-            pedestrian.pose.orientation.z,
-            pedestrian.pose.orientation.w,
-        ]
-        rotation = quaternion_from_euler(0, 0, math.pi / 2)
-        q = quaternion_multiply(q_org, rotation)
-
-        marker.pose.orientation.x = q[0]
-        marker.pose.orientation.y = q[1]
-        marker.pose.orientation.z = q[2]
-        marker.pose.orientation.w = q[3]
 
         marker.scale = Vector3(x=body_height, y=body_height, z=body_height)
 
@@ -318,7 +327,10 @@ class PedestrianMarkerPublisher(Node):
         marker.pose.orientation.w = 1.0
 
         # Text content - use pedestrian name
-        marker.text = f"Agent {pedestrian.name}"
+        if pedestrian.name == "robot":
+            marker.text = "Robot"
+        else:
+            marker.text = f"Agent {pedestrian.name}"
 
         # Size
         marker.scale.z = 0.3  # Text height

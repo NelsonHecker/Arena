@@ -24,7 +24,6 @@ dependencies = [
     "watchdog>=3.0.0,<4.0.0",
     "rosros>=0.2.5,<1.0.0",
     "transforms3d>=0.4.2,<1.0.0",
-    "opencv-python>=4.2.0,<5.0.0",
     "attrs>=24.2.0,<25.0.0",
     "shapely>=2.0.6,<3.0.0",
     "numpy>=1.25.4,<2.0.0",
@@ -53,6 +52,10 @@ dependencies = [
     "pyglet>=2.1.12",
     "pathfinding3d>=0.7.2",
     "matplotlib>=3.10.7",
+    "fastgrab>=0.2.0",
+    "cython>=3.2.4",
+    "opencv-python>=4.11.0.86",
+    "debugpy>=1.8.20",
 ]
 
 [project.optional-dependencies]

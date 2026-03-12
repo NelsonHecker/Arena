@@ -71,6 +71,216 @@ Metadata:
 """
 
 NORMAL_MODE_EXAMPLE = """
+Example input: Generate hunav agents data for a simulation where Depict a coffe break scenario where people gather in groups in the waiting rooms and hallways, while other pedestrian walk together in groups. Generate data base on this world data as below: 
+{
+    "zones": [
+        {"name": "central_hallway", "corners": [[8.0, 0.0], [12.0, 0.0], [12.0, 30.15], [8.0, 30.15]], "entities": []}, 
+        {"name": "reception", "corners": [[0.0, 0.0], [8.0, 0.0], [8.0, 5.0], [0.0, 5.0]], "entities": [{"name": "world_reception_counter_1", "pose": [3.0, 1.8, 0.0]}, {"name": "world_reception_desk_1", "pose": [4.0, 2.5, 0.0]}, {"name": "world_reception_waiting_sofa_1", "pose": [2.0, 4.55, 0.0]}, {"name": "world_reception_waiting_sofa_2", "pose": [3.65, 4.55, 0.0]}, {"name": "world_reception_waiting_sofa_3",  "pose": [0.45, 3.15, 89.99963750135457]}, {"name": "world_reception_waiting_chair_1", "pose": [5.7, 4.7, 0.0]}, {"name": "world_reception_waiting_chair_2", "pose": [5.0, 4.7, 0.0]}, {"name": "world_reception_display_board_1", "pose": [0.4, 0.5, 89.99963750135457]}, {"name": "world_reception_water_dispenser_1",  "pose": [7.7, 0.2, -89.99963750135457]}, {"name": "world_reception_trashcan_1", "pose": [7.7, 4.8, 0.0]}]}, 
+        {"name": "waiting_area", "corners": [[12.0, 0.0], [25.0, 0.0], [25.0, 10.0], [12.0, 10.0]], "entities": [{"name": "world_waiting_sofa_1", "model": "Hospital/Waiting_Room_Sofa", "pose": [14.0, 8.5, 179.9998479605043]}, {"name": "world_waiting_sofa_2", "model": "Hospital/Waiting_Room_Sofa", "pose": [17.0, 8.5, 179.9998479605043]}, {"name": "world_waiting_sofa_3", "model": "Hospital/Waiting_Room_Sofa", "pose": [20.0, 8.5, 179.9998479605043]}, {"name": "world_waiting_sofa_4", "model": "Hospital/Waiting_Room_Sofa", "pose": [23.0, 8.5, 179.9998479605043]}, {"name": "world_waiting_chair_1", "model": "Hospital/Waiting_Room_Chair", "pose": [13.0, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_2", "model": "Hospital/Waiting_Room_Chair", "pose": [13.8, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_3", "model": "Hospital/Waiting_Room_Chair", "pose": [14.6, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_4", "model": "Hospital/Waiting_Room_Chair", "pose": [15.4, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_5", "model": "Hospital/Waiting_Room_Chair", "pose": [16.2, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_6", "model": "Hospital/Waiting_Room_Chair", "pose": [17.0, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_7", "model": "Hospital/Waiting_Room_Chair", "pose": [17.8, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_8", "model": "Hospital/Waiting_Room_Chair", "pose": [18.6, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_9", "model": "Hospital/Waiting_Room_Chair", "pose": [19.4, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_10", "model": "Hospital/Waiting_Room_Chair", "pose": [20.2, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_11", "model": "Hospital/Waiting_Room_Chair", "pose": [21.0, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_12", "model": "Hospital/Waiting_Room_Chair", "pose": [21.8, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_13", "model": "Hospital/Waiting_Room_Chair", "pose": [22.6, 6.0, 179.9998479605043]}, {"name": "world_waiting_chair_14", "model": "Hospital/Waiting_Room_Chair", "pose": [23.4, 6.0, 179.9998479605043]}, {"name": "world_waiting_bench_1", "model": "Hospital/Waiting_Room_Bench", "pose": [14.0, 3.5, 179.9998479605043]}, {"name": "world_waiting_bench_2", "model": "Hospital/Waiting_Room_Bench", "pose": [16.5, 3.5, 179.9998479605043]}, {"name": "world_waiting_bench_3", "model": "Hospital/Waiting_Room_Bench", "pose": [19.0, 3.5, 179.9998479605043]}, {"name": "world_waiting_bench_4", "model": "Hospital/Waiting_Room_Bench", "pose": [21.5, 3.5, 179.9998479605043]}, {"name": "world_waiting_drinks_machine_1", "model": "Hospital/Drinks_Machine", "pose": [12.7, 0.9, -89.99963750135457]}, {"name": "world_waiting_water_dispenser_1", "model": "Hospital/Water_Dispenser", "pose": [12.4, 9.4, 89.99963750135457]}, {"name": "world_waiting_side_table_1", "model": "Hospital/Side_Table", "pose": [16.0, 4.5, 0.0]}, {"name": "world_waiting_side_table_2", "model": "Hospital/Side_Table", "pose": [22.0, 4.5, 0.0]}, {"name": "world_waiting_trashcan_1", "model": "Hospital/Trashcan", "pose": [12.5, 1.0, 0.0]}, {"name": "world_waiting_trashcan_2", "model": "Hospital/Trashcan", "pose": [24.5, 1.0, 0.0]}, {"name": "world_waiting_mop_set_1", "model": "Hospital/Mop_Set", "pose": [24.5, 0.5, 0.0]}]},
+        {"name": "sub_hallway","corners": [[12.0,10.05],[25.0,10.05],[25.0,13.05],[12.0,13.05]],"entities": []}
+    ]
+}
+You MUST follow the Universal Spatial Reasoning Protocol (USRP) when producing all positions, movement directions, and yaw angles. 
+Use these behavior tree nodes only: 
+Node name: ConversationFormation
+Purpose: Manages the formation of a conversation among multiple agents.
+Inputs:
+	- main_agent_name (int): Identifier of the primary agent leading the conversation.
+	- conversation_duration (double): Total duration of the conversation [s].
+	- target_x (double): X-Coordinate of where conversation's central point will take place.
+	- target_y (double): Y-Coordinate of where conversation's central point will take place.
+	- time_step (double): Time step for movement updates [s].
+	- non_main_agent_names (string): List of participating agent names. Must be passed as a list of string, e.g. ["hunav_1", "hunav_2"]
+Outputs:
+Metadata:
+	-Category: Action node
+	-Node type: multi agent node
+Node name: GroupWalk
+Purpose: Directs a group to walk together with a designated main agent.
+Inputs:
+	- main_agent_name (int): Identifier of the main agent guiding the group.
+	- time_step (double): Time increment used for updating movement [s].
+	- non_main_agent_names (string): List of the non-main agents' names. Must be passed as a list of string, e.g. ["hunav_1", "hunav_2"]
+	- duration (double): Duration for which the behaviour runs [s]. If omitted, the behaviour runs indefinitely.
+Outputs:
+Metadata:
+	-Category: Action node
+	-Node type: single agent node
+Node name: ApproachAgent
+Purpose: Directs the agent to move towards another agent for a defined duration.
+Inputs:
+	- agent_name (int): Identifier of the approaching agent.
+	- target_agent_name (int): Identifier of the target agent.
+	- time_step (double): Time step for movement updates [s].
+	- duration (double): Duration of the approach action [s].
+Outputs:
+Metadata:
+	-Category: Action node
+	-Node type: single agent node
+Node name: SaySomething
+Purpose: Commands the agent to publish a ROS message.
+Inputs:
+	- agent_name (int): Identifier of the speaking agent.
+Outputs:
+Metadata:
+	-Category: Action node
+	-Node type: single agent node
+Node name: GoTo
+Purpose: Commands the agent to navigate to a specified point.
+Inputs:
+	- agent_name (int): Name of the agent.
+	- time_step (double): Time step for movement updates [s].
+	- target_x (double): X-Coordinate of the target goal position.
+	- target_y (double): Y-Coordinate of the target goal position.
+	- tolerance (double): Distance to consider 'at goal' [m].
+Outputs:
+Metadata:
+	-Category: Action node
+	-Node type: single agent node
+
+Example output:
+```json
+{
+  "hunav_agents": [
+    {
+      "name": "hunav_1",
+      "pos": [
+        20.3,
+        5.5,
+        1.57
+      ],
+      "type": "adult",
+      "model": "female_adult_business_02"
+    },
+    {
+      "name": "hunav_2",
+      "pos": [
+        23.2,
+        5.5,
+        1.57
+      ],
+      "type": "adult",
+      "model": "male_adult_construction_01"
+    },
+    {
+      "name": "hunav_3",
+      "pos": [
+        20.1,
+        3.0,
+        1.57
+      ],
+      "type": "adult",
+      "model": "female_adult_medical_01"
+    },
+    {
+      "name": "hunav_4",
+      "pos": [
+        23.5,
+        3.0,
+        1.57
+      ],
+      "type": "adult",
+      "model": "male_adult_police_04"
+    },
+    {
+      "name": "hunav_5",
+      "pos": [
+        22.0,
+        1.5,
+        0.0
+      ],
+      "type": "adult",
+      "model": "male_adult_construction_02"
+    },
+    {
+      "name": "hunav_6",
+      "pos": [
+        23.0,
+        1.5,
+        3.14
+      ],
+      "type": "adult",
+      "model": "female_adult_police_02"
+    },
+    {
+      "name": "hunav_7",
+      "pos": [
+        9.5,
+        2.0,
+        1.57
+      ],
+      "type": "adult",
+      "model": "male_adult_medical_01"
+    },
+    {
+      "name": "hunav_8",
+      "pos": [
+        10.5,
+        2.0,
+        1.57
+      ],
+      "type": "adult",
+      "model": "female_adult_police_03"
+    }
+  ],
+  "single_agent_nodes": [],
+  "multi_agent_nodes": [
+    {
+      "attributes": {
+        "main_agent_name": "hunav_1",
+        "conversation_duration": 60.0,
+        "target_x": 22.0,
+        "target_y": 9.0,
+        "time_step": 0.1,
+        "non_main_agent_names": [
+          "hunav_2",
+          "hunav_3",
+          "hunav_4"
+        ]
+      },
+      "orders": {
+        "hunav_1": 0,
+        "hunav_2": 0,
+        "hunav_3": 0,
+        "hunav_4": 0
+      },
+      "name": "ConversationFormation"
+    },
+    {
+      "attributes": {
+        "main_agent_name": "hunav_5",
+        "conversation_duration": 120.0,
+        "target_x": 22.5,
+        "target_y": 1.5,
+        "time_step": 0.1,
+        "non_main_agent_names": [
+          "hunav_6"
+        ]
+      },
+      "orders": {
+        "hunav_5": 0,
+        "hunav_6": 0
+      },
+      "name": "ConversationFormation"
+    },
+    {
+      "attributes": {
+        "main_agent_name": "hunav_7",
+        "time_step": 0.1,
+        "non_main_agent_names": [
+          "hunav_8"
+        ],
+        "duration": 60.0
+      },
+      "orders": {
+        "hunav_7": 0,
+        "hunav_8": 0
+      },
+      "name": "GroupWalk"
+    }
+  ]
+}
+```
 """
 
 CUSTOM_MODE_EXAMPLE = """

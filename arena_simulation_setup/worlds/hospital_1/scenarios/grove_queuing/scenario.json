@@ -1,0 +1,175 @@
+{
+  "robots": [
+    {
+      "start": [
+        11.5,
+        27.0,
+        1.57
+      ],
+      "goal": [
+        11.5,
+        1.0,
+        1.57
+      ]
+    }
+  ],
+  "static": [],
+  "dynamic": [
+    {
+      "id": 0,
+      "name": "hunav_1",
+      "pos": [
+        9.5,
+        2.5,
+        1.57
+      ],
+      "model": "female_adult_business_02",
+      "waypoints": [],
+      "behavior_tree": "./hunav_1.xml"
+    },
+    {
+      "id": 1,
+      "name": "hunav_2",
+      "pos": [
+        9.5,
+        3.5,
+        1.57
+      ],
+      "model": "male_adult_construction_01",
+      "waypoints": [],
+      "behavior_tree": "./hunav_2.xml"
+    },
+    {
+      "id": 2,
+      "name": "hunav_3",
+      "pos": [
+        9.5,
+        4.5,
+        1.57
+      ],
+      "model": "female_adult_medical_01",
+      "waypoints": [],
+      "behavior_tree": "./hunav_3.xml"
+    },
+    {
+      "id": 3,
+      "name": "hunav_4",
+      "pos": [
+        9.5,
+        5.5,
+        1.57
+      ],
+      "model": "male_adult_police_04",
+      "waypoints": [],
+      "behavior_tree": "./hunav_4.xml"
+    },
+    {
+      "id": 4,
+      "name": "hunav_5",
+      "pos": [
+        9.5,
+        6.5,
+        1.57
+      ],
+      "model": "female_adult_police_01",
+      "waypoints": [],
+      "behavior_tree": "./hunav_5.xml"
+    },
+    {
+      "id": 5,
+      "name": "hunav_6",
+      "pos": [
+        9.5,
+        7.5,
+        1.57
+      ],
+      "model": "male_adult_construction_02",
+      "waypoints": [],
+      "behavior_tree": "./hunav_6.xml"
+    },
+    {
+      "id": 6,
+      "name": "hunav_7",
+      "pos": [
+        9.5,
+        8.5,
+        1.57
+      ],
+      "model": "female_adult_police_02",
+      "6": [],
+      "behavior_tree": "./hunav_7.xml"
+    },
+    {
+      "id": 7,
+      "name": "hunav_8",
+      "pos": [
+        9.5,
+        23.0,
+        0
+      ],
+      "model": "male_adult_medical_01",
+      "waypoints": [],
+      "behavior_tree": "./hunav_8.xml"
+    },
+    {
+      "id": 8,
+      "name": "hunav_9",
+      "pos": [
+        9.5,
+        22.0,
+        0
+      ],
+      "model": "female_adult_police_03",
+      "waypoints": [],
+      "behavior_tree": "./hunav_9.xml"
+    },
+    {
+      "id": 9,
+      "name": "hunav_10",
+      "pos": [
+        9.5,
+        21.0,
+        0
+      ],
+      "model": "male_adult_construction_03",
+      "waypoints": [],
+      "behavior_tree": "./hunav_10.xml"
+    },
+    {
+      "id": 10,
+      "name": "hunav_11",
+      "pos": [
+        9.5,
+        20.0,
+        0
+      ],
+      "model": "male_adult_construction_05",
+      "waypoints": [],
+      "behavior_tree": "./hunav_11.xml"
+    },
+    {
+      "id": 11,
+      "name": "hunav_12",
+      "pos": [
+        9.5,
+        19.0,
+        0
+      ],
+      "model": "female_adult_business_02",
+      "waypoints": [],
+      "behavior_tree": "./hunav_12.xml"
+    },
+    {
+      "id": 12,
+      "name": "robot",
+      "pos": [
+        11.0,
+        32.0,
+        3.14
+      ],
+      "model": "female_adult_business_02",
+      "waypoints": [],
+      "behavior_tree": "./robot.xml"
+    }
+  ]
+}

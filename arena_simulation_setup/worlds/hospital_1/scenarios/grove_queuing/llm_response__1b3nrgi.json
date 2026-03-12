@@ -1,0 +1,306 @@
+{
+    "hunav_agents": [
+        {
+            "name": "hunav_1",
+            "pos": [
+                9.5,
+                2.5,
+                90.0
+            ],
+            "type": "adult",
+            "model": "female_adult_business_02"
+        },
+        {
+            "name": "hunav_2",
+            "pos": [
+                9.5,
+                3.5,
+                90.0
+            ],
+            "type": "adult",
+            "model": "male_adult_construction_01"
+        },
+        {
+            "name": "hunav_3",
+            "pos": [
+                9.5,
+                4.5,
+                90.0
+            ],
+            "type": "adult",
+            "model": "female_adult_medical_01"
+        },
+        {
+            "name": "hunav_4",
+            "pos": [
+                9.5,
+                5.5,
+                90.0
+            ],
+            "type": "adult",
+            "model": "male_adult_police_04"
+        },
+        {
+            "name": "hunav_5",
+            "pos": [
+                9.5,
+                6.5,
+                90.0
+            ],
+            "type": "adult",
+            "model": "female_adult_police_01"
+        },
+        {
+            "name": "hunav_6",
+            "pos": [
+                9.5,
+                7.5,
+                90.0
+            ],
+            "type": "adult",
+            "model": "male_adult_construction_02"
+        },
+        {
+            "name": "hunav_7",
+            "pos": [
+                9.5,
+                8.5,
+                90.0
+            ],
+            "type": "adult",
+            "model": "female_adult_police_02"
+        },
+        {
+            "name": "hunav_8",
+            "pos": [
+                9.5,
+                27.0,
+                270.0
+            ],
+            "type": "adult",
+            "model": "male_adult_medical_01"
+        },
+        {
+            "name": "hunav_9",
+            "pos": [
+                9.5,
+                26.0,
+                270.0
+            ],
+            "type": "adult",
+            "model": "female_adult_police_03"
+        },
+        {
+            "name": "hunav_10",
+            "pos": [
+                9.5,
+                25.0,
+                270.0
+            ],
+            "type": "adult",
+            "model": "male_adult_construction_03"
+        },
+        {
+            "name": "hunav_11",
+            "pos": [
+                9.5,
+                24.0,
+                270.0
+            ],
+            "type": "adult",
+            "model": "male_adult_construction_05"
+        },
+        {
+            "name": "hunav_12",
+            "pos": [
+                9.5,
+                23.0,
+                270.0
+            ],
+            "type": "adult",
+            "model": "female_adult_business_02"
+        }
+    ],
+    "single_agent_nodes": [
+        {
+            "attributes": {
+                "agent_name": "hunav_1",
+                "target_x": 4.0,
+                "target_y": 2.8,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_2",
+                "target_x": 4.0,
+                "target_y": 2.8,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_3",
+                "target_x": 4.0,
+                "target_y": 2.8,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_4",
+                "target_x": 4.0,
+                "target_y": 2.8,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_5",
+                "target_x": 4.0,
+                "target_y": 2.8,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_6",
+                "target_x": 4.0,
+                "target_y": 2.8,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_7",
+                "target_x": 4.0,
+                "target_y": 2.8,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_8",
+                "target_x": 4.0,
+                "target_y": 28.0,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_9",
+                "target_x": 4.0,
+                "target_y": 28.0,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_10",
+                "target_x": 4.0,
+                "target_y": 28.0,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_11",
+                "target_x": 4.0,
+                "target_y": 28.0,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        },
+        {
+            "attributes": {
+                "agent_name": "hunav_12",
+                "target_x": 4.0,
+                "target_y": 28.0,
+                "tolerance": 0.5
+            },
+            "order": 1,
+            "name": "GoTo"
+        }
+    ],
+    "multi_agent_nodes": [
+        {
+            "attributes": {
+                "agents_names": [
+                    "hunav_1",
+                    "hunav_2",
+                    "hunav_3",
+                    "hunav_4",
+                    "hunav_5",
+                    "hunav_6",
+                    "hunav_7"
+                ],
+                "wait_duration": 5.0,
+                "front_agent_pose": [
+                    9.5,
+                    2.5,
+                    90.0
+                ],
+                "direction": 90.0,
+                "distance": 1.0
+            },
+            "orders": {
+                "hunav_1": 0,
+                "hunav_2": 0,
+                "hunav_3": 0,
+                "hunav_4": 0,
+                "hunav_5": 0,
+                "hunav_6": 0,
+                "hunav_7": 0
+            },
+            "name": "AdvanceQueue"
+        },
+        {
+            "attributes": {
+                "agents_names": [
+                    "hunav_8",
+                    "hunav_9",
+                    "hunav_10",
+                    "hunav_11",
+                    "hunav_12"
+                ],
+                "wait_duration": 5.0,
+                "front_agent_pose": [
+                    9.5,
+                    27.0,
+                    270.0
+                ],
+                "direction": 270.0,
+                "distance": 1.0
+            },
+            "orders": {
+                "hunav_8": 0,
+                "hunav_9": 0,
+                "hunav_10": 0,
+                "hunav_11": 0,
+                "hunav_12": 0
+            },
+            "name": "AdvanceQueue"
+        }
+    ]
+}

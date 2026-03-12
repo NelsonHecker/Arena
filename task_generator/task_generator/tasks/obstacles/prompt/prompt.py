@@ -5,6 +5,11 @@ import tempfile
 import time
 from typing import Dict, List, Literal, get_args
 import xml.etree.ElementTree as ET
+from collections import defaultdict
+from datetime import datetime
+import csv
+
+from diffusers.schedulers import scheduling_euler_ancestral_discrete
 
 # Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
 os.environ["PYGLET_HEADLESS"] = "true"
@@ -22,6 +27,14 @@ from ament_index_python.packages import get_package_share_directory
 import pyglet
 
 pyglet.options["headless"] = True
+
+from arena_people_msgs.msg import Pedestrians, Pedestrian
+from rclpy.qos import (
+    QoSProfile,
+    QoSReliabilityPolicy,
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+)
 
 from arena_hunav_sim_bridge.agent.llm_parser import Parser
 
@@ -140,7 +153,7 @@ class TM_Prompt(TM_Obstacles):
             if isinstance(llm_response, EmergencyResponseSchema):
                 parser = Parser(llm_response.model_dump())
                 parser.parse()
-                
+
                 self._logger.info("Generating velocity field...")
 
                 vfgp = ArenaVelocityFieldGenerationPipeline(
@@ -168,7 +181,6 @@ class TM_Prompt(TM_Obstacles):
                 ) as file:
                     np.save(file, velocity_field)
                     self._logger.info(f"Saved velocity field to {file.name}")
-
 
             else:
                 parser = Parser(
@@ -279,6 +291,12 @@ class TM_Prompt(TM_Obstacles):
         return response, x_min, y_min, x_max, y_max
 
     def get_relevant_zones(self, prompt: str) -> str:
+        # all zones
+        # zones_names = []
+        # for zone in self._PROPS.world_manager.world.zones:
+        #     zones_names.append(zone.name)
+        # self._logger.info(f"Extracted zones {zones_names}")
+        # return get_world_detail_info(self._PROPS.world_manager.world, zones_names)
         world_metadata: str = get_world_metatdata(self._PROPS.world_manager.world)
 
         res = self.inference_client.models.generate_content(
@@ -392,7 +410,7 @@ class TM_Prompt(TM_Obstacles):
             bt_nodes = get_relevant_bt_nodes(
                 query=f"Retrieve information of these nodes: {str(list(get_args(EmergencySingleAgentNodeName)) + list(get_args(EmergencyMultiAgentNodeName)))}",
                 collection=self.chroma_collection,
-                n_results=3
+                n_results=3,
             )
 
             self._logger.warn(f"Choosen bt_nodes: {bt_nodes}")
@@ -530,7 +548,7 @@ class TM_Prompt(TM_Obstacles):
             response_schema = NormalResponseSchema
 
             bt_nodes = get_relevant_bt_nodes(
-                query=f"Retrieve information of these nodes: {str(list(get_args(NormalSingleAgentNodeName)) + list(get_args(NormalMultiAgentNodeName)))}",
+                query=f"Retrieve information of these nodes: {str(list(get_args(NormalSingleAgentNodeName)) + list(get_args(NormalMultiAgentNodeName)))}, that are most related to this prompt {prompt}",
                 collection=self.chroma_collection,
             )
 
@@ -612,6 +630,9 @@ class TM_Prompt(TM_Obstacles):
                 ),
             )
 
+            metadata = response.usage_metadata.prompt_token_count
+            self._logger.info(f"{metadata}")
+
             assert response.text is not None
             answer = response_schema.model_validate_json(response.text)
 
@@ -648,6 +669,7 @@ class TM_Prompt(TM_Obstacles):
             ) as file:
                 json.dump(answer.model_dump_json(), file, indent=2)
                 self._logger.warning(f"Saved LLM response to {file.name}")
+
         return config
 
     async def _parse_prompt(self, prompt: str, generation_mode: str) -> _ParsedConfig:
@@ -660,7 +682,29 @@ class TM_Prompt(TM_Obstacles):
         Returns:
             _ParsedConfig: Parsed configuration containing static and dynamic obstacles.
         """
+        # scenario_path = "/home/linh/ductai_nguyen_ws/Arena_ws/src/Arena/arena_simulation_setup/worlds/hospital_1/scenarios/emergency"
+        # with open(
+        #     os.path.join(scenario_path, "scenario.json"),
+        #     "r",
+        # ) as file:
+        #     scenario = json.load(file)
+        # with open(
+        #     os.path.join(scenario_path, "scenario.yaml"),
+        #     "r"
+        # ) as file:
+        #     import yaml
+        #     scenario = yaml.safe_load(file)
+        # dynamic = []
+        # for dynamic_obs in scenario.get("dynamic"):
+        #     name = dynamic_obs["name"]
+        #     dynamic_obs["behavior_tree"] = os.path.join(scenario_path, f"{name}_behavior_tree.xml")
+        #     dynamic.append(dynamic_obs)
+
+        # return converter.structure(dict(static=[], dynamic=dynamic), _ParsedConfig)
         assert GenerationMode.has_value(generation_mode)
+        if prompt == "":
+            return converter.structure(dict(static=[], dynamic=[]), _ParsedConfig)
+
         config = await self._prompt_to_config(prompt, generation_mode)
 
         static_obstacles: list[Obstacle]
@@ -685,10 +729,15 @@ class TM_Prompt(TM_Obstacles):
         return result
 
     async def reset(self, **kwargs):
+        self.dump_trajectories(self.scenario_name_prefix)
+        self.scenario_name_prefix = self._config.user_prompt.value
         parsed_config = await self._parse_prompt(
             self._config.user_prompt.value,
             self._config.generation_mode.value,
         )
+        self.current_scenario_id = datetime.now().strftime("%H%M%S")
+        self.all_samples = []
+        self.time_step_count = 1
 
         return parsed_config.static, parsed_config.dynamic
 
@@ -728,7 +777,7 @@ class TM_Prompt(TM_Obstacles):
         self._config = PromptConfig(
             user_prompt=self.node.ROSParam[str](
                 self.namespace("user_prompt"),
-                value="An empty space with no pedestrian.",
+                value="",
             ),
             generation_mode=self.node.ROSParam[str](
                 self.namespace("generation_mode"),
@@ -789,8 +838,91 @@ class TM_Prompt(TM_Obstacles):
         self.waypoint_visualizer = WaypointVisualizer(
             self.node, "/task_generator_node/waypoint_marker"
         )
+        self.pedestrians_subscriber = self.node.create_subscription(
+            Pedestrians,
+            "/task_generator_node/arena_peds",
+            self.pedestrians_callback,
+            QoSProfile(
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                durability=QoSDurabilityPolicy.VOLATILE,
+                history=QoSHistoryPolicy.KEEP_LAST,
+                depth=10,
+            ),
+        )
+        self.dump_timer = self.node.create_timer(60, self._periodic_dump_callback)
+        self.scenario_name_prefix = self._config.user_prompt.value
+        self.current_scenario_id = datetime.now().strftime("%H%M%S")
+        self.all_samples = []
+        self.time_step_count = 1
+
+    def pedestrians_callback(self, msg: Pedestrians):
+        for ped in msg.pedestrians:
+            ped: Pedestrian
+            ped_id = ped.id
+            self.all_samples.append(
+                {
+                    "frame": self.time_step_count,
+                    "id": ped_id,
+                    "x": ped.pose.position.x,
+                    "y": ped.pose.position.y,
+                }
+            )
+        self.time_step_count += 1
+
+    def _periodic_dump_callback(self):
+        if len(self.all_samples) == 0:
+            self._logger.warn("No trajectories to save")
+            return
+
+        output_csv_path = os.path.join(
+            "/home/linh/ductai_nguyen_ws/Arena_ws/",
+            f"{self.current_scenario_id}.csv",
+        )
+        all_samples = self.all_samples
+        all_samples.sort(key=lambda s: (s["frame"], s["id"]))
+        row_frames = [s["frame"] for s in all_samples]
+        row_ids = [s["id"] for s in all_samples]
+        row_xs = [round(s["x"], 4) for s in all_samples]
+        row_ys = [round(s["y"], 4) for s in all_samples]
+
+        with open(output_csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(row_frames)
+            writer.writerow(row_ids)
+            writer.writerow(row_xs)
+            writer.writerow(row_ys)
+
+        print(f"Successfully converted trajectories to {output_csv_path}")
+        print(f"Total frames: {max(row_frames)}, Total agents: {len(set(row_ids))}")
+
+    def dump_trajectories(self, file_name_prefix: str):
+        if len(self.all_samples) == 0:
+            self._logger.warn("No trajectories to save")
+            return
+
+        output_csv_path = os.path.join(
+            "/home/linh/ductai_nguyen_ws/Arena_ws/",
+            f"{file_name_prefix[: min(20, len(file_name_prefix))]}_{self.current_scenario_id}.csv",
+        )
+        all_samples = self.all_samples
+        all_samples.sort(key=lambda s: (s["frame"], s["id"]))
+        row_frames = [s["frame"] for s in all_samples]
+        row_ids = [s["id"] for s in all_samples]
+        row_xs = [round(s["x"], 4) for s in all_samples]
+        row_ys = [round(s["y"], 4) for s in all_samples]
+
+        with open(output_csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(row_frames)
+            writer.writerow(row_ids)
+            writer.writerow(row_xs)
+            writer.writerow(row_ys)
+
+        print(f"Successfully converted trajectories to {output_csv_path}")
+        print(f"Total frames: {max(row_frames)}, Total agents: {len(set(row_ids))}")
 
     def __del__(self):
+        self.dump_trajectories(self.scenario_name_prefix)
         try:
             # Delete caches
             for cache_name in self.cached_context_name.values():

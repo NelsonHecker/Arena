@@ -55,22 +55,22 @@ AllSingleAgentNodeName = Literal[
 EmergencySingleAgentNodeName = Literal["FollowVelocityField"]  # GoTo could be in here
 CustomSingleAgentNodeName = AllSingleAgentNodeName
 NormalSingleAgentNodeName = Literal[
-    "ApproachAgent",
-    "BlockAgent",
-    "FindNearestAgent",
-    "FollowAgent",
+    # "ApproachAgent",
+    # "BlockAgent",
+    # "FindNearestAgent",
+    # "FollowAgent",
     "GoTo",
-    "IsAgentClose",
-    "IsAgentVisible",
-    "IsAnyoneLookingAtMe",
-    "IsAnyoneSpeaking",
-    "IsAtPosition",
-    "IsLookingAtMe",
-    "IsSpeaking",
-    "LookAtAgent",
-    "LookAtPoint",
-    "RandomChanceCondition",
-    "ResumeMovement",
+    # "IsAgentClose",
+    # "IsAgentVisible",
+    # "IsAnyoneLookingAtMe",
+    # "IsAnyoneSpeaking",
+    # "IsAtPosition",
+    # "IsLookingAtMe",
+    # "IsSpeaking",
+    # "LookAtAgent",
+    # "LookAtPoint",
+    # "RandomChanceCondition",
+    # "ResumeMovement",
     "SaySomething",
     "StopAndWaitTimerAction",
     "StopMovement",
@@ -86,6 +86,6 @@ AllMultiAgentNodeType = Literal[
 ]
 
 EmergencyMultiAgentNodeName = Literal[""]  # GroupWalk could be in here
-CustomMultiAgentNodeName = AllMultiAgentNodeType
+CustomMultiAgentNodeName = Literal["ConversationFormation", "GroupWalk"]
 NormalMultiAgentNodeName = Literal["ConversationFormation", "GroupWalk"]
 QueuingMultiAgentNodeName = Literal["AdvanceQueue", "FormQueue"]

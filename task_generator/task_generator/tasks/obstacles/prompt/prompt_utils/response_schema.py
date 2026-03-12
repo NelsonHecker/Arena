@@ -18,20 +18,20 @@ GenerationModeTypeVar = TypeVar("GenerationModeTypeVar", bound=GenerationMode)
 
 
 class _SingleAgentNodeBase(BaseModel):
-    attributes: Dict[str, Any] = Field(description="Parameters passed to the node")
+    attributes: Dict[str, Any] = Field(description="A dictionary of key-value pairs (parameters passed to the node), with the key are the name of the input, and the value is the parameter value. All valid parameters for a node are included in the node documentation. You must match the required parameters exactly in terms of type and name.")
     order: int = Field(
         description=(
-            "Execution order in the agent behavior tree. "
+            "Execution order in the agent behavior tree."
             "Must be unique across all nodes for that agent."
         )
     )
 
 
 class _MultiAgentNodeBase(BaseModel):
-    attributes: Dict[str, Any] = Field(description="Parameters passed to the node")
+    attributes: Dict[str, Any] = Field(description="A dictionary of key-value pairs (parameters passed to the node), with the key are the name of the input, and the value is the parameter value. All valid parameters for a node are included in the node documentation. You must match the required parameters exactly in terms of type and name.")
     orders: Dict[str, int] = Field(
         description=(
-            "Mapping: <agent_name> -> execution order in that agent’s tree. "
+            "Mapping: <agent_name> -> execution order in that agent's tree."
             "Order values must be unique per agent."
         )
     )
@@ -137,7 +137,7 @@ class NormalResponseSchema(BaseModel):
     single_agent_nodes: List[NormalSingleAgentNode] = Field(
         description="Contains a list of behavior tree nodes that one and only one agent involved in"
     )
-    multi_agent_nodes: List[NormalMultiAgentNodeName] = Field(
+    multi_agent_nodes: List[NormalMultiAgentNode] = Field(
         description="Contains a list of behavior tree nodes that more than one agent involved in"
     )
 
