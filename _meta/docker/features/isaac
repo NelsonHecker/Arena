@@ -15,6 +15,7 @@ install(){
     if ! grep -q "$name" "$INSTALLED" 2>/dev/null; then
         echo "$name" >> "$INSTALLED"
     fi
+    arena_docker_compose build isaac
 
     arena update
     arena build
@@ -38,11 +39,7 @@ source_fn(){
 }
 
 launch(){
-    docker compose \
-        -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
-        --project-directory "$ARENA_WS_DIR" \
-        --project-name "$PROJECT_NAME" \
-        up --remove-orphans isaac
+    arena_docker_compose run --rm --remove-orphans isaac
 }
 
 # === MAIN SCRIPT ===
@@ -64,8 +61,7 @@ case "$1" in
         source_fn
     ;;
     launch)
-        echo 'not implemented yet'
-        exit 1
+        launch
     ;;
     *)
         help

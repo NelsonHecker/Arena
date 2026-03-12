@@ -4,4 +4,19 @@ export ARENA_WS_DIR="/opt/arena_ws"
 export ARENA_VENV_DIR="/opt/venv"
 export ARENA_FEATURES_DIR="$ARENA_WS_DIR/src/Arena/_meta/docker/features"
 
+
+docker_env="ARENA_IMAGE=$ARENA_IMAGE ARENA_WS_DIR=$ARENA_WS_DIR"
+export docker_env
+
+arena_docker_compose(){
+    echo "Running docker compose with args: $*, env ${docker_env}"
+    sudo ${docker_env} \
+        docker compose \
+        -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
+        --project-directory "$ARENA_WS_DIR" \
+        --project-name "$PROJECT_NAME" \
+        "$@"
+}
+export -f arena_docker_compose
+
 source src/Arena/_meta/tools/source

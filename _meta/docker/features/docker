@@ -1,26 +1,14 @@
 #!/usr/bin/env bash
 
-docker_env=(
-    ARENA_IMAGE="$ARENA_IMAGE"
-    ARENA_WS_DIR="$ARENA_WS_DIR"
-)
-export docker_env
 
 docker_update(){
-    sudo ${docker_env[*]} \
-        docker compose \
-        -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
-        --project-directory "$ARENA_WS_DIR" \
+    arena_docker_compose \
         build \
         arena
 }
 
 docker_commit(){
-    CONTAINER_ID=$(sudo ${docker_env[*]} \
-        docker compose \
-        -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
-        --project-directory "$ARENA_WS_DIR" \
-        --project-name "$PROJECT_NAME" \
+    CONTAINER_ID=$(arena_docker_compose \
         ps -q -a arena \
         | tail -n 1)
     echo "committing container to image $ARENA_IMAGE..."

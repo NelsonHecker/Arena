@@ -27,3 +27,9 @@ services:
     command: ["bash"]
     stdin_open: true 
     tty: true
+
+  isaac:
+    image: "arena_isaac"
+    build:
+      context: .
+      dockerfile: src/Arena/arena_isaac/Dockerfile
