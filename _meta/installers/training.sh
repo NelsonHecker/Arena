@@ -17,7 +17,11 @@ install(){
 
     # Install training Python dependencies into the Arena venv
     echo "Installing training Python dependencies into Arena venv..."
-    uv sync --inexact --group training
+    pushd "$ARENA_DIR/arena_training" > /dev/null
+    uv pip install --python "$ARENA_DIR/.venv/bin/python" \
+        -e "." \
+        -e "./deps/rosnav_rl/rosnav_rl"
+    popd > /dev/null
 
     # Rebuild the workspace to compile rosnav_rl C++ plugin and install Python packages
     echo "Building rosnav_rl and arena_training packages..."
