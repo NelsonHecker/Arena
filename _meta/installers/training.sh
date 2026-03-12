@@ -29,6 +29,13 @@ install(){
     echo "  Train:   [without simulation] ros2 run arena_training train_agent.py --config sb_training_config.yaml"
     echo "  Train:   arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path to config.yaml>"
     echo "  Deploy:  arena launch local_planner:=rosnav_rl agent_name:=<your_agent>"
+    echo "  Deploy:  arena launch local_planner:=rosnav_rl agent_name:=<your_agent> agents_dir:=<path/to/agents>"
+    echo "  Tune:    python3 scripts/tune_agent.py --config tuning_config.yaml"
+    echo ""
+    echo "Agent directory resolution (checked in order):"
+    echo "  1. agents_dir launch argument"
+    echo "  2. ROSNAV_AGENTS_DIR environment variable"
+    echo "  3. Default: arena_training/agents/"
     echo ""
 }
 
@@ -45,7 +52,7 @@ help(){
     echo ""
     echo "Installs arena_training and rosnav_rl for DRL-based navigation."
     echo "This enables:"
-    echo "  - Training RL agents with Stable Baselines 3"
+    echo "  - Training RL agents with Stable Baselines 3 and DreamerV3"
     echo "  - Deploying trained agents as nav2 local planners"
     echo "  - Action server for real-time model inference"
 }

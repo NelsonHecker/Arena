@@ -285,7 +285,7 @@ def generate_launch_description():
         IsolatedGroupAction([launch_simulator]),
         world_generator_node,
         launch.actions.ExecuteProcess(
-            cmd=['ros2', 'run', 'arena_training', 'train_agent',
+            cmd=['ros2', 'run', 'arena_training', 'train_agent.py',
                  '--config', train_config.substitution],
             output='screen',
             condition=launch.conditions.IfCondition(

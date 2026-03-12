@@ -13,6 +13,7 @@ agent_cfg:
   framework:
     name: stable_baselines3  # ML framework name used for training
     algorithm: # training algorithm configuration
+      type: PPO  # discriminator tag — PPO | A2C | TRPO | SAC | TD3 | TQC | CrossQ | generic
       architecture_name: AGENT_3  # neural network architecture identifier
       checkpoint: last_model  # checkpoint to load when resuming training (last_model or best_model)
       # transfer_weights:  # for transfer learning - uncomment to use
