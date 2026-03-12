@@ -9,13 +9,11 @@ install(){
     echo "Initializing arena_training submodule..."
     git submodule update --init arena_training
 
-    # Initialize arena_training's own submodules (rosnav_rl)
     echo "Initializing rosnav_rl submodule..."
     pushd "$ARENA_DIR/arena_training" > /dev/null
     git submodule update --init --recursive
     popd > /dev/null
 
-    # Install training Python dependencies into the Arena venv
     echo "Installing training Python dependencies into Arena venv..."
     pushd "$ARENA_DIR/arena_training" > /dev/null
     uv pip install --python "$ARENA_DIR/.venv/bin/python" \
