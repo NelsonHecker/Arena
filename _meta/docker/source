@@ -4,46 +4,35 @@ ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
 
 export ARENA_WS_DIR
 export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
+export ARENA_ROS_DISTRO=jazzy
 
 mkdir -p "$ARENA_DIR/.venv"
 mkdir -p "$ARENA_WS_DIR/build"
 mkdir -p "$ARENA_WS_DIR/install"
 mkdir -p "$ARENA_WS_DIR/log"
 
-ARENA_IMAGE="arena:dev"
-CONTAINER_PID_FILE="$ARENA_WS_DIR/.container.pid"
+export ARENA_IMAGE="arena:dev"
+export HOST_UID=$(id -u)
+export PROJECT_NAME="arena"
 
-HOST_UID=$(id -u)
-
-if [[ -f "$CONTAINER_PID_FILE" ]]; then
-    CONTAINER_ID="$(cat "$CONTAINER_PID_FILE")"
-    if docker inspect "$CONTAINER_ID" > /dev/null 2>&1; then
-        docker start "$CONTAINER_ID" > /dev/null
-        docker container exec -it "$CONTAINER_ID" /entrypoint.sh bash
-        # docker stop "$CONTAINER_ID"
-        return $?
-    else
-        rm -f "$CONTAINER_PID_FILE"
-    fi
+if [ ! -f "$ARENA_WS_DIR/.env" ] ; then
+    touch "$ARENA_WS_DIR/.env"
 fi
 
 xhost +local:docker
 
-docker run \
-    -it \
-    --cidfile "$CONTAINER_PID_FILE" \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -w /opt/arena_ws \
-    --env="DISPLAY" \
-    --env="QT_X11_NO_MITSHM=1" \
-    --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
-    --network host \
-    -v "$ARENA_WS_DIR/src":/opt/arena_ws/src \
-    -v "$ARENA_WS_DIR/build":/opt/arena_ws/build \
-    -v "$ARENA_WS_DIR/install":/opt/arena_ws/install \
-    -v "$ARENA_WS_DIR/log":/opt/arena_ws/log \
-    -e "ARENA_IMAGE=${ARENA_IMAGE}" \
-    --user "${HOST_UID}" \
-    --group-add sudo \
-    "$ARENA_IMAGE" \
-    bash
+docker compose \
+    -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
+    --project-directory "$ARENA_WS_DIR" \
+    --project-name "$PROJECT_NAME" \
+    up --remove-orphans --no-start \
+    arena
+
+CONTAINER_ID=$(docker compose \
+    -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
+    --project-directory "$ARENA_WS_DIR" \
+    --project-name "$PROJECT_NAME" \
+    ps -q -a arena \
+    | tail -n 1)
+
+docker start -i "$CONTAINER_ID"

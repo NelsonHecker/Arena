@@ -27,6 +27,7 @@ ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
 
 export ARENA_WS_DIR
 export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
+export ARENA_FEATURES_DIR="${ARENA_FEATURES_DIR:-$ARENA_DIR/_meta/installers}"
 
 export INSTALLED="$ARENA_DIR/.installed"
 export TOOLS_DIR="$ARENA_DIR/_meta/tools"
@@ -34,13 +35,15 @@ export ARENA_ASSETS_DIR="$ARENA_DIR/_assets/"
 export ARENA_ASSETS_DIR_LOCAL="$ARENA_ASSETS_DIR/_local"
 export ARENA_VENV_DIR="${ARENA_VENV_DIR:-$ARENA_DIR/.venv}"
 
-export ARENA_ROS_DISTRO="${ARENA_ROS_DISTRO:-humble}"
+export ARENA_ROS_DISTRO="${ARENA_ROS_DISTRO:-jazzy}"
 
 export FASTRTPS_DEFAULT_PROFILES_FILE=${FASTRTPS_DEFAULT_PROFILES_FILE:-~/.ros/fastdds.xml}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
 export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
+
+export ARENA_MODELS_FORMATS="yaml"
 
 if [ -f "$INSTALLED" ] && grep -q "isaac" "$INSTALLED"; then
     if [ -z ${ISAAC_PATH+x} ] ; then
@@ -134,12 +137,12 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
             feature)
                 if [ $# -lt 1 ]; then
                     echo "Usage: arena feature <name> <install|uninstall|...>"
-                    echo "Available packages: $(cd "$ARENA_DIR/_meta/installers" && ls *.sh | sed 's/\.sh$//' | paste -sd' ' -)"
+                    echo "Available packages: $(cd "$ARENA_FEATURES_DIR" && ls * | paste -sd',' -)"
                     return 1
                 else
                     package="$1"
                     shift
-                    ($SHELL -c "source '$SOURCE_FILE' && $shell '$ARENA_DIR/_meta/installers/${package}.sh' $*")
+                    ($SHELL -c "source '$SOURCE_FILE' && $shell '$ARENA_FEATURES_DIR/${package}' $*")
                     result=$?
                 fi
             ;;

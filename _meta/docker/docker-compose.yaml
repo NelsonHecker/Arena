@@ -1,0 +1,29 @@
+services:
+  arena:
+    image: "${ARENA_IMAGE}"
+    build:
+      context: .
+      dockerfile: src/Arena/_meta/docker/Dockerfile.dev
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+      - "$ARENA_WS_DIR/src/Arena/.venv:/opt/venv"
+      - "$ARENA_WS_DIR/src:/opt/arena_ws/src"
+      - "$ARENA_WS_DIR/build:/opt/arena_ws/build"
+      - "$ARENA_WS_DIR/install:/opt/arena_ws/install"
+      - "$ARENA_WS_DIR/log:/opt/arena_ws/log"
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ARENA_IMAGE=${ARENA_IMAGE}
+      - UV_LINK_MODE=copy
+      - ARENA_ROS_DISTRO
+    env_file:
+      - "$ARENA_WS_DIR/.env"
+    user: "${HOST_UID}"
+    group_add:
+      - sudo
+    network_mode: host
+    command: ["bash"]
+    stdin_open: true 
+    tty: true

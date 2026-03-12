@@ -35,15 +35,8 @@ if [ ! -d src/Arena ]; then
     git clone "$ARENA_REPO" -b "$ARENA_BRANCH" src/Arena
 fi
 
-docker build --progress=plain -t arena:dev -f src/Arena/_meta/docker/Dockerfile.dev . \
-    --build-arg ROS_DISTRO="$ARENA_ROS_DISTRO" \
-    --build-arg username="$(whoami)" \
-    --build-arg group="$(id -gn)" \
-    --build-arg uid="$(id -u)" \
-    --build-arg gid="$(id -g)"
-
 ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/docker/source" ./arena
-ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/tools/Arena.code-workspace" ./ws-arena.code-workspace
+echo 'arena update; BUILD_ALL=1 arena build;' | source arena
 
 echo 'Installed Arena'
 echo 'run the following to get started:'

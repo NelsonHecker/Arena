@@ -1,24 +1,7 @@
 #!/bin/bash -i
 
 export ARENA_WS_DIR="/opt/arena_ws"
-export ARENA_ROS_DISTRO=jazzy
 export ARENA_VENV_DIR="/opt/venv"
-
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init - bash)"
-
+export ARENA_FEATURES_DIR="$ARENA_WS_DIR/src/Arena/_meta/docker/features"
 
 source src/Arena/_meta/tools/source
-
-update_docker(){
-    sudo docker build --progress=plain -t "$ARENA_IMAGE" -f src/Arena/_meta/docker/Dockerfile.dev . \
-        --build-arg ROS_DISTRO="$ARENA_ROS_DISTRO" \
-        --build-arg username="$(whoami)" \
-        --build-arg group="$(id -gn)" \
-        --build-arg uid="$(id -u)" \
-        --build-arg gid="$(id -g)"
-}
-export -f update_docker
-
-exec "$@"
