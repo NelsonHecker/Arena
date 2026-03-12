@@ -187,6 +187,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
     async def _check_task_status(self, *args, **kwargs):
         del args, kwargs
+        if self._train_mode or not self._auto_reset:
+            self.get_logger().info(
+                "Auto-reset disabled (train_mode=%s, auto_reset=%s). "
+                "Task resets are driven externally via the reset_task service.",
+                self._train_mode, self._auto_reset,
+            )
+            return
         try:
             while True:
                 await asyncio.sleep(0.5)
@@ -215,6 +222,21 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     ):
         self.get_logger().debug("Task Generator received task-reset request!")
         await self.reset_task()
+        return response
+
+    async def _cb_pause_simulation(
+        self,
+        request: std_srvs.SetBool.Request,
+        response: std_srvs.SetBool.Response,
+    ):
+        """Pause (request.data=True) or unpause (request.data=False) the simulator."""
+        if request.data:
+            result = await self._simulator.pause_simulation()
+            response.message = "paused"
+        else:
+            result = await self._simulator.unpause_simulation()
+            response.message = "unpaused"
+        response.success = bool(result)
         return response
 
     async def _cb_get_configs_environments(
@@ -283,6 +305,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             EmptySrv,
             self.service_namespace('reset_task'),
             self._cb_reset_task,
+        )
+
+        self.create_service(
+            std_srvs.SetBool,
+            self.service_namespace('pause_simulation'),
+            self._cb_pause_simulation,
         )
 
         self.create_service(

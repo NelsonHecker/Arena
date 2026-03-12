@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-import typing
 import warnings
+from pathlib import Path
 
 import attrs
+import cattrs
+from typing_extensions import Self
 
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
@@ -12,11 +14,7 @@ from arena_simulation_setup.utils.cattrs import (
     Serializable,
     converter,
 )
-from arena_simulation_setup.utils.geometry import Pose, Position
-import cattrs
-from pathlib import Path
-
-EntityT = typing.TypeVar("EntityT", bound="Entity")
+from arena_simulation_setup.utils.geometry import Pose, Position, Scale
 
 
 @attrs.define(kw_only=True)
@@ -33,7 +31,7 @@ class Named(Parseable, Serializable):
         self.extra['sim_path'] = str(value)
 
     @classmethod
-    def parse(cls: typing.Type[EntityT], value: dict) -> EntityT:
+    def parse(cls, value: dict) -> Self:
         if 'pos' in value:
             value['pose'] = value['pos']
             del value['pos']
@@ -67,7 +65,7 @@ class Entity(Named, Parseable, Serializable):
 
 @attrs.define
 class Obstacle(Entity):
-    ...
+    scale: Scale | None = None
 
 
 @attrs.define
@@ -92,7 +90,7 @@ class CustomDynamicObstacle(DynamicObstacle):
         raise AttributeError(f"{name} not found")
 
     @classmethod
-    def parse(cls, value) -> CustomDynamicObstacle:
+    def parse(cls, value) -> Self:
         known_fields = set(f.name for f in attrs.fields(cls))
 
         if 'pos' in value:

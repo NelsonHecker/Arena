@@ -207,31 +207,12 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
             raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
         return stdout
 
-    async def _do_fetch(self, root_path, target_path, relpath: Path) -> Optional[Path]:
-        try:
-            logging.info(f"Fetching asset {relpath} from network provider {self._provider}...")
-            await self.check_output_async([
-                'ros2',
-                'run',
-                'arena_models',
-                'arena_models',
-                '-s',
-                'net',
-                self._provider,
-                'fetch',
-                str(relpath),
-                '-o',
-                str(root_path),
-            ])
-            return target_path
-
-        except subprocess.CalledProcessError:
-            return None
-
     async def _network_fetch(self, provider: str, identifier: IdentifierT) -> Optional[Path]:
         relpath = identifier.relpath()
         root_path = ARENA_ASSETS_DIR / provider
         target_path = root_path / relpath
+
+        formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
 
         try:
             if (await self.check_output_async([
@@ -258,10 +239,13 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
                     str(relpath),
                     '-o',
                     str(root_path),
+                    *itertools.chain.from_iterable(('--format', format) for format in formats if format),
                 ])
                 return target_path
 
         except subprocess.CalledProcessError:
+            import traceback
+            logging.warning(traceback.format_exc())
             return None
 
     async def resolve(self, identifier):
@@ -388,15 +372,18 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
     def relpath(self) -> Path:
         return Path(self.name)
 
-    async def resolve(self, **kwargs) -> T:
+    async def resolve_path(self) -> Path:
         for resolver in self._resolvers:
             resolved = await resolver.resolve(self)
             if resolved is not None:
-                return self.load(resolved, **kwargs)
+                return resolved
         msg = f'{self} not found among'
         for resolver in self._resolvers:
             msg += f'\n\t{repr(resolver)}'
         raise FileNotFoundError(msg)
+
+    async def resolve(self, **kwargs) -> T:
+        return self.load(await self.resolve_path(), **kwargs)
 
     def resolve_sync(self, **kwargs) -> T:
         """Synchronously load the asset referenced by this identifier.

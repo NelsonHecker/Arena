@@ -45,10 +45,16 @@ export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
 
 export ARENA_MODELS_FORMATS="yaml"
 
-if [ -f "$INSTALLED" ] && grep -q "isaac" "$INSTALLED"; then
-    if [ -z ${ISAAC_PATH+x} ] ; then
-        . "$HOME/isaacsim-4.2.0/setup.sh"
-    fi
+if [ -f "$INSTALLED" ]; then
+    exit(){
+        echo "Failed to source $1, skipping"
+    }
+    while read -r feature; do 
+        if [ -f "$ARENA_FEATURES_DIR/${feature}" ] ; then
+            . "$ARENA_FEATURES_DIR/${feature}" source
+        fi
+    done < "$INSTALLED"
+    unset -f exit
 fi
 
 
