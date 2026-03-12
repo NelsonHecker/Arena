@@ -5,17 +5,21 @@ install(){
     
     cd "$ARENA_DIR"
 
-    # Initialize arena_training submodules (rosnav_rl)
-    echo "Initializing arena_training submodules..."
-    if [ -d "$ARENA_DIR/arena_training" ]; then
-        pushd "$ARENA_DIR/arena_training" > /dev/null
-        git submodule update --init --recursive
-        popd > /dev/null
-    fi
+    # Initialize arena_training submodule (Arena-Rosnav/Arena-Training)
+    echo "Initializing arena_training submodule..."
+    git submodule update --init arena_training
 
-    # Install Python training dependencies via uv
+    # Initialize arena_training's own submodules (rosnav_rl)
+    echo "Initializing rosnav_rl submodule..."
+    pushd "$ARENA_DIR/arena_training" > /dev/null
+    git submodule update --init --recursive
+    popd > /dev/null
+
+    # Install Python training dependencies via uv (from inside arena_training)
     echo "Installing training Python dependencies..."
-    uv sync --inexact --group training
+    pushd "$ARENA_DIR/arena_training" > /dev/null
+    uv sync --inexact
+    popd > /dev/null
 
     # Rebuild the workspace to compile rosnav_rl C++ plugin and install Python packages
     echo "Building rosnav_rl and arena_training packages..."

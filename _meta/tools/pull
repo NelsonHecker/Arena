@@ -20,6 +20,13 @@ if [ $_GIT -eq 1 ] ; then
     echo updating Arena...
     git pull --ff-only --autostash && git submodule update --recursive
     git submodule update --init --recursive arena_robots
+    # Update arena_training only if already initialized (update=none skips it otherwise)
+    if git submodule status arena_training 2>/dev/null | grep -qv '^-'; then
+        git submodule update arena_training || echo 'failed to update arena_training, ignoring'
+        pushd "$ARENA_DIR/arena_training" > /dev/null
+        git submodule update --recursive || echo 'failed to update arena_training submodules, ignoring'
+        popd > /dev/null
+    fi
 
     # re-source
     . "$ARENA_DIR/_meta/tools/source"
