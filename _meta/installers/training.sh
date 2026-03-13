@@ -6,7 +6,7 @@ install(){
     cd "$ARENA_DIR"
 
     echo "Initializing arena_training submodule..."
-    git submodule update --init --checkout --remote --depth 1 arena_training
+    git submodule update --init --remote --depth 1 arena_training
 
     echo "Initializing rosnav_rl submodule..."
     pushd "$ARENA_DIR/arena_training" > /dev/null
