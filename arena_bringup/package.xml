@@ -12,6 +12,15 @@
   <depend>nav2_msgs</depend>
   <depend>joint_state_publisher</depend>
   <depend>nav2_map_server</depend>
+  <depend>navigation2</depend>
+  <depend>nav2_bringup</depend>
+  <depend>nav2_waypoint_follower</depend>
+
+  <depend>bondcpp</depend>
+  <depend>behaviortree_cpp_v3</depend>
+  <depend>diagnostics</depend>
+  <depend>angles</depend>
+  <depend>slam_toolbox</depend>
 
   <export>
     <build_type>ament_python</build_type>
