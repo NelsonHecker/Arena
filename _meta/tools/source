@@ -43,6 +43,19 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/ros/${ARENA_ROS_DISTRO}/lib/"
 export ASSET_BUCKETS=${ARENA_ASSET_BUCKETS:-"default"}
 
+resolve_arena_feature(){
+    local feature="$1"
+    if [ -f "$ARENA_FEATURES_DIR/${feature}" ] ; then
+        echo "$ARENA_FEATURES_DIR/${feature}"
+    elif [ -d "$ARENA_FEATURES_DIR/${feature}" ] && [ -f "$ARENA_FEATURES_DIR/${feature}/main" ] ; then
+        echo "$ARENA_FEATURES_DIR/${feature}/main"
+    else
+        return 1
+    fi
+    return 0
+}
+export -f resolve_arena_feature
+
 export ARENA_MODELS_FORMATS="yaml"
 
 if [ -f "$INSTALLED" ]; then
@@ -50,8 +63,8 @@ if [ -f "$INSTALLED" ]; then
         echo "Failed to source $1, skipping"
     }
     while read -r feature; do 
-        if [ -f "$ARENA_FEATURES_DIR/${feature}" ] ; then
-            . "$ARENA_FEATURES_DIR/${feature}" source
+        if  feature_path="$(resolve_arena_feature "$feature")"; then
+            source "$feature_path" source
         fi
     done < "$INSTALLED"
     unset -f exit
@@ -141,15 +154,19 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 result=0
             ;;
             feature)
+                features=$(ls "$ARENA_FEATURES_DIR" | paste -sd ' ' -)
                 if [ $# -lt 1 ]; then
                     echo "Usage: arena feature <name> <install|uninstall|...>"
-                    echo "Available packages: $(cd "$ARENA_FEATURES_DIR" && ls * | paste -sd',' -)"
-                    return 1
-                else
-                    package="$1"
+                    echo "Available features: $features"
+                    result=1
+                elif feature_path="$(resolve_arena_feature "$1")"; then
                     shift
-                    ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$ARENA_FEATURES_DIR/${package}' $*")
+                    ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
                     result=$?
+                else
+                    echo "Unknown feature '$1'" >&2
+                    echo "Available features: $features"
+                    result=1
                 fi
             ;;
             *)

@@ -3,16 +3,16 @@ services:
     image: "${ARENA_IMAGE}"
     build:
       context: .
-      dockerfile: src/Arena/_meta/docker/Dockerfile.dev
+      dockerfile: src/Arena/_meta/docker/features/docker/Dockerfile.dev
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
-      - "$ARENA_WS_DIR/src/Arena/.venv:/opt/venv"
-      - "$ARENA_WS_DIR/src:/opt/arena_ws/src"
-      - "$ARENA_WS_DIR/build:/opt/arena_ws/build"
-      - "$ARENA_WS_DIR/install:/opt/arena_ws/install"
-      - "$ARENA_WS_DIR/log:/opt/arena_ws/log"
-      - "$ARENA_WS_DIR/.env:/opt/arena_ws/.env"
+      - "$HOST_ARENA_WS_DIR/src/Arena/.venv:/opt/venv"
+      - "$HOST_ARENA_WS_DIR/src:/opt/arena_ws/src"
+      - "$HOST_ARENA_WS_DIR/build:/opt/arena_ws/build"
+      - "$HOST_ARENA_WS_DIR/install:/opt/arena_ws/install"
+      - "$HOST_ARENA_WS_DIR/log:/opt/arena_ws/log"
+      - "$HOST_ARENA_WS_DIR/.env:/opt/arena_ws/.env"
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
@@ -21,8 +21,9 @@ services:
       - ARENA_PROJECT_NAME
       - ARENA_ROS_DISTRO
       - HOST_UID
+      - HOST_ARENA_WS_DIR
     env_file:
-      - "$ARENA_WS_DIR/.env"
+      - "$HOST_ARENA_WS_DIR/.env"
     user: "${HOST_UID}"
     group_add:
       - sudo
@@ -36,9 +37,39 @@ services:
       timeout: 2s
       retries: 99999 # if you can't build by then, good juck
       start_period: 0s
+    ports:
+      - 50101
+      - 50102
 
   isaac:
     image: "arena_isaac"
     build:
       context: .
-      dockerfile: src/Arena/arena_isaac/Dockerfile
+      dockerfile: src/Arena/_meta/docker/features/isaac/Dockerfile
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+      - "$HOST_ARENA_WS_DIR/src/Arena/.venv:/opt/venv"
+      - "$HOST_ARENA_WS_DIR/src:/opt/arena_ws/src"
+      - "$HOST_ARENA_WS_DIR/build:/opt/arena_ws/build"
+      - "$HOST_ARENA_WS_DIR/install:/opt/arena_ws/install"
+      - "$HOST_ARENA_WS_DIR/log:/opt/arena_ws/log"
+      - "$HOST_ARENA_WS_DIR/.env:/opt/arena_ws/.env"
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - UV_LINK_MODE=copy
+      - ARENA_IMAGE
+      - ARENA_PROJECT_NAME
+      - ARENA_ROS_DISTRO
+      - HOST_UID
+      - HOST_ARENA_WS_DIR
+      - ROS_DOMAIN_ID=1
+    stdin_open: true 
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]

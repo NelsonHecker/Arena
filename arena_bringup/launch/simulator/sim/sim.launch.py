@@ -28,14 +28,14 @@ def generate_launch_description():
         name='world'
     )
 
-    launch_physics_simulator = SelectAction(launch.substitutions.LaunchConfiguration('simulator'))
+    launch_simulator = SelectAction(launch.substitutions.LaunchConfiguration('simulator'))
 
-    launch_physics_simulator.add(
+    launch_simulator.add(
         'dummy',
         launch.actions.GroupAction([])
     )
 
-    launch_physics_simulator.add(
+    launch_simulator.add(
         'gazebo',
         launch.actions.IncludeLaunchDescription(
             launch.launch_description_sources.PythonLaunchDescriptionSource(
@@ -50,7 +50,7 @@ def generate_launch_description():
         )
     )
 
-    launch_physics_simulator.add(
+    launch_simulator.add(
         'isaac',
         launch.actions.IncludeLaunchDescription(
             launch.launch_description_sources.PythonLaunchDescriptionSource(
@@ -66,12 +66,12 @@ def generate_launch_description():
 
     simulator = LaunchArgument(
         name='simulator',
-        choices=launch_physics_simulator.keys,
+        choices=launch_simulator.keys,
     )
 
     ld = launch.LaunchDescription([
         *ld,
-        launch_physics_simulator,
+        launch_simulator,
     ])
     return ld
 

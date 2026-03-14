@@ -1,7 +1,5 @@
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution
-from launch_ros.substitutions import FindPackageShare
+import launch.actions
+import launch.substitutions
 
 from arena_bringup.substitutions import LaunchArgument
 from launch import LaunchDescription
@@ -17,16 +15,11 @@ def generate_launch_description():
     )
     return LaunchDescription([
         *ld,
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                PathJoinSubstitution([
-                    FindPackageShare('arena_isaac'),
-                    'launch',
-                    'run_isaacsim.launch.py'
-                ]),
-            ),
-            launch_arguments={
-                **log_level.dict,
-            }.items(),
+        launch.actions.ExecuteProcess(
+            cmd=['bash', '-c', 'arena feature isaac launch'],
+            sigterm_timeout=launch.substitutions.LaunchConfiguration('sigterm_timeout', default='5'),
+            sigkill_timeout=launch.substitutions.LaunchConfiguration('sigkill_timeout', default='5'),
+            on_exit=[launch.actions.Shutdown()],
+            output='log',
         )
     ])
