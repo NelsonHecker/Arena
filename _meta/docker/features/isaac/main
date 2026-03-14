@@ -5,6 +5,12 @@
 
 name="isaac"
 
+update(){
+    echo "Updating $name..."
+    arena_docker_compose build isaac
+    arena_docker_compose up -d --remove-orphans --no-start isaac
+}
+
 install(){
     set -e
 
@@ -15,10 +21,10 @@ install(){
     if ! grep -q "$name" "$INSTALLED" 2>/dev/null; then
         echo "$name" >> "$INSTALLED"
     fi
-    arena_docker_compose build isaac
 
     arena update
     arena build
+    update
 
     echo "Installed $name successfully."
 }
@@ -39,29 +45,45 @@ source_fn(){
 }
 
 launch(){
-    arena_docker_compose run --rm --remove-orphans isaac
+    arena_docker_compose up -d --remove-orphans isaac
+    trap 'arena_docker_compose stop isaac || true' EXIT INT TERM
+    arena_docker_compose exec -T isaac bash -c "source /opt/arena_ws/install/local_setup.bash && python3-arena /opt/arena_ws/build/arena_isaac/arena_isaac/run_isaacsim.py $*" || return $?
 }
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <install|uninstall|source|launch>"
+    echo "Usage: $name <install|update|uninstall|source|launch|exec>"
 }
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
     help
     exit 1
 fi
 case "$1" in
     install)
         install
+        exit $?
+    ;;
+    update)
+        update
+        exit $?
     ;;
     uninstall)
         uninstall
+        exit $?
     ;;
     source)
         source_fn
+        return $?
     ;;
     launch)
-        launch
+        shift
+        launch "$@"
+        exit $?
+    ;;
+    exec)
+        shift
+        arena_docker_compose exec isaac "$@"
+        exit $?
     ;;
     *)
         help

@@ -36,7 +36,6 @@ if [ ! -d src/Arena ]; then
 fi
 
 ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/docker/source" ./arena
-echo 'arena update; BUILD_ALL=1 arena build;' | source arena
 
 echo 'Installed Arena'
 echo 'run the following to get started:'

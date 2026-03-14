@@ -82,8 +82,8 @@ RUN mkdir -p install
 RUN mkdir -p log
 RUN chown -R ${uid}:${gid} /opt/arena_ws
 
-COPY src/Arena/_meta/docker/entrypoint.sh /entrypoint.sh
-RUN ln -s src/Arena/_meta/docker/source.container ./source
+COPY src/Arena/_meta/docker/features/docker/entrypoint.sh /entrypoint.sh
+RUN ln -fs src/Arena/_meta/docker/features/docker/source.container ./source
 
 RUN chmod +x /entrypoint.sh
 USER ${username}
