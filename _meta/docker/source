@@ -54,7 +54,7 @@ do_run(){
     HEALTH_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$ID" 2>/dev/null)
     if [ "$HEALTH_STATUS" != "healthy" ] && [ "$HEALTH_STATUS" != "none" ]; then
         (
-            arena_docker_compose logs -f "$arena_service" &
+            arena_docker_compose attach --no-stdin "$arena_service" &
             local LOGS_PID=$!
             
             trap 'kill "$LOGS_PID" 2>/dev/null' EXIT
@@ -83,8 +83,12 @@ do_run(){
         ) || return $?
     fi
 
-    arena_docker_compose exec "$arena_service" /entrypoint.sh bash -i
+    if [ -t 0 ] && [ -t 1 ]; then
+        arena_docker_compose exec "$arena_service" /entrypoint.sh bash -i
+    else
+        arena_docker_compose exec -T "$arena_service" /entrypoint.sh bash "$@"
+    fi
     return $?
 }
 
-do_run
+do_run "$@"

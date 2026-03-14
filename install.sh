@@ -37,6 +37,10 @@ fi
 
 ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/docker/source" ./arena
 
+echo 'Building Arena...'
+cd $ARENA_WS_DIR
+printf 'exit\n' | source arena
+
 echo 'Installed Arena'
 echo 'run the following to get started:'
 echo "  cd $ARENA_WS_DIR && source arena"

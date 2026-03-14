@@ -88,6 +88,10 @@ RUN ln -fs src/Arena/_meta/docker/features/docker/source.container ./source
 RUN chmod +x /entrypoint.sh
 USER ${username}
 RUN curl -fsSL https://pyenv.run | bash
+RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
+    echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init - bash)"' >> ~/.bashrc
+
 ENTRYPOINT ["/entrypoint.sh"]
 
 

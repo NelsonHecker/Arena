@@ -1,5 +1,6 @@
 #!/bin/bash
 
+source ~/.bashrc
 
 set -e
 cd /opt/arena_ws
