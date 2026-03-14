@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 
-docker_update(){
+docker_build(){
     arena_docker_compose \
         build \
         arena
@@ -11,26 +11,46 @@ docker_commit(){
     CONTAINER_ID=$(arena_docker_compose \
         ps -q -a arena \
         | tail -n 1)
-    echo "committing container to image $ARENA_IMAGE..."
-    sudo ${docker_env[*]} docker commit "$CONTAINER_ID" "$ARENA_IMAGE"
+    echo "committing container $CONTAINER_ID to image $ARENA_IMAGE..."
+    sudo env ${docker_env[*]} docker commit --no-pause "$CONTAINER_ID" "$ARENA_IMAGE"
     echo "done"
 }
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: arena feature docker <update|commit>"
+    echo "Usage: arena feature docker <build|commit|stop|down|compose>"
 }
 
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
     help
     exit 1
 fi
 case "$1" in
-    update)
-        docker_update
+    build)
+        docker_build
+        exit $?
     ;;
     commit)
         docker_commit
+        exit $?
+    ;;
+    stop)
+        echo "Stopping containers..."
+        arena_docker_compose stop
+        exit 0
+        ;;
+    down)
+        echo "Stopping and removing containers..."
+        sudo docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            docker:cli \
+            sh -lc "docker compose --project-name '$ARENA_PROJECT_NAME' down" \
+        exit 0
+    ;;
+    compose)
+        shift
+        arena_docker_compose "$@"
+        exit $?
     ;;
     *)
         help

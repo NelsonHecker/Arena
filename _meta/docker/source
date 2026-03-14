@@ -12,8 +12,9 @@ mkdir -p "$ARENA_WS_DIR/install"
 mkdir -p "$ARENA_WS_DIR/log"
 
 export ARENA_IMAGE="arena:dev"
-export HOST_UID=$(id -u)
-export PROJECT_NAME="arena"
+HOST_UID=$(id -u)
+export HOST_UID
+export ARENA_PROJECT_NAME="arena"
 
 if [ ! -f "$ARENA_WS_DIR/.env" ] ; then
     touch "$ARENA_WS_DIR/.env"
@@ -21,18 +22,68 @@ fi
 
 xhost +local:docker
 
-docker compose \
-    -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
-    --project-directory "$ARENA_WS_DIR" \
-    --project-name "$PROJECT_NAME" \
-    up --remove-orphans --no-start \
-    arena
+docker_env="ARENA_IMAGE=$ARENA_IMAGE ARENA_WS_DIR=$ARENA_WS_DIR"
+export docker_env
 
-CONTAINER_ID=$(docker compose \
-    -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
-    --project-directory "$ARENA_WS_DIR" \
-    --project-name "$PROJECT_NAME" \
-    ps -q -a arena \
-    | tail -n 1)
+arena_docker_compose(){
+    env $docker_env \
+        docker compose \
+        -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
+        --project-directory "$ARENA_WS_DIR" \
+        --project-name "$ARENA_PROJECT_NAME" \
+        "$@"
+}
+export -f arena_docker_compose
 
-docker start -i "$CONTAINER_ID"
+arena_service="arena"
+
+do_run(){
+    arena_docker_compose \
+        up -d --remove-orphans \
+        "$arena_service"
+
+    local ID
+    ID=$(arena_docker_compose ps -q "$arena_service")
+    if [ -z "$ID" ]; then
+        echo "Failed to find container for service '$arena_service'."
+        return 1
+    fi
+
+    local HEALTH_STATUS
+    HEALTH_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$ID" 2>/dev/null)
+    if [ "$HEALTH_STATUS" != "healthy" ] && [ "$HEALTH_STATUS" != "none" ]; then
+        (
+            arena_docker_compose logs -f "$arena_service" &
+            local LOGS_PID=$!
+            
+            trap 'kill "$LOGS_PID" 2>/dev/null' EXIT
+            trap 'kill "$LOGS_PID" 2>/dev/null; exit 130' INT TERM
+
+            while true; do
+                ID=$(arena_docker_compose ps -q "$arena_service")
+                if [ -z "$ID" ]; then
+                    sleep 1
+                    continue
+                fi
+
+                HEALTH_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$ID" 2>/dev/null)
+                local RUN_STATUS
+                RUN_STATUS=$(docker inspect -f '{{.State.Status}}' "$ID" 2>/dev/null)
+
+                if [ "$HEALTH_STATUS" == "healthy" ] || { [ "$HEALTH_STATUS" == "none" ] && [ "$RUN_STATUS" == "running" ]; }; then
+                    break
+                fi
+
+                if [ -n "$RUN_STATUS" ] && [ "$RUN_STATUS" != "running" ] && [ "$RUN_STATUS" != "restarting" ]; then
+                    exit 1
+                fi
+                sleep 1
+            done
+        ) || return $?
+    fi
+
+    arena_docker_compose exec "$arena_service" /entrypoint.sh bash -i
+    return $?
+}
+
+do_run

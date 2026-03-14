@@ -12,12 +12,15 @@ services:
       - "$ARENA_WS_DIR/build:/opt/arena_ws/build"
       - "$ARENA_WS_DIR/install:/opt/arena_ws/install"
       - "$ARENA_WS_DIR/log:/opt/arena_ws/log"
+      - "$ARENA_WS_DIR/.env:/opt/arena_ws/.env"
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
-      - ARENA_IMAGE=${ARENA_IMAGE}
       - UV_LINK_MODE=copy
+      - ARENA_IMAGE
+      - ARENA_PROJECT_NAME
       - ARENA_ROS_DISTRO
+      - HOST_UID
     env_file:
       - "$ARENA_WS_DIR/.env"
     user: "${HOST_UID}"
@@ -27,6 +30,12 @@ services:
     command: ["bash"]
     stdin_open: true 
     tty: true
+    healthcheck:
+      test: ["CMD", "test", "-f", "/.built"]
+      interval: 1s
+      timeout: 2s
+      retries: 99999 # if you can't build by then, good juck
+      start_period: 0s
 
   isaac:
     image: "arena_isaac"

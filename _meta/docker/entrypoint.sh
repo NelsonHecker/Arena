@@ -8,6 +8,8 @@ if [ ! -f /.built ]; then
     arena update
     BUILD_ALL=1 arena build
     sudo touch /.built
+    echo 'Initial setup complete.'
+    echo -e 'Run \033[01;33marena feature docker commit\033[0m to cache this state.'
 fi
 
 exec "$@"

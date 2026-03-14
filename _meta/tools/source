@@ -148,7 +148,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 else
                     package="$1"
                     shift
-                    ($SHELL -c "source '$SOURCE_FILE' && $shell '$ARENA_FEATURES_DIR/${package}' $*")
+                    ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$ARENA_FEATURES_DIR/${package}' $*")
                     result=$?
                 fi
             ;;
