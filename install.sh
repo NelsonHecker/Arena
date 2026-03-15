@@ -36,6 +36,7 @@ if [ ! -d src/Arena ]; then
 fi
 
 ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/docker/source" ./arena
+ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/tools/Arena.code-workspace" ./ws-arena.code-workspace
 
 echo 'Building Arena...'
 cd $ARENA_WS_DIR
