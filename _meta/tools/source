@@ -56,7 +56,7 @@ resolve_arena_feature(){
 }
 export -f resolve_arena_feature
 
-export ARENA_MODELS_FORMATS="yaml"
+export ARENA_MODELS_FORMATS="yaml,png,jpg,mdl"
 
 if [ -f "$INSTALLED" ]; then
     exit(){
