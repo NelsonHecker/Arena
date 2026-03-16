@@ -214,10 +214,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
     async def robot_move(self, robots):
         async def move_robot(robot: Robot) -> bool:
             try:
-                robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
-                res1 = await self._move_entity(self._NS_ROBOT(robot.sim_path), robot.pose)
-                res2 = await self._move_entity(self._NS_ROBOT(robot.sim_path, robot_params.base_frame), robot.pose)
-                return res1 and res2
+                return await self._move_entity(self._NS_ROBOT(robot.sim_path), robot.pose)
             except Exception as e:
                 self._logger.error(f"Failed to move robot {robot.name}: {e}\n{traceback.format_exc()}")
                 return False

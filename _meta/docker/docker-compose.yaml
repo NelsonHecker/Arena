@@ -7,6 +7,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+      - "shared:/tmp/shared"
       - "$HOST_ARENA_WS_DIR/src/Arena/.venv:/opt/venv"
       - "$HOST_ARENA_WS_DIR/src:/opt/arena_ws/src"
       - "$HOST_ARENA_WS_DIR/build:/opt/arena_ws/build"
@@ -14,8 +15,9 @@ services:
       - "$HOST_ARENA_WS_DIR/log:/opt/arena_ws/log"
       - "$HOST_ARENA_WS_DIR/.env:/opt/arena_ws/.env"
     environment:
-      - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - TMPDIR=/tmp/shared
+      - DISPLAY
       - UV_LINK_MODE=copy
       - ARENA_IMAGE
       - ARENA_PROJECT_NAME
@@ -49,6 +51,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+      - "shared:/tmp/shared"
       - "$HOST_ARENA_WS_DIR/src/Arena/.venv:/opt/venv"
       - "$HOST_ARENA_WS_DIR/src:/opt/arena_ws/src"
       - "$HOST_ARENA_WS_DIR/build:/opt/arena_ws/build"
@@ -56,7 +59,8 @@ services:
       - "$HOST_ARENA_WS_DIR/log:/opt/arena_ws/log"
       - "$HOST_ARENA_WS_DIR/.env:/opt/arena_ws/.env"
     environment:
-      - DISPLAY=${DISPLAY}
+      - DISPLAY
+      - TMPDIR=/tmp/shared
       - QT_X11_NO_MITSHM=1
       - UV_LINK_MODE=copy
       - ARENA_IMAGE
@@ -73,3 +77,10 @@ services:
           devices:
             - driver: nvidia
               capabilities: [gpu]
+
+volumes:
+  shared:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
