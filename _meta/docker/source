@@ -15,6 +15,8 @@ mkdir -p "$ARENA_WS_DIR/log"
 export ARENA_IMAGE="arena:dev"
 HOST_UID=$(id -u)
 export HOST_UID
+HOST_GID=$(id -g)
+export HOST_GID
 export ARENA_PROJECT_NAME="arena"
 
 if [ ! -f "$ARENA_WS_DIR/.env" ] ; then

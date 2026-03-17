@@ -75,12 +75,14 @@ RUN (getent passwd ${uid} && userdel -rf $(getent passwd ${uid} | cut -d: -f1)) 
     groupadd -r sudo || true && \
     usermod -aG sudo ${username}
 
+    
 WORKDIR /opt/arena_ws
 
 RUN mkdir -p build
 RUN mkdir -p install
 RUN mkdir -p log
 RUN chown -R ${uid}:${gid} /opt/arena_ws
+
 
 COPY src/Arena/_meta/docker/features/docker/entrypoint.sh /entrypoint.sh
 RUN ln -fs src/Arena/_meta/docker/features/docker/source.container ./source
