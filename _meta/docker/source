@@ -17,7 +17,7 @@ HOST_UID=$(id -u)
 export HOST_UID
 HOST_GID=$(id -g)
 export HOST_GID
-export ARENA_PROJECT_NAME="arena"
+export ARENA_PROJECT_NAME="arena-$(basename "$ARENA_WS_DIR")"
 
 if [ ! -f "$ARENA_WS_DIR/.env" ] ; then
     touch "$ARENA_WS_DIR/.env"
@@ -25,7 +25,12 @@ fi
 
 xhost +local:docker
 
-docker_env="ARENA_IMAGE=$ARENA_IMAGE ARENA_WS_DIR=$ARENA_WS_DIR"
+docker_env=""
+docker_env="${docker_env} ARENA_PROJECT_NAME=$ARENA_PROJECT_NAME"
+docker_env="${docker_env} ARENA_IMAGE=$ARENA_IMAGE"
+docker_env="${docker_env} ARENA_WS_DIR=$ARENA_WS_DIR"
+docker_env="${docker_env} HOST_UID=$HOST_UID"
+docker_env="${docker_env} HOST_GID=$HOST_GID"
 export docker_env
 
 arena_docker_compose(){
