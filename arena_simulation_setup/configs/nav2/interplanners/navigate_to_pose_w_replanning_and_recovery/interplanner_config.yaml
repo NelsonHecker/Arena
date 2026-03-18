@@ -1,6 +1,6 @@
 bt_navigator:
   ros__parameters:
-    default_nav_to_pose_bt_xml: "$(find-pkg-share arena_simulation_setup)/configs/nav2/interplanners/navigate_to_pose_w_replanning_and_recovery/interplanner_behaviour.xml"  
+    default_nav_to_pose_bt_xml: "$(find-pkg-share arena_simulation_setup)/configs/nav2/interplanners/navigate_to_pose_w_replanning_and_recovery/interplanner_behavior.xml"  
     default_nav_through_poses_bt_xml: "" 
     plugin_lib_names: []
     error_code_names:

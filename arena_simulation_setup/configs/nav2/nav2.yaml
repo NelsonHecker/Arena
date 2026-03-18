@@ -252,6 +252,8 @@ recoveries_server:
 
 collision_monitor:
   ros__parameters:
+    enabled: true
+
     observation_sources: ${observation_sources}
     ${**observation_sources_dict}: ''
     polygons: ${polygons}
@@ -269,9 +271,9 @@ collision_monitor:
 
     # 3) Timers & lifecycles
     use_sim_time:         true
-    source_timeout:       2.0    # stale scan → stop
-    stop_pub_timeout:     1.0
-    transform_tolerance:  0.1
+    source_timeout:       0.0
+    stop_pub_timeout:     0.0
+    transform_tolerance:  0.2
     base_shift_correction: true
 
 
