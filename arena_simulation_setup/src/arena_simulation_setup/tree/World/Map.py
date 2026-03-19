@@ -74,7 +74,7 @@ class Map(PathView):
         img_bytes = io.BytesIO()
         img.save(img_bytes, format='PNG')
         img_bytes.seek(0)
-        return img_bytes.getvalue(), (min_x + padding * resolution, min_y + padding * resolution)
+        return img_bytes.getvalue(), (min_x - padding * resolution, min_y - padding * resolution)
 
     @classmethod
     def generate_map_yaml(cls, resolution: float, filename: str, origin: tuple[float, float]) -> str:
