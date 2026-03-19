@@ -119,7 +119,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
 
                     fq_name = self._NS_ROBOT(robot.sim_path)
-
+                    
                     await self._clients.SpawnUrdf.call_timeout(
                         SpawnUrdf.Request(
                             name=fq_name,
@@ -214,8 +214,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
     async def robot_move(self, robots):
         async def move_robot(robot: Robot) -> bool:
             try:
-                robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
-                return await self._move_entity(self._NS_ROBOT(robot.sim_path, robot_params.base_frame), robot.pose)
+                return await self._move_entity(self._NS_ROBOT(robot.sim_path), robot.pose)
             except Exception as e:
                 self._logger.error(f"Failed to move robot {robot.name}: {e}\n{traceback.format_exc()}")
                 return False
@@ -349,7 +348,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
         res = bool(doors_res) and all(doors_res.ret)
         self._logger.info("All doors spawned successfully.")
         return res
-
     async def spawn_elevators(self, elevators) -> bool:
         self._logger.debug(f"IsaacSimulator.spawn_elevators ENTRY, elevators: {elevators}")
         self._logger.debug(f"IsaacSimulator.spawn_elevators called with: {[e.name for e in elevators]}")
@@ -363,18 +361,22 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 pos = elevator.position
                 size = elevator.size
                 size = Scale(x=size[0], y=size[1], z=size[2])
-                return Elevator(
+                des = elevator.destination
+                material_resolved = await elevator.material.resolve()
+                result = Elevator(
                     name=elevator.sim_path,
                     position=pos.to_msg(),
                     size=size,
                     height_min=elevator.height_min,
                     height_max=elevator.height_max,
-                    material=material_to_msg(await elevator.material.resolve()),
+                    material=material_to_msg(material_resolved),
+                    destination=des if hasattr(elevator, 'destination') else '',
                 )
+                return result
             except Exception as e:
                 self._logger.error(f"Failed to append elevator: {elevator.name}: {e}\n{traceback.format_exc()}")
                 return None
-
+        
         req.elevators = list(filter(None, await asyncio.gather(*map(impl, elevators))))
         elevators_res = await self._clients.SpawnElevators.call_timeout(req)
         res = bool(elevators_res) and all(elevators_res.ret)
