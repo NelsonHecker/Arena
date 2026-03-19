@@ -110,13 +110,45 @@ class WorldDescription:
             typing.Tuple[bytes, tuple[float, float]]: The rendered image and its origin
         """
         import shapely
+        import math
+
+        staticObjects: list[tuple[str, shapely.Polygon]] = []
+        default_width = 0.5
+        default_height = 0.5
+        for entity in self.all_static_entities:
+            # get the corners for entity
+
+            # if dimension is given as extra property, use it
+            _width = entity.asdict(expand_extra=True).get("width")
+            _height = entity.asdict(expand_extra=True).get("height")
+            width = default_width
+            height = default_height
+            if _width is not None:
+                width = _width
+            if _height is not None:
+                height = _height
+
+            # corners before transformation
+            _corners_center_origin= [
+                [-width / 2, -height / 2],
+                [ width / 2, -height / 2],
+                [ width / 2,  height / 2],
+                [-width / 2,  height / 2]
+            ] 
+            (center_x, center_y, yaw) = entity.pose.to_2d()
+            tf = lambda x,y: [math.cos(yaw)*x - math.sin(yaw)*y, math.sin(yaw)*x + math.cos(yaw)*y]
+            corners_center_origin = [tf(x,y) for [x,y] in _corners_center_origin]
+            corners = [[center_x+x, center_y+y] for [x,y] in corners_center_origin]
+            staticObjects.append((entity.name, shapely.Polygon(corners)))
 
         png, origin = Map.generate_png(
             rooms=shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
             doors=shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
             walls=shapely.MultiLineString(list(self.all_walls)),
+            static_objects=staticObjects,
             resolution=resolution,
             padding=5,
+            show_obj_name=False
         )
         return png, origin
 
