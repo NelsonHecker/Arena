@@ -1,5 +1,7 @@
 #!/bin/bash -i
 
+name=training
+
 install(){
     set -e
     
@@ -19,6 +21,15 @@ install(){
         -e "." \
         -e "./deps/rosnav_rl/rosnav_rl"
     popd > /dev/null
+
+    echo "Removing incompatible torch companion packages..."
+    uv pip uninstall --python "$ARENA_DIR/.venv/bin/python" torchvision torchaudio || true
+
+    "$ARENA_DIR/_meta/tools/install_torch_companions" "$ARENA_DIR/.venv/bin/python"
+
+    if ! grep -q "$name" "$INSTALLED" 2>/dev/null; then
+        echo "$name" >> "$INSTALLED"
+    fi
 
     echo "Building rosnav_rl and arena_training packages..."
     cd "$ARENA_WS_DIR"
@@ -41,6 +52,7 @@ uninstall(){
     echo "and rebuild the workspace."
     echo "  rm -rf $ARENA_DIR/arena_training"
     echo "  arena build"
+    sed -i "/$name/d" "$INSTALLED"
 }
 
 # === MAIN SCRIPT ===

@@ -22,6 +22,10 @@ if [ $_GIT -eq 1 ] ; then
     git submodule update --init --recursive arena_robots
     # Update arena_training only if already initialized (update=none skips it otherwise)
     if git submodule status arena_training 2>/dev/null | grep -qv '^-'; then
+        if ! grep -qx 'training' "$INSTALLED" 2>/dev/null; then
+            echo 'training' >> "$INSTALLED"
+        fi
+
         git submodule update --remote --depth 1 arena_training || echo 'failed to update arena_training, ignoring'
         pushd "$ARENA_DIR/arena_training" > /dev/null
         git submodule update --init --remote --recursive --depth 1 || echo 'failed to update arena_training submodules, ignoring'
@@ -54,6 +58,20 @@ fi
 if [ $_PYTHON -eq 1 ] ; then
     echo updating python deps...
     uv sync --inexact
+
+    echo removing incompatible torch companion packages...
+    uv pip uninstall --python "$ARENA_DIR/.venv/bin/python" torchvision torchaudio || true
+
+    if { [ -d "$ARENA_DIR/arena_training" ] && git submodule status arena_training 2>/dev/null | grep -qv '^-'; } || grep -qx 'training' "$INSTALLED" 2>/dev/null; then
+        echo updating training python deps...
+        pushd "$ARENA_DIR/arena_training" > /dev/null
+        uv pip install --python "$ARENA_DIR/.venv/bin/python" \
+            -e "." \
+            -e "./deps/rosnav_rl/rosnav_rl"
+        popd > /dev/null
+
+        "$ARENA_DIR/_meta/tools/install_torch_companions" "$ARENA_DIR/.venv/bin/python"
+    fi
 fi
 
 # update links
