@@ -286,7 +286,8 @@ def generate_launch_description():
         world_generator_node,
         launch.actions.ExecuteProcess(
             cmd=['ros2', 'run', 'arena_training', 'train_agent.py',
-                 '--config', train_config.substitution],
+                 '--config', train_config.substitution,
+                 '--robot', robot.substitution],
             output='screen',
             condition=launch.conditions.IfCondition(
                 PythonExpression(['"', train_config.substitution, '" != ""'])
