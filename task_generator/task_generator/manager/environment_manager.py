@@ -26,6 +26,7 @@ from task_generator.shared import (
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim
+from arena_simulation_setup.utils.geometry import Position
 
 EntityPropsT = typing.TypeVar('EntityPropsT', bound=Entity)
 
@@ -123,12 +124,14 @@ class _Realizer:
         if len(pos) >= 2:
             pos[0] += self._config.x
             pos[1] += self._config.y
+        # Create Position object from modified list
+        new_position = Position(x=pos[0], y=pos[1], z=pos[2] if len(pos) > 2 else 0.0)
         name = self._prefix(elevator.name)
         destination = self._prefix(elevator.destination) if getattr(elevator, 'destination', None) else elevator.destination
         return attrs.evolve(
             elevator,
             name=name,
-            position=pos,
+            position=new_position,
             destination=destination,
         )
 
@@ -209,11 +212,10 @@ class EnvironmentManager(NodeInterface, _Realizer):
 
         futures: list[typing.Awaitable] = []
 
-        walls = world.all_walls
-        doors = world.all_doors
-        floors = world.all_floors
-        elevators = world.all_elevators
-
+        walls = tuple(world.all_walls)
+        doors = tuple(world.all_doors)
+        floors = tuple(world.all_floors)
+        elevators = tuple(world.all_elevators)
         if floors:
             futures.append(self._simulator.spawn_floors(tuple(map(self.realize, floors))))
 
