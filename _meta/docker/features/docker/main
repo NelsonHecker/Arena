@@ -30,6 +30,9 @@ case "$1" in
         docker_build
         exit $?
     ;;
+    update)
+        exit 0
+    ;;
     commit)
         docker_commit
         exit $?
