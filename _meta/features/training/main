@@ -1,5 +1,7 @@
 #!/bin/bash -i
 
+name="training"
+
 install(){
     set -e
     
@@ -36,6 +38,13 @@ install(){
     echo ""
 }
 
+update(){
+    git submodule update --remote arena_training || echo 'failed to update arena_training, ignoring'
+    pushd "$ARENA_DIR/arena_training" > /dev/null
+        git submodule update --init --remote --recursive || echo 'failed to update arena_training submodules, ignoring'
+    popd > /dev/null
+}
+
 uninstall(){
     echo "To uninstall training support, remove the arena_training package"
     echo "and rebuild the workspace."
@@ -45,7 +54,7 @@ uninstall(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: training.sh <install|uninstall>"
+    echo "Usage: $name <install|uninstall>"
     echo ""
     echo "Installs arena_training and rosnav_rl for DRL-based navigation."
     echo "This enables:"
@@ -60,11 +69,18 @@ fi
 case "$1" in
     install)
         install
+        exit $?
+    ;;
+    update)
+        update
+        exit $?
     ;;
     uninstall)
         uninstall
+        exit $?
     ;;
     source)
+        return 0
     ;;
     *)
         help

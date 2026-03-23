@@ -1,5 +1,7 @@
 #!/bin/bash -i
 
+name="planners"
+
 install(){
     echo 'Enabled optional planners'
 }
@@ -11,7 +13,7 @@ uninstall(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: planners.sh <install|uninstall>"
+    echo "Usage: $name <install|uninstall>"
 }
 if [ $# -ne 1 ]; then
     help
@@ -20,11 +22,17 @@ fi
 case "$1" in
     install)
         install
+        exit $?
+    ;;
+    update)
+        exit 0
     ;;
     uninstall)
         uninstall
+        exit $?
     ;;
     source)
+        return 0
     ;;
     *)
         help
