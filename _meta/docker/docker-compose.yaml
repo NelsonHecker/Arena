@@ -26,6 +26,7 @@ services:
       - ARENA_PROJECT_NAME
       - ARENA_ROS_DISTRO
       - HOST_UID
+      - HOST_GID
       - HOST_ARENA_WS_DIR
     env_file:
       - "$HOST_ARENA_WS_DIR/.env"
