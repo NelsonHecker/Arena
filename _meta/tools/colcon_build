@@ -71,7 +71,9 @@ if [ "${_SKIP_OLD}" = 1 ]; then
     echo "INDEXING: colcon list --base-paths ${_PATHS[*]}"
 
     function recursive_mtime(){
-        find "$1" \! -type l -printf "%T@\n"  | sort | tail -1 | cut -d. -f1
+        local result
+        result=$(find "$1" \! -type l -printf "%T@\n"  | sort -n | tail -1 | cut -d. -f1)
+        echo "${result:--1}"
     }
 
     while read -r target

@@ -2,6 +2,10 @@
 
 source ~/.bashrc
 
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init - bash)"
+
 set -e
 cd /opt/arena_ws
 source source
@@ -12,7 +16,7 @@ if [ ! -f /.built ]; then
     BUILD_ALL=1 arena build || true
     sudo touch /.built
     echo 'Initial setup complete.'
-    echo -e 'Run \033[01;33marena feature docker commit\033[0m to cache this state.'
+    echo -e '\033[0mRun \033[01;33marena feature docker commit\033[0m to save this state.'
 fi
 
 set +e
