@@ -8,7 +8,7 @@ install(){
     cd "$ARENA_DIR"
 
     echo "Initializing arena_training submodule..."
-    git submodule update --init --remote --depth 1 arena_training
+    git submodule update --init --depth 1 arena_training
 
     echo "Initializing rosnav_rl submodule..."
     pushd "$ARENA_DIR/arena_training" > /dev/null
@@ -39,9 +39,9 @@ install(){
 }
 
 update(){
-    git submodule update --remote arena_training || echo 'failed to update arena_training, ignoring'
+    git submodule update arena_training || echo 'failed to update arena_training, ignoring'
     pushd "$ARENA_DIR/arena_training" > /dev/null
-        git submodule update --init --remote --recursive || echo 'failed to update arena_training submodules, ignoring'
+        git submodule update --init --recursive || echo 'failed to update arena_training submodules, ignoring'
     popd > /dev/null
 }
 
