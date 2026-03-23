@@ -37,7 +37,7 @@ case "$1" in
     stop)
         echo "Stopping containers..."
         arena_docker_compose stop
-        exit 0
+        exit $?
         ;;
     down)
         echo "Stopping and removing containers..."

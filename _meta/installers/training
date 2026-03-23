@@ -60,9 +60,14 @@ fi
 case "$1" in
     install)
         install
+        exit $?
+    ;;
+    update)
+        exit 0
     ;;
     uninstall)
         uninstall
+        exit $?
     ;;
     source)
     ;;

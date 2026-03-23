@@ -42,6 +42,7 @@ if [ $_GIT -eq 1 ] ; then
                 vcs import --input "$ARENA_DIR/_meta/repos/${name}.repos" --shallow --recursive --ff --add-existing "$ARENA_WS_DIR/src"  \
                 || echo "failed to pull all $name repos, ignoring"
             fi
+            (arena feature "$name" update || echo "failed to update feature $name, ignoring")
         done < "$INSTALLED"
     fi
 fi
