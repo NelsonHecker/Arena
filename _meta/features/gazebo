@@ -101,7 +101,7 @@ source_fn(){
 
 # === MAIN SCRIPT ===
 help(){
-  echo "Usage: gazebo.sh <install|uninstall>"
+  echo "Usage: $name <install|uninstall>"
 }
 if [ $# -ne 1 ]; then
   help
@@ -110,12 +110,18 @@ fi
 case "$1" in
   install)
     install
+    exit $?
+    ;;
+  update)
+    exit 0
     ;;
   uninstall)
     uninstall
+    exit $?
     ;;
   source)
     source_fn
+    return $?
     ;;
   *)
     help
