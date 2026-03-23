@@ -101,7 +101,7 @@ class WorldDescription:
     def render(
         self,
         resolution: float = 0.05,
-        asset_default_bbox: Optional[List[List[float]]] = None,
+        default_asset_bbox: Optional[List[List[float]]] = None,
         asset_color: Optional[str] = None,
     ) -> typing.Tuple[bytes, tuple[float, float]]:
         """
@@ -109,14 +109,14 @@ class WorldDescription:
 
         Args:
             resolution (float): The resolution of the rendered image in meters per pixel.
-            asset_default_bbox (Optional[List[List[float]]]): Default bounding box [[xmin, xmax], [ymin, ymax], [zmin, zmax]] to use for static entities if not specified individually.
+            default_asset_bbox (Optional[List[List[float]]]): Default bounding box [[xmin, xmax], [ymin, ymax], [zmin, zmax]] to use for static entities if not specified individually.
             asset_color (Optional[str]): Color used to fill static objects in the map.
 
         Returns:
             Tuple[bytes, tuple[float, float]]: PNG image bytes and the origin (x, y) of the map.
 
         Notes:
-            - Static objects are drawn only if their dimensions can be determined from bbox, width/height, or asset_default_bbox.
+            - Static objects are drawn only if their dimensions can be determined from bbox, width/height, or default_asset_bbox.
             - If asset_color is None, static objects are not drawn.
         """
         import shapely
@@ -129,13 +129,13 @@ class WorldDescription:
                 # dimension is determined with the following priority:
                 # 1. bbox given as an extra property for entity
                 # 2. width and height as extra properties for entity (both have to be set for consistency)
-                # 3. asset_default_bbox
+                # 3. default_asset_bbox
                 # if none of these is set, asset will not be drawn
 
                 def validate_bbox(bbox):
                     if not isinstance(bbox, (list, tuple)):
                         return False
-                    if len(bbox) != 2 or len(bbox) != 3:
+                    if len(bbox) != 2 and len(bbox) != 3:
                         return False
                     for axis in bbox:
                         if not isinstance(axis, (list, tuple)):
@@ -165,9 +165,9 @@ class WorldDescription:
                     val = entity.asdict(expand_extra=True).get("height")
                     if val is not None and isinstance(val, (float, int)):
                         height = val
-                if dim_undetermined() and asset_default_bbox is not None and validate_bbox(asset_default_bbox):
-                        width = asset_default_bbox[0][1] - asset_default_bbox[0][0]
-                        height = asset_default_bbox[1][1] - asset_default_bbox[1][0]
+                if dim_undetermined() and default_asset_bbox is not None and validate_bbox(default_asset_bbox):
+                        width = default_asset_bbox[0][1] - default_asset_bbox[0][0]
+                        height = default_asset_bbox[1][1] - default_asset_bbox[1][0]
                 
                 if dim_undetermined():
                     continue # if width and height could not be determined, skip for this asset
@@ -216,8 +216,8 @@ class WorldDescription:
         files['world.yaml'] = typing.cast(bytes, yaml.safe_dump(converter.unstructure(self), encoding='utf-8', sort_keys=False))
 
         render_args = {"resolution": resolution}
-        if "asset_default_bbox" in kwargs:
-            render_args["asset_default_bbox"] = kwargs["asset_default_bbox"]
+        if "default_asset_bbox" in kwargs:
+            render_args["default_asset_bbox"] = kwargs["default_asset_bbox"]
         if "asset_color" in kwargs:
             render_args["asset_color"] = kwargs["asset_color"]
 
