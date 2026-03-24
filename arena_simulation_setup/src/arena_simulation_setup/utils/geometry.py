@@ -280,7 +280,7 @@ class Orientation(Parseable, Idempotent):
 
     def to_yaw(self) -> float:
         """
-        return yaw angle
+        return yaw angle in radians
         """
         return self.to_euler()[2]
 
