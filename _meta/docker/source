@@ -47,7 +47,7 @@ arena_service="arena"
 
 do_run(){
     arena_docker_compose \
-        up -d --remove-orphans \
+        up -d --remove-orphans --timeout 0 \
         "$arena_service"
 
     local ID

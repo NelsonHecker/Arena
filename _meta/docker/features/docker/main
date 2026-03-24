@@ -39,7 +39,7 @@ case "$1" in
     ;;
     stop)
         echo "Stopping containers..."
-        arena_docker_compose stop
+        arena_docker_compose stop --timeout 0
         exit $?
         ;;
     down)
@@ -47,7 +47,7 @@ case "$1" in
         sudo docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             docker:cli \
-            sh -lc "docker compose --project-name '$ARENA_PROJECT_NAME' down" \
+            sh -lc "docker compose --project-name '$ARENA_PROJECT_NAME' down --timeout 0" \
         exit 0
     ;;
     compose)
