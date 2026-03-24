@@ -2,6 +2,7 @@ import io
 import os
 import tarfile
 import typing
+from typing import Optional, List
 from pathlib import Path
 
 import attrs
@@ -100,23 +101,102 @@ class WorldDescription:
     def render(
         self,
         resolution: float = 0.05,
+        default_asset_bbox: Optional[List[List[float]]] = None,
+        asset_color: Optional[str] = None,
     ) -> typing.Tuple[bytes, tuple[float, float]]:
-        """Render the world description to a PNG image
+        """
+        Render the world description to a PNG image.
 
         Args:
-            resolution (float): The resolution of the rendered image [m/px]
+            resolution (float): The resolution of the rendered image in meters per pixel.
+            default_asset_bbox (Optional[List[List[float]]]): Default bounding box [[xmin, xmax], [ymin, ymax], [zmin, zmax]] to use for static entities if not specified individually.
+            asset_color (Optional[str]): Color used to fill static objects in the map.
 
         Returns:
-            typing.Tuple[bytes, tuple[float, float]]: The rendered image and its origin
+            Tuple[bytes, tuple[float, float]]: PNG image bytes and the origin (x, y) of the map.
+
+        Notes:
+            - Static objects are drawn only if their dimensions can be determined from bbox, width/height, or default_asset_bbox.
+            - If asset_color is None, static objects are not drawn.
         """
         import shapely
+        import math
+
+        if asset_color is not None:
+            staticObjects: list[tuple[str, shapely.Polygon]] = []
+            for entity in self.all_static_entities:
+                # get the corners for entity
+                # dimension is determined with the following priority:
+                # 1. bbox given as an extra property for entity
+                # 2. width and height as extra properties for entity (both have to be set for consistency)
+                # 3. default_asset_bbox
+                # if none of these is set, asset will not be drawn
+
+                def validate_bbox(bbox):
+                    if not isinstance(bbox, (list, tuple)):
+                        return False
+                    if len(bbox) != 2 and len(bbox) != 3:
+                        return False
+                    for axis in bbox:
+                        if not isinstance(axis, (list, tuple)):
+                            return False
+                        if len(axis) != 2:
+                            return False
+                        for value in axis:
+                            if not isinstance(value, (int, float)):
+                                return False
+                    return True
+
+                bbox_key_candidates = ["bbox", "boundingBox", "bounding_box"]
+                import math
+                width = float("NaN")
+                height = float("NaN")
+                dim_undetermined = lambda : math.isnan(width) or math.isnan(height)
+                for key in bbox_key_candidates:
+                    val = entity.asdict(expand_extra=True).get(key)
+                    if val is not None and validate_bbox(val):
+                        width = val[0][1] - val[0][0]
+                        height = val[1][1] - val[1][0]
+                        break
+                if dim_undetermined():
+                    val = entity.asdict(expand_extra=True).get("width")
+                    if val is not None and isinstance(val, (float, int)):
+                        width = val
+                    val = entity.asdict(expand_extra=True).get("height")
+                    if val is not None and isinstance(val, (float, int)):
+                        height = val
+                if dim_undetermined() and default_asset_bbox is not None and validate_bbox(default_asset_bbox):
+                        width = default_asset_bbox[0][1] - default_asset_bbox[0][0]
+                        height = default_asset_bbox[1][1] - default_asset_bbox[1][0]
+                
+                if dim_undetermined():
+                    continue # if width and height could not be determined, skip for this asset
+                else:
+                    # corners before transformation
+                    _corners_center_origin= [
+                        [-width / 2, -height / 2],
+                        [ width / 2, -height / 2],
+                        [ width / 2,  height / 2],
+                        [-width / 2,  height / 2],
+                        [-width / 2, -height / 2]
+                    ] 
+                    (center_x, center_y, yaw) = entity.pose.to_2d()
+                    tf = lambda x,y: [math.cos(yaw)*x - math.sin(yaw)*y, math.sin(yaw)*x + math.cos(yaw)*y]
+                    corners_center_origin = [tf(x,y) for [x,y] in _corners_center_origin]
+                    corners = [[center_x+x, center_y+y] for [x,y] in corners_center_origin]
+                    staticObjects.append((entity.name, shapely.Polygon(corners)))
+        else:
+            staticObjects = None
 
         png, origin = Map.generate_png(
             rooms=shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
             doors=shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
             walls=shapely.MultiLineString(list(self.all_walls)),
+            static_objects=staticObjects,
             resolution=resolution,
             padding=5,
+            show_obj_name=False,
+            asset_color=asset_color
         )
         return png, origin
 
@@ -124,6 +204,7 @@ class WorldDescription:
         self,
         resolution: float = 0.05,
         extra_files: dict[str, bytes] | None = None,
+        **kwargs
     ) -> tarfile.TarFile:
         """
         Export the world description to world.yaml, map.png, map.yaml
@@ -135,7 +216,13 @@ class WorldDescription:
 
         files['world.yaml'] = typing.cast(bytes, yaml.safe_dump(converter.unstructure(self), encoding='utf-8', sort_keys=False))
 
-        files['map/map.png'], origin = self.render(resolution=resolution)
+        render_args = {"resolution": resolution}
+        if "default_asset_bbox" in kwargs:
+            render_args["default_asset_bbox"] = kwargs["default_asset_bbox"]
+        if "asset_color" in kwargs:
+            render_args["asset_color"] = kwargs["asset_color"]
+
+        files['map/map.png'], origin = self.render(**render_args)
 
         files['map/map.yaml'] = Map.generate_map_yaml(resolution=resolution, filename='map.png', origin=origin).encode('utf-8')
 
