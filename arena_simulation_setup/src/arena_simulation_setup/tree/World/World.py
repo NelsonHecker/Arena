@@ -177,7 +177,8 @@ class WorldDescription:
                         [-width / 2, -height / 2],
                         [ width / 2, -height / 2],
                         [ width / 2,  height / 2],
-                        [-width / 2,  height / 2]
+                        [-width / 2,  height / 2],
+                        [-width / 2, -height / 2]
                     ] 
                     (center_x, center_y, yaw) = entity.pose.to_2d()
                     tf = lambda x,y: [math.cos(yaw)*x - math.sin(yaw)*y, math.sin(yaw)*x + math.cos(yaw)*y]
