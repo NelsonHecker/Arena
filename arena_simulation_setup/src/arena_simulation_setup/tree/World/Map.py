@@ -28,11 +28,26 @@ class Map(PathView):
         rooms: shapely.MultiPolygon,
         doors: shapely.MultiPolygon,
         walls: shapely.MultiLineString,
+        static_objects: typing.Optional[typing.List[tuple[str, shapely.Polygon]]] = None,
         resolution: float = 0.01,
         padding: int = 5,
+        show_obj_name: bool = True,
+        asset_color: str = "grey",
+        asset_name_color: str = "blue"
     ) -> tuple[bytes, tuple[float, float]]:
         """
         Generate a PNG image of the map with the given elements.
+        
+        Args:
+            rooms (shapely.MultiPolygon): MultiPolygon representing the rooms in the map.
+            doors (shapely.MultiPolygon): MultiPolygon representing the doors in the map.
+            walls (shapely.MultiLineString): MultiLineString representing the walls in the map.
+            static_objects (Optional[List[Tuple[str, shapely.Polygon]]]): Optional list of (name, Polygon) tuples for static objects to draw.
+            resolution (float): Size of each pixel in meters.
+            padding (int): Number of pixels to pad around the map.
+            show_obj_name (bool): Whether to display object names on the map.
+            asset_color (str): Color used to fill static objects.
+            asset_name_color (str): Color used for static object names.
         """
         min_x, min_y, max_x, max_y = rooms.bounds
 
@@ -70,6 +85,29 @@ class Map(PathView):
         for wall in walls.geoms:
             line = tf(shapely.LineString(wall))
             draw.line(as_int(line.coords), fill='black', width=1)
+
+        if static_objects is not None:
+            for name, obj in static_objects:
+                print(name)
+                poly = tf(obj)
+                draw.polygon(as_int(poly.exterior.coords), fill=asset_color)
+                if show_obj_name:
+                    # determine xy to draw object name on
+                    coords = poly.exterior.coords
+                    _min_x = float('inf')
+                    _max_x = float('-inf')
+                    _min_y = float('inf')
+                    _max_y = float('-inf')
+                    for coord in coords:
+                        x = coord[0]
+                        y = coord[1]
+                        print(f"x:{x}, y:{y}")
+                        if _min_x > x: _min_x = x
+                        if _max_x < x: _max_x = x
+                        if _min_y > y: _min_y = y
+                        if _max_y < y: _max_y = y
+                    text_draw_pos = [_max_x, _max_y]
+                    draw.text(text_draw_pos, name, fill=asset_name_color)
 
         img_bytes = io.BytesIO()
         img.save(img_bytes, format='PNG')
