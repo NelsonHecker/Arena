@@ -557,10 +557,17 @@ class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
         if not isinstance(value, str):
             raise TypeError(f'Expected str, got {repr(value)}')
 
-        parts = list(reversed(value.split('/', 2)))
+        parts = list(value.split('/', 3))
 
-        name = parts[0]
-        domain = parts[1] if len(parts) > 1 else DOMAIN_DEFAULT
+        if len(parts) > 1 and parts[1] == cls._asset_type:
+            # asset type included, shift
+            parts.pop(1)
+        if len(parts) > 1:
+            # domain included
+            domain = parts.pop(0)
+        else:
+            domain = DOMAIN_DEFAULT
+        name = "/".join(parts)
 
         return cls(
             domain=domain,
@@ -569,9 +576,7 @@ class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
 
     @property
     def shortname(self) -> str:
-        if self.domain == DOMAIN_DEFAULT:
-            return self.name
-        return f'{self.domain}/{self.name}'
+        return f'{self.domain}/{self._asset_type}/{self.name}'
 
     def relpath(self) -> Path:
         """Get the path representation of the identifier.
