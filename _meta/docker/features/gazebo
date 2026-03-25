@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
+echo 'Not implemented yet. Coming soon!'
 return 1

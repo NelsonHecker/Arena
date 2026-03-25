@@ -6,28 +6,50 @@ A modular ROS 2 (Humble) platform for researching and benchmarking autonomous ro
 
 ## Installation
 
+Preqeuisites: [Docker](https://docs.docker.com/engine/install/) installation with [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) for GPU support. Current user must be in group `docker`.
+Afterwards, run the following commands to install Arena:
+
+### Basic Installation
+
 ```sh
 curl https://raw.githubusercontent.com/voshch/Arena/jazzy/install.sh > install.sh
 bash install.sh
+```
+and follow the prompts. This will create a ROS 2 workspace at your target location and instruct you how to proceed (yellow text).
 
-cd ~/arena5_ws # replace with your actual workspace path
+
+### Optional Features
+```sh
+cd ~/arena_ws # replace with your actual workspace path
 source arena
-arena update
-arena build
-arena feature gazebo install # optional
 arena feature isaac install # optional
+arena feature gazebo install # optional
 arena feature training install # optional
 ```
+
+We recommend installing at least one simulator.
 
 ## Usage
 
 ```sh
-cd ~/arena5_ws # replace with your actual workspace path
+cd ~/arena_ws # replace with your actual workspace path
 source arena
-arena launch sim:=gazebo                         # default — Gazebo simulator
 arena launch sim:=isaac                          # Isaac Sim
 arena launch local_planner:=rosnav_rl agent_name:=<your_agent>  # DRL planner
 arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path to config.yaml> # DRL training 
 ```
 
-> **DRL quick-start**: place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `local_planner:=rosnav_rl agent_name:=<agent_name>`. Refer to the [arena_training README](arena_training/README.md) for training instructions.
+### DRL quick-start
+Place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `local_planner:=rosnav_rl agent_name:=<agent_name>`. Refer to the [arena_training](arena_training/README.md) for training instructions.
+
+
+## Troubleshooting
+
+### Unknown runtime speficied 'nvidia'
+
+```sh
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+sudo nvidia-ctk runtime configure --runtime=containerd
+sudo systemctl restart containerd
+```
