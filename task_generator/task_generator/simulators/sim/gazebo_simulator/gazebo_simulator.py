@@ -481,7 +481,10 @@ class GazeboSimulator(BaseSim):
                 parameters=[
                     {"use_sim_time": True},
                     {"robot_description": description},
-                    {"frame_prefix": robot.frame + "/"},  # add trailing slash
+                    # Use underscore separator to match sanitized (auto_sanitize) frame names
+                    # used throughout nav2, collision_monitor, and static TF publishers.
+                    # e.g. "jackal_" → jackal_base_link, jackal_lidar_link
+                    {"frame_prefix": str(robot.frame) + "_"},
                 ],
             )
         )
