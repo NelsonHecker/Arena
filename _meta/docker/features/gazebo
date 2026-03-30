@@ -1,4 +1,60 @@
-#!/usr/bin/env bash
+#!/bin/bash -i
 
-echo 'Not implemented yet. Coming soon!'
-return 1
+
+name="gazebo"
+
+update(){
+    echo "Updating $name..."
+    arena update
+    arena build
+}
+
+install(){
+    set -e
+
+    if ! grep -q "$name" "$INSTALLED" 2>/dev/null; then
+        echo "$name" >> "$INSTALLED"
+    fi
+
+    update
+    echo "Installed $name successfully."
+}
+
+uninstall(){
+    #TODO
+    sed -i "/$name/d" "$INSTALLED"
+}
+
+source_fn(){
+    if [[ ! "$ARENA_MODELS_FORMATS" =~ usd ]]; then
+        export ARENA_MODELS_FORMATS="${ARENA_MODELS_FORMATS},sdf"
+    fi
+}
+
+
+help(){
+    echo "Usage: $name <install|update|uninstall|source>"
+}
+
+case "$1" in
+    install)
+        install
+        exit $?
+    ;;
+    update)
+        update
+        exit $?
+    ;;
+    uninstall)
+        uninstall
+        exit $?
+    ;;
+    source)
+        source_fn
+        return $?
+    ;;
+    *)
+        help
+        exit 1
+    ;;
+esac

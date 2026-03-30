@@ -72,9 +72,6 @@ def generate_launch_description():
 
     GZ_SIM_RESOURCE_PATHS = [os.path.normpath(path) for path in GZ_SIM_RESOURCE_PATHS]
 
-    # GZ_CONFIG_PATH = ":".join(GZ_CONFIG_PATHS)
-    GZ_CONFIG_PATH = "/usr/share/gz"
-
     for root, dirs, files in os.walk(os.path.join(ss_root, "gazebo_models")):
         for dir_name in dirs:
             if 'hospital' in dir_name.lower():
@@ -88,8 +85,6 @@ def generate_launch_description():
         GZ_SIM_RESOURCE_PATHS_COMBINED = f"{model_path}:{GZ_SIM_RESOURCE_PATHS_COMBINED}"
     os.environ["GZ_SIM_RESOURCE_PATH"] = GZ_SIM_RESOURCE_PATHS_COMBINED
     os.environ["GAZEBO_MODEL_PATH"] = GZ_SIM_RESOURCE_PATHS_COMBINED
-    # os.environ['GZ_CONFIG_PATH'] = GZ_CONFIG_PATH
-    # os.environ["GZ_CONFIG_PATH"] = GZ_CONFIG_PATH
     # os.environ["GZ_SIM_PHYSICS_ENGINE_PATH"] = GZ_SIM_PHYSICS_ENGINE_PATH
 
     desired_world = PathJoinSubstitution(
@@ -156,7 +151,6 @@ def generate_launch_description():
             use_sim_time,
             world,
             headless,
-            SetEnvironmentVariable("GZ_CONFIG_PATH", GZ_CONFIG_PATH),
             # SetEnvironmentVariable(
             #     "GZ_SIM_PHYSICS_ENGINE_PATH", GZ_SIM_PHYSICS_ENGINE_PATH
             # ),
