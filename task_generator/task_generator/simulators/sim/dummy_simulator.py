@@ -2,6 +2,7 @@ import asyncio
 
 from collections.abc import Sequence
 
+import rosgraph_msgs.msg
 
 from task_generator.shared import Entity, Wall
 from task_generator.simulators.sim import BaseSim
@@ -14,6 +15,26 @@ class DummySimulator(BaseSim):
     """
     Does nothing.
     """
+
+    _clock_task: asyncio.Task
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._clock_publisher = self.node.create_publisher(
+            rosgraph_msgs.msg.Clock, '/clock', 10
+        )
+        self._clock_task = asyncio.create_task(self._publish_clock_loop())
+
+    async def _publish_clock_loop(self):
+        """Publish simulated clock at ~100Hz using wall time."""
+        start = self.node.wall_time
+        try:
+            while True:
+                elapsed = self.node.wall_time - start
+                self._clock_publisher.publish(elapsed.to_rosgraph_msg())
+                await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            pass
 
     async def before_reset_task(self):
         self._logger.debug("pausing")

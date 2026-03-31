@@ -6,7 +6,10 @@ import launch.substitutions
 from ament_index_python.packages import get_package_share_directory
 
 import launch
+import launch_ros.actions
 from arena_bringup.substitutions import LaunchArgument, SelectAction
+
+from task_generator.constants import Constants
 
 
 def generate_launch_description():
@@ -31,12 +34,18 @@ def generate_launch_description():
     launch_simulator = SelectAction(launch.substitutions.LaunchConfiguration('simulator'))
 
     launch_simulator.add(
-        'dummy',
-        launch.actions.GroupAction([])
+        Constants.SimSimulator.DUMMY.value,
+        launch.actions.GroupAction([
+            launch_ros.actions.Node(
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                arguments=['--frame-id', 'map', '--child-frame-id', 'dummy'],
+            ),
+        ])
     )
 
     launch_simulator.add(
-        'gazebo',
+        Constants.SimSimulator.GAZEBO.value,
         launch.actions.IncludeLaunchDescription(
             launch.launch_description_sources.PythonLaunchDescriptionSource(
                 os.path.join(get_package_share_directory(
@@ -51,7 +60,7 @@ def generate_launch_description():
     )
 
     launch_simulator.add(
-        'isaac',
+        Constants.SimSimulator.ISAAC.value,
         launch.actions.IncludeLaunchDescription(
             launch.launch_description_sources.PythonLaunchDescriptionSource(
                 os.path.join(get_package_share_directory(

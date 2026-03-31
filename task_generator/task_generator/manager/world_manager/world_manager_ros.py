@@ -226,7 +226,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
             self._map_name = self.world_name
             try:
-                await asyncio.gather(*(callback() for callback in self._callbacks), return_exceptions=True)
+                await asyncio.gather(*(callback() for callback in self._callbacks))
             except Exception as e:
                 self._logger.warning(f'encountered exception in world callback: {e}\n{traceback.format_exc()}')
 

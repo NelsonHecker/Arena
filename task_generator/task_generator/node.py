@@ -25,7 +25,6 @@ from task_generator.manager.world_manager.world_manager_ros import (
 )
 from task_generator.shared import configure_node
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
-from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim, SimulatorRegistry
 from task_generator.tasks import identifier_to_available
 from task_generator.tasks.task import Task
@@ -104,7 +103,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         )
 
         await self._world_manager.sync()
-        await self.reset_task(first_map=True)
+        await self.reset_task(force=True, first_map=True)
 
         self._check_status_task = asyncio.create_task(self._check_task_status())
 
@@ -150,8 +149,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         )
 
         async def world_change_cb():
-            await self._environment_manager.reset(ObstacleLayer.WORLD)
-            await self._environment_manager.spawn_world_obstacles(self._world_manager.world)
+            async with self._reset_lock:
+                await self._environment_manager.respawn(
+                    lambda: self._environment_manager.spawn_world_obstacles(self._world_manager.world)
+                )
 
         self._world_manager.on_world_change(world_change_cb)
         await self._world_manager.start()
@@ -165,8 +166,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self._logger.info("Managers set up")
 
     # RUNTIME
-    async def reset_task(self, **kwargs):
+    async def reset_task(self, *, force: bool = False, **kwargs):
         async with self._reset_lock:
+            if not force and not await self._task.is_done:
+                return
+
             self._start_time = self.sim_time
 
             await self._simulator.before_reset_task()
@@ -197,9 +201,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         try:
             while True:
                 await asyncio.sleep(0.5)
-                async with self._reset_lock:
-                    if await self._task.is_done:
-                        await self.reset_task()
+                await self.reset_task()
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -215,28 +217,35 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         rclpy.shutdown()
 
     # SERVICES
-    async def _cb_reset_task(
+    def _cb_reset_task(
         self,
         request: std_srvs.Empty.Request,
         response: std_srvs.Empty.Response
     ):
         self.get_logger().debug("Task Generator received task-reset request!")
-        await self.reset_task()
+        future = asyncio.run_coroutine_threadsafe(
+            self.reset_task(force=True), self.event_loop
+        )
+        future.result()
         return response
 
-    async def _cb_pause_simulation(
+    def _cb_pause_simulation(
         self,
         request: std_srvs.SetBool.Request,
         response: std_srvs.SetBool.Response,
     ):
         """Pause (request.data=True) or unpause (request.data=False) the simulator."""
-        if request.data:
-            result = await self._simulator.pause_simulation()
-            response.message = "paused"
-        else:
-            result = await self._simulator.unpause_simulation()
-            response.message = "unpaused"
-        response.success = bool(result)
+        async def _do():
+            if request.data:
+                result = await self._simulator.pause_simulation()
+                response.message = "paused"
+            else:
+                result = await self._simulator.unpause_simulation()
+                response.message = "unpaused"
+            response.success = bool(result)
+
+        future = asyncio.run_coroutine_threadsafe(_do(), self.event_loop)
+        future.result()
         return response
 
     async def _cb_get_configs_environments(
@@ -289,12 +298,15 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         response.robots = list(identifier_to_available(arena_robots.Robot.RobotIdentifier))
         return response
 
-    async def _cb_wait_for_world(
+    def _cb_wait_for_world(
         self,
         request: EmptySrv.Request,
         response: EmptySrv.Response,
     ):
-        await self._world_manager.sync()
+        future = asyncio.run_coroutine_threadsafe(
+            self._world_manager.sync(), self.event_loop
+        )
+        future.result()
         return response
 
     async def _set_up_services(self):
