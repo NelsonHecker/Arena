@@ -192,13 +192,17 @@ def generate_launch_description():
             name='goal_pose_relay',
             arguments=['/goal_pose', 'goal_pose'],
         ),
-        Node(
-            package='pose_to_tf',
-            executable='pose_to_tf',
-            name='pose_to_tf',
-            parameters=[{'odom_frame': 'odom', 'pose_topic': 'pose'}],
-            output='screen'
-        ),
+        # pose_to_tf disabled: map→odom TF is now published by the dynamic TF broadcaster in
+        # gazebo_simulator.py (_publish_map_to_odom_tfs). pose_to_tf incorrectly published
+        # map→odom = raw Gazebo pose without accounting for DiffDrive accumulated odom offset,
+        # which would double-count wheel motion and place the robot at the wrong map position.
+        # Node(
+        #     package='pose_to_tf',
+        #     executable='pose_to_tf',
+        #     name='pose_to_tf',
+        #     parameters=[{'odom_frame': 'odom', 'pose_topic': 'pose'}],
+        #     output='screen'
+        # ),
         # Node(
         #     package='tf2_ros',
         #     executable='static_transform_publisher',
