@@ -8,7 +8,6 @@ import os
 import subprocess
 import threading
 import typing
-import warnings
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Optional
@@ -183,7 +182,7 @@ class DynamicPathResolver(PathResolverBase[IdentifierT], typing.Generic[Identifi
 
 class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], ResolverBase[IdentifierT]):
     """
-    Resolve asset paths from both disk and network.
+    Resolve asset paths from network.
     """
 
     def __init__(self, _T: typing.Type[IdentifierT], /, provider: str, **kwargs):
@@ -191,8 +190,10 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
         super().__init__(_T, path=path, **kwargs)
         self._provider: str = provider
 
-        self._running_fetches: dict[IdentifierT, asyncio.Task[Optional[Path]]] = {}
-        self._running_lock = asyncio.Lock()
+        self._formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
+        self._pending: dict[str, list[asyncio.Future[Optional[Path]]]] = {}
+        self._flush_scheduled = False
+        self._batch_lock = asyncio.Lock()
 
     @classmethod
     async def check_output_async(cls, args: Iterable[str], **kwargs) -> bytes:
@@ -207,46 +208,56 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
             raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
         return stdout
 
-    async def _network_fetch(self, provider: str, identifier: IdentifierT) -> Optional[Path]:
-        relpath = identifier.relpath()
-        root_path = ARENA_ASSETS_DIR / provider
-        target_path = root_path / relpath
+    async def _batch_request(self, relpath: str) -> Optional[Path]:
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[Optional[Path]] = loop.create_future()
+        async with self._batch_lock:
+            self._pending.setdefault(relpath, []).append(future)
+            if not self._flush_scheduled:
+                self._flush_scheduled = True
+                asyncio.create_task(self._flush())
+        return await future
 
-        formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
+    async def _flush(self):
+        # yield once so that requests arriving in the same tick are collected
+        await asyncio.sleep(0)
+
+        async with self._batch_lock:
+            batch = dict(self._pending)
+            self._pending.clear()
+            self._flush_scheduled = False
+
+        relpaths = list(batch.keys())
+        root_path = ARENA_ASSETS_DIR / self._provider
+        logging.info(
+            "Batched fetch of %d asset(s) from provider %s: %s",
+            len(relpaths), self._provider, relpaths,
+        )
 
         try:
-            if (await self.check_output_async([
-                'ros2',
-                'run',
-                'arena_models',
-                'arena_models',
+            await self.check_output_async([
+                'ros2', 'run', 'arena_models', 'arena_models',
                 '-s',
-                'net',
-                provider,
-                'exists',
-                str(relpath),
-            ])).strip().decode() == '1':
-                logging.info(f"Fetching asset {identifier} from network provider {provider}...")
-                await self.check_output_async([
-                    'ros2',
-                    'run',
-                    'arena_models',
-                    'arena_models',
-                    '-s',
-                    'net',
-                    provider,
-                    'fetch',
-                    str(relpath),
-                    '-o',
-                    str(root_path),
-                    *itertools.chain.from_iterable(('--format', format) for format in formats if format),
-                ])
-                return target_path
-
-        except subprocess.CalledProcessError:
+                'net', self._provider, 'fetch',
+                *relpaths,
+                '-o', str(root_path),
+                *itertools.chain.from_iterable(
+                    ('--format', fmt) for fmt in self._formats if fmt
+                ),
+            ])
+            for relpath, futures in batch.items():
+                target = root_path / relpath
+                result = target if target.exists() else None
+                for fut in futures:
+                    if not fut.done():
+                        fut.set_result(result)
+        except Exception:
             import traceback
             logging.warning(traceback.format_exc())
-            return None
+            for futures in batch.values():
+                for fut in futures:
+                    if not fut.done():
+                        fut.set_result(None)
 
     async def resolve(self, identifier):
         """
@@ -255,31 +266,33 @@ class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], 
         if identifier in self._cache:
             return self._cache[identifier]
 
-        local_result = await SimplePathResolver.resolve(self, identifier)
-        if local_result is not None:
-            return local_result
-
-        async with self._running_lock:
-            if identifier in self._running_fetches:
-                fetch_task = self._running_fetches[identifier]
-            else:
-                fetch_task = asyncio.create_task(self._network_fetch(self._provider, identifier))
-                self._running_fetches[identifier] = fetch_task
-
-        net_result = await fetch_task
-        if net_result is not None:
-            self._cache[identifier] = net_result
+        result = await self._batch_request(str(identifier.relpath()))
+        if result is not None:
+            self._cache[identifier] = result
 
         return self._cache.get(identifier, None)
 
     def listall(self, *, network: bool = False, **kwargs) -> Iterator[IdentifierT]:
         """
-        List all local assets available. Builds the cache in the process.
+        List all assets available. When *network* is True, also queries the
+        remote provider via ``ros2 run arena_models arena_models … list``.
         """
-        yield from SimplePathResolver.listall(self, **kwargs)
+        yield from super(SimplePathResolver, self).listall(**kwargs)
         if network:
-            warnings.warn(f'Network listing is not yet supported in {repr(self.__class__)}', UserWarning)
-            yield from ()
+            try:
+                output = subprocess.check_output([
+                    'ros2', 'run', 'arena_models', 'arena_models',
+                    '-s',
+                    'net', self._provider, 'list',
+                    self._asset_type,
+                ], stderr=subprocess.DEVNULL)
+                for line in output.decode().splitlines():
+                    line = line.strip()
+                    if line:
+                        yield self._IdentifierT.from_relpath(Path(line))
+            except subprocess.CalledProcessError:
+                import traceback
+                logging.warning(traceback.format_exc())
 
     def __repr__(self) -> str:
         return f"{super().__repr__()}(net={self._provider})"
