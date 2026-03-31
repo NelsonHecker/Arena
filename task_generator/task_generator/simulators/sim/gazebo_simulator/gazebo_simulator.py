@@ -3,13 +3,13 @@ import itertools
 import math
 import time
 import traceback
-from pathlib import Path
 import typing
+from pathlib import Path
 
 import arena_robots.Robot
 import launch_ros
-import rclpy.time
 import rclpy.duration
+import rclpy.time
 import tf2_ros
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
@@ -20,13 +20,13 @@ from ros_gz_interfaces.srv import ControlWorld, DeleteEntity, SetEntityPose, Spa
 import launch
 from task_generator.shared import (
     Entity,
+    FrameNamespace,
     Model,
     ModelType,
     ModelWrapper,
     Pose,
     Robot,
     Wall,
-    FrameNamespace,
 )
 from task_generator.simulators.sim import BaseSim
 
@@ -37,7 +37,6 @@ FrameNamespace.auto_sanitize()
 
 
 class GazeboSimulator(BaseSim):
-
     def __init__(self, *args, namespace, **kwargs):
         super().__init__(*args, namespace=namespace, **kwargs)
 
@@ -85,7 +84,10 @@ class GazeboSimulator(BaseSim):
         async def impl(robot: Robot) -> bool:
             if not await self._spawn_entity(robot):
                 return False
-            _loader_args = {**robot.asdict(), 'sim_path': getattr(robot, 'sim_path', robot.name)}
+            _loader_args = {
+                **robot.asdict(),
+                "sim_path": getattr(robot, "sim_path", robot.name),
+            }
             model = await (await robot.model.resolve()).model.get(
                 ModelType.URDF, loader_args=_loader_args
             )
@@ -179,11 +181,13 @@ class GazeboSimulator(BaseSim):
     async def _spawn_entity(self, entity: Entity) -> bool:
         async with self._semaphore:
             try:
-
                 # Get model description
                 try:
                     if isinstance(entity, Robot):
-                        _loader_args = {**entity.asdict(), 'sim_path': getattr(entity, 'sim_path', entity.name)}
+                        _loader_args = {
+                            **entity.asdict(),
+                            "sim_path": getattr(entity, "sim_path", entity.name),
+                        }
                         model = await (await entity.model.resolve()).model.get(
                             ModelType.URDF, loader_args=_loader_args
                         )
@@ -203,28 +207,35 @@ class GazeboSimulator(BaseSim):
 
                 if model.path and model.type not in (ModelType.URDF,):
                     # direct path available, use gz cli call
-                    world_name =  "default"
+                    world_name = "default"
                     sdf_path = model.path
                     model_name = entity.sim_path
                     service_name = f"/world/{world_name}/create"
-                    
+
                     req_payload = (
                         f'sdf_filename: "{sdf_path}", '
                         f'name: "{model_name}", '
-                        f'pose: {{ '
-                        f'  position: {{ x: {entity.pose.position.x}, y: {entity.pose.position.y}, z: {entity.pose.position.z} }} '
-                        f'  orientation: {{ x: {entity.pose.orientation.x}, y: {entity.pose.orientation.y}, z: {entity.pose.orientation.z}, w: {entity.pose.orientation.w} }} '
-                        f'}}'
+                        f"pose: {{ "
+                        f"  position: {{ x: {entity.pose.position.x}, y: {entity.pose.position.y}, z: {entity.pose.position.z} }} "
+                        f"  orientation: {{ x: {entity.pose.orientation.x}, y: {entity.pose.orientation.y}, z: {entity.pose.orientation.z}, w: {entity.pose.orientation.w} }} "
+                        f"}}"
                     )
 
                     process = await asyncio.create_subprocess_exec(
-                        'gz', 'service', '-s', service_name,
-                        '--reqtype', 'gz.msgs.EntityFactory',
-                        '--reptype', 'gz.msgs.Boolean',
-                        '--timeout', '2000',
-                        '--req', req_payload,
+                        "gz",
+                        "service",
+                        "-s",
+                        service_name,
+                        "--reqtype",
+                        "gz.msgs.EntityFactory",
+                        "--reptype",
+                        "gz.msgs.Boolean",
+                        "--timeout",
+                        "2000",
+                        "--req",
+                        req_payload,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                        stderr=asyncio.subprocess.PIPE,
                     )
 
                     stdout, stderr = await process.communicate()
@@ -232,7 +243,9 @@ class GazeboSimulator(BaseSim):
                     if process.returncode == 0:
                         return True
                     else:
-                        self._logger.error(f"Failed to spawn {model_name}. Error: {stderr.decode().strip()}")
+                        self._logger.error(
+                            f"Failed to spawn {model_name}. Error: {stderr.decode().strip()}"
+                        )
                         return False
 
                 else:
@@ -256,10 +269,14 @@ class GazeboSimulator(BaseSim):
                     result = await self._service_spawn_entity.call_timeout(request)
 
                     if result is None:
-                        self._logger.error(f"Spawn service call failed for {entity.name}")
+                        self._logger.error(
+                            f"Spawn service call failed for {entity.name}"
+                        )
                         return False
 
-                    self._logger.info(f"Spawn result for {entity.name}: {result.success}")
+                    self._logger.info(
+                        f"Spawn result for {entity.name}: {result.success}"
+                    )
 
                     self.entities[entity.name] = entity
 
@@ -525,8 +542,13 @@ class GazeboSimulator(BaseSim):
 
     def _compute_map_to_odom_tf(
         self,
-        desired_x, desired_y, desired_z,
-        desired_qx, desired_qy, desired_qz, desired_qw,
+        desired_x,
+        desired_y,
+        desired_z,
+        desired_qx,
+        desired_qy,
+        desired_qz,
+        desired_qw,
         odom_frame_name: str,
         base_frame_name: str,
     ):
@@ -560,7 +582,10 @@ class GazeboSimulator(BaseSim):
             )
 
             desired_yaw = self._quaternion_to_yaw(
-                desired_qx, desired_qy, desired_qz, desired_qw,
+                desired_qx,
+                desired_qy,
+                desired_qz,
+                desired_qw,
             )
 
             # Compute map→odom TF: desired_map_pos = TF * odom_pos
@@ -586,22 +611,29 @@ class GazeboSimulator(BaseSim):
 
             return tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw
 
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException) as e:
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
             self._logger.warn(
                 f"Could not look up odom TF ({odom_frame_name} → {base_frame_name}), "
                 f"using desired position directly (OK for first spawn): {e}"
             )
             # Fallback: use desired position directly (correct when odom = identity)
             return (
-                desired_x, desired_y, desired_z,
-                desired_qx, desired_qy, desired_qz, desired_qw,
+                desired_x,
+                desired_y,
+                desired_z,
+                desired_qx,
+                desired_qy,
+                desired_qz,
+                desired_qw,
             )
 
     async def _robot_move(self, robot: Robot) -> bool:
         name = robot.name
         try:
-
             self._robot_initialpose(robot)
 
             max_attempts = 3
@@ -633,7 +665,9 @@ class GazeboSimulator(BaseSim):
                     f"Failed to set initial pose for {name} after {max_attempts} attempts"
                 )
 
-            robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+            robot_config = arena_robots.Robot.RobotIdentifier(
+                robot.model.name
+            ).resolve_sync()
             odom_frame = robot_config.model_params.odom_frame
             base_frame = robot_config.model_params.base_frame
 

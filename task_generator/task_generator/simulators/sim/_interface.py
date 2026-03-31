@@ -1,24 +1,24 @@
-
-
 """Interface definitions for simulator interactions with obstacles, pedestrians, and robots."""
 
 import abc
 from collections.abc import Sequence
 
 from arena_people_msgs.msg import Pedestrians
+
 from task_generator.shared import (
     Door,
     DynamicObstacle,
+    Elevator,
     Floor,
     Obstacle,
     Robot,
     Wall,
-    Elevator,
 )
 
 
 class ObstacleITF(abc.ABC):
     """Abstract base class for obstacle management in simulators."""
+
     @abc.abstractmethod
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         """Spawn obstacles."""
@@ -37,18 +37,25 @@ class ObstacleITF(abc.ABC):
 
 class PedestrianITF(abc.ABC):
     """Abstract base class for pedestrian management in simulators."""
+
     @abc.abstractmethod
-    async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
+    async def pedestrian_spawn(
+        self, pedestrians: Sequence[DynamicObstacle]
+    ) -> Sequence[bool]:
         """Spawn pedestrians."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
+    async def pedestrian_move(
+        self, pedestrians: Sequence[DynamicObstacle]
+    ) -> Sequence[bool]:
         """Teleport pedestrians."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
+    async def pedestrian_delete(
+        self, pedestrians: Sequence[DynamicObstacle]
+    ) -> Sequence[bool]:
         """Delete pedestrians."""
         raise NotImplementedError()
 
@@ -60,6 +67,7 @@ class PedestrianITF(abc.ABC):
 
 class RobotITF(abc.ABC):
     """Abstract base class for robot management in simulators."""
+
     @abc.abstractmethod
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Spawn robots."""

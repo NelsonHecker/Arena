@@ -36,6 +36,7 @@ class ParametrizedConfig:
         max: int
         type: str
         model: str
+        zone: str = ''
 
     STATIC: list[ObstacleConfig]
     INTERACTIVE: list[ObstacleConfig]
@@ -73,7 +74,8 @@ class ParametrizedIdentifier(Identifier[ParametrizedConfig]):
                 min=int(_get_attrib(config, "min")),
                 max=int(_get_attrib(config, "max")),
                 type=_get_attrib(config, "type", ""),
-                model=_get_attrib(config, "model")
+                model=_get_attrib(config, "model"),
+                zone=_get_attrib(config, "zone", ""),
             )
 
         return ParametrizedConfig(

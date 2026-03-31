@@ -39,6 +39,7 @@ dependencies = [
     "chromadb",
     "colourings",
     "aiofiles",
+    "py-trees>=2.4.0",
 ]
 
 [build-system]

@@ -52,15 +52,15 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     ):
         configure_node(self)
 
-        super().__init__('task_generator')
+        super().__init__("task_generator")
         self.conf = Configuration(self)
 
         self._namespace = Namespace(namespace)
 
         Task.declare_parameters(self)
 
-        self._auto_reset = self.rosparam[bool].get('auto_reset', True)
-        self._train_mode = self.rosparam[bool].get('train_mode', False)
+        self._auto_reset = self.rosparam[bool].get("auto_reset", True)
+        self._train_mode = self.rosparam[bool].get("train_mode", False)
 
         self._reset_lock: asyncio.Lock = asyncio.Lock()
         self._start_time = self.time
@@ -70,13 +70,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         # Publishers
         self._pub_task_reset = self.create_publisher(
             Int16,
-            self.service_namespace('task_reset'),
+            self.service_namespace("task_reset"),
             1,
         )
 
         self._pub_finished = self.create_publisher(
             Empty,
-            self.service_namespace('finished'),
+            self.service_namespace("finished"),
             10,
         )
 
@@ -99,7 +99,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             environment_manager=self._environment_manager,
             robots_manager=self._robots_manager,
             world_manager=self._world_manager,
-            modules=list(tm_modules)
+            modules=list(tm_modules),
         )
 
         await self._world_manager.sync()
@@ -107,7 +107,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
         self._check_status_task = asyncio.create_task(self._check_task_status())
 
-        self.rosparam[bool].set('initialized', True)
+        self.rosparam[bool].set("initialized", True)
 
     @classmethod
     async def create(cls, *, namespace: str = "task_generator_node", **kwargs):
@@ -144,14 +144,15 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
         self._logger.info("Setting up world manager")
         self._world_manager = WorldManager(
-            node=self,
-            environment_manager=self._environment_manager
+            node=self, environment_manager=self._environment_manager
         )
 
         async def world_change_cb():
             async with self._reset_lock:
                 await self._environment_manager.respawn(
-                    lambda: self._environment_manager.spawn_world_obstacles(self._world_manager.world)
+                    lambda: self._environment_manager.spawn_world_obstacles(
+                        self._world_manager.world
+                    )
                 )
 
         self._world_manager.on_world_change(world_change_cb)
@@ -159,8 +160,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
         self._logger.info("Setting up robots manager")
         self._robots_manager = RobotsManagerROS(
-            node=self,
-            environment_manager=self._environment_manager
+            node=self, environment_manager=self._environment_manager
         )
 
         self._logger.info("Managers set up")
@@ -195,7 +195,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             self.get_logger().info(
                 "Auto-reset disabled (train_mode=%s, auto_reset=%s). "
                 "Task resets are driven externally via the reset_task service.",
-                self._train_mode, self._auto_reset,
+                self._train_mode,
+                self._auto_reset,
             )
             return
         try:
@@ -205,22 +206,26 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            self.get_logger().error(f"Error in task status check: {e}\n{traceback.format_exc()}")
+            self.get_logger().error(
+                f"Error in task status check: {e}\n{traceback.format_exc()}"
+            )
             raise
 
     def _send_end_message_on_end(self):
-        if self.conf.General.DESIRED_EPISODES.value < 0 or self._number_of_resets < self.conf.General.DESIRED_EPISODES.value:
+        if (
+            self.conf.General.DESIRED_EPISODES.value < 0
+            or self._number_of_resets < self.conf.General.DESIRED_EPISODES.value
+        ):
             return
 
         self.get_logger().info(
-            f"Shutting down. All {int(self.conf.General.DESIRED_EPISODES.value)} tasks completed")
+            f"Shutting down. All {int(self.conf.General.DESIRED_EPISODES.value)} tasks completed"
+        )
         rclpy.shutdown()
 
     # SERVICES
     def _cb_reset_task(
-        self,
-        request: std_srvs.Empty.Request,
-        response: std_srvs.Empty.Response
+        self, request: std_srvs.Empty.Request, response: std_srvs.Empty.Response
     ):
         self.get_logger().debug("Task Generator received task-reset request!")
         future = asyncio.run_coroutine_threadsafe(
@@ -235,6 +240,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         response: std_srvs.SetBool.Response,
     ):
         """Pause (request.data=True) or unpause (request.data=False) the simulator."""
+
         async def _do():
             if request.data:
                 result = await self._simulator.pause_simulation()
@@ -253,7 +259,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         request: task_generator_msgs.srv.GetEnvironments.Request,
         response: task_generator_msgs.srv.GetEnvironments.Response,
     ):
-        response.environments = list(identifier_to_available(arena_simulation_setup.tree.configs.environment.EnvironmentIdentifier))
+        response.environments = list(
+            identifier_to_available(
+                arena_simulation_setup.tree.configs.environment.EnvironmentIdentifier
+            )
+        )
         return response
 
     async def _cb_get_configs_parametrized(
@@ -261,7 +271,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         request: task_generator_msgs.srv.GetParametrizeds.Request,
         response: task_generator_msgs.srv.GetParametrizeds.Response,
     ):
-        response.parametrizeds = list(identifier_to_available(arena_simulation_setup.tree.configs.parametrized.ParametrizedIdentifier))
+        response.parametrizeds = list(
+            identifier_to_available(
+                arena_simulation_setup.tree.configs.parametrized.ParametrizedIdentifier
+            )
+        )
         return response
 
     async def _cb_get_obstacles(
@@ -269,8 +283,17 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         request: task_generator_msgs.srv.GetObstacles.Request,
         response: task_generator_msgs.srv.GetObstacles.Response,
     ):
-        response.models_static_obstacles = list(identifier_to_available(arena_simulation_setup.tree.assets.Object.ObjectIdentifier, network=True))
-        response.models_dynamic_obstacles = list(identifier_to_available(arena_simulation_setup.tree.assets.Pedestrian.PedestrianIdentifier, network=True))
+        response.models_static_obstacles = list(
+            identifier_to_available(
+                arena_simulation_setup.tree.assets.Object.ObjectIdentifier, network=True
+            )
+        )
+        response.models_dynamic_obstacles = list(
+            identifier_to_available(
+                arena_simulation_setup.tree.assets.Pedestrian.PedestrianIdentifier,
+                network=True,
+            )
+        )
 
         return response
 
@@ -279,7 +302,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         request: task_generator_msgs.srv.GetScenarios.Request,
         response: task_generator_msgs.srv.GetScenarios.Response,
     ):
-        response.scenarios = list(identifier_to_available(World.WorldIdentifier(request.world or self._world_manager.world_name).resolve_sync().scenario))
+        response.scenarios = list(
+            identifier_to_available(
+                World.WorldIdentifier(request.world or self._world_manager.world_name)
+                .resolve_sync()
+                .scenario
+            )
+        )
         return response
 
     async def _cb_get_worlds(
@@ -295,7 +324,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         request: task_generator_msgs.srv.GetRobots.Request,
         response: task_generator_msgs.srv.GetRobots.Response,
     ):
-        response.robots = list(identifier_to_available(arena_robots.Robot.RobotIdentifier))
+        response.robots = list(
+            identifier_to_available(arena_robots.Robot.RobotIdentifier)
+        )
         return response
 
     def _cb_wait_for_world(
@@ -315,55 +346,55 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         # Services
         self.create_service(
             EmptySrv,
-            self.service_namespace('reset_task'),
+            self.service_namespace("reset_task"),
             self._cb_reset_task,
         )
 
         self.create_service(
             std_srvs.SetBool,
-            self.service_namespace('pause_simulation'),
+            self.service_namespace("pause_simulation"),
             self._cb_pause_simulation,
         )
 
         self.create_service(
             task_generator_msgs.srv.GetEnvironments,
-            self.service_namespace('get_environments'),
+            self.service_namespace("get_environments"),
             self._cb_get_configs_environments,
         )
 
         self.create_service(
             task_generator_msgs.srv.GetParametrizeds,
-            self.service_namespace('get_parametrizeds'),
+            self.service_namespace("get_parametrizeds"),
             self._cb_get_configs_parametrized,
         )
 
         self.create_service(
             task_generator_msgs.srv.GetObstacles,
-            self.service_namespace('get_obstacles'),
+            self.service_namespace("get_obstacles"),
             self._cb_get_obstacles,
         )
 
         self.create_service(
             task_generator_msgs.srv.GetScenarios,
-            self.service_namespace('get_scenarios'),
+            self.service_namespace("get_scenarios"),
             self._cb_get_scenarios,
         )
 
         self.create_service(
             task_generator_msgs.srv.GetRobots,
-            self.service_namespace('get_robots'),
+            self.service_namespace("get_robots"),
             self._cb_get_robots,
         )
 
         self.create_service(
             task_generator_msgs.srv.GetWorlds,
-            self.service_namespace('get_worlds'),
+            self.service_namespace("get_worlds"),
             self._cb_get_worlds,
         )
 
         self.create_service(
             EmptySrv,
-            self.service_namespace('wait_for_world'),
+            self.service_namespace("wait_for_world"),
             self._cb_wait_for_world,
         )
 

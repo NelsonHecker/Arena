@@ -36,16 +36,15 @@ def _initialpose_generator(x: float, y: float, d: float):
 
 @attrs.frozen
 class _RobotDiff:
-    """Change to robot configurations to execute.
-    """
+    """Change to robot configurations to execute."""
+
     to_remove: list[str] = attrs.field(factory=list)
     to_add: dict[str, Robot] = attrs.field(factory=dict)
     to_update: dict[str, Robot] = attrs.field(factory=dict)
 
 
 class RobotsManager(abc.ABC):
-    """Abstract base class for managing multiple robots.
-    """
+    """Abstract base class for managing multiple robots."""
 
     @property
     def managers(self) -> dict[str, RobotManager]:
@@ -58,10 +57,11 @@ class RobotsManager(abc.ABC):
 
     @abc.abstractmethod
     async def set_up(self):
-        """Set up the robot managers.
-        """
+        """Set up the robot managers."""
 
-    def __init__(self, *args, environment_manager: EnvironmentManager, **kwargs) -> None:
+    def __init__(
+        self, *args, environment_manager: EnvironmentManager, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager: EnvironmentManager = environment_manager
         self._managers: dict[str, RobotManager] = {}
@@ -73,6 +73,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
     Args:
         environment_manager (EnvironmentManager): The environment manager.
     """
+
     _initialpose: typing.Generator
     _robot_configurations: ROSParamT[_RobotDiff]
     _diff: _RobotDiff
@@ -89,25 +90,26 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         """
         t: asyncio.Task | None = None
         try:
+
             async def task():
                 while True:
                     latest = self.node.get_node_names_and_namespaces()
                     paths.update(os.path.join(ns, name) for name, ns in latest)
                     await asyncio.sleep(1.0)
+
             t = asyncio.create_task(task())
             yield t
         except asyncio.CancelledError:
             pass
         except Exception:
-            self._logger.error('Error while providing node paths {e}\n{traceback.format_exc()}')
+            self._logger.error(
+                "Error while providing node paths {e}\n{traceback.format_exc()}"
+            )
         finally:
             if t and not t.done():
                 t.cancel()
 
-    def _parse_robot_configurations(
-        self,
-        v: typing.Any
-    ) -> _RobotDiff:
+    def _parse_robot_configurations(self, v: typing.Any) -> _RobotDiff:
         """Parse robot configurations from the given value.
 
         Args:
@@ -120,7 +122,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
             _RobotDiff: The RobotDiff to execute.
         """
 
-        robot_arg: list[str] = list(filter(len, str(v).split(',')))
+        robot_arg: list[str] = list(filter(len, str(v).split(",")))
 
         parsed_explicit: dict[str, Robot] = {}
         parsed_anonymous: dict[str, list[Robot]] = {}
@@ -130,22 +132,19 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
             config = Robot.from_setup(base)
 
             if name is None:  # anon
-                parsed_anonymous.setdefault(
-                    config.model.name, []
-                ).append(config)
+                parsed_anonymous.setdefault(config.model.name, []).append(config)
 
             else:  # explicit name
                 if name in parsed_explicit:
-                    raise RuntimeError(
-                        f'naming conflict for robots with name {name}')
+                    raise RuntimeError(f"naming conflict for robots with name {name}")
 
                 parsed_explicit[name] = config
 
         for arg in robot_arg:
-            if arg.endswith('.yaml'):
+            if arg.endswith(".yaml"):
                 for addition in robot_setup.RobotSetupIdentifier(arg).resolve_sync():
                     add(addition)
-            elif (match := re.match(r'(.*)\[(\d+)\]', arg)):
+            elif match := re.match(r"(.*)\[(\d+)\]", arg):
                 # multi-instantiations via model[count]
                 for _ in range(int(match.group(2))):
                     add(robot_setup.Config(robot=match.group(1)))
@@ -153,11 +152,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
                 # just robot
                 add(robot_setup.Config(robot=arg))
 
-        existing = {
-            k: v.robot
-            for k, v
-            in self.managers.items()
-        }
+        existing = {k: v.robot for k, v in self.managers.items()}
 
         existing_keys = set(existing.keys())
         matchable_keys = set(existing_keys)
@@ -168,8 +163,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         # explicit naming first
         for prefix, config in parsed_explicit.items():
             match = next(
-                (key for key in matchable_keys if existing[key] == config),
-                None
+                (key for key in matchable_keys if existing[key] == config), None
             )
 
             if match is None:  # no matches
@@ -183,13 +177,8 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
 
             for config in configs:
                 match = next(
-                    (
-                        key
-                        for key
-                        in matchable_keys
-                        if existing[key].compatible(config)
-                    ),
-                    None
+                    (key for key in matchable_keys if existing[key].compatible(config)),
+                    None,
                 )
 
                 if match is None:  # no similar robot found
@@ -203,11 +192,11 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
                 suffixed_key = prefix
 
                 if len(configs) > 1:
-                    suffixed_key = f'{prefix}_{i}'
+                    suffixed_key = f"{prefix}_{i}"
 
                 while suffixed_key in existing_keys:
                     i += 1
-                    suffixed_key = f'{prefix}_{i}'
+                    suffixed_key = f"{prefix}_{i}"
 
                 to_add[suffixed_key] = anon
                 existing_keys.add(suffixed_key)
@@ -241,7 +230,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
                     self.node.get_name(),
                 ),
                 environment_manager=self._environment_manager,
-                robot=config
+                robot=config,
             )
             futures.append(manager.set_up_robot(node_paths))
             self.managers[robot_name] = manager
@@ -256,14 +245,16 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
             )
         self._diff.to_add.clear()
 
-        self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
+        self.node.rosparam[list[str]].set(
+            "robot_names", [robot.name for robot in self.managers.values()]
+        )
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._initialpose = _initialpose_generator(-10, -10, -5)
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](
-            'robot',
+            "robot",
             type_=rclpy.Parameter.Type.STRING,
             parse=self._parse_robot_configurations,
         )

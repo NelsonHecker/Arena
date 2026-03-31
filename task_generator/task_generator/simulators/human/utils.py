@@ -77,7 +77,7 @@ class ObstacleLayer(int, enum.Enum):
     WORLD = 2  # intrinsic part of world
 
 
-ObstacleT = typing.TypeVar('ObstacleT')
+ObstacleT = typing.TypeVar("ObstacleT")
 
 
 @attrs.define()
@@ -106,14 +106,18 @@ class KnownObstacles(typing.Generic[ObstacleT]):
         if name in self._known_obstacles:
             del self._known_obstacles[name]
 
-    def create_or_get(self, name: str, obstacle: ObstacleT, **kwargs) -> KnownObstacle[ObstacleT]:
+    def create_or_get(
+        self, name: str, obstacle: ObstacleT, **kwargs
+    ) -> KnownObstacle[ObstacleT]:
         """
         Get an existing obstacle or create it if it doesn't exist. To overwrite an existing obstacle, first remove it using forget().
         @name: name of obstacle
         @kwargs: arguments passed to KnownObstacle constructor
         """
         if name not in self._known_obstacles:
-            self._known_obstacles[name] = KnownObstacle[ObstacleT](obstacle=obstacle, **kwargs)
+            self._known_obstacles[name] = KnownObstacle[ObstacleT](
+                obstacle=obstacle, **kwargs
+            )
 
         return self._known_obstacles[name]
 
@@ -171,8 +175,7 @@ class YAMLUtil:
                 return YAMLUtil.parse_yaml(file.read())
 
         else:
-            raise ValueError(
-                f"can't process yaml descriptor of type {type(path)}")
+            raise ValueError(f"can't process yaml descriptor of type {type(path)}")
 
     @staticmethod
     def serialize(obj: Any):
@@ -200,8 +203,7 @@ class YAMLUtil:
                 plugins.append(Constants.PLUGIN_FULL_RANGE_LASER.copy())
 
             for plugin in plugins:
-                for prop in YAMLUtil.PLUGIN_PROPS_TO_EXTEND.get(
-                        plugin["type"], []):
+                for prop in YAMLUtil.PLUGIN_PROPS_TO_EXTEND.get(plugin["type"], []):
                     default_val = None
                     if prop not in plugin:
                         default_val = YAMLUtil.PLUGIN_PROPS_DEFAULT_VAL[plugin["type"]][
@@ -223,15 +225,12 @@ class YAMLUtil:
             return description
 
         for plugin in plugins:
-            for prop in YAMLUtil.PLUGIN_PROPS_TO_EXTEND.get(
-                    plugin["type"], []):
+            for prop in YAMLUtil.PLUGIN_PROPS_TO_EXTEND.get(plugin["type"], []):
                 plugin[prop] = os.path.join(namespace, plugin.get(prop, ""))
         return description
 
 
-tmp_dir = os.path.join(
-    arena_simulation_setup.ASS_DIR, "tmp", "heightmap"
-)
+tmp_dir = os.path.join(arena_simulation_setup.ASS_DIR, "tmp", "heightmap")
 os.makedirs(tmp_dir, exist_ok=True)
 
 
@@ -268,7 +267,7 @@ def walls_to_obstacle(world_map: WorldMap, height: float = 3) -> Obstacle:
         <heightmap>
             <uri>{img_uri}</uri>
             <size>{padded_heightmap.shape[1] * world_map.resolution} {padded_heightmap.shape[0] * world_map.resolution} {height - z_offset}</size>
-            <pos>{heightmap.shape[1] * .5 * world_map.resolution + world_map.origin.x} {heightmap.shape[0] * .5 * world_map.resolution + world_map.origin.y} {z_offset}</pos>
+            <pos>{heightmap.shape[1] * 0.5 * world_map.resolution + world_map.origin.x} {heightmap.shape[0] * 0.5 * world_map.resolution + world_map.origin.y} {z_offset}</pos>
             <blend></blend>
             <use_terrain_paging>false</use_terrain_paging>
         </heightmap>

@@ -22,7 +22,8 @@ class Constants:
     class HumanSimulator(Enum):
         DUMMY = "dummy"
         HUNAV = "hunav"  # Added Hunavsim
-        ISAAC = 'isaac'
+        ISAAC = "isaac"
+        ARENA = "arena"
 
     class TaskMode:
         @enum.unique
@@ -94,6 +95,7 @@ class Constants:
 class UnityConstants:
     WALL_HEIGHT = 4.0
     ATTACH_SAFE_DIST_SENSOR_TOPIC = "attach_safe_dist_sensor"
+
 
 # if __name__ == "__main__":
 #     rospack = rospkg.RosPack()

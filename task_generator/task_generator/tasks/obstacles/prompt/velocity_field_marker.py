@@ -1,12 +1,10 @@
+import numpy as np
+from geometry_msgs.msg import Point
 from rclpy.node import Node
 from rclpy.publisher import Publisher
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-
-import numpy as np
-
-from geometry_msgs.msg import Point
-from visualization_msgs.msg import Marker, MarkerArray
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import ColorRGBA
+from visualization_msgs.msg import Marker, MarkerArray
 
 
 class VelocityFieldVisualizer:

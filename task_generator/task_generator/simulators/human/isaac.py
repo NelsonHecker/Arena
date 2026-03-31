@@ -13,7 +13,6 @@ from task_generator.simulators.sim.isaac_simulator import IsaacSimulator
 
 
 class IsaacHumanSimulator(DummyHumanSimulator):
-
     def __init__(self, *args, simulator: BaseSim, **kwargs):
         if not isinstance(simulator, IsaacSimulator):
             raise ValueError("IsaacEntityManager only works with IsaacSimulator")
@@ -26,7 +25,7 @@ class IsaacHumanSimulator(DummyHumanSimulator):
         self,
         obstacles: Sequence[DynamicObstacle],
     ):
-        self._logger.debug(f'spawning {len(obstacles)} dynamic obstacles')
+        self._logger.debug(f"spawning {len(obstacles)} dynamic obstacles")
         futures: list[typing.Awaitable] = []
         for obstacle in obstacles:
             self._logger.info(f"Attempting to spawn model: {obstacle.name}")
@@ -34,11 +33,37 @@ class IsaacHumanSimulator(DummyHumanSimulator):
             known = self._known_obstacles.get(obstacle.name)
             if known is None:
                 known = self._known_obstacles.create_or_get(
-                    name=obstacle.name,
-                    obstacle=obstacle
+                    name=obstacle.name, obstacle=obstacle
                 )
-                model_name = random.choice(['F_Business_02', 'F_Medical_01', 'M_Medical_01', 'biped_demo', 'female_adult_police_01_new', 'female_adult_police_02', 'female_adult_police_03_new', 'male_adult_construction_01_new', 'male_adult_construction_03', 'male_adult_construction_05_new', 'male_adult_police_04', 'original_female_adult_business_02', 'original_female_adult_medical_01', 'original_female_adult_police_01', 'original_female_adult_police_02', 'original_female_adult_police_03', 'original_male_adult_construction_01', 'original_male_adult_construction_02', 'original_male_adult_construction_03', 'original_male_adult_construction_05', 'original_male_adult_medical_01', 'original_male_adult_police_04'])
-                obstacle.model = PedestrianIdentifier.inline(ModelWrapper.Constant(model_name, {}))
+                model_name = random.choice(
+                    [
+                        "F_Business_02",
+                        "F_Medical_01",
+                        "M_Medical_01",
+                        "biped_demo",
+                        "female_adult_police_01_new",
+                        "female_adult_police_02",
+                        "female_adult_police_03_new",
+                        "male_adult_construction_01_new",
+                        "male_adult_construction_03",
+                        "male_adult_construction_05_new",
+                        "male_adult_police_04",
+                        "original_female_adult_business_02",
+                        "original_female_adult_medical_01",
+                        "original_female_adult_police_01",
+                        "original_female_adult_police_02",
+                        "original_female_adult_police_03",
+                        "original_male_adult_construction_01",
+                        "original_male_adult_construction_02",
+                        "original_male_adult_construction_03",
+                        "original_male_adult_construction_05",
+                        "original_male_adult_medical_01",
+                        "original_male_adult_police_04",
+                    ]
+                )
+                obstacle.model = PedestrianIdentifier.inline(
+                    ModelWrapper.Constant(model_name, {})
+                )
                 futures.append(self._simulator.pedestrian_spawn((obstacle,)))
             else:
                 futures.append(self._simulator.pedestrian_move((obstacle,)))

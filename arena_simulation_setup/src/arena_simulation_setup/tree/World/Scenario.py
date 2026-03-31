@@ -10,7 +10,8 @@ import yaml
 
 from arena_simulation_setup.tree import PathView
 from arena_simulation_setup.shared import DynamicObstacle, Obstacle, Pose
-from arena_simulation_setup.utils.cattrs import converter
+from arena_simulation_setup.utils.cattrs import ArenaConverter, converter
+from arena_simulation_setup.utils.geometry import Position
 
 
 @attrs.define
@@ -27,10 +28,18 @@ class RobotGoal:
 
 
 @attrs.define
+class RegionAssignment:
+    type: str = ""                                    # "source" | "sink"
+    polygon: list[Position] = attrs.field(factory=list)  # zone corners (resolved from ref by zone_converter)
+    config: dict = attrs.Factory(dict)                # type-specific params
+
+
+@attrs.define
 class Scenario:
     static: list[Obstacle] = attrs.field(factory=list)
     dynamic: list[DynamicObstacle] = attrs.field(factory=list)
     robots: list[RobotGoal] = attrs.field(factory=list)
+    regions: dict[str, RegionAssignment] = attrs.field(factory=dict)
 
 
 class ScenarioView(PathView):
@@ -87,7 +96,7 @@ class ScenarioView(PathView):
             ]
         )
 
-    def load(self) -> Scenario:
+    def load(self, converter: ArenaConverter = converter) -> Scenario:
         load_exc: Exception
         try:
             with open(self.scenario_path, 'r') as f:

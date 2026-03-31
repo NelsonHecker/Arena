@@ -1,0 +1,39 @@
+name: nurse
+mode: behavior
+extends: adult
+desired_velocity: {mean: 1.5, std: 0.1, clip_low: 1.0, clip_high: 2.0}
+
+perception:
+  vision_range: {mean: 6.0, std: 0.5, clip_low: 3.0, clip_high: 10.0}
+
+local_planner_params:
+  relaxation_time: {mean: 0.4, std: 0.05, clip_low: 0.2, clip_high: 0.8}
+  repulsion_strength: {mean: 2.0, std: 0.2, clip_low: 0.5, clip_high: 4.0}
+
+needs:
+  duty:
+    initial: {mean: 30.0, std: 5.0, clip_low: 10.0, clip_high: 50.0}
+    decay_rate: {mean: 1.0, std: 0.1}
+
+utility_weights:
+  duty: 1.0
+
+actions:
+  escort_patient:
+    when:
+      duty: {below: 60.0}
+    interaction: FOLLOW
+    duration: {mean: 30.0, std: 5.0, clip_low: 15.0, clip_high: 60.0}
+    patience: {mean: 45.0, std: 5.0, clip_low: 20.0, clip_high: 90.0}
+    satisfies:
+      duty: 40.0
+
+sequences:
+  default:
+    steps:
+      patrol:
+        autonomous: true
+        duration: {mean: 60.0, std: 10.0, clip_low: 30.0, clip_high: 120.0}
+    then: default
+
+initial_sequence: default

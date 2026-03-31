@@ -1,15 +1,19 @@
 import typing
 
-Key = typing.TypeVar('Key')
-Value = typing.TypeVar('Value')
+Key = typing.TypeVar("Key")
+Value = typing.TypeVar("Value")
 
 
 class Registry(typing.Generic[Key, Value]):
-
     __registry: dict[Key, typing.Callable[..., typing.Awaitable[Value]]]
     __name: str
 
-    def __init__(self, entries: typing.Optional[dict[Key, typing.Callable[..., typing.Awaitable[Value]]]] = None) -> None:
+    def __init__(
+        self,
+        entries: typing.Optional[
+            dict[Key, typing.Callable[..., typing.Awaitable[Value]]]
+        ] = None,
+    ) -> None:
         if entries is None:
             entries = {}
 
@@ -18,7 +22,9 @@ class Registry(typing.Generic[Key, Value]):
 
     def register(self, name: Key):
         def inner_wrapper(class_loader: typing.Callable[..., typing.Awaitable[Value]]):
-            assert name not in self.__registry, f"{self.__name} '{name}' already exists!"
+            assert name not in self.__registry, (
+                f"{self.__name} '{name}' already exists!"
+            )
 
             self.__registry[name] = class_loader
             return class_loader

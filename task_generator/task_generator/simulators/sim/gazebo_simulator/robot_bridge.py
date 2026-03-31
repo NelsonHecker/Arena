@@ -1,4 +1,3 @@
-
 import enum
 
 import attrs
@@ -6,9 +5,9 @@ import yaml
 
 
 class MappingDirection(str, enum.Enum):
-    BIDIRECTIONAL = '@'
-    GZ_TO_ROS = '['
-    ROS_TO_GZ = ']'
+    BIDIRECTIONAL = "@"
+    GZ_TO_ROS = "["
+    ROS_TO_GZ = "]"
 
 
 @attrs.define
@@ -20,11 +19,7 @@ class _TopicMapping(dict[str, str]):
     direction: MappingDirection = attrs.field(converter=MappingDirection)
 
     def substitute(self, subs: dict[str, str]) -> "_TopicMapping":
-        return _TopicMapping(**{
-            k: v.format(**subs)
-            for k, v
-            in self.as_dict().items()
-        })
+        return _TopicMapping(**{k: v.format(**subs) for k, v in self.as_dict().items()})
 
     def as_arg(self) -> str:
         return f"{self.gz_topic}@{self.ros_type}{self.direction.value}{self.gz_type}"
@@ -35,27 +30,27 @@ class _TopicMapping(dict[str, str]):
     def as_dict(self) -> dict[str, str]:
         return attrs.asdict(
             self,
-            value_serializer=lambda _, __, v: v.value if isinstance(v, MappingDirection) else v
+            value_serializer=lambda _, __, v: (
+                v.value if isinstance(v, MappingDirection) else v
+            ),
         )
 
     def as_yaml_dict(self) -> dict[str, str]:
         return attrs.asdict(
             self,
-            value_serializer=lambda _, __, v: v.name if isinstance(v, MappingDirection) else v
+            value_serializer=lambda _, __, v: (
+                v.name if isinstance(v, MappingDirection) else v
+            ),
         )
 
 
 class BridgeConfiguration(list[_TopicMapping]):
     @classmethod
     def from_file(cls, path: str) -> "BridgeConfiguration":
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             config = yaml.safe_load(f)
             assert isinstance(config, list), "expected a list of topic mappings"
-            return BridgeConfiguration([
-                _TopicMapping(**mapping)
-                for mapping
-                in config
-            ])
+            return BridgeConfiguration([_TopicMapping(**mapping) for mapping in config])
 
     def substitute(self, subs: dict[str, str]) -> "BridgeConfiguration":
         return BridgeConfiguration([mapping.substitute(subs) for mapping in self])
@@ -70,5 +65,5 @@ class BridgeConfiguration(list[_TopicMapping]):
         result = yaml.safe_dump(list(map(_TopicMapping.as_yaml_dict, self)))
         assert result is not None
         if isinstance(result, bytes):
-            return result.decode('utf-8')
+            return result.decode("utf-8")
         return str(result)

@@ -1,11 +1,17 @@
-from arena_rclpy_mixins.shared import Namespace
 import rospy
+from arena_rclpy_mixins.shared import Namespace
+
 # Message Types
 from gazebo_msgs.msg import ModelState
-from gazebo_msgs.srv import (DeleteModel, DeleteModelRequest,
-                             DeleteModelResponse, SetModelState,
-                             SetModelStateRequest, SpawnModel,
-                             SpawnModelRequest)
+from gazebo_msgs.srv import (
+    DeleteModel,
+    DeleteModelRequest,
+    DeleteModelResponse,
+    SetModelState,
+    SetModelStateRequest,
+    SpawnModel,
+    SpawnModelRequest,
+)
 from geometry_msgs.msg import Point, PoseStamped
 from unity_msgs.msg import Wall
 from unity_msgs.srv import SpawnWalls, SpawnWallsRequest
@@ -20,7 +26,6 @@ T = Configuration.General.WAIT_FOR_SERVICE_TIMEOUT
 
 
 class UnitySimulator(BaseSim):
-
     _robot_name: str
 
     def __init__(self, namespace: Namespace):
@@ -29,31 +34,26 @@ class UnitySimulator(BaseSim):
         self._robot_name = rosparam_get(str, "robot_model", "")
 
         rospy.loginfo(
-            "[Unity Simulator ns:" +
-            self._namespace +
-            "] Waiting for Unity services...")
+            "[Unity Simulator ns:" + self._namespace + "] Waiting for Unity services..."
+        )
 
         rospy.loginfo(
-            "[Unity Simulator ns:" +
-            self._namespace +
-            "] namespace:" +
-            self._namespace("unity") +
-            ", robot name: " +
-            self._robot_name)
+            "[Unity Simulator ns:"
+            + self._namespace
+            + "] namespace:"
+            + self._namespace("unity")
+            + ", robot name: "
+            + self._robot_name
+        )
 
-        rospy.wait_for_service(self._namespace(
-            "unity", "spawn_walls"), timeout=T)
-        rospy.wait_for_service(self._namespace(
-            "unity", "spawn_model"), timeout=T)
-        rospy.wait_for_service(self._namespace(
-            "unity", "delete_model"), timeout=T)
-        rospy.wait_for_service(self._namespace(
-            "unity", "set_model_state"), timeout=T)
+        rospy.wait_for_service(self._namespace("unity", "spawn_walls"), timeout=T)
+        rospy.wait_for_service(self._namespace("unity", "spawn_model"), timeout=T)
+        rospy.wait_for_service(self._namespace("unity", "delete_model"), timeout=T)
+        rospy.wait_for_service(self._namespace("unity", "set_model_state"), timeout=T)
 
         rospy.loginfo(
-            "[Unity Simulator ns:" +
-            self._namespace +
-            "] found all unity services")
+            "[Unity Simulator ns:" + self._namespace + "] found all unity services"
+        )
 
         # TODO: Custom Message Types
         self._spawn_walls_srv = rospy.ServiceProxy(
@@ -99,10 +99,8 @@ class UnitySimulator(BaseSim):
 
         if isinstance(entity, Robot):
             full_robot_ns = self._namespace(entity.name)
-            rospy.set_param(full_robot_ns(
-                "robot_description"), model.description)
-            rospy.set_param(full_robot_ns(
-                "tf_prefix"), str(request.robot_namespace))
+            rospy.set_param(full_robot_ns("robot_description"), model.description)
+            rospy.set_param(full_robot_ns("tf_prefix"), str(request.robot_namespace))
 
         if isinstance(entity, Obstacle) and "<actor" not in model.description:
             request.model_xml = model.name
@@ -125,7 +123,8 @@ class UnitySimulator(BaseSim):
     def delete_entity(self, name):
         # rospy.loginfo("[Unity Simulator ns:" + self._namespace + "] Delete Request for " + name)
         res: DeleteModelResponse = self._remove_model_srv(
-            DeleteModelRequest(model_name=name))
+            DeleteModelRequest(model_name=name)
+        )
         return bool(res.success)
 
     def _publish_goal(self, goal):
@@ -154,8 +153,7 @@ class UnitySimulator(BaseSim):
         for wall in walls:
             wall_req = Wall(
                 start=Point(x=wall.start.x, y=wall.start.y, z=0),
-                end=Point(x=wall.end.x, y=wall.end.y,
-                          z=UnityConstants.WALL_HEIGHT)
+                end=Point(x=wall.end.x, y=wall.end.y, z=UnityConstants.WALL_HEIGHT),
             )
             request.walls.append(wall_req)
         self._spawn_walls_srv(request)

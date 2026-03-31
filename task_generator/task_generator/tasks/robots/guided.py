@@ -84,11 +84,11 @@ class TM_Guided(TM_Random):
         """
         self._waypoints.append(pose)
         self.node.rosparam[list[list[float]]].set(
-            self.PARAM_WAYPOINTS, [
+            self.PARAM_WAYPOINTS,
+            [
                 [wp.position.x, wp.position.y, wp.orientation.to_yaw()]
-                for wp in
-                self._waypoints
-            ]
+                for wp in self._waypoints
+            ],
         )
 
         if len(self._waypoints) == 1:
@@ -108,11 +108,7 @@ class TM_Guided(TM_Random):
         """
 
         self._waypoints = []
-        self._waypoint_states = {
-            name: 0
-            for name
-            in self._PROPS.robots.keys()
-        }
+        self._waypoint_states = {name: 0 for name in self._PROPS.robots.keys()}
 
         for robot in self._waypoint_states:
             self._waypoint_states[robot] = 0

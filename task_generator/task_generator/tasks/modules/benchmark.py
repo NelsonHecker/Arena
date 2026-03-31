@@ -46,7 +46,7 @@ class Suite(typing.NamedTuple):
     def parse(cls, name: str, obj: typing.Dict, config_class=None):
         return cls(
             name=name,
-            stages=[cls.Stage.parse(stage, config_class) for stage in obj["stages"]]
+            stages=[cls.Stage.parse(stage, config_class) for stage in obj["stages"]],
         )
 
     class Index(int):
@@ -69,14 +69,18 @@ class Suite(typing.NamedTuple):
                 return {k: cls._make_serializable(v) for k, v in item.items()}
             elif isinstance(item, (list, tuple)):
                 return [cls._make_serializable(i) for i in item]
-            elif isinstance(item, (Constants.TaskMode.TM_Robots, Constants.TaskMode.TM_Obstacles)):
+            elif isinstance(
+                item, (Constants.TaskMode.TM_Robots, Constants.TaskMode.TM_Obstacles)
+            ):
                 return item.value
-            elif hasattr(item, 'value'):
+            elif hasattr(item, "value"):
                 return cls._make_serializable(item.value)
-            elif hasattr(item, 'get_value'):
+            elif hasattr(item, "get_value"):
                 return cls._make_serializable(item.get_value())
-            elif hasattr(item, '__str__'):
-                logging.getLogger("benchmark").debug(f"Converting unknown type {type(item)} to str: {str(item)}")
+            elif hasattr(item, "__str__"):
+                logging.getLogger("benchmark").debug(
+                    f"Converting unknown type {type(item)} to str: {str(item)}"
+                )
                 return str(item)
             return item
 
@@ -86,8 +90,9 @@ class Suite(typing.NamedTuple):
             hashable_obj = {k: v for k, v in obj.items() if k != "config"}
             hashable_obj = cls._make_serializable(hashable_obj)
             try:
-                return 0x7fffffff & int.from_bytes(
-                    hashlib.sha1(json.dumps(hashable_obj).encode()).digest()[-4:], byteorder="big"
+                return 0x7FFFFFFF & int.from_bytes(
+                    hashlib.sha1(json.dumps(hashable_obj).encode()).digest()[-4:],
+                    byteorder="big",
                 )
             except Exception as e:
                 logger.error(f"Hash failed: {e}, using fallback seed")
@@ -101,31 +106,51 @@ class Suite(typing.NamedTuple):
             if "tm_robots" in obj:
                 if isinstance(obj["tm_robots"], str):
                     try:
-                        obj["tm_robots"] = Constants.TaskMode.TM_Robots[obj["tm_robots"].upper()]
+                        obj["tm_robots"] = Constants.TaskMode.TM_Robots[
+                            obj["tm_robots"].upper()
+                        ]
                     except KeyError:
                         logger.error(f"Invalid tm_robots value: {obj['tm_robots']}")
                         raise
-                elif hasattr(obj["tm_robots"], 'value'):
-                    obj["tm_robots"] = Constants.TaskMode.TM_Robots[obj["tm_robots"].value.upper()]
-                elif hasattr(obj["tm_robots"], 'get_value'):
-                    obj["tm_robots"] = Constants.TaskMode.TM_Obstacles[obj["tm_robots"].get_value().upper()]
+                elif hasattr(obj["tm_robots"], "value"):
+                    obj["tm_robots"] = Constants.TaskMode.TM_Robots[
+                        obj["tm_robots"].value.upper()
+                    ]
+                elif hasattr(obj["tm_robots"], "get_value"):
+                    obj["tm_robots"] = Constants.TaskMode.TM_Obstacles[
+                        obj["tm_robots"].get_value().upper()
+                    ]
                 else:
                     logger.error(f"Invalid tm_robots type: {type(obj['tm_robots'])}")
-                    raise ValueError(f"Invalid tm_robots type: {type(obj['tm_robots'])}")
+                    raise ValueError(
+                        f"Invalid tm_robots type: {type(obj['tm_robots'])}"
+                    )
             if "tm_obstacles" in obj:
                 if isinstance(obj["tm_obstacles"], str):
                     try:
-                        obj["tm_obstacles"] = Constants.TaskMode.TM_Obstacles[obj["tm_obstacles"].upper()]
+                        obj["tm_obstacles"] = Constants.TaskMode.TM_Obstacles[
+                            obj["tm_obstacles"].upper()
+                        ]
                     except KeyError:
-                        logger.error(f"Invalid tm_obstacles value: {obj['tm_obstacles']}")
+                        logger.error(
+                            f"Invalid tm_obstacles value: {obj['tm_obstacles']}"
+                        )
                         raise
-                elif hasattr(obj["tm_obstacles"], 'value'):
-                    obj["tm_obstacles"] = Constants.TaskMode.TM_Obstacles[obj["tm_obstacles"].value.upper()]
-                elif hasattr(obj["tm_obstacles"], 'get_value'):
-                    obj["tm_obstacles"] = Constants.TaskMode.TM_Obstacles[obj["tm_obstacles"].get_value().upper()]
+                elif hasattr(obj["tm_obstacles"], "value"):
+                    obj["tm_obstacles"] = Constants.TaskMode.TM_Obstacles[
+                        obj["tm_obstacles"].value.upper()
+                    ]
+                elif hasattr(obj["tm_obstacles"], "get_value"):
+                    obj["tm_obstacles"] = Constants.TaskMode.TM_Obstacles[
+                        obj["tm_obstacles"].get_value().upper()
+                    ]
                 else:
-                    logger.error(f"Invalid tm_obstacles type: {type(obj['tm_obstacles'])}")
-                    raise ValueError(f"Invalid tm_obstacles type: {type(obj['tm_obstacles'])}")
+                    logger.error(
+                        f"Invalid tm_obstacles type: {type(obj['tm_obstacles'])}"
+                    )
+                    raise ValueError(
+                        f"Invalid tm_obstacles type: {type(obj['tm_obstacles'])}"
+                    )
             obj.setdefault("timeout", str(config_class.Robot.TIMEOUT))
             obj.setdefault("seed", cls.hash(obj))
             return cls(**obj)
@@ -150,7 +175,9 @@ class Contest(typing.NamedTuple):
     def parse(cls, name: str, obj: dict):
         return cls(
             name=name,
-            contestants=[cls.Contestant.parse(contestant) for contestant in obj["contestants"]]
+            contestants=[
+                cls.Contestant.parse(contestant) for contestant in obj["contestants"]
+            ],
         )
 
     class Index(int):
@@ -183,7 +210,11 @@ class Contest(typing.NamedTuple):
 
 
 class Mod_Benchmark(TM_Module):
-    DIR = pathlib.Path(os.path.join(get_package_share_directory("arena_bringup"), "configs", "benchmark"))
+    DIR = pathlib.Path(
+        os.path.join(
+            get_package_share_directory("arena_bringup"), "configs", "benchmark"
+        )
+    )
     LOCK_FILE = "resume.lock"
     LOG_DIR = DIR / "logs"
     PARAM_SET_TIMEOUT = 5.0
@@ -224,7 +255,9 @@ class Mod_Benchmark(TM_Module):
         with open(cls.DIR / "suites" / suite) as f:
             config = yaml.safe_load(f)
             assert isinstance(config, dict), "expected a dict in suite.yaml"
-            return Suite.parse(pathlib.Path(suite).name.strip(".yaml"), config, config_class)
+            return Suite.parse(
+                pathlib.Path(suite).name.strip(".yaml"), config, config_class
+            )
 
     @classmethod
     def _resume(cls):
@@ -235,7 +268,9 @@ class Mod_Benchmark(TM_Module):
     def _normalize_namespace(self, namespace: str) -> str:
         """Normalize namespace by removing extra slashes and ensuring proper format."""
         namespace = os.path.normpath(namespace)
-        return os.path.join("/", namespace) if namespace else self.node.service_namespace()
+        return (
+            os.path.join("/", namespace) if namespace else self.node.service_namespace()
+        )
 
     def _validate_parameters(self, param_names):
         logger = self._logger
@@ -244,14 +279,18 @@ class Mod_Benchmark(TM_Module):
         logger.debug(f"Creating client for service: {service_name}")
         describe_client = self.node.create_client(DescribeParameters, service_name)
         if not describe_client.wait_for_service(timeout_sec=self.SERVICE_WAIT_TIMEOUT):
-            logger.warning(f"DescribeParameters service not available for {clean_node_name}")
+            logger.warning(
+                f"DescribeParameters service not available for {clean_node_name}"
+            )
             return []
         request = DescribeParameters.Request()
         request.names = param_names
         try:
             future = describe_client.call_async(request)
-            rclpy.spin_until_future_complete(self.node, future, timeout_sec=self.PARAM_SET_TIMEOUT)
-            if (result := future.result()):
+            rclpy.spin_until_future_complete(
+                self.node, future, timeout_sec=self.PARAM_SET_TIMEOUT
+            )
+            if result := future.result():
                 valid_params = [desc.name for desc in result.descriptors]
                 logger.debug(f"Valid parameters for {clean_node_name}: {valid_params}")
                 return valid_params
@@ -303,11 +342,15 @@ class Mod_Benchmark(TM_Module):
             current = self.node.get_parameter("task.scenario.file").value
             if current != scenario_file:
                 try:
-                    self.node.set_parameters([
-                        Parameter("task.scenario.file",
-                                  Parameter.Type.STRING,
-                                  scenario_file)
-                    ])
+                    self.node.set_parameters(
+                        [
+                            Parameter(
+                                "task.scenario.file",
+                                Parameter.Type.STRING,
+                                scenario_file,
+                            )
+                        ]
+                    )
                     logger.info(f"[Benchmark] Scenario file → {scenario_file}")
                     updated = True
                 except Exception as e:
@@ -322,8 +365,8 @@ class Mod_Benchmark(TM_Module):
         logger.debug(f"Setting parameters for {clean_node_name}")
 
         params_to_set = [
-            ('tm_robots', Parameter.Type.STRING, suite_config.tm_robots.value),
-            ('tm_obstacles', Parameter.Type.STRING, suite_config.tm_obstacles.value)
+            ("tm_robots", Parameter.Type.STRING, suite_config.tm_robots.value),
+            ("tm_obstacles", Parameter.Type.STRING, suite_config.tm_obstacles.value),
         ]
 
         # Check if parameters are declared
@@ -347,18 +390,30 @@ class Mod_Benchmark(TM_Module):
                     request = SetParameters.Request()
                     request.parameters = [param.to_parameter_msg()]
                     future = set_client.call_async(request)
-                    rclpy.spin_until_future_complete(self.node, future, timeout_sec=self.PARAM_SET_TIMEOUT)
-                    if future.result() and all(r.successful for r in future.result().results):
-                        logger.info(f"Set parameter {name}={value} on {clean_node_name}")
+                    rclpy.spin_until_future_complete(
+                        self.node, future, timeout_sec=self.PARAM_SET_TIMEOUT
+                    )
+                    if future.result() and all(
+                        r.successful for r in future.result().results
+                    ):
+                        logger.info(
+                            f"Set parameter {name}={value} on {clean_node_name}"
+                        )
                         break
                     else:
-                        logger.warning(f"Failed to set {name} on {clean_node_name}: {future.result().results[0].reason if future.result() else 'No result'}")
+                        logger.warning(
+                            f"Failed to set {name} on {clean_node_name}: {future.result().results[0].reason if future.result() else 'No result'}"
+                        )
                         time.sleep(self.PARAM_SET_BACKOFF)
                 except Exception as e:
-                    logger.warning(f"Error setting {name} on {clean_node_name} (attempt {attempt+1}/{self.PARAM_SET_RETRIES}): {e}")
+                    logger.warning(
+                        f"Error setting {name} on {clean_node_name} (attempt {attempt + 1}/{self.PARAM_SET_RETRIES}): {e}"
+                    )
                     time.sleep(self.PARAM_SET_BACKOFF)
             else:
-                logger.error(f"Failed to set {name} on {clean_node_name} after {self.PARAM_SET_RETRIES} attempts")
+                logger.error(
+                    f"Failed to set {name} on {clean_node_name} after {self.PARAM_SET_RETRIES} attempts"
+                )
                 success = False
 
         self.node.destroy_client(set_client)
@@ -375,7 +430,9 @@ class Mod_Benchmark(TM_Module):
 
         # self._config_class = Configuration(ROSParamServer(f'benchmark_param_server_{int(time.time())}'))
         self._config = self._load_config()
-        self._suite = self._load_suite(suite=self._config.suite.config, config_class=self.node.conf)
+        self._suite = self._load_suite(
+            suite=self._config.suite.config, config_class=self.node.conf
+        )
         self._contest = self._load_contest(self._config.contest.config)
         self._episode_index = -1
         self._contest_index = self._contest.min_index
@@ -403,7 +460,10 @@ class Mod_Benchmark(TM_Module):
     def after_reset(self):
         self._logger.debug(f"Episode: {self._episode_index + 1}")
         self._episode_index += 1
-        episode_limit = int(self._suite.config(self._suite_index).episodes * self._config.suite.scale_episodes)
+        episode_limit = int(
+            self._suite.config(self._suite_index).episodes
+            * self._config.suite.scale_episodes
+        )
         if self._episode_index < episode_limit - 1:
             # self._reset_task()
             pass
@@ -419,7 +479,9 @@ class Mod_Benchmark(TM_Module):
             handler = FileHandler(self.LOG_DIR / f"{self._runid}.log")
             handler.setFormatter(Formatter("%(asctime)s: %(levelname)s: %(message)s"))
             console_handler = StreamHandler()
-            console_handler.setFormatter(Formatter("%(asctime)s: %(levelname)s: %(message)s"))
+            console_handler.setFormatter(
+                Formatter("%(asctime)s: %(levelname)s: %(message)s")
+            )
             logger = logging.getLogger("benchmark")
             logger.setLevel(logging.DEBUG)
             logger.addHandler(handler)
@@ -428,16 +490,23 @@ class Mod_Benchmark(TM_Module):
         return self._logger_object
 
     def _log_contest(self):
-        self._logger.info(f"C [{1+self._contest_index}/{1+self._contest.max_index}] {self._contest.config(self._contest_index).name}")
+        self._logger.info(
+            f"C [{1 + self._contest_index}/{1 + self._contest.max_index}] {self._contest.config(self._contest_index).name}"
+        )
 
     def _log_suite(self):
-        self._logger.info(f"S [{1+self._suite_index}/{1+self._suite.max_index}] {self._suite.config(self._suite_index).name}")
+        self._logger.info(
+            f"S [{1 + self._suite_index}/{1 + self._suite.max_index}] {self._suite.config(self._suite_index).name}"
+        )
 
     def _log_episode(self):
         if self._episode_index < 0:
             return
-        episode_limit = int(self._suite.config(self._suite_index).episodes * self._config.suite.scale_episodes)
-        self._logger.info(f"E [{1+self._episode_index}/{episode_limit}]")
+        episode_limit = int(
+            self._suite.config(self._suite_index).episodes
+            * self._config.suite.scale_episodes
+        )
+        self._logger.info(f"E [{1 + self._episode_index}/{episode_limit}]")
 
     @property
     def contest_index(self) -> Contest.Index:
@@ -472,7 +541,10 @@ class Mod_Benchmark(TM_Module):
 
     @_episode.setter
     def _episode(self, episode: int):
-        episode_limit = int(self._suite.config(self._suite_index).episodes * self._config.suite.scale_episodes)
+        episode_limit = int(
+            self._suite.config(self._suite_index).episodes
+            * self._config.suite.scale_episodes
+        )
         if episode >= episode_limit:
             self._episode_index = -1
             self.suite_index += 1
@@ -484,16 +556,24 @@ class Mod_Benchmark(TM_Module):
         logger = self._logger
         logger.debug("Starting reincarnation process")
         suite_config = self._suite.config(self._suite_index)
-        logger.info(f"Transitioning to stage: {suite_config.name} (tm_robots={suite_config.tm_robots.value}, tm_obstacles={suite_config.tm_obstacles.value})")
+        logger.info(
+            f"Transitioning to stage: {suite_config.name} (tm_robots={suite_config.tm_robots.value}, tm_obstacles={suite_config.tm_obstacles.value})"
+        )
         success = False
         selected_node = self._primary_node
         if self._set_node_parameters(suite_config):
-            logger.info(f"Stage setup complete for {suite_config.name} on {selected_node}")
+            logger.info(
+                f"Stage setup complete for {suite_config.name} on {selected_node}"
+            )
             success = True
         else:
-            logger.error(f"Failed to set parameters for {suite_config.name} on {selected_node}")
+            logger.error(
+                f"Failed to set parameters for {suite_config.name} on {selected_node}"
+            )
 
         if not success:
-            logger.error(f"Failed to set parameters for {suite_config.name} on any task_generator_node. Ensure tm_robots and tm_obstacles are declared in task_generator_node.py.")
+            logger.error(
+                f"Failed to set parameters for {suite_config.name} on any task_generator_node. Ensure tm_robots and tm_obstacles are declared in task_generator_node.py."
+            )
         self._reset_task()
         self._episode = 0

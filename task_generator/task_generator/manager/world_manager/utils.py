@@ -1,7 +1,8 @@
 """
-    This file exists to make world_manager more readable
+This file exists to make world_manager more readable
 """
 
+import collections.abc
 from collections.abc import Callable, Collection
 from typing import Optional, TypeVar
 
@@ -9,14 +10,13 @@ import attrs
 import nav_msgs.msg
 import numpy as np
 import scipy.interpolate
-import collections.abc
-
-from task_generator.shared import (Position, PositionRadius, Wall)
 from arena_rclpy_mixins.Time import Time
+
+from task_generator.shared import Position, PositionRadius, Wall
 
 # CONVERTERS
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def list_from_any(v: T | list[T]) -> list[T]:
@@ -30,8 +30,9 @@ def check_list(t: type[T], l: list[T]) -> list[T]:
     runtime check list for type
     """
     if any((not isinstance(v, t) for v in l)):
-        raise RuntimeError(f'list {l} contains value not of type {t}')
+        raise RuntimeError(f"list {l} contains value not of type {t}")
     return l
+
 
 # TYPES
 
@@ -50,8 +51,10 @@ class WorldOccupancy:
 
     @staticmethod
     def from_map(input_map: np.ndarray) -> "WorldOccupancy":
-        remap = scipy.interpolate.interp1d([input_map.max(), input_map.min()], [
-            WorldOccupancy.EMPTY, WorldOccupancy.FULL])
+        remap = scipy.interpolate.interp1d(
+            [input_map.max(), input_map.min()],
+            [WorldOccupancy.EMPTY, WorldOccupancy.FULL],
+        )
         return WorldOccupancy(remap(input_map))
 
     @staticmethod
@@ -63,11 +66,9 @@ class WorldOccupancy:
         return np.invert(WorldOccupancy.empty(grid))
 
     @staticmethod
-    def emptyish(grid: np.ndarray,
-                 thresh: Optional[float] = None) -> np.ndarray:
+    def emptyish(grid: np.ndarray, thresh: Optional[float] = None) -> np.ndarray:
         if thresh is None:
-            thresh = float((int(WorldOccupancy.FULL) +
-                           int(WorldOccupancy.EMPTY)) / 2)
+            thresh = float((int(WorldOccupancy.FULL) + int(WorldOccupancy.EMPTY)) / 2)
         return grid >= thresh
 
     @staticmethod
@@ -79,8 +80,7 @@ class WorldOccupancy:
         return np.invert(WorldOccupancy.full(grid))
 
     @staticmethod
-    def fullish(grid: np.ndarray,
-                thresh: Optional[float] = None) -> np.ndarray:
+    def fullish(grid: np.ndarray, thresh: Optional[float] = None) -> np.ndarray:
         return np.invert(WorldOccupancy.emptyish(grid, thresh))
 
     @property
@@ -93,23 +93,20 @@ class WorldOccupancy:
     def occupy(self, lo: tuple[int, int], hi: tuple[int, int]):
         ly, hy = np.clip(np.array([lo[1], hi[1]]), 0, self._grid.shape[0] - 1)
         lx, hx = np.clip(np.array([lo[0], hi[0]]), 0, self._grid.shape[1] - 1)
-        self._grid[
-            int(ly):int(hy),
-            int(lx):int(hx)
-        ] = WorldOccupancy.FULL
+        self._grid[int(ly) : int(hy), int(lx) : int(hx)] = WorldOccupancy.FULL
 
 
 class WorldLayers:
-    _walls: WorldOccupancy      # walls
+    _walls: WorldOccupancy  # walls
     _obstacle: WorldOccupancy  # intrinsic obstcales
     _forbidden: WorldOccupancy  # task obstacles
 
     def __init__(self, walls: WorldOccupancy):
         self._walls = walls
-        self._obstacle = WorldOccupancy(
-            np.full(walls.grid.shape, WorldOccupancy.EMPTY))
+        self._obstacle = WorldOccupancy(np.full(walls.grid.shape, WorldOccupancy.EMPTY))
         self._forbidden = WorldOccupancy(
-            np.full(walls.grid.shape, WorldOccupancy.EMPTY))
+            np.full(walls.grid.shape, WorldOccupancy.EMPTY)
+        )
 
         self._combined_cache = None
 
@@ -121,11 +118,11 @@ class WorldLayers:
     @property
     def _combined(self) -> WorldOccupancy:
         if self._combined_cache is None:
-            self._combined_cache = WorldOccupancy(np.minimum.reduce([
-                self._walls.grid,
-                self._obstacle.grid,
-                self._forbidden.grid
-            ]))
+            self._combined_cache = WorldOccupancy(
+                np.minimum.reduce(
+                    [self._walls.grid, self._obstacle.grid, self._forbidden.grid]
+                )
+            )
 
         return self._combined_cache
 
@@ -152,7 +149,6 @@ class WorldLayers:
         self._invalidate_combined_cache()
 
     class WorldLayersFork:
-
         _base: "WorldLayers"
         _grid: WorldOccupancy
 
@@ -183,29 +179,25 @@ class WorldMap:
     time: Time
 
     @staticmethod
-    def from_costmap(
-            occupancy_grid: nav_msgs.msg.OccupancyGrid) -> "WorldMap":
+    def from_costmap(occupancy_grid: nav_msgs.msg.OccupancyGrid) -> "WorldMap":
         # Convert occupancy grid data to numpy array
-        grid_data = np.array(
-            occupancy_grid.data).reshape(
-            (occupancy_grid.info.height,
-             occupancy_grid.info.width))
+        grid_data = np.array(occupancy_grid.data).reshape(
+            (occupancy_grid.info.height, occupancy_grid.info.width)
+        )
 
         # Normalize data to 0-255 range (0 = occupied, 255 = free)
         normalized_data = np.interp(
-            grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)).astype(
-            np.uint8)
+            grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)
+        ).astype(np.uint8)
 
         return WorldMap(
-            occupancy=WorldLayers(
-                walls=WorldOccupancy(normalized_data)
-            ),
+            occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
             origin=Position(
                 x=occupancy_grid.info.origin.position.y,
-                y=occupancy_grid.info.origin.position.x
+                y=occupancy_grid.info.origin.position.x,
             ),
             resolution=occupancy_grid.info.resolution,
-            time=Time.from_msg(occupancy_grid.info.map_load_time)
+            time=Time.from_msg(occupancy_grid.info.map_load_time),
         )
 
     @property
@@ -214,15 +206,18 @@ class WorldMap:
 
     def tf_pos2grid(self, position: Position) -> tuple[int, int]:
         return np.round((position.y - self.origin.y) / self.resolution), np.round(
-            self.shape[1] - (position.x - self.origin.x) / self.resolution)
+            self.shape[1] - (position.x - self.origin.x) / self.resolution
+        )
 
     def tf_grid2pos(self, grid_pos: tuple[float, float]) -> Position:
         return Position(
             x=grid_pos[1] * self.resolution + self.origin.y,
-            y=(grid_pos[0]) * self.resolution + self.origin.x
+            y=(grid_pos[0]) * self.resolution + self.origin.x,
         )
 
-    def tf_posr2rect(self, posr: PositionRadius) -> tuple[tuple[int, int], tuple[int, int]]:
+    def tf_posr2rect(
+        self, posr: PositionRadius
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
         lo = self.tf_pos2grid(
             Position(
                 x=posr.x - posr.radius,
@@ -309,22 +304,18 @@ class _WallLines(dict[float, list[tuple[float, float]]]):
             ]
 
         else:
-            return set([
-                (
-                    (major, start),
-                    (major, end)
-                )
-                for major, segment in self.items()
-                for start, end in segment
-            ])
+            return set(
+                [
+                    ((major, start), (major, end))
+                    for major, segment in self.items()
+                    for start, end in segment
+                ]
+            )
 
     @classmethod
     def walls(cls, walls: WallsT) -> WorldWalls:
         return [
-            Wall(
-                start=Position(x=sx, y=sy),
-                end=Position(x=ex, y=ey)
-            )
+            Wall(start=Position(x=sx, y=sy), end=Position(x=ex, y=ey))
             for (sx, sy), (ex, ey) in walls
         ]
 
@@ -354,14 +345,16 @@ def RLE_2D(grid: np.ndarray) -> WorldWalls:
 
 def occupancy_to_walls(
     occupancy_grid: np.ndarray,
-    transform: Optional[Callable[[tuple[float, float]], Position]] = None
+    transform: Optional[Callable[[tuple[float, float]], Position]] = None,
 ) -> WorldWalls:
 
     walls = RLE_2D(grid=WorldOccupancy.not_full(occupancy_grid))
 
     if transform is None:
+
         def _transform(p):
             return Position(x=p[0], y=p[1])
+
         transform = _transform
 
     return [

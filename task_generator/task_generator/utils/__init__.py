@@ -4,7 +4,6 @@ from typing import Callable, Iterator
 
 
 class NamespaceIndexer:
-
     _freed: list[int]
     _gen: Iterator[int]
     _namespace: str

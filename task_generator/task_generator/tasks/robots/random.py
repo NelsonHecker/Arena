@@ -24,42 +24,36 @@ class TM_Random(TM_Robots):
 
         await super().reset(**kwargs)
 
-        ROBOT_POSITIONS: list[
-            tuple[Pose, Pose]
-        ] = kwargs.get("ROBOT_POSITIONS", [])
+        ROBOT_POSITIONS: list[tuple[Pose, Pose]] = kwargs.get("ROBOT_POSITIONS", [])
         biggest_robot = max(
-            (robot.safe_distance for robot in self._PROPS.robots.values()),
-            default=0
+            (robot.safe_distance for robot in self._PROPS.robots.values()), default=0
         )
 
         for robot_start, robot_goal in ROBOT_POSITIONS:
             self._PROPS.world_manager.forbid(
                 [
-                    PositionRadius(robot_start.position.x, robot_start.position.y, biggest_robot),
-                    PositionRadius(robot_goal.position.x, robot_goal.position.y, biggest_robot),
+                    PositionRadius(
+                        robot_start.position.x, robot_start.position.y, biggest_robot
+                    ),
+                    PositionRadius(
+                        robot_goal.position.x, robot_goal.position.y, biggest_robot
+                    ),
                 ]
             )
 
         if len(ROBOT_POSITIONS) < len(self._PROPS.robots):
-            to_generate = 2 * \
-                (len(self._PROPS.robots) - len(ROBOT_POSITIONS))
+            to_generate = 2 * (len(self._PROPS.robots) - len(ROBOT_POSITIONS))
 
-            orientations = 2 * math.pi * \
-                self.node.conf.General.RNG.value.random(to_generate)
+            orientations = (
+                2 * math.pi * self.node.conf.General.RNG.value.random(to_generate)
+            )
             positions = self._PROPS.world_manager.get_positions_on_map(
-                n=to_generate,
-                safe_dist=biggest_robot
+                n=to_generate, safe_dist=biggest_robot
             )
 
             generated_positions = [
-                Pose(
-                    position,
-                    Orientation.from_yaw(orientation)
-                )
-                for (orientation, position) in zip(
-                    orientations,
-                    positions
-                )
+                Pose(position, Orientation.from_yaw(orientation))
+                for (orientation, position) in zip(orientations, positions)
             ]
 
             ROBOT_POSITIONS += list(

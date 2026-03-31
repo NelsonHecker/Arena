@@ -70,33 +70,31 @@ class TM_Random(TM_Obstacles):
         N_STATIC_OBSTACLES: int = kwargs.get(
             "N_STATIC_OBSTACLES",
             self.node.conf.General.RNG.value.integers(
-                *self._config.N_STATIC_OBSTACLES.value,
-                endpoint=True
+                *self._config.N_STATIC_OBSTACLES.value, endpoint=True
             ),
         )
         N_INTERACTIVE_OBSTACLES: int = kwargs.get(
             "N_INTERACTIVE_OBSTACLES",
             self.node.conf.General.RNG.value.integers(
-                *self._config.N_INTERACTIVE_OBSTACLES.value,
-                endpoint=True
+                *self._config.N_INTERACTIVE_OBSTACLES.value, endpoint=True
             ),
         )
 
         N_DYNAMIC_OBSTACLES: int = kwargs.get(
             "N_DYNAMIC_OBSTACLES",
             self.node.conf.General.RNG.value.integers(
-                *self._config.N_DYNAMIC_OBSTACLES.value,
-                endpoint=True
+                *self._config.N_DYNAMIC_OBSTACLES.value, endpoint=True
             ),
         )
 
         class ModelList(dict[str, float]):
-
             @classmethod
             def fromkeys(cls, *args, **kwargs) -> Self:
                 result = cls(super().fromkeys(*args, **kwargs))
                 if not len(result):
-                    self._logger.warn('Empty model list passed. Defaulting to empty string.')
+                    self._logger.warn(
+                        "Empty model list passed. Defaulting to empty string."
+                    )
                     result[""] = 1.0
                 return result
 
@@ -115,23 +113,21 @@ class TM_Random(TM_Obstacles):
 
         MODELS_STATIC_OBSTACLES = ModelList.fromkeys(
             kwargs.get(
-                "MODELS_STATIC_OBSTACLES",
-                self._config.MODELS_STATIC_OBSTACLES.value
+                "MODELS_STATIC_OBSTACLES", self._config.MODELS_STATIC_OBSTACLES.value
             ),
             1,
         )
         MODELS_INTERACTIVE_OBSTACLES = ModelList.fromkeys(
             kwargs.get(
                 "MODELS_INTERACTIVE_OBSTACLES",
-                self._config.MODELS_INTERACTIVE_OBSTACLES.value
+                self._config.MODELS_INTERACTIVE_OBSTACLES.value,
             ),
             1,
         )
 
         MODELS_DYNAMIC_OBSTACLES = ModelList.fromkeys(
             kwargs.get(
-                "MODELS_DYNAMIC_OBSTACLES",
-                self._config.MODELS_DYNAMIC_OBSTACLES.value
+                "MODELS_DYNAMIC_OBSTACLES", self._config.MODELS_DYNAMIC_OBSTACLES.value
             ),
             1,
         )
@@ -153,11 +149,25 @@ class TM_Random(TM_Obstacles):
             n=N_STATIC_OBSTACLES
             + N_INTERACTIVE_OBSTACLES
             + N_DYNAMIC_OBSTACLES * (1 + waypoints_per_ped),
-            safe_dist=1
+            safe_dist=1,
         )
 
-        positions = map(lambda pos: Pose(pos, orientation=Orientation.from_yaw(2 * np.pi * self.node.conf.General.RNG.value.random())), points[:(N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES)])
-        waypoints = iter(points[(N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES):])
+        positions = map(
+            lambda pos: Pose(
+                pos,
+                orientation=Orientation.from_yaw(
+                    2 * np.pi * self.node.conf.General.RNG.value.random()
+                ),
+            ),
+            points[
+                : (N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES)
+            ],
+        )
+        waypoints = iter(
+            points[
+                (N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES) :
+            ]
+        )
 
         obstacles: list[Obstacle] = []
 
@@ -228,48 +238,43 @@ class TM_Random(TM_Obstacles):
             lo, hi = min(lo, hi), max(lo, hi)
             return lo, hi
 
-        def param_to_modellist(identifier: typing.Type[Identifier], v: typing.Any) -> list[str]:
+        def param_to_modellist(
+            identifier: typing.Type[Identifier], v: typing.Any
+        ) -> list[str]:
             if len(v):
                 return v
             return list(identifier_to_available(identifier))
 
-        STATIC = 'static'
-        INTERACTIVE = 'interactive'
-        DYNAMIC = 'dynamic'
+        STATIC = "static"
+        INTERACTIVE = "interactive"
+        DYNAMIC = "dynamic"
 
         self._config = _Config(
             N_STATIC_OBSTACLES=self.node.ROSParam[tuple[int, int]](
-                self.namespace(STATIC, 'n'),
-                [5, 15],
-                parse=param_to_tuple
+                self.namespace(STATIC, "n"), [5, 15], parse=param_to_tuple
             ),
             N_INTERACTIVE_OBSTACLES=self.node.ROSParam[tuple[int, int]](
-                self.namespace(INTERACTIVE, 'n'),
-                [0, 0],
-                parse=param_to_tuple
+                self.namespace(INTERACTIVE, "n"), [0, 0], parse=param_to_tuple
             ),
             N_DYNAMIC_OBSTACLES=self.node.ROSParam[tuple[int, int]](
-                self.namespace(DYNAMIC, 'n'),
-                [1, 5],
-                parse=param_to_tuple
+                self.namespace(DYNAMIC, "n"), [1, 5], parse=param_to_tuple
             ),
-
             MODELS_STATIC_OBSTACLES=self.node.ROSParam[list[str]](
-                self.namespace(STATIC, 'models'),
+                self.namespace(STATIC, "models"),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, ObjectIdentifier)
+                parse=functools.partial(param_to_modellist, ObjectIdentifier),
             ),
             MODELS_INTERACTIVE_OBSTACLES=self.node.ROSParam[list[str]](
-                self.namespace(INTERACTIVE, 'models'),
+                self.namespace(INTERACTIVE, "models"),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, ObjectIdentifier)
+                parse=functools.partial(param_to_modellist, ObjectIdentifier),
             ),
             MODELS_DYNAMIC_OBSTACLES=self.node.ROSParam[list[str]](
-                self.namespace(DYNAMIC, 'models'),
+                self.namespace(DYNAMIC, "models"),
                 [],
                 type_=rclpy.Parameter.Type.STRING_ARRAY,
-                parse=functools.partial(param_to_modellist, PedestrianIdentifier)
+                parse=functools.partial(param_to_modellist, PedestrianIdentifier),
             ),
         )

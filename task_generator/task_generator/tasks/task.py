@@ -25,26 +25,42 @@ from .robots import TM_Robots
 
 
 class _TaskRegistry(Namespaced):
-    registry_obstacles: dict[Constants.TaskMode.TM_Obstacles, typing.Callable[[], type[TM_Obstacles]]] = {}
-    registry_robots: dict[Constants.TaskMode.TM_Robots, typing.Callable[[], type[TM_Robots]]] = {}
-    registry_module: dict[Constants.TaskMode.TM_Module, typing.Callable[[], type[TM_Module]]] = {}
+    registry_obstacles: dict[
+        Constants.TaskMode.TM_Obstacles, typing.Callable[[], type[TM_Obstacles]]
+    ] = {}
+    registry_robots: dict[
+        Constants.TaskMode.TM_Robots, typing.Callable[[], type[TM_Robots]]
+    ] = {}
+    registry_module: dict[
+        Constants.TaskMode.TM_Module, typing.Callable[[], type[TM_Module]]
+    ] = {}
 
-    _namespace: typing.ClassVar[Namespace] = Namespaced.namespace('task')
+    _namespace: typing.ClassVar[Namespace] = Namespaced.namespace("task")
+
+    @classmethod
+    def _wrap_obstacles_loader(
+        cls,
+        name: Constants.TaskMode.TM_Obstacles,
+        loader: typing.Callable[[], type[TM_Obstacles]],
+    ) -> typing.Callable[[], type[TM_Obstacles]]:
+        """Wrap a raw loader with the task namespace for the given mode."""
+
+        def namespaced_loader():
+            class Inner(loader()):
+                _namespace = cls._namespace(name.value)
+
+            return Inner
+
+        return namespaced_loader
 
     @classmethod
     def register_obstacles(cls, name: Constants.TaskMode.TM_Obstacles):
-        def inner_wrapper(
-                loader: typing.Callable[[], type[TM_Obstacles]]):
-            assert (
-                name not in cls.registry_obstacles
-            ), f"TaskMode '{name}' for obstacles already exists!"
+        def inner_wrapper(loader: typing.Callable[[], type[TM_Obstacles]]):
+            assert name not in cls.registry_obstacles, (
+                f"TaskMode '{name}' for obstacles already exists!"
+            )
 
-            def namespaced_loader():
-                class Inner(loader()):
-                    _namespace = cls._namespace(name.value)
-                return Inner
-
-            cls.registry_obstacles[name] = namespaced_loader
+            cls.registry_obstacles[name] = cls._wrap_obstacles_loader(name, loader)
             return loader
 
         return inner_wrapper
@@ -52,13 +68,14 @@ class _TaskRegistry(Namespaced):
     @classmethod
     def register_robots(cls, name: Constants.TaskMode.TM_Robots):
         def inner_wrapper(loader: typing.Callable[[], type[TM_Robots]]):
-            assert (
-                name not in cls.registry_obstacles
-            ), f"TaskMode '{name}' for robots already exists!"
+            assert name not in cls.registry_obstacles, (
+                f"TaskMode '{name}' for robots already exists!"
+            )
 
             def namespaced_loader():
                 class Inner(loader()):
                     _namespace = cls._namespace(name.value)
+
                 return Inner
 
             cls.registry_robots[name] = namespaced_loader
@@ -69,13 +86,14 @@ class _TaskRegistry(Namespaced):
     @classmethod
     def register_module(cls, name: Constants.TaskMode.TM_Module):
         def inner_wrapper(loader: typing.Callable[[], type[TM_Module]]):
-            assert (
-                name not in cls.registry_obstacles
-            ), f"TaskMode '{name}' for module already exists!"
+            assert name not in cls.registry_obstacles, (
+                f"TaskMode '{name}' for module already exists!"
+            )
 
             def namespaced_loader():
                 class Inner(loader()):
                     _namespace = cls._namespace(name.value)
+
                 return Inner
 
             cls.registry_module[name] = namespaced_loader
@@ -85,8 +103,8 @@ class _TaskRegistry(Namespaced):
 
 
 class Task(_TaskRegistry, NodeInterface, Props_):
-    """Task class that comibnes task modes.
-    """
+    """Task class that comibnes task modes."""
+
     last_reset_time: int
 
     TOPIC_RESET_START = "reset_start"
@@ -160,26 +178,39 @@ class Task(_TaskRegistry, NodeInterface, Props_):
         self.robots_manager = robots_manager
         self.world_manager = world_manager
 
-        self._train_mode = self.node.get_parameter_or("/train_mode", DefaultParameter(False)).value
+        self._train_mode = self.node.get_parameter_or(
+            "/train_mode", DefaultParameter(False)
+        ).value
 
-        self.__reset_start = self.node.create_publisher(std_msgs.Empty, 'reset_start', 1)
-        self.__reset_end = self.node.create_publisher(std_msgs.Empty, 'reset_end', 1)
+        self.__reset_start = self.node.create_publisher(
+            std_msgs.Empty, "reset_start", 1
+        )
+        self.__reset_end = self.node.create_publisher(std_msgs.Empty, "reset_end", 1)
         self.__reset_mutex = False
 
-        self.node.create_subscription(rosgraph_msgs.Clock, '/clock', self._clock_callback, 10)
+        self.node.create_subscription(
+            rosgraph_msgs.Clock, "/clock", self._clock_callback, 10
+        )
         self.last_reset_time = 0
         self.clock = rosgraph_msgs.Clock()
 
         self.__param_tm_obstacles = None  # type: ignore
         self.__param_tm_robots = None  # type: ignore
-        self._logger.info('initing modules')
+        self._logger.info("initing modules")
         self.__modules = [
-            self.registry_module[module]()(node=self.node, task=self) for module in modules
+            self.registry_module[module]()(node=self.node, task=self)
+            for module in modules
         ]
 
         if self._train_mode:
-            self.set_tm_robots(Constants.TaskMode.TM_Robots(self.node.conf.TaskMode.TM_ROBOTS.value))
-            self.set_tm_obstacles(Constants.TaskMode.TM_Obstacles(self.node.conf.TaskMode.TM_OBSTACLES.value))
+            self.set_tm_robots(
+                Constants.TaskMode.TM_Robots(self.node.conf.TaskMode.TM_ROBOTS.value)
+            )
+            self.set_tm_obstacles(
+                Constants.TaskMode.TM_Obstacles(
+                    self.node.conf.TaskMode.TM_OBSTACLES.value
+                )
+            )
 
     def set_tm_robots(self, tm_robots: Constants.TaskMode.TM_Robots):
         """
@@ -188,20 +219,25 @@ class Task(_TaskRegistry, NodeInterface, Props_):
         Args:
             tm_robots (Constants.TaskMode.TM_Robots): The task mode for robots.
         """
-        assert tm_robots in self.registry_robots, f"TaskMode '{tm_robots}' for robots is not registered!"
+        assert tm_robots in self.registry_robots, (
+            f"TaskMode '{tm_robots}' for robots is not registered!"
+        )
         self.__tm_robots = self.registry_robots[tm_robots]()(node=self.node, props=self)
         self.__param_tm_robots = tm_robots
 
-    def set_tm_obstacles(
-            self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
+    def set_tm_obstacles(self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
         """
         Sets the task mode for obstacles.
 
         Args:
             tm_obstacles (Constants.TaskMode.TM_Obstacles): The task mode for obstacles.
         """
-        assert tm_obstacles in self.registry_obstacles, f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
-        self.__tm_obstacles = self.registry_obstacles[tm_obstacles]()(node=self.node, props=self)
+        assert tm_obstacles in self.registry_obstacles, (
+            f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
+        )
+        self.__tm_obstacles = self.registry_obstacles[tm_obstacles]()(
+            node=self.node, props=self
+        )
         self.__param_tm_obstacles = tm_obstacles
 
     async def _reset_task(self, **kwargs):
@@ -234,6 +270,7 @@ class Task(_TaskRegistry, NodeInterface, Props_):
                 module.before_reset()
 
             await self.__tm_robots.reset(**kwargs)
+            await self.environment_manager.remove_all_regions()
             obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
 
             async def respawn():

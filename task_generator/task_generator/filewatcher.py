@@ -5,12 +5,10 @@ import os
 from typing import Any, Callable, Optional
 
 import rospkg
-import yaml
-
-from rosros import rospify as rospy
-
-import watchdog.observers
 import watchdog.events
+import watchdog.observers
+import yaml
+from rosros import rospify as rospy
 
 
 def observe(file: str, callback: watchdog.events.FileSystemEventHandler):
@@ -67,13 +65,10 @@ def run(namespace: Optional[str] = None):
         namespace = rospy.get_namespace()
 
     FILE_TASK_CONFIG = os.path.join(
-        rospkg.RosPack().get_path("arena_bringup"),
-        "configs",
-        "task_generator.yaml"
+        rospkg.RosPack().get_path("arena_bringup"), "configs", "task_generator.yaml"
     )
 
     class TaskConfigHandler(watchdog.events.FileSystemEventHandler):
-
         def __init__(self) -> None:
             super().__init__()
             self.reconfigure()
@@ -85,18 +80,17 @@ def run(namespace: Optional[str] = None):
 
             rospy.logdebug("SENSING CHANGE OF TASK_MODE PARAMS")
 
-            if 'ros__parameters' in content:
-                set_ros_params(content['ros__parameters'])
+            if "ros__parameters" in content:
+                set_ros_params(content["ros__parameters"])
 
         def on_modified(self, event):
             @safe_callback
             def callback():
                 self.reconfigure()
+
             callback()
 
-    observers = [
-        observe(FILE_TASK_CONFIG, TaskConfigHandler())
-    ]
+    observers = [observe(FILE_TASK_CONFIG, TaskConfigHandler())]
 
     def cleanup():
         for observer in observers:

@@ -13,6 +13,7 @@ import nav_msgs.msg as nav_msgs
 import rclpy
 import rclpy.client
 import rclpy.logging
+import rclpy.node
 import rclpy.publisher
 import rclpy.timer
 from arena_rclpy_mixins.shared import Namespace
@@ -25,8 +26,6 @@ from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import Orientation, Pose, Position, Robot
-
-import rclpy.node
 
 
 class RobotManager(NodeInterface):
@@ -93,7 +92,7 @@ class RobotManager(NodeInterface):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self._rate_setup = self.node.create_rate(.1)
+        self._rate_setup = self.node.create_rate(0.1)
 
         self._config = robot.model.resolve_sync()
 
@@ -110,35 +109,40 @@ class RobotManager(NodeInterface):
         self._safety_distance = self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
 
         self._robot = self.node._environment_manager.realize(robot)
-        self._robot.extra.setdefault('namespace', self.namespace)
+        self._robot.extra.setdefault("namespace", self.namespace)
         self._pose = self._start_pos
         self._goal_timer = None
 
         self._publish_goal_task: typing.Optional[asyncio.Task] = None
 
     async def _odom_base_transform(self):
-        """Launch a static transform publisher for odometry to base frame.
-        """
+        """Launch a static transform publisher for odometry to base frame."""
         await self.node.do_launch(
-            launch.LaunchDescription([
-                launch_ros.actions.Node(
-                    package="tf2_ros",
-                    executable="static_transform_publisher",
-                    name="odom_to_baseframe_publisher",
-                    arguments=[
-                        "0", "0", "0",
-                        "0", "0", "0", "1",
-                        self.frame(self._config.model_params.odom_frame),
-                        self.frame(self._config.model_params.base_frame),
-                    ],
-                    parameters=[{'use_sim_time': True}],
-                )
-            ])
+            launch.LaunchDescription(
+                [
+                    launch_ros.actions.Node(
+                        package="tf2_ros",
+                        executable="static_transform_publisher",
+                        name="odom_to_baseframe_publisher",
+                        arguments=[
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "1",
+                            self.frame(self._config.model_params.odom_frame),
+                            self.frame(self._config.model_params.base_frame),
+                        ],
+                        parameters=[{"use_sim_time": True}],
+                    )
+                ]
+            )
         )
 
     async def set_up_robot(self, node_names: set[str]):
-        """Set up the robot by configuring its model and spawning it in the environment.
-        """
+        """Set up the robot by configuring its model and spawning it in the environment."""
 
         self._robot.pose.position.z += self._config.model_params.z_offset
         self._robot = (await self._environment_manager.spawn_robot((self._robot,)))[0]
@@ -152,24 +156,21 @@ class RobotManager(NodeInterface):
         )
 
         self.node.create_subscription(
-            nav_msgs.Odometry,
-            self.namespace("odom"),
-            self._robot_pos_callback,
-            10
+            nav_msgs.Odometry, self.namespace("odom"), self._robot_pos_callback, 10
         )
 
         self.node.create_subscription(
             action_msgs.msg.GoalStatusArray,
-            self.namespace('navigate_to_pose', '_action', 'status'),
+            self.namespace("navigate_to_pose", "_action", "status"),
             self._goal_status_callback,
-            1
+            1,
         )
 
         await self._launch_robot(node_names)
         await self._odom_base_transform()
 
         self._robot_radius = self.node.rosparam[float].get(
-            'robot_radius',
+            "robot_radius",
             self._robot_radius,
         )
 
@@ -217,9 +218,7 @@ class RobotManager(NodeInterface):
             Namespace: The ROS2 namespace of the robot.
         """
         if Utils.get_arena_type() == Constants.ArenaType.TRAINING:
-            return Namespace(
-                f"{self._namespace}{self._namespace}_{self.model_name}"
-            )
+            return Namespace(f"{self._namespace}{self._namespace}_{self.model_name}")
 
         return self._namespace(self.name)
 
@@ -242,6 +241,7 @@ class RobotManager(NodeInterface):
         self.robot.pose = pose
         await self._environment_manager.move_robot((self.robot,))
         import time
+
         time.sleep(0.001)  # wait for the robot to move
         await self._clear_local_costmap(-1)
 
@@ -254,14 +254,16 @@ class RobotManager(NodeInterface):
         Returns:
             bool: True if the costmap was cleared successfully, False otherwise.
         """
-        node_name = self.node.service_namespace(self.name, 'local_costmap/local_costmap')
+        node_name = self.node.service_namespace(
+            self.name, "local_costmap/local_costmap"
+        )
 
         if reset_distance < 0:
-            srv_name = os.path.abspath(node_name('../clear_entirely_local_costmap'))
+            srv_name = os.path.abspath(node_name("../clear_entirely_local_costmap"))
             srv_type = ClearEntireCostmap
             req = ClearEntireCostmap.Request()
         else:
-            srv_name = os.path.abspath(node_name('../clear_around_local_costmap'))
+            srv_name = os.path.abspath(node_name("../clear_around_local_costmap"))
             srv_type = ClearCostmapAroundRobot
             req = ClearCostmapAroundRobot.Request()
             req.reset_distance = reset_distance
@@ -279,12 +281,9 @@ class RobotManager(NodeInterface):
 
         result = await cli.call_timeout(req)
         if result is None:
-            self._logger.error(
-                f"service call failed for {srv_name}")
+            self._logger.error(f"service call failed for {srv_name}")
             return False
-        self._logger.info(
-            f"successfull service call for {srv_name}"
-        )
+        self._logger.info(f"successfull service call for {srv_name}")
         return True
 
     async def reset(
@@ -308,7 +307,11 @@ class RobotManager(NodeInterface):
             if self._robot.record_data_dir:
                 self.node.rosparam[list[float]].set(
                     self.namespace.robot_ns.ParamNamespace()("start"),
-                    [self.start_pos.position.x, self.start_pos.position.y, self.start_pos.orientation.to_yaw()]
+                    [
+                        self.start_pos.position.x,
+                        self.start_pos.position.y,
+                        self.start_pos.orientation.to_yaw(),
+                    ],
                 )
         if goal_pos is not None:
             self._goal_pos = self._environment_manager.realize(goal_pos)
@@ -320,13 +323,16 @@ class RobotManager(NodeInterface):
             if self._robot.record_data_dir:
                 self.node.rosparam[list[float]].set(
                     self.namespace.robot_ns.ParamNamespace()("goal"),
-                    [self.goal_pos.position.x, self.goal_pos.position.y, self.goal_pos.orientation.to_yaw()]
+                    [
+                        self.goal_pos.position.x,
+                        self.goal_pos.position.y,
+                        self.goal_pos.orientation.to_yaw(),
+                    ],
                 )
         return self._pose, self._goal_pos
 
     async def _publish_goal_loop(self):
-        """Publish the goal to the robot.
-        """
+        """Publish the goal to the robot."""
         # only way to circumvent amcl absolutely trolling us is to create this loop
 
         with self.node.sim_time_rate(1.0, 60) as (done, rate):
@@ -337,7 +343,9 @@ class RobotManager(NodeInterface):
                     break
 
                 goal = self._goal_pos
-                self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
+                self._logger.info(
+                    f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}"
+                )
 
                 self._goal_pos = goal
 
@@ -354,44 +362,55 @@ class RobotManager(NodeInterface):
                 self._goal_start_time = self.node.sim_time
 
     async def _launch_robot(self, node_paths: set[str]):
-        """Launch the robot external nodes.
-        """
+        """Launch the robot external nodes."""
         self._logger.info(f"LAUNCH ROBOT {self.name}")
 
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
             launch_description = launch.LaunchDescription()
-            current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
-            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))  # type: ignore
+            current_log_level = rclpy.logging.get_logger_effective_level(
+                self.node.get_logger().name
+            ).name.lower()
+            launch_description.add_action(
+                NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level)
+            )  # type: ignore
 
             launch_arguments = {
-                'robot': self.model_name,
+                "robot": self.model_name,
                 # 'simulator': self.node.conf.Arena.SIM.value.value,
                 # 'name': self.name,
-                'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
-                'namespace': self.namespace,
+                "task_generator_node": os.path.join(
+                    self.node.get_namespace(), self.node.get_name()
+                ),
+                "namespace": self.namespace,
                 # 'use_namespace': 'True',
-                'frame': self._robot.frame(''),  # trailing slash
-                'inter_planner': self._robot.inter_planner,
-                'global_planner': self._robot.global_planner,
-                'local_planner': self._robot.local_planner,
+                "frame": self._robot.frame(""),  # trailing slash
+                "inter_planner": self._robot.inter_planner,
+                "global_planner": self._robot.global_planner,
+                "local_planner": self._robot.local_planner,
                 # 'complexity': self.node.declare_parameter('complexity', 1).value,
-                'train_mode': str(self.node._train_mode).lower(),
-                'agent_name': self._robot.agent,
-                'use_sim_time': 'True',
-                'amcl': 'true' if self.node.conf.Arena.SIM.value in (Constants.SimSimulator.GAZEBO,) else 'false',
+                "train_mode": str(self.node._train_mode).lower(),
+                "agent_name": self._robot.agent,
+                "use_sim_time": "True",
+                "amcl": "true"
+                if self.node.conf.Arena.SIM.value in (Constants.SimSimulator.GAZEBO,)
+                else "false",
             }
 
             if self._robot.record_data_dir:
-                launch_arguments.update({
-                    'record_data_dir': self._robot.record_data_dir,
-                })
+                launch_arguments.update(
+                    {
+                        "record_data_dir": self._robot.record_data_dir,
+                    }
+                )
 
             launch_description.add_action(
                 launch.actions.IncludeLaunchDescription(
                     launch.launch_description_sources.PythonLaunchDescriptionSource(
                         os.path.join(
-                            ament_index_python.packages.get_package_share_directory('arena_simulation_setup'),
-                            'launch/robot.launch.py'
+                            ament_index_python.packages.get_package_share_directory(
+                                "arena_simulation_setup"
+                            ),
+                            "launch/robot.launch.py",
                         )
                     ),
                     launch_arguments=launch_arguments.items(),
@@ -399,8 +418,8 @@ class RobotManager(NodeInterface):
             )
             await self.node.do_launch(launch_description)
 
-            bt_node_path = str(self.namespace('bt_navigator'))
-            self._logger.info(f'waiting for {bt_node_path}')
+            bt_node_path = str(self.namespace("bt_navigator"))
+            self._logger.info(f"waiting for {bt_node_path}")
             while bt_node_path not in node_paths:
                 await asyncio.sleep(0.01)
 
@@ -418,7 +437,7 @@ class RobotManager(NodeInterface):
                 current_position.position.x,
                 current_position.position.y,
             ),
-            Orientation.from_msg(quat)
+            Orientation.from_msg(quat),
         )
 
     def _goal_status_callback(self, data: action_msgs.msg.GoalStatusArray):
@@ -428,16 +447,16 @@ class RobotManager(NodeInterface):
             data(action_msgs.msg.GoalStatusArray): The goal status data.
         """
         last_goal = next(reversed(list(data.status_list)), None)
-        self._is_goal_reached = (last_goal is not None) and last_goal.status == action_msgs.msg.GoalStatus.STATUS_SUCCEEDED
+        self._is_goal_reached = (
+            last_goal is not None
+        ) and last_goal.status == action_msgs.msg.GoalStatus.STATUS_SUCCEEDED
 
     async def update(self):
-        """Live - update some kwargs of robot
-        """
+        """Live - update some kwargs of robot"""
         # TODO implement record data dir
 
     async def destroy(self):
-        """Destroy robot and remove from simulation and navigation stack.
-        """
+        """Destroy robot and remove from simulation and navigation stack."""
         if self._goal_timer is not None:
             self._goal_timer.cancel()
             self._goal_timer.destroy()

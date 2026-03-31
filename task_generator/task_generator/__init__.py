@@ -24,7 +24,6 @@ else:
 
 
 class NodeInterface:
-
     def __init__(self, *args, node: TaskGenerator, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.__node = node

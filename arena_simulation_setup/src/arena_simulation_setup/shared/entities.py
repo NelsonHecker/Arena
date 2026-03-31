@@ -10,6 +10,7 @@ from typing_extensions import Self
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.utils.cattrs import (
+    ArenaConverter,
     Parseable,
     Serializable,
     converter,
@@ -36,7 +37,7 @@ class Named(Parseable, Serializable):
             value['pose'] = value['pos']
             del value['pos']
         value['extra'] = {**value}
-        return converter.structure_attrs_fromdict(value, cls)
+        return ArenaConverter.current().structure_attrs_fromdict(value, cls)
 
     def serialize(self) -> dict:
         result = cattrs.gen.make_dict_unstructure_fn(type(self), converter, _cattrs_omit_if_default=True)(self)
@@ -72,7 +73,7 @@ class Obstacle(Entity):
 class DynamicObstacle(Entity):
     model: PedestrianIdentifier = attrs.field(converter=PedestrianIdentifier.converter)
     waypoints: list[Position] = attrs.field(factory=list)
-    velocity: float = attrs.field(converter=float, default=1.0)  # m/s
+    velocity: float = attrs.field(converter=float, default=1.0)  # m/s, legacy
 
 
 @attrs.define

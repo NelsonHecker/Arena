@@ -14,7 +14,6 @@ from ._interface import ObstacleITF, PedestrianITF, RobotITF, WorldITF
 
 
 class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc.ABC):
-
     _namespace: Namespace
 
     def __init__(self, *args, namespace: Namespace, **kwargs):
@@ -42,7 +41,9 @@ class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc
         try:
             return await identifier.resolve()
         except Exception as e:
-            self._logger.error(f"Failed to resolve {identifier}:\n{e}\n{traceback.format_exc()}")
+            self._logger.error(
+                f"Failed to resolve {identifier}:\n{e}\n{traceback.format_exc()}"
+            )
             return None
 
 
@@ -52,6 +53,7 @@ SimulatorRegistry = Registry[Constants.SimSimulator, BaseSim]()
 @SimulatorRegistry.register(Constants.SimSimulator.DUMMY)
 async def lazy_dummy(**kwargs):
     from .dummy_simulator import DummySimulator
+
     return DummySimulator(**kwargs)
 
 
@@ -64,6 +66,7 @@ async def lazy_dummy(**kwargs):
 @SimulatorRegistry.register(Constants.SimSimulator.GAZEBO)
 async def lazy_gazebo(**kwargs):
     from .gazebo_simulator import GazeboSimulator
+
     return await GazeboSimulator.create(**kwargs)
 
 
@@ -76,4 +79,5 @@ async def lazy_gazebo(**kwargs):
 @SimulatorRegistry.register(Constants.SimSimulator.ISAAC)
 async def lazy_isaac(**kwargs):
     from .isaac_simulator import IsaacSimulator
+
     return await IsaacSimulator.create(**kwargs)

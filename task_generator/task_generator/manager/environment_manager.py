@@ -8,6 +8,7 @@ from typing import Any
 import attrs
 from arena_simulation_setup.shared import Elevator
 from arena_simulation_setup.tree.World import WorldDescription
+from arena_simulation_setup.utils.geometry import Position
 
 from task_generator import NodeInterface
 from task_generator.shared import (
@@ -20,15 +21,15 @@ from task_generator.shared import (
     Orientation,
     Pose,
     Position,
+    Region,
     Robot,
     Wall,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim
-from arena_simulation_setup.utils.geometry import Position
 
-EntityPropsT = typing.TypeVar('EntityPropsT', bound=Entity)
+EntityPropsT = typing.TypeVar("EntityPropsT", bound=Entity)
 
 
 class _Realizer:
@@ -36,7 +37,7 @@ class _Realizer:
     class _Configuration:
         x: float = 0.0
         y: float = 0.0
-        prefix: str = ''
+        prefix: str = ""
 
     _config: _Configuration
 
@@ -69,7 +70,7 @@ class _Realizer:
     def _realize_pose(self, pose: Pose) -> Pose:
         return Pose(
             self._realize_position(pose.position),
-            self._realize_orientation(pose.orientation)
+            self._realize_orientation(pose.orientation),
         )
 
     @typing.overload
@@ -127,7 +128,11 @@ class _Realizer:
         # Create Position object from modified list
         new_position = Position(x=pos[0], y=pos[1], z=pos[2] if len(pos) > 2 else 0.0)
         name = self._prefix(elevator.name)
-        destination = self._prefix(elevator.destination) if getattr(elevator, 'destination', None) else elevator.destination
+        destination = (
+            self._prefix(elevator.destination)
+            if getattr(elevator, "destination", None)
+            else elevator.destination
+        )
         return attrs.evolve(
             elevator,
             name=name,
@@ -135,10 +140,7 @@ class _Realizer:
             destination=destination,
         )
 
-    def realize(
-        self,
-        target
-    ):
+    def realize(self, target):
         if isinstance(target, str):
             return self._prefix(target)
 
@@ -166,14 +168,13 @@ class _Realizer:
             res = self._realize_elevator(target)
 
         if res is None:
-            raise TypeError(f'realization not implemented for type {type(target)}')
+            raise TypeError(f"realization not implemented for type {type(target)}")
 
         res.sim_path = self._prefix(res.name)
         return res
 
 
 class EnvironmentManager(NodeInterface, _Realizer):
-
     _namespace: str
     _human_simulator: BaseHumanSimulator
     _simulator: BaseSim
@@ -194,8 +195,10 @@ class EnvironmentManager(NodeInterface, _Realizer):
         self._simulator = simulator
         self._human_simulator = entity_manager
 
-        ref_x, ref_y = self.node.rosparam[tuple[float, float]].get('reference', (0.0, 0.0))
-        prefix = self.node.rosparam[str].get('prefix', '')
+        ref_x, ref_y = self.node.rosparam[tuple[float, float]].get(
+            "reference", (0.0, 0.0)
+        )
+        prefix = self.node.rosparam[str].get("prefix", "")
         self._config = self._Configuration(
             x=ref_x,
             y=ref_y,
@@ -217,7 +220,9 @@ class EnvironmentManager(NodeInterface, _Realizer):
         floors = tuple(world.all_floors)
         elevators = tuple(world.all_elevators)
         if floors:
-            futures.append(self._simulator.spawn_floors(tuple(map(self.realize, floors))))
+            futures.append(
+                self._simulator.spawn_floors(tuple(map(self.realize, floors)))
+            )
 
         if walls or doors:
             futures.append(
@@ -234,11 +239,11 @@ class EnvironmentManager(NodeInterface, _Realizer):
             )
         )
         if elevators:
-            self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
+            self._logger.debug(
+                f"Realized elevators for world: {[e.name for e in elevators]}"
+            )
             futures.append(
-                self._simulator.spawn_elevators(
-                    tuple(map(self.realize, elevators))
-                )
+                self._simulator.spawn_elevators(tuple(map(self.realize, elevators)))
             )
 
         await asyncio.gather(*futures)
@@ -276,7 +281,9 @@ class EnvironmentManager(NodeInterface, _Realizer):
         """
         Deletes given robot
         """
-        return await self._human_simulator.remove_robot(tuple(map(self.realize, robots)))
+        return await self._human_simulator.remove_robot(
+            tuple(map(self.realize, robots))
+        )
 
     async def respawn(self, callback: Callable[[], typing.Awaitable[Any]]):
         """
@@ -286,6 +293,29 @@ class EnvironmentManager(NodeInterface, _Realizer):
         await self._human_simulator.unuse_obstacles()
         await callback()
         await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
+
+    async def respawn_world(self, world: WorldDescription):
+        """
+        Replace world obstacles atomically: old items are only cleaned
+        up after new ones have been spawned successfully.
+        """
+        old_walls, old_doors = self._human_simulator.unuse_world()
+        await self._simulator.remove_world()
+        await self.spawn_world_obstacles(world)
+        self._human_simulator.remove_stale_world(old_walls, old_doors)
+        await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
+
+    async def setup_regions(self, regions: Sequence[Region]) -> bool:
+        """
+        Configure regions (sources/sinks) on the human simulator.
+        """
+        return await self._human_simulator.setup_regions(regions)
+
+    async def remove_all_regions(self) -> bool:
+        """
+        Remove all tracked regions from the human simulator.
+        """
+        return await self._human_simulator.remove_all_regions()
 
     async def reset(self, purge: ObstacleLayer = ObstacleLayer.INUSE):
         """

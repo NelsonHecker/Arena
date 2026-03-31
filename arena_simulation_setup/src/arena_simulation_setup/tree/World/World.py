@@ -1,4 +1,5 @@
 import io
+import math
 import os
 import tarfile
 import typing
@@ -6,6 +7,7 @@ from typing import Optional, List
 from pathlib import Path
 
 import attrs
+import numpy as np
 import yaml
 
 from arena_simulation_setup import ASS_DIR
@@ -22,11 +24,11 @@ from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
 )
-from arena_simulation_setup.utils.cattrs import converter
-from arena_simulation_setup.utils.geometry import Position
+from arena_simulation_setup.utils.cattrs import ArenaConverter, converter
+from arena_simulation_setup.utils.geometry import Orientation, Pose, Position, sample_point_in_polygon
 
 from .Map import Map
-from .Scenario import ScenarioView
+from .Scenario import RegionAssignment, ScenarioView
 
 
 @attrs.define
@@ -97,6 +99,64 @@ class WorldDescription:
     @property
     def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
         return (entity for zone in self.zones for entity in zone.entities.dynamic)
+
+    def lookup_zone_polygon(self, name: str) -> list[Position] | None:
+        """Look up a zone, door, or elevator by name and return its polygon vertices."""
+        for zone in self.zones:
+            if zone.name == name:
+                return zone.corners
+            for door in zone.doors:
+                if door.name == name:
+                    return _door_polygon(door.start, door.end)
+            for elevator in zone.elevators:
+                if elevator.name == name:
+                    return _elevator_polygon(elevator.position, elevator.size)
+        return None
+
+    def zone_converter(self, rng: np.random.Generator) -> ArenaConverter:
+        """Return a converter that resolves zone/door/elevator names to geometry.
+
+        String values for Pose/Position fields are resolved by sampling a
+        random point within the named zone polygon.  RegionAssignment dicts
+        with a ``ref`` key get their polygon resolved from the world.
+        """
+        lookup = self.lookup_zone_polygon
+
+        base_pose_hook = converter.get_structure_hook(Pose)
+        base_position_hook = converter.get_structure_hook(Position)
+        base_region_hook = converter.get_structure_hook(RegionAssignment)
+
+        def pose_hook(v: typing.Any, t: type) -> Pose:
+            if isinstance(v, str):
+                polygon = lookup(v)
+                if polygon is None:
+                    raise ValueError(f"zone ref '{v}' not found in world")
+                pt = sample_point_in_polygon(polygon, rng)
+                return Pose(position=pt, orientation=Orientation.identity())
+            return base_pose_hook(v, t)
+
+        def position_hook(v: typing.Any, t: type) -> Position:
+            if isinstance(v, str):
+                polygon = lookup(v)
+                if polygon is None:
+                    raise ValueError(f"zone ref '{v}' not found in world")
+                return sample_point_in_polygon(polygon, rng)
+            return base_position_hook(v, t)
+
+        def region_hook(v: typing.Any, t: type) -> RegionAssignment:
+            if isinstance(v, dict) and 'ref' in v:
+                ref = v.pop('ref')
+                polygon = lookup(ref)
+                if polygon is None:
+                    raise ValueError(f"region ref '{ref}' not found in world")
+                v['polygon'] = polygon
+            return base_region_hook(v, t)
+
+        c = converter.copy()
+        c.register_structure_hook(Pose, pose_hook)
+        c.register_structure_hook(Position, position_hook)
+        c.register_structure_hook(RegionAssignment, region_hook)
+        return c
 
     def render(
         self,
@@ -194,6 +254,36 @@ class WorldDescription:
                     tarball.addfile(tarinfo=info, fileobj=io.BytesIO(content))
             tar_stream.seek(0)
             return tarfile.open(fileobj=io.BytesIO(tar_stream.getvalue()))
+
+
+# -- Zone geometry helpers ---------------------------------------------------
+
+def _door_polygon(start: Position, end: Position) -> list[Position]:
+    dx = end.x - start.x
+    dy = end.y - start.y
+    length = math.sqrt(dx * dx + dy * dy)
+    if length > 0:
+        nx, ny = -dy / length, dx / length
+    else:
+        nx, ny = 0.0, 1.0
+    t = 0.3  # half-thickness
+    return [
+        Position(start.x - nx * t, start.y - ny * t),
+        Position(end.x - nx * t, end.y - ny * t),
+        Position(end.x + nx * t, end.y + ny * t),
+        Position(start.x + nx * t, start.y + ny * t),
+    ]
+
+
+def _elevator_polygon(position: Position, size: list[float]) -> list[Position]:
+    cx, cy = position.x, position.y
+    hw, hh = size[0] / 2, size[1] / 2
+    return [
+        Position(cx - hw, cy - hh),
+        Position(cx + hw, cy - hh),
+        Position(cx + hw, cy + hh),
+        Position(cx - hw, cy + hh),
+    ]
 
 
 class World(PathView):

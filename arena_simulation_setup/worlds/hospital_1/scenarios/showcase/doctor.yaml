@@ -1,0 +1,39 @@
+name: doctor
+mode: behavior
+extends: adult
+desired_velocity: {mean: 1.4, std: 0.1, clip_low: 1.0, clip_high: 1.8}
+
+perception:
+  vision_range: {mean: 6.0, std: 0.5, clip_low: 3.0, clip_high: 10.0}
+
+local_planner_params:
+  relaxation_time: {mean: 0.4, std: 0.05, clip_low: 0.2, clip_high: 0.8}
+  repulsion_strength: {mean: 2.0, std: 0.2, clip_low: 0.5, clip_high: 4.0}
+
+needs:
+  rounds:
+    initial: {mean: 40.0, std: 10.0, clip_low: 10.0, clip_high: 60.0}
+    decay_rate: {mean: 0.6, std: 0.1}
+
+utility_weights:
+  rounds: 1.0
+
+actions:
+  consult_patient:
+    when:
+      rounds: {below: 60.0}
+    interaction: TALK_TO
+    duration: {mean: 25.0, std: 5.0, clip_low: 10.0, clip_high: 45.0}
+    patience: {mean: 40.0, std: 5.0, clip_low: 20.0, clip_high: 60.0}
+    satisfies:
+      rounds: 50.0
+
+sequences:
+  default:
+    steps:
+      work:
+        autonomous: true
+        duration: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+    then: default
+
+initial_sequence: default

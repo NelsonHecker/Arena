@@ -52,12 +52,20 @@ class TM_Robots(TaskMode):
             bool: True if all robots are done, False otherwise.
 
         """
-        if (self._PROPS.clock.clock.sec - self._last_reset) \
-                > self.node.conf.Robot.TIMEOUT.value:
+        if (
+            self._PROPS.clock.clock.sec - self._last_reset
+        ) > self.node.conf.Robot.TIMEOUT.value:
             return True
 
         if not self._PROPS.robots:
             return False
-        if not all(await asyncio.gather(*(robot_manager.is_done for robot_manager in self._PROPS.robots.values()))):
+        if not all(
+            await asyncio.gather(
+                *(
+                    robot_manager.is_done
+                    for robot_manager in self._PROPS.robots.values()
+                )
+            )
+        ):
             return False
         return True

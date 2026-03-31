@@ -1,8 +1,10 @@
 #! /usr/bin/env python3
 import asyncio
 import traceback
+
 import rclpy
 import rclpy.executors
+
 from .node import TaskGenerator
 
 
@@ -14,7 +16,7 @@ def spin_blocking(executor):
 
 
 async def app_logic(node):
-    node.get_logger().info('Beginning client, shut down with CTRL-C')
+    node.get_logger().info("Beginning client, shut down with CTRL-C")
     await node.setup()
     stop_event = asyncio.Event()
     await stop_event.wait()
@@ -37,10 +39,10 @@ async def main_async(args=None):
 
     try:
         import aiomonitor
+
         with aiomonitor.start_monitor(loop=loop, locals=locals()):
             done, _ = await asyncio.wait(
-                [spin_future, app_task],
-                return_when=asyncio.FIRST_COMPLETED
+                [spin_future, app_task], return_when=asyncio.FIRST_COMPLETED
             )
 
         if spin_future in done:
@@ -50,7 +52,7 @@ async def main_async(args=None):
             app_task.result()
 
     except asyncio.CancelledError:
-        node.get_logger().info('Shutting down.')
+        node.get_logger().info("Shutting down.")
     except Exception:
         node.get_logger().error(traceback.format_exc())
         raise
@@ -77,7 +79,8 @@ def main(args=None):
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import time
+
     time.sleep(5)
     main()

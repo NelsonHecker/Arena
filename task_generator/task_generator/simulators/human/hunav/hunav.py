@@ -56,7 +56,6 @@ def _create_robot_message():
 
 
 class _PedestrianHelper:
-
     _ANIMATION_MAP = {
         AgentBehavior.BEH_REGULAR: "07_01-walk.bvh",
         AgentBehavior.BEH_IMPASSIVE: "69_02_walk_forward.bvh",
@@ -240,6 +239,16 @@ class HunavHumanSimulator(
 ):
     """HunavManager with debug logging for tracking execution flow"""
 
+    @classmethod
+    def _register_task_modes(cls):
+        from task_generator.tasks.task import _TaskRegistry
+
+        @_TaskRegistry.register_obstacles(Constants.TaskMode.TM_Obstacles.PROMPT)
+        def _prompt():
+            from task_generator.tasks.obstacles.prompt.hunav import TM_Prompt
+
+            return TM_Prompt
+
     # Service Names
     SERVICE_COMPUTE_AGENT = "compute_agent"
     SERVICE_COMPUTE_AGENTS = "compute_agents"
@@ -261,7 +270,6 @@ class HunavHumanSimulator(
     _get_walls_service: rclpy.node.Service
 
     # Publishers
-    _arena_peds_publisher: rclpy.node.Publisher
     _wall_markers_publisher: rclpy.node.Publisher
 
     def __init__(self, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
@@ -276,15 +284,17 @@ class HunavHumanSimulator(
         # Initialize collections
         self._logger.debug("Initializing collections...")
         self._pedestrians: dict[int, dict] = {}
-        self._wall_segments: list[WallSegment] = []
-        self._wall_points: list[Point] = []
+        self._explicit_wall_segments: dict[str, WallSegment] = {}
+        self._explicit_wall_points: dict[str, list[Point]] = {}
+        self._obstacle_wall_segments: dict[str, WallSegment] = {}
+        self._obstacle_wall_points: dict[str, list[Point]] = {}
+        self._wall_segments: dict[str, WallSegment] = {}
+        self._wall_points: dict[str, list[Point]] = {}
         self._agents_lock: asyncio.Lock = asyncio.Lock()
         self._agents_container: Agents = (
             Agents()
         )  # Container to hold all registered agents
-        self._get_agents_container: Agents = (
-            Agents()
-        )  # Container specifically just to send the Agent attributes to Hunavsystemplugin
+        self._get_agents_container: Agents = Agents()  # Container specifically just to send the Agent attributes to Hunavsystemplugin
         self._agents_container.header.frame_id = "map"
         self._arena_pedestrians_container: Pedestrians = Pedestrians()
         self._arena_pedestrians_container.header.frame_id = "map"
@@ -339,10 +349,10 @@ class HunavHumanSimulator(
         else:
             self._logger.error("Service setup failed!")
 
-        if self._setup_arena_peds_publisher():
-            self._logger.info("Arena peds publisher setup complete")
+        if self._setup_wall_markers_publisher():
+            self._logger.info("Wall markers publisher setup complete")
         else:
-            self._logger.error("Arena peds publisher setup failed!")
+            self._logger.error("Wall markers publisher setup failed!")
 
             # Setup obstacle subscriber
         if not self._setup_obstacle_subscriber():
@@ -402,27 +412,16 @@ class HunavHumanSimulator(
         self._logger.info("=== SETUP_SERVICES COMPLETE ===")
         return True
 
-    def _setup_arena_peds_publisher(self):
-        """Setup arena_peds publisher and loops - separate from services"""
+    def _setup_wall_markers_publisher(self):
+        """Setup wall markers publisher - separate from services"""
         try:
-            self._logger.info("=== ARENA PEDS PUBLISHER SETUP START ===")
-
-            # Create publisher
-            self._arena_peds_publisher = self.node.create_publisher(
-                Pedestrians, self._namespace("arena_peds"), 10
-            )
-
             self._wall_markers_publisher = self.node.create_publisher(
-                MarkerArray,
-                self._namespace('wall_markers'),
-                10
+                MarkerArray, self._namespace("wall_markers"), 10
             )
-
-            self._logger.info("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
             return True
 
         except Exception as e:
-            self._logger.error(f"Arena peds publisher setup failed: {e}")
+            self._logger.error(f"Wall markers publisher setup failed: {e}")
             return False
 
     def _setup_obstacle_subscriber(self):
@@ -433,7 +432,10 @@ class HunavHumanSimulator(
             # Create subscriber
             obstacle_topic = self._namespace("hunav_closest_obstacles")
             self._obstacle_subscriber = self.node.create_subscription(
-                Agents, obstacle_topic, self._obstacle_callback, 10  # type: ignore
+                Agents,
+                obstacle_topic,
+                self._obstacle_callback,
+                10,  # type: ignore
             )
 
             # Store latest obstacle data
@@ -464,19 +466,16 @@ class HunavHumanSimulator(
 
     def _update_agent_obstacles(self, current_agents):
         """Update agent closest_obs with latest obstacle data before HuNav call"""
-        # if not self._latest_obstacles:
-        #     return current_agents
+        from itertools import chain
+
+        all_wall_points = list(chain.from_iterable(self._wall_points.values()))
 
         for agent in current_agents.agents:
-            # if agent.name in self._latest_obstacles:
-            # agent.closest_obs = self._latest_obstacles[agent.name]
-            agent.closest_obs.extend(self._wall_points)
+            agent.closest_obs.extend(all_wall_points)
             self._logger.debug(
                 f"Updated agent {agent.name} with {len(agent.closest_obs)} obstacles"
             )
-            self._logger.debug(f"Wall Points: {self._wall_points}")
 
-        # self._logger.info(f"current_agents after obstacle update: {current_agents}")
         return current_agents
 
     async def _get_agents_callback(self, request, response):
@@ -509,7 +508,7 @@ class HunavHumanSimulator(
     async def _get_walls_callback(self, request, response):
         """Service callback für Wall-Segments"""
         del request
-        response.walls = self._wall_segments
+        response.walls = list(self._wall_segments.values())
         self._logger.debug(f"Sent {len(self._wall_segments)} wall segments")
         return response
 
@@ -532,52 +531,81 @@ class HunavHumanSimulator(
             )
 
     async def _spawn_obstacles_impl(self, obstacles):
-        self._logger.debug(f'Spawning walls for {len(obstacles)} obstacles')
+        self._logger.debug(f"Spawning walls for {len(obstacles)} obstacles")
 
-        async def obstacle_to_walls(obstacle: Obstacle) -> list[Wall]:
+        async def obstacle_to_walls(obstacle: Obstacle) -> list[tuple[str, Wall]]:
             model = obstacle.model
             try:
-                annotation_path = (await model.resolve_path()) / 'annotation.yaml'
-                with open(annotation_path, 'r') as f:
+                annotation_path = (await model.resolve_path()) / "annotation.yaml"
+                with open(annotation_path, "r") as f:
                     annotation: dict = yaml.safe_load(f.read())
 
-                (min_x, max_x), (min_y, max_y), (min_z, max_z) = annotation['bounding_box']
+                (min_x, max_x), (min_y, max_y), (min_z, max_z) = annotation[
+                    "bounding_box"
+                ]
 
-                rotation_mat = np.array([
-                    [np.cos(obstacle.pose.orientation.to_yaw()), -np.sin(obstacle.pose.orientation.to_yaw())],
-                    [np.sin(obstacle.pose.orientation.to_yaw()), np.cos(obstacle.pose.orientation.to_yaw())]
-                ])
-                corners = np.array([
-                    [min_x, min_y],
-                    [min_x, max_y],
-                    [max_x, max_y],
-                    [max_x, min_y],
-                ])
+                rotation_mat = np.array(
+                    [
+                        [
+                            np.cos(obstacle.pose.orientation.to_yaw()),
+                            -np.sin(obstacle.pose.orientation.to_yaw()),
+                        ],
+                        [
+                            np.sin(obstacle.pose.orientation.to_yaw()),
+                            np.cos(obstacle.pose.orientation.to_yaw()),
+                        ],
+                    ]
+                )
+                corners = np.array(
+                    [
+                        [min_x, min_y],
+                        [min_x, max_y],
+                        [max_x, max_y],
+                        [max_x, min_y],
+                    ]
+                )
                 corners = corners @ rotation_mat.T
-                corners += np.array([[obstacle.pose.position.x, obstacle.pose.position.y]])
+                corners += np.array(
+                    [[obstacle.pose.position.x, obstacle.pose.position.y]]
+                )
 
-                obstacle_walls: list[Wall] = []
-                for start, end in zip(corners, np.roll(corners, -1, axis=0)):
-                    obstacle_walls.append(Wall(
+                obstacle_walls: list[tuple[str, Wall]] = []
+                for i, (start, end) in enumerate(
+                    zip(corners, np.roll(corners, -1, axis=0))
+                ):
+                    wall = Wall(
                         start=Position(x=start[0], y=start[1]),
-                        end=Position(x=end[0], y=end[1])
-                    ))
+                        end=Position(x=end[0], y=end[1]),
+                    )
+                    obstacle_walls.append((f"{obstacle.name}_wall_{i}", wall))
 
-                self._logger.debug(f'spawning wall segments for obstacle {obstacle.name}')
-                for wall in obstacle_walls:
-                    self._logger.debug(f'  Wall from ({wall.start.x:.2f}, {wall.start.y:.2f}) to ({wall.end.x:.2f}, {wall.end.y:.2f})')
+                self._logger.debug(
+                    f"spawning wall segments for obstacle {obstacle.name}"
+                )
+                for name, wall in obstacle_walls:
+                    self._logger.debug(
+                        f"  Wall from ({wall.start.x:.2f}, {wall.start.y:.2f}) to ({wall.end.x:.2f}, {wall.end.y:.2f})"
+                    )
 
                 return obstacle_walls
             except Exception as e:
-                self._logger.warning(f"failed to spawn bounding walls for obstacle '{obstacle.name}': {e}")
+                self._logger.warning(
+                    f"failed to spawn bounding walls for obstacle '{obstacle.name}': {e}"
+                )
                 return []
 
-        self._logger.debug('Spawning walls for obstacles...')
+        self._logger.debug("Spawning walls for obstacles...")
         all_walls = await asyncio.gather(*(obstacle_to_walls(obs) for obs in obstacles))
-        self._logger.debug('Finished spawning walls for obstacles.')
+        self._logger.debug("Finished spawning walls for obstacles.")
 
-        for wall in [wall for walls in all_walls for wall in walls]:
-            self._add_wall(wall)
+        for name, wall in [entry for walls in all_walls for entry in walls]:
+            self._add_wall(
+                name,
+                wall,
+                self._obstacle_wall_segments,
+                self._obstacle_wall_points,
+            )
+        self._rebuild_wall_cache()
         return obstacles
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles):
@@ -607,7 +635,9 @@ class HunavHumanSimulator(
                     arena_pedestrian = self._create_arena_pedestrian(
                         hunav_obstacle, unique_id
                     )
-                    self._arena_pedestrians_container.pedestrians.append(arena_pedestrian)  # type: ignore
+                    self._arena_pedestrians_container.pedestrians.append(
+                        arena_pedestrian
+                    )  # type: ignore
                     self._logger.debug(
                         f"Added arena pedestrian {arena_pedestrian.name} - Total: {len(self._arena_pedestrians_container.pedestrians)}"
                     )
@@ -734,33 +764,78 @@ class HunavHumanSimulator(
         points.append(end.to_msg())
         return points
 
-    def _add_wall(self, wall: Wall):
-        """Add a single wall segment to the local list and update wall points"""
+    def _rebuild_wall_cache(self):
+        """Merge explicit and obstacle wall dicts into the cached view."""
+        self._wall_segments = {
+            **self._explicit_wall_segments,
+            **self._obstacle_wall_segments,
+        }
+        self._wall_points = {**self._explicit_wall_points, **self._obstacle_wall_points}
+
+    def _add_wall(
+        self,
+        name: str,
+        wall: Wall,
+        segments: dict[str, WallSegment],
+        points: dict[str, list[Point]],
+    ):
+        """Add a single wall segment to the given dicts."""
         segment = WallSegment()
-        segment.id = len(self._wall_segments)
+        segment.id = len(segments)
         segment.start = wall.start.to_msg()
         segment.end = wall.end.to_msg()
         segment.length = (wall.start - wall.end).norm()
 
-        self._wall_segments.append(segment)
-        self._wall_points.extend(self._wall_to_points(wall.start, wall.end))
+        segments[name] = segment
+        points[name] = self._wall_to_points(wall.start, wall.end)
 
-        self._logger.debug(f"Added wall segment {segment.id} from ({segment.start.x:.2f}, {segment.start.y:.2f}) to ({segment.end.x:.2f}, {segment.end.y:.2f})")
-        self._logger.debug(f"Total wall segments: {len(self._wall_segments)}, Total wall points: {len(self._wall_points)}")
+        self._logger.debug(
+            f"Added wall segment '{name}' from ({segment.start.x:.2f}, {segment.start.y:.2f}) to ({segment.end.x:.2f}, {segment.end.y:.2f})"
+        )
 
     async def _spawn_walls_impl(self, walls) -> bool:
-        self._wall_segments = []
-        self._wall_points = []
+        self._explicit_wall_segments = {}
+        self._explicit_wall_points = {}
 
-        for wall in walls:
-            self._add_wall(wall)
+        for name, wall in walls.items():
+            self._add_wall(
+                name,
+                wall,
+                self._explicit_wall_segments,
+                self._explicit_wall_points,
+            )
 
+        self._rebuild_wall_cache()
         self._logger.debug(f"Cached {len(self._wall_segments)} wall segments")
-        self._logger.debug(f"Wallsegments{self._wall_segments} ")
         return True
 
-    async def _remove_obstacles_impl(self):
-        """Remove all spawned pedestrians from simulation safely"""
+    async def _remove_walls_impl(self, names) -> bool:
+        for name in names:
+            self._explicit_wall_segments.pop(name, None)
+            self._explicit_wall_points.pop(name, None)
+        self._rebuild_wall_cache()
+        self._logger.debug(
+            f"Removed {len(names)} wall segments, {len(self._wall_segments)} remaining"
+        )
+        return True
+
+    async def _remove_obstacles_impl(self, names) -> bool:
+        """Remove obstacle-derived wall segments by obstacle name."""
+        for name in names:
+            keys = [
+                k for k in self._obstacle_wall_segments if k.startswith(f"{name}_wall_")
+            ]
+            for k in keys:
+                self._obstacle_wall_segments.pop(k, None)
+                self._obstacle_wall_points.pop(k, None)
+        self._rebuild_wall_cache()
+        self._logger.debug(
+            f"Removed obstacle walls for {len(names)} obstacles, {len(self._wall_segments)} wall segments remaining"
+        )
+        return True
+
+    async def _remove_pedestrians_impl(self) -> bool:
+        """Remove all spawned pedestrians from simulation safely."""
         self._logger.debug(f"=== REMOVING {len(self._pedestrians)} PEDESTRIANS ===")
 
         async with self._agents_lock:
@@ -899,7 +974,6 @@ class HunavHumanSimulator(
                 while not done.is_set():
                     await rate.get()
                     async with self._agents_lock:
-
                         self._logger.debug(
                             f"arena_peds_callback: publishing {len(self._arena_pedestrians_container.pedestrians)} pedestrians"
                         )
@@ -951,7 +1025,6 @@ class HunavHumanSimulator(
                             ) in self._arena_pedestrians_container.pedestrians:
                                 for updated_agent in response.updated_agents.agents:
                                     if updated_agent.id == arena_ped.id:
-
                                         calculated_vel_x, calculated_vel_y = (
                                             self._calculate_velocity_from_position_change(
                                                 updated_agent, arena_ped
@@ -1015,7 +1088,7 @@ class HunavHumanSimulator(
                                 f"Publishing pedestrian {ped.name} at ({ped.pose.position.x}, {ped.pose.position.y}) with velocity ({ped.twist.linear.x}, {ped.twist.linear.y})"
                             )
 
-                        self._arena_peds_publisher.publish(self._arena_pedestrians_container)
+                        self.publish_arena_peds(self._arena_pedestrians_container)
                         self._publish_wall_markers()
 
         except asyncio.CancelledError:
@@ -1030,7 +1103,7 @@ class HunavHumanSimulator(
         """Publish wall segments as visualization markers"""
         marker_array = MarkerArray()
 
-        for wall in self._wall_segments:
+        for wall in self._wall_segments.values():
             marker = Marker()
             marker.header.frame_id = "map"
             marker.header.stamp = self.node.sim_time.to_msg()
@@ -1119,7 +1192,6 @@ class HunavHumanSimulator(
         # Speed limiting
         velocity_magnitude = math.sqrt(vel_x**2 + vel_y**2)
         if velocity_magnitude > updated_agent.desired_velocity:
-
             scale_factor = updated_agent.desired_velocity / velocity_magnitude
             vel_x *= scale_factor
             vel_y *= scale_factor

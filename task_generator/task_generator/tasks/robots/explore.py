@@ -38,11 +38,15 @@ class TM_Explore(TM_Random):
                     robot,
                     Pose(
                         waypoint,
-                        Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)
-                    )
+                        Orientation.from_yaw(
+                            self.node.conf.General.RNG.value.random() * 2 * math.pi
+                        ),
+                    ),
                 )
 
-            elif (self._PROPS.clock.clock.sec - self._timeouts.get(robot, Time()).sec) >= self.node.conf.Robot.TIMEOUT.value:
+            elif (
+                self._PROPS.clock.clock.sec - self._timeouts.get(robot, Time()).sec
+            ) >= self.node.conf.Robot.TIMEOUT.value:
                 waypoint = self._PROPS.world_manager.get_position_on_map(
                     safe_dist=manager.safe_distance, forbid=False
                 )
@@ -50,8 +54,10 @@ class TM_Explore(TM_Random):
                     robot,
                     Pose(
                         waypoint,
-                        Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)
-                    )
+                        Orientation.from_yaw(
+                            self.node.conf.General.RNG.value.random() * 2 * math.pi
+                        ),
+                    ),
                 )
 
         return False

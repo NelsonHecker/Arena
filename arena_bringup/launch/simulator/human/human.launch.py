@@ -5,6 +5,8 @@ from ament_index_python.packages import get_package_share_directory
 
 from arena_bringup.substitutions import LaunchArgument, SelectAction
 
+from task_generator.constants import Constants
+
 
 def generate_launch_description():
 
@@ -19,17 +21,17 @@ def generate_launch_description():
     launch_human_simulator = SelectAction(launch.substitutions.LaunchConfiguration('simulator'))
 
     launch_human_simulator.add(
-        'dummy',
+        Constants.HumanSimulator.DUMMY.value,
         launch.actions.GroupAction([])
     )
 
     launch_human_simulator.add(
-        'isaac',
+        Constants.HumanSimulator.ISAAC.value,
         launch.actions.GroupAction([])
     )
 
     launch_human_simulator.add(
-        'hunav',
+        Constants.HumanSimulator.HUNAV.value,
         launch.actions.IncludeLaunchDescription(
             os.path.join(
                 get_package_share_directory('arena_bringup'),
@@ -38,6 +40,20 @@ def generate_launch_description():
             launch_arguments={
                 'use_sim_time': 'true',
                 'world_file': '',
+                **namespace.dict
+            }.items(),
+        )
+    )
+
+    launch_human_simulator.add(
+        Constants.HumanSimulator.ARENA.value,
+        launch.actions.IncludeLaunchDescription(
+            os.path.join(
+                get_package_share_directory('arena_bringup'),
+                'launch/simulator/human/arena_humansim.launch.py'
+            ),
+            launch_arguments={
+                'use_sim_time': 'true',
                 **namespace.dict
             }.items(),
         )

@@ -1,45 +1,40 @@
-from enum import Enum
 import json
 import math
 import os
 import pickle
 import tempfile
 import time
-from typing import Dict, List
 import xml.etree.ElementTree as ET
+from enum import Enum
+from typing import Dict, List
 
 import attrs
-import yaml
-
 import numpy as np
-
-from google import genai
-
-from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+import yaml
 from ament_index_python.packages import get_package_share_directory
-
 from arena_hunav_sim_bridge.agent.llm_parser import Parser
+from google import genai
+from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 
 # Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
 os.environ["PYGLET_HEADLESS"] = "true"
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
+from arena_simulation_setup.tree.World import WorldDescription, WorldIdentifier
+from arena_simulation_setup.utils.cattrs import converter
+from arena_text_crowd.converters.arena_world_to_text_crowd_scenario import (
+    arena_world_to_text_crowd_scenario,
+)
 from arena_text_crowd.crowd_generation_pipeline.arena_text_crowd_generation_pipeline import (
     ArenaTextCrowdGenerationPipelineConfig as ATCPConfig,
+)
+from arena_text_crowd.crowd_generation_pipeline.arena_text_crowd_generation_pipeline import (
     CrowdGenerationPipeline,
 )
 from arena_text_crowd.crowd_generation_pipeline.velocity_field_generation.velocity_field_generation_pipeline import (
     VelocityFieldGenerationPipelineConfig as VFGPConfig,
 )
-from arena_text_crowd.converters.arena_world_to_text_crowd_scenario import (
-    arena_world_to_text_crowd_scenario,
-)
-
-from arena_rclpy_mixins.ROSParamServer import ROSParamT
-
-from arena_simulation_setup.tree.World import WorldDescription, WorldIdentifier
-from arena_simulation_setup.utils.cattrs import converter
-
-from hunav_msgs.srv import SetVelocityField, SetArenaWorldBounds
+from hunav_msgs.srv import SetArenaWorldBounds, SetVelocityField
 
 from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle
 from task_generator.tasks.obstacles import (
@@ -52,14 +47,14 @@ from task_generator.tasks.obstacles.prompt.velocity_field_marker import (
 )
 
 from .prompt_utils import (
-    SYSTEM_INSTRUCTION,
     ARENA_FORMAT,
     BEHAVIOR_TREE_FORMAT,
-    SPLIT_PROMPT_INSTRUCTION,
     BT_REF_DOC_PATH,
     CHROMA_DB_PATH,
     LOCAL_LM,
     REMOTE_LM,
+    SPLIT_PROMPT_INSTRUCTION,
+    SYSTEM_INSTRUCTION,
     create_chroma_db,
     get_chroma_collection,
     get_relevant_bt_nodes,

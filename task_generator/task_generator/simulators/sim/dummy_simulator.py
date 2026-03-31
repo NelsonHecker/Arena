@@ -1,15 +1,14 @@
 import asyncio
-
+import typing
 from collections.abc import Sequence
 
 import rosgraph_msgs.msg
-
 from arena_rclpy_mixins.Time import Time
+
 from task_generator.shared import Entity, Wall
 from task_generator.simulators.sim import BaseSim
-import typing
 
-T = typing.TypeVar('T')
+T = typing.TypeVar("T")
 
 
 class DummySimulator(BaseSim):
@@ -24,7 +23,7 @@ class DummySimulator(BaseSim):
         super().__init__(*args, **kwargs)
         self._paused = False
         self._clock_publisher = self.node.create_publisher(
-            rosgraph_msgs.msg.Clock, '/clock', 10
+            rosgraph_msgs.msg.Clock, "/clock", 10
         )
         self._clock_task = asyncio.create_task(self._publish_clock_loop())
 
@@ -71,11 +70,7 @@ class DummySimulator(BaseSim):
     async def __spawn_entity(self, entities: Sequence[Entity]) -> Sequence[bool]:
         self._logger.debug(f"spawning {len(entities)} entities")
 
-        await asyncio.gather(*(
-            self.safe_resolve(e.model)
-            for e
-            in entities)
-        )
+        await asyncio.gather(*(self.safe_resolve(e.model) for e in entities))
         return tuple(True for _ in entities)
 
     async def obstacle_spawn(self, obstacles):
@@ -117,12 +112,12 @@ class DummySimulator(BaseSim):
 
     # assorted
     async def pedestrian_update(self, pedestrians):
-        self._logger.debug(f'updating {len(pedestrians.pedestrians)} pedestrians')
+        self._logger.debug(f"updating {len(pedestrians.pedestrians)} pedestrians")
         return tuple(True for _ in pedestrians.pedestrians)
 
     # world interface
     async def spawn_walls(self, walls):
-        self._logger.debug(f'spawning {len(walls)} walls')
+        self._logger.debug(f"spawning {len(walls)} walls")
 
         async def resolve(wall: Wall):
             walls, obs = await wall.assets()
@@ -135,20 +130,22 @@ class DummySimulator(BaseSim):
         return True
 
     async def spawn_floors(self, floors):
-        self._logger.debug(f'spawning {len(floors)} floors')
+        self._logger.debug(f"spawning {len(floors)} floors")
         await asyncio.gather(*(self.safe_resolve(floor.material) for floor in floors))
         return True
 
     async def spawn_doors(self, doors):
-        self._logger.debug(f'spawning {len(doors)} doors')
+        self._logger.debug(f"spawning {len(doors)} doors")
         await asyncio.gather(*(self.safe_resolve(door.material) for door in doors))
         return True
 
     async def spawn_elevators(self, elevators) -> bool:
-        self._logger.debug(f'spawning {len(elevators)} elevators')
-        await asyncio.gather(*(self.safe_resolve(elevator.material) for elevator in elevators))
+        self._logger.debug(f"spawning {len(elevators)} elevators")
+        await asyncio.gather(
+            *(self.safe_resolve(elevator.material) for elevator in elevators)
+        )
         return True
 
     async def remove_world(self):
-        self._logger.debug('removing all walls and doors')
+        self._logger.debug("removing all walls and doors")
         return True

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import abc
+import contextvars
 import traceback
 import typing
 
 from copy import deepcopy
 
 import cattrs
+
+_active_converter: contextvars.ContextVar[ArenaConverter] = contextvars.ContextVar('_active_converter')
 
 
 class ArenaConverter(cattrs.Converter):
@@ -61,6 +64,25 @@ class ArenaConverter(cattrs.Converter):
             self._decoders.insert(0, (predicate, func))
             # return super().register_structure_hook_func(predicate, func)
         return super().register_structure_hook(cl, *args, **kwargs)
+
+    def structure(self, obj, cl):
+        token = _active_converter.set(self)
+        try:
+            return super().structure(obj, cl)
+        finally:
+            _active_converter.reset(token)
+
+    def structure_attrs_fromdict(self, obj, cl):
+        token = _active_converter.set(self)
+        try:
+            return super().structure_attrs_fromdict(obj, cl)
+        finally:
+            _active_converter.reset(token)
+
+    @staticmethod
+    def current() -> ArenaConverter:
+        """Return the converter currently performing structuring, or the module default."""
+        return _active_converter.get(converter)
 
 
 converter = ArenaConverter()
@@ -161,6 +183,7 @@ class Parseable(abc.ABC):
 
             def try_parse(value, target_type):
                 errors: list[Exception] = []
+                c = ArenaConverter.current()
                 # check idempotence
                 try:
                     if isinstance(value, target_type):
@@ -177,7 +200,7 @@ class Parseable(abc.ABC):
                 # try "normal" attrs structuring
                 try:
                     if isinstance(value, dict):
-                        return converter.structure_attrs_fromdict(value, target_type)
+                        return c.structure_attrs_fromdict(value, target_type)
                 except Exception as e:
                     errors.append(e)
 
@@ -193,7 +216,7 @@ class Parseable(abc.ABC):
 
     @classmethod
     def parse(cls: typing.Type[ParseableT], value: typing.Any) -> ParseableT:
-        return converter.structure_attrs_fromdict(deepcopy(value), cls)
+        return ArenaConverter.current().structure_attrs_fromdict(deepcopy(value), cls)
 
 
 converter.register_structure_hook(

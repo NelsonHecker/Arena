@@ -93,6 +93,8 @@ class ConfigFileGenerator(Node):
             # Check for converted pedestrian markers
             elif topic_name.endswith('/pedestrian_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
                 pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
+            elif topic_name.endswith('/pedestrian_markers/extra') and 'visualization_msgs/msg/MarkerArray' in topic_types:
+                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
             elif topic_name.endswith('/wall_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
                 pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
             # Check for legacy people topics (fallback)
@@ -110,11 +112,12 @@ class ConfigFileGenerator(Node):
         for topic_name, topic_type in pedestrian_topics:
             if topic_type == 'arena_people_msgs/msg/Pedestrians':
                 self.get_logger().info(f"Found arena_peds topic: {topic_name} - using pedestrian_markers")
-                # Note: We rely on pedestrian_marker_publisher to convert this to MarkerArray
+                # BaseHumanSimulator publishes MarkerArray on pedestrian_markers
 
             elif topic_type == 'visualization_msgs/msg/MarkerArray':
                 # Use MarkerArray display for converted pedestrian markers
-                display = Utils.Displays.pedestrians(topic_name, name=os.path.basename(topic_name), enabled=not topic_name.endswith('/wall_markers'))
+                enabled = not (topic_name.endswith('/wall_markers') or topic_name.endswith('/extra'))
+                display = Utils.Displays.pedestrians(topic_name, name=os.path.basename(topic_name), enabled=enabled)
                 pedestrian_group['Displays'].append(display)
                 self.get_logger().info(f"Added MarkerArray display for pedestrians: {topic_name}")
 

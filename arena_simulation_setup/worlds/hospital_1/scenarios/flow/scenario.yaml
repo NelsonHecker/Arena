@@ -1,0 +1,54 @@
+dynamic:
+- model: female_adult_business_02
+  name: ped_1
+  pose: [20.0, 1.0, -135.0]
+  waypoints:
+  - [23.5, 8.5, -135.0]
+
+- model: male_adult_construction_01
+  name: ped_2
+  pose: [22.5, 7.5, 45.0]
+  waypoints:
+  - [22.5, 7.5, 45.0]
+
+- model: female_adult_medical_01
+  name: ped_3
+  pose: [4.0, 27.0, 0.0]
+  waypoints:
+  - [4.0, 27.0, 0.0]
+
+regions:
+  entrance_source:
+    type: source
+    ref: main_hallway_entrance
+    config:
+      rate_profile:
+        - t: 0.0
+          rate: 1.5
+      max_concurrent: 5
+      max_total: 50
+      agent:
+        desired_velocity: {min: 1.0, max: 1.5}
+        agent_type: adult
+
+  reception_sink:
+    type: sink
+    ref: reception
+    config:
+      capacity: -1
+
+  hallway_spawn:
+    type: source
+    polygon:
+      - {x: 18.0, y: 2.0}
+      - {x: 22.0, y: 2.0}
+      - {x: 22.0, y: 6.0}
+      - {x: 18.0, y: 6.0}
+    config:
+      rate_profile:
+        - t: 0.0
+          rate: 0.5
+      max_concurrent: 3
+      max_total: 20
+      agent:
+        agent_type: elder

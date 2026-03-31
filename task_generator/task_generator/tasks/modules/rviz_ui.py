@@ -22,39 +22,31 @@ class Mod_OverrideRobot(TM_Module):
             geometry_msgs.PoseWithCovarianceStamped,
             self.TOPIC_SET_POSITION,
             self._cb_set_position,
-            1
+            1,
         )
 
         self.node.create_subscription(
             geometry_msgs.PoseWithCovarianceStamped,
             self.TOPIC_SET_GOAL,
             self._cb_set_goal,
-            1
+            1,
         )
 
         self.node.create_subscription(
             geometry_msgs.PointStamped,
             self.TOPIC_NEW_SCENARIO,
             self._cb_new_scenario,
-            1
+            1,
         )
 
     def _reset_timeout(self, index: int):
         self._timeouts[index] = self._PROPS.clock.clock
 
     async def _cb_set_position(self, pos: geometry_msgs.PoseWithCovarianceStamped):
-        await self._TASK.set_robot_position(
-            Pose.from_msg(
-                pos.pose.pose
-            )
-        )
+        await self._TASK.set_robot_position(Pose.from_msg(pos.pose.pose))
 
     async def _cb_set_goal(self, pos: geometry_msgs.PoseStamped):
-        await self._TASK.set_robot_goal(
-            Pose.from_msg(
-                pos.pose
-            )
-        )
+        await self._TASK.set_robot_goal(Pose.from_msg(pos.pose))
 
     def _cb_new_scenario(self, *args, **kwargs):
         self._TASK.force_reset()  # type: ignore

@@ -1,33 +1,57 @@
+from __future__ import annotations
+
 import abc
 import asyncio
+import itertools
+import math
 import typing
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import rclpy
 import rclpy.publisher
+from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.shared import Namespace
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Vector3
+from std_msgs.msg import ColorRGBA
+from tf_transformations import quaternion_from_euler, quaternion_multiply
+from visualization_msgs.msg import Marker, MarkerArray
 
 from task_generator import NodeInterface
 from task_generator.constants import Constants
-from task_generator.shared import Door, DynamicObstacle, Obstacle, Robot, Wall
-from task_generator.simulators.human.utils import KnownObstacle, KnownObstacles, ObstacleLayer
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
+from task_generator.simulators.human.utils import (
+    KnownObstacle,
+    KnownObstacles,
+    ObstacleLayer,
+)
 from task_generator.simulators.sim import BaseSim
 from task_generator.utils.registry import Registry
 
 
 class BaseHumanSimulator(NodeInterface, abc.ABC):
+    MESH_RESOURCE = (
+        "package://pal_gazebo_worlds/models/citizen_extras_male_03/meshes/mesh.dae"
+    )
+    BODY_HEIGHT = 1.6
+    ARROW_LENGTH = 0.6
 
     _goal_pub: rclpy.publisher.Publisher
+    _arena_peds_publisher: rclpy.publisher.Publisher
+    _marker_publisher: rclpy.publisher.Publisher
+    _extra_marker_publisher: rclpy.publisher.Publisher
     _known_obstacles: KnownObstacles
+    _known_walls: KnownObstacles[Wall]
+    _known_doors: KnownObstacles[Door]
 
-    def __init__(
-        self,
-        *args,
-        namespace: Namespace,
-        simulator: BaseSim,
-        **kwargs
-    ):
+    @classmethod
+    def _register_task_modes(cls) -> None:
+        """Register simulator-specific obstacle task modes.
+
+        Called during __init__. Subclasses override this to register
+        task modes specific to their simulator (e.g. TM_Prompt).
+        """
+
+    def __init__(self, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
         """
         Initialize human simulator.
 
@@ -36,21 +60,137 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             simulator: Simulator instance
         """
         super().__init__(*args, **kwargs)
+        self._register_task_modes()
         self._simulator = simulator
         self._namespace = namespace
 
         self._known_obstacles = KnownObstacles[Obstacle]()
+        self._known_walls = KnownObstacles[Wall]()
+        self._known_doors = KnownObstacles[Door]()
+        self._wall_counter = itertools.count()
+        self._known_regions: dict[str, Region] = {}
 
         self._goal_pub = self.node.create_publisher(
-            PoseStamped,
-            self._namespace("/goal"),
-            1
+            PoseStamped, self._namespace("/goal"), 1
         )
 
+        self._arena_peds_publisher = self.node.create_publisher(
+            Pedestrians, self._namespace("arena_peds"), 10
+        )
+
+        self._marker_publisher = self.node.create_publisher(
+            MarkerArray, self._namespace("pedestrian_markers"), 10
+        )
+
+        self._extra_marker_publisher = self.node.create_publisher(
+            MarkerArray, self._namespace("pedestrian_markers/extra"), 10
+        )
+
+    def publish_arena_peds(self, msg: Pedestrians):
+        """Publish pedestrian states and base visualization markers."""
+        self._arena_peds_publisher.publish(msg)
+        self._marker_publisher.publish(self._pedestrians_to_markers(msg))
+
+    def publish_markers(self, markers: MarkerArray):
+        """Publish additional visualization markers (debug overlays etc.)."""
+        self._extra_marker_publisher.publish(markers)
+
+    def _pedestrians_to_markers(self, msg: Pedestrians) -> MarkerArray:
+        """Convert a Pedestrians message to base visualization markers."""
+        markers: list[Marker] = []
+
+        for ped in msg.pedestrians:
+            pid = ped.id
+
+            # Body mesh
+            body = Marker()
+            body.header = msg.header
+            body.ns = "pedestrian_meshes"
+            body.id = pid
+            body.type = Marker.MESH_RESOURCE
+            body.mesh_resource = self.MESH_RESOURCE
+            body.mesh_use_embedded_materials = True
+            body.action = Marker.ADD
+            body.pose.position.x = ped.pose.position.x
+            body.pose.position.y = ped.pose.position.y
+            body.pose.position.z = 0.01
+            q_org = [
+                ped.pose.orientation.x,
+                ped.pose.orientation.y,
+                ped.pose.orientation.z,
+                ped.pose.orientation.w,
+            ]
+            q = quaternion_multiply(q_org, quaternion_from_euler(0, 0, math.pi / 2))
+            body.pose.orientation.x = q[0]
+            body.pose.orientation.y = q[1]
+            body.pose.orientation.z = q[2]
+            body.pose.orientation.w = q[3]
+            body.scale = Vector3(
+                x=self.BODY_HEIGHT, y=self.BODY_HEIGHT, z=self.BODY_HEIGHT
+            )
+            body.lifetime.sec = 1
+            markers.append(body)
+
+            # Velocity arrow
+            speed = math.hypot(ped.twist.linear.x, ped.twist.linear.y)
+            if speed > 0.1:
+                vel = Marker()
+                vel.header = msg.header
+                vel.ns = "pedestrian_velocity"
+                vel.id = pid
+                vel.type = Marker.ARROW
+                vel.action = Marker.ADD
+                vel.pose.position.x = ped.pose.position.x
+                vel.pose.position.y = ped.pose.position.y
+                vel.pose.position.z = self.BODY_HEIGHT / 2 + 0.2
+                yaw = math.atan2(ped.twist.linear.y, ped.twist.linear.x)
+                vel.pose.orientation.z = math.sin(yaw / 2)
+                vel.pose.orientation.w = math.cos(yaw / 2)
+                arrow_len = min(self.ARROW_LENGTH * speed, self.ARROW_LENGTH)
+                vel.scale = Vector3(x=arrow_len, y=0.1, z=0.1)
+                vel.color = ColorRGBA(r=1.0, g=0.5, b=0.0, a=1.0)
+                vel.lifetime.sec = 1
+                markers.append(vel)
+
+            # Orientation arrow
+            ori = Marker()
+            ori.header = msg.header
+            ori.ns = "pedestrian_orientation"
+            ori.id = pid
+            ori.type = Marker.ARROW
+            ori.action = Marker.ADD
+            ori.pose.position.x = ped.pose.position.x
+            ori.pose.position.y = ped.pose.position.y
+            ori.pose.position.z = self.BODY_HEIGHT + 0.3
+            ori.pose.orientation = ped.pose.orientation
+            ori.scale = Vector3(x=self.ARROW_LENGTH, y=0.15, z=0.15)
+            ori.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.8)
+            ori.lifetime.sec = 1
+            markers.append(ori)
+
+            # Name label
+            label = Marker()
+            label.header = msg.header
+            label.ns = "pedestrian_labels"
+            label.id = pid
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position.x = ped.pose.position.x
+            label.pose.position.y = ped.pose.position.y
+            label.pose.position.z = self.BODY_HEIGHT + 0.2
+            label.pose.orientation.w = 1.0
+            label.text = f"Agent {ped.name}"
+            label.scale.z = 0.3
+            label.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
+            label.lifetime.sec = 1
+            markers.append(label)
+
+        result = MarkerArray()
+        result.markers = markers
+        return result
+
     async def spawn_obstacles(
-        self,
-        obstacles: Sequence[Obstacle],
-        layer: ObstacleLayer = ObstacleLayer.INUSE
+        self, obstacles: Sequence[Obstacle], layer: ObstacleLayer = ObstacleLayer.INUSE
     ):
         """Spawns static obstacles.
 
@@ -58,7 +198,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             obstacles (Sequence[Obstacle]): Static obstacles to spawn.
             layer (ObstacleLayer, optional): Layer to assign to spawned obstacles. Defaults to ObstacleLayer.INUSE.
         """
-        self._logger.debug(f'spawning {len(obstacles)} static obstacles')
+        self._logger.debug(f"spawning {len(obstacles)} static obstacles")
 
         futures: list[typing.Awaitable] = []
         to_register: list[KnownObstacle[Obstacle]] = []
@@ -80,7 +220,10 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             futures.append(self._simulator.obstacle_move(to_move))
 
         to_spawn: list[Obstacle] = []
-        for (known, obstacle) in zip(to_register, await self._spawn_obstacles_impl([known.obstacle for known in to_register])):
+        for known, obstacle in zip(
+            to_register,
+            await self._spawn_obstacles_impl([known.obstacle for known in to_register]),
+        ):
             if not obstacle:
                 continue
             known.obstacle = obstacle
@@ -95,15 +238,14 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         await asyncio.gather(*futures)
 
     async def spawn_dynamic_obstacles(
-        self,
-        obstacles: typing.Sequence[DynamicObstacle]
+        self, obstacles: typing.Sequence[DynamicObstacle]
     ):
         """Spawns dynamic obstacles.
 
         Args:
             obstacles (typing.Sequence[DynamicObstacle]): Dynamic obstacles to spawn.
         """
-        self._logger.debug(f'spawning {len(obstacles)} dynamic obstacles')
+        self._logger.debug(f"spawning {len(obstacles)} dynamic obstacles")
 
         futures: list[typing.Awaitable] = []
         to_register: list[KnownObstacle[DynamicObstacle]] = []
@@ -116,8 +258,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 known.layer = ObstacleLayer.INUSE
             else:
                 known = self._known_obstacles.create_or_get(
-                    name=obstacle.name,
-                    obstacle=obstacle
+                    name=obstacle.name, obstacle=obstacle
                 )
             if not known.spawned:
                 to_register.append(known)
@@ -125,7 +266,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             futures.append(self._simulator.pedestrian_move(to_move))
 
         to_spawn: list[DynamicObstacle] = []
-        for (known, obstacle) in zip(to_register, await self._spawn_dynamic_obstacles_impl([known.obstacle for known in to_register])):
+        for known, obstacle in zip(
+            to_register,
+            await self._spawn_dynamic_obstacles_impl(
+                [known.obstacle for known in to_register]
+            ),
+        ):
             self._logger.info(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
                 continue
@@ -149,45 +295,235 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         """Spawns world elements.
 
         Args:
-            walls (Sequence[Wall]): _description_
-            doors (Sequence[Door]): _description_
+            walls (Sequence[Wall]): Walls to spawn.
+            doors (Sequence[Door]): Doors to spawn.
         """
-        self._logger.debug(f'spawning {len(walls)} walls and {len(doors)} doors')
+        self._logger.debug(f"spawning {len(walls)} walls and {len(doors)} doors")
+
+        wall_map: dict[str, Wall] = {}
+        for wall in walls:
+            name = f"wall_{next(self._wall_counter)}"
+            self._known_walls.create_or_get(
+                name=name,
+                obstacle=wall,
+                layer=ObstacleLayer.WORLD,
+            )
+            wall_map[name] = wall
+
+        door_map: dict[str, Door] = {}
+        for door in doors:
+            self._known_doors.create_or_get(
+                name=door.name,
+                obstacle=door,
+                layer=ObstacleLayer.WORLD,
+            )
+            door_map[door.name] = door
+
         await asyncio.gather(
             self._simulator.spawn_doors(doors),
             self._simulator.spawn_walls(walls),
-            self._spawn_walls_impl(walls),
-            self._spawn_doors_impl(doors),
+            self._spawn_walls_impl(wall_map),
         )
+
+    @staticmethod
+    def _door_wall_name(door_name: str) -> str:
+        return f"__door_{door_name}"
+
+    async def update_doors(
+        self,
+        doors: Sequence[tuple[Door, bool]],
+    ):
+        """Update door states. True = open (no wall), False = closed (wall spawned).
+
+        Args:
+            doors (Sequence[tuple[Door, bool]]): Door/state pairs.
+        """
+        to_spawn: dict[str, Wall] = {}
+        to_remove: list[str] = []
+
+        for door, is_open in doors:
+            name = self._door_wall_name(door.name)
+            if is_open:
+                if name in self._known_walls:
+                    to_remove.append(name)
+            else:
+                if name not in self._known_walls:
+                    wall = Wall(start=door.start, end=door.end)
+                    self._known_walls.create_or_get(
+                        name=name,
+                        obstacle=wall,
+                        layer=ObstacleLayer.WORLD,
+                    )
+                    to_spawn[name] = wall
+
+        futures: list[typing.Awaitable] = []
+        if to_spawn:
+            self._logger.debug(f"closing {len(to_spawn)} doors: {list(to_spawn)}")
+            futures.append(self._spawn_walls_impl(to_spawn))
+        if to_remove:
+            self._logger.debug(f"opening {len(to_remove)} doors: {to_remove}")
+            for name in to_remove:
+                self._known_walls.forget(name)
+            futures.append(self._remove_walls_impl(to_remove))
+        await asyncio.gather(*futures)
 
     async def unuse_obstacles(self):
         """
         Prepares obstacles for reuse or removal.
         """
-        self._logger.debug('unusing obstacles')
-        await self._remove_obstacles_impl()
+        self._logger.debug("unusing obstacles")
+
+        obstacle_names = [
+            name
+            for name, known in self._known_obstacles.items()
+            if not isinstance(known.obstacle, DynamicObstacle)
+            and known.layer == ObstacleLayer.UNUSED
+        ]
+
+        await asyncio.gather(
+            self._remove_pedestrians_impl(),
+            self._remove_obstacles_impl(obstacle_names),
+        )
+
+        for name in obstacle_names:
+            self._known_obstacles.forget(name)
+
         for obstacle in self._known_obstacles.values():
-            obstacle.spawned = False
             if obstacle.layer == ObstacleLayer.INUSE:
+                obstacle.spawned = False
                 obstacle.layer = ObstacleLayer.UNUSED
 
-    async def remove_obstacles(
+    def unuse_world(self) -> tuple[frozenset[str], frozenset[str]]:
+        """Mark world-level items for replacement.
+
+        Downgrades WORLD-layer obstacles to UNUSED so they can be
+        reclaimed after new world obstacles are spawned.
+
+        Returns:
+            Tuple of (old_wall_names, old_door_names) for stale-entry cleanup.
+        """
+        self._logger.debug("unusing world")
+
+        old_walls = frozenset(self._known_walls.keys())
+        old_doors = frozenset(self._known_doors.keys())
+
+        for obstacle in self._known_obstacles.values():
+            if obstacle.layer >= ObstacleLayer.WORLD:
+                obstacle.spawned = False
+                obstacle.layer = ObstacleLayer.UNUSED
+
+        return old_walls, old_doors
+
+    def remove_stale_world(
         self,
-        purge: ObstacleLayer = ObstacleLayer.UNUSED
+        old_walls: frozenset[str],
+        old_doors: frozenset[str],
     ):
+        """Forget wall/door tracking entries that were not reused during respawn.
+
+        Args:
+            old_walls: Wall names from before the respawn.
+            old_doors: Door names from before the respawn.
+        """
+        for name in old_walls:
+            if name in self._known_walls:
+                self._known_walls.forget(name)
+        for name in old_doors:
+            if name in self._known_doors:
+                self._known_doors.forget(name)
+
+    async def remove_walls(
+        self,
+        walls: Sequence[Wall],
+    ):
+        """Removes specific walls from the simulation.
+
+        Args:
+            walls (Sequence[Wall]): Walls to remove (matched by start/end coordinates).
+        """
+        matched: dict[str, None] = {}
+        for wall in walls:
+            for name, known in self._known_walls.items():
+                if (
+                    known.obstacle.start == wall.start
+                    and known.obstacle.end == wall.end
+                ):
+                    matched[name] = None
+                    break
+
+        if not matched:
+            return
+
+        names = tuple(matched)
+        self._logger.debug(f"removing {len(names)} walls: {names}")
+        for name in names:
+            self._known_walls.forget(name)
+        await self._remove_walls_impl(names)
+
+    async def remove_doors(
+        self,
+        doors: Sequence[Door],
+    ):
+        """Removes specific doors from the simulation.
+
+        Args:
+            doors (Sequence[Door]): Doors to remove (matched by name).
+        """
+        names = [door.name for door in doors if door.name in self._known_doors]
+        if not names:
+            return
+
+        self._logger.debug(f"removing {len(names)} doors: {names}")
+        for name in names:
+            self._known_doors.forget(name)
+        await self._remove_doors_impl(names)
+
+    async def setup_regions(self, regions: typing.Sequence[Region]) -> bool:
+        """Configure regions (sources/sinks) for dynamic agent spawning.
+
+        Args:
+            regions: Already-resolved Region objects with concrete polygons.
+        """
+        for region in regions:
+            self._known_regions[region.name] = region
+        return await self._add_regions_impl(regions)
+
+    async def remove_all_regions(self) -> bool:
+        """Remove all tracked regions."""
+        regions = tuple(self._known_regions.values())
+        self._known_regions.clear()
+        return await self._remove_regions_impl(regions)
+
+    async def remove_obstacles(self, purge: ObstacleLayer = ObstacleLayer.UNUSED):
         """Removes obstacles from simulator.
 
         Args:
             purge (ObstacleLayer, optional): Level of obstacles to remove. Defaults to ObstacleLayer.UNUSED.
         """
-        self._logger.debug(f'removing obstacles (level {purge})')
+        self._logger.debug(f"removing obstacles (level {purge})")
         futures: list[typing.Awaitable] = []
+
+        stale_walls = [
+            name for name, known in self._known_walls.items() if purge >= known.layer
+        ]
+        stale_doors = [
+            name for name, known in self._known_doors.items() if purge >= known.layer
+        ]
 
         if purge >= ObstacleLayer.WORLD:
             futures.append(self._simulator.remove_world())
 
-        static = []
-        dynamic = []
+        if stale_walls:
+            futures.append(self._remove_walls_impl(stale_walls))
+            for name in stale_walls:
+                self._known_walls.forget(name)
+        if stale_doors:
+            futures.append(self._remove_doors_impl(stale_doors))
+            for name in stale_doors:
+                self._known_doors.forget(name)
+
+        static: list[Obstacle] = []
+        dynamic: list[DynamicObstacle] = []
         for oid, known in list(self._known_obstacles.items()):
             if purge >= known.layer:  # tmp: always respawn all dynamic obstacles
                 if isinstance(known.obstacle, DynamicObstacle):
@@ -196,9 +532,24 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                     static.append(known.obstacle)
                 self._known_obstacles.forget(name=oid)
 
+        static_names = [o.name for o in static]
+        if static_names:
+            futures.append(self._remove_obstacles_impl(static_names))
         futures.append(self._simulator.obstacle_delete(static))
         futures.append(self._simulator.pedestrian_delete(dynamic))
         await asyncio.gather(*futures)
+
+    async def _sim_then_impl(
+        self,
+        sim_call: typing.Callable[[Sequence[Robot]], typing.Awaitable[Sequence[bool]]],
+        impl_call: typing.Callable[[Sequence[Robot]], typing.Awaitable[Sequence[bool]]],
+        robots: Sequence[Robot],
+    ) -> tuple[bool, ...]:
+        sim_success = await sim_call(robots)
+        succeeded = tuple(r for r, s in zip(robots, sim_success) if s)
+        human_success = await impl_call(succeeded)
+        human_iter = iter(human_success)
+        return tuple(s and next(human_iter) for s in sim_success)
 
     async def spawn_robot(
         self,
@@ -212,12 +563,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         Returns:
             Sequence[bool]: Success of each robot spawn.
         """
-        self._logger.debug(f'spawning {len(robots)} robots')
-        sim_success = await self._simulator.robot_spawn(robots)
-        human_success = await self._spawn_robot_impl(tuple(r for r, s in zip(robots, sim_success) if s))
-        human_iter = iter(human_success)
-        success = (s and next(human_iter) for s in sim_success)
-        return tuple(success)
+        self._logger.debug(f"spawning {len(robots)} robots")
+        return await self._sim_then_impl(
+            self._simulator.robot_spawn,
+            self._spawn_robot_impl,
+            robots,
+        )
 
     async def remove_robot(
         self,
@@ -231,12 +582,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         Returns:
             Sequence[bool]: Success of each robot removal.
         """
-        self._logger.debug(f'removing {len(robots)} robots')
-        sim_success = await self._simulator.robot_delete(robots)
-        human_success = await self._remove_robot_impl(tuple(r for r, s in zip(robots, sim_success) if s))
-        human_iter = iter(human_success)
-        success = (s and next(human_iter) for s in sim_success)
-        return tuple(success)
+        self._logger.debug(f"removing {len(robots)} robots")
+        return await self._sim_then_impl(
+            self._simulator.robot_delete,
+            self._remove_robot_impl,
+            robots,
+        )
 
     async def move_robot(
         self,
@@ -250,69 +601,91 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         Returns:
             Sequence[bool]: Success of each robot move.
         """
-        self._logger.debug(f'moving {len(robots)} robots')
-        sim_success = await self._simulator.robot_move(robots)
-        human_success = await self._move_robot_impl(tuple(r for r, s in zip(robots, sim_success) if s))
-        human_iter = iter(human_success)
-        success = (s and next(human_iter) for s in sim_success)
-        return tuple(success)
+        self._logger.debug(f"moving {len(robots)} robots")
+        return await self._sim_then_impl(
+            self._simulator.robot_move,
+            self._move_robot_impl,
+            robots,
+        )
 
     # impl
+
+    async def pause(self):
+        pass
+
+    async def unpause(self):
+        pass
 
     @abc.abstractmethod
     async def _spawn_obstacles_impl(
         self,
         obstacles: Sequence[Obstacle],
-    ) -> Sequence[Obstacle | None]:
-        ...
+    ) -> Sequence[Obstacle | None]: ...
 
     @abc.abstractmethod
     async def _spawn_dynamic_obstacles_impl(
         self,
         obstacles: Sequence[DynamicObstacle],
-    ) -> Sequence[DynamicObstacle | None]:
-        ...
+    ) -> Sequence[DynamicObstacle | None]: ...
 
     @abc.abstractmethod
     async def _remove_obstacles_impl(
         self,
-    ) -> bool:
-        ...
+        names: Sequence[str],
+    ) -> bool: ...
+
+    @abc.abstractmethod
+    async def _remove_pedestrians_impl(
+        self,
+    ) -> bool: ...
 
     @abc.abstractmethod
     async def _spawn_walls_impl(
         self,
-        walls: Sequence[Wall],
-    ) -> bool:
-        ...
+        walls: Mapping[str, Wall],
+    ) -> bool: ...
 
     @abc.abstractmethod
     async def _spawn_doors_impl(
         self,
-        doors: Sequence[Door],
-    ) -> bool:
-        ...
+        doors: Mapping[str, Door],
+    ) -> bool: ...
+
+    @abc.abstractmethod
+    async def _remove_walls_impl(
+        self,
+        names: Sequence[str],
+    ) -> bool: ...
+
+    @abc.abstractmethod
+    async def _remove_doors_impl(
+        self,
+        names: Sequence[str],
+    ) -> bool: ...
 
     @abc.abstractmethod
     async def _spawn_robot_impl(
         self,
         robots: Sequence[Robot],
-    ) -> Sequence[bool]:
-        ...
+    ) -> Sequence[bool]: ...
 
     @abc.abstractmethod
     async def _remove_robot_impl(
         self,
         robots: Sequence[Robot],
-    ) -> Sequence[bool]:
-        ...
+    ) -> Sequence[bool]: ...
 
     @abc.abstractmethod
     async def _move_robot_impl(
         self,
         robots: Sequence[Robot],
-    ) -> Sequence[bool]:
-        ...
+    ) -> Sequence[bool]: ...
+
+    @abc.abstractmethod
+    async def _add_regions_impl(self, regions: Sequence[Region]) -> bool: ...
+
+    @abc.abstractmethod
+    async def _remove_regions_impl(self, regions: Sequence[Region]) -> bool: ...
 
 
 HumanSimulatorRegistry = Registry[Constants.HumanSimulator, BaseHumanSimulator]()
@@ -321,16 +694,26 @@ HumanSimulatorRegistry = Registry[Constants.HumanSimulator, BaseHumanSimulator](
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.DUMMY)
 async def dummy(**kwargs):
     from .dummy import DummyHumanSimulator
+
     return DummyHumanSimulator(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.HUNAV)
 async def lazy_hunavsim(**kwargs):
     from .hunav.hunav import HunavHumanSimulator
+
     return await HunavHumanSimulator.create(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.ISAAC)
 async def isaacsim(**kwargs):
     from .isaac import IsaacHumanSimulator
+
     return IsaacHumanSimulator(**kwargs)
+
+
+@HumanSimulatorRegistry.register(Constants.HumanSimulator.ARENA)
+async def arenasim(**kwargs):
+    from .arena_humansim.arena_humansim import ArenaHumanSimulator
+
+    return await ArenaHumanSimulator.create(**kwargs)
