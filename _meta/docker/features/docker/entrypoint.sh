@@ -13,6 +13,7 @@ source source
 if [ ! -f /.built ]; then
     echo "Running initial setup..."
     arena update
+    rm -r build/arena_models install/arena_models || true
     BUILD_ALL=1 arena build || true
     sudo touch /.built
     echo 'Initial setup complete.'

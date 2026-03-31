@@ -2,6 +2,8 @@
 
 set -e
 
+export GIT_TERMINAL_PROMPT=0
+
 pushd "$ARENA_DIR" > /dev/null
 trap 'popd > /dev/null' EXIT
 
@@ -62,3 +64,5 @@ echo -e '\033[0m'
 
 trap - EXIT
 popd > /dev/null
+
+unset GIT_TERMINAL_PROMPT
