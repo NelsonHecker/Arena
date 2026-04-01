@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 import rosgraph_msgs.msg
 
+from arena_rclpy_mixins.Time import Time
 from task_generator.shared import Entity, Wall
 from task_generator.simulators.sim import BaseSim
 import typing
@@ -17,9 +18,11 @@ class DummySimulator(BaseSim):
     """
 
     _clock_task: asyncio.Task
+    _paused: bool
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._paused = False
         self._clock_publisher = self.node.create_publisher(
             rosgraph_msgs.msg.Clock, '/clock', 10
         )
@@ -28,20 +31,36 @@ class DummySimulator(BaseSim):
     async def _publish_clock_loop(self):
         """Publish simulated clock at ~100Hz using wall time."""
         start = self.node.wall_time
+        paused_duration = Time()
+        pause_start = None
         try:
             while True:
-                elapsed = self.node.wall_time - start
+                if self._paused:
+                    if pause_start is None:
+                        pause_start = self.node.wall_time
+                    await asyncio.sleep(0.01)
+                    continue
+
+                if pause_start is not None:
+                    paused_duration += self.node.wall_time - pause_start
+                    pause_start = None
+
+                elapsed = self.node.wall_time - start - paused_duration
                 self._clock_publisher.publish(elapsed.to_rosgraph_msg())
                 await asyncio.sleep(0.01)
         except asyncio.CancelledError:
             pass
+        except Exception as e:
+            self._logger.exception("clock loop crashed: %s", repr(e))
 
     async def before_reset_task(self):
         self._logger.debug("pausing")
+        self._paused = True
         return True
 
     async def after_reset_task(self):
         self._logger.debug("unpausing")
+        self._paused = False
         return True
 
     # fake spawn
