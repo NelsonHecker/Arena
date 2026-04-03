@@ -2,6 +2,7 @@
 
 import asyncio
 import math
+import os
 import traceback
 from collections.abc import Sequence
 
@@ -62,11 +63,11 @@ from arena_rclpy_mixins.shared import Namespace
 from geometry_msgs.msg import (
     Point,
     Point32,
-    Pose,
     Quaternion,
     Twist,
     Vector3,
 )
+from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import (
     Pose2D as Pose2DMsg,
 )
@@ -79,7 +80,7 @@ from rclpy.qos import (
 from visualization_msgs.msg import MarkerArray
 
 from task_generator.constants import Constants
-from task_generator.shared import DynamicObstacle, Obstacle, Robot
+from task_generator.shared import DynamicObstacle, Obstacle, Pose, Position, Robot
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle
 from task_generator.simulators.sim import BaseSim
@@ -165,6 +166,16 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._arena_pedestrians: Pedestrians = Pedestrians()
         self._arena_pedestrians.header.frame_id = "map"
         self._dirty_robots: dict[str, Robot] = {}
+
+        # IDs managed by the bridge (scenario-defined agents)
+        self._bridge_agent_ids: set[int] = set()
+        # IDs of flow agents currently live in the physics sim (no pool slot)
+        self._physim_agent_ids: set[int] = set()
+
+        # Pre-spawned pedestrian pool for flow agents (source/sink)
+        self._pool_free: list[str] = []  # pool pedestrian names, available
+        self._pool_active: dict[int, str] = {}  # flow_agent_id → pool ped name
+        self._pool_spawned: bool = False
 
         # Publish robot poses on world_state topic (consumed by arena_humansim)
         self._world_state_pub = self.node.create_publisher(
@@ -327,16 +338,92 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 f"Error in interpolation loop: {e}\n{traceback.format_exc()}"
             )
 
+    def _make_flow_dynamic_obstacle(self, agent: AgentStateMsg) -> DynamicObstacle:
+        """Create a DynamicObstacle for a source-spawned agent using a default model."""
+        return DynamicObstacle(
+            name=str(agent.agent_id),
+            pose=Pose(Position(agent.pose.x, agent.pose.y)),
+            model="default",
+            waypoints=[],
+            velocity=agent.desired_velocity,
+        )
+
     async def _pedestrian_update_loop(self):
-        """Push latest pedestrian positions to the underlying simulator (e.g. flatland)."""
+        """Push latest pedestrian positions to the underlying simulator (e.g. flatland).
+
+        Also manages physics-sim bodies for agents created/removed by
+        arena_humansim sources and sinks at runtime, using a pre-spawned pool
+        when available and falling back to runtime spawn/delete on exhaustion.
+        """
         try:
             with self.node.sim_time_rate(self.TICK_RATE) as (done, rate):
                 while not done.is_set():
                     await rate.get()
                     async with self._agents_lock:
                         peds = self._arena_pedestrians
-                    if peds.pedestrians:
-                        await self._simulator.pedestrian_update(peds)
+                    if not peds.pedestrians:
+                        continue
+
+                    states = self._curr_agent_states
+                    if states is not None:
+                        current_ids = {a.agent_id for a in states.agents}
+                        flow_ids = current_ids - self._bridge_agent_ids
+                        known_flow = set(self._pool_active.keys()) | self._physim_agent_ids
+                        new_ids = flow_ids - known_flow
+                        gone_ids = known_flow - current_ids
+
+                        if new_ids:
+                            agents_by_id = {a.agent_id: a for a in states.agents}
+                            to_move: list[DynamicObstacle] = []
+                            to_spawn: list[DynamicObstacle] = []
+                            for aid in new_ids:
+                                agent = agents_by_id[aid]
+                                if self._pool_free:
+                                    pool_name = self._pool_free.pop()
+                                    self._pool_active[aid] = pool_name
+                                    to_move.append(DynamicObstacle(
+                                        name=pool_name,
+                                        pose=Pose(Position(agent.pose.x, agent.pose.y)),
+                                        model="default",
+                                    ))
+                                else:
+                                    self._physim_agent_ids.add(aid)
+                                    to_spawn.append(
+                                        self._make_flow_dynamic_obstacle(agent)
+                                    )
+                            if to_move:
+                                await self._simulator.pedestrian_move(to_move)
+                            if to_spawn:
+                                await self._simulator.pedestrian_spawn(to_spawn)
+
+                        if gone_ids:
+                            to_park: list[DynamicObstacle] = []
+                            to_delete: list[DynamicObstacle] = []
+                            parking = Pose(Position(
+                                self.POOL_PARKING_X, self.POOL_PARKING_Y
+                            ))
+                            for aid in gone_ids:
+                                if aid in self._pool_active:
+                                    pool_name = self._pool_active.pop(aid)
+                                    self._pool_free.append(pool_name)
+                                    to_park.append(DynamicObstacle(
+                                        name=pool_name,
+                                        pose=parking,
+                                        model="default",
+                                    ))
+                                else:
+                                    self._physim_agent_ids.discard(aid)
+                                    to_delete.append(DynamicObstacle(
+                                        name=str(aid),
+                                        pose=parking,
+                                        model="default",
+                                    ))
+                            if to_park:
+                                await self._simulator.pedestrian_move(to_park)
+                            if to_delete:
+                                await self._simulator.pedestrian_delete(to_delete)
+
+                    await self._simulator.pedestrian_update(peds)
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -387,7 +474,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             ped.name = str(agent.agent_id)
 
             yaw = agent.pose.theta
-            ped.pose = Pose(
+            ped.pose = PoseMsg(
                 position=Point(x=agent.pose.x, y=agent.pose.y, z=0.0),
                 orientation=Quaternion(
                     z=math.sin(yaw / 2.0),
@@ -432,11 +519,48 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         cy = sum(p.y for p in polygon) / len(polygon)
         return cx, cy
 
+    POOL_PARKING_X = 9999.0
+    POOL_PARKING_Y = 9999.0
+
     async def _add_regions_impl(self, regions) -> bool:
         results = await asyncio.gather(
             *(self._add_region_single(r) for r in regions),
         )
-        return all(results) if results else True
+        if results and not all(results):
+            return False
+
+        # Compute pool size from finite source capacities
+        pool_size = 0
+        for region in regions:
+            if region.type != "source":
+                continue
+            mc = region.config.get("max_concurrent", -1)
+            if mc < 0:
+                # Unlimited source — can't pre-allocate, rely on runtime spawn
+                continue
+            pool_size += mc
+
+        optimize = os.environ.get("OPTIMIZE_SPEED", "false").lower() in ("1", "true", "yes")
+        if optimize and pool_size > 0 and not self._pool_spawned:
+            await self._spawn_pool(pool_size)
+
+        return True
+
+    async def _spawn_pool(self, size: int):
+        """Pre-spawn pool pedestrians at the parking position."""
+        parking = Pose(Position(self.POOL_PARKING_X, self.POOL_PARKING_Y))
+        pool_peds = [
+            DynamicObstacle(
+                name=f"_flow_pool_{i}",
+                pose=parking,
+                model="default",
+            )
+            for i in range(size)
+        ]
+        await self._simulator.pedestrian_spawn(pool_peds)
+        self._pool_free = [p.name for p in pool_peds]
+        self._pool_spawned = True
+        self._logger.info(f"Pre-spawned {size} pool pedestrians")
 
     async def _add_region_single(self, region) -> bool:
         if region.type == "source":
@@ -622,6 +746,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         for obstacle in obstacles:
             agent_msg = AgentStateMsg()
             agent_msg.agent_id = self._next_id
+            self._bridge_agent_ids.add(self._next_id)
             self._next_id += 1
 
             agent_msg.pose = Pose2DMsg(
@@ -703,6 +828,11 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         try:
             response = await self._remove_client.call_timeout(request)
             self._next_id = 1
+            self._bridge_agent_ids.clear()
+            self._physim_agent_ids.clear()
+            self._pool_free.clear()
+            self._pool_active.clear()
+            self._pool_spawned = False
             if response.success:
                 self._logger.info(response.message)
                 return True
