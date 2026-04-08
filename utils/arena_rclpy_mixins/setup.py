@@ -45,7 +45,6 @@ setup(
     # scripts here.
     entry_points={
         'console_scripts': [
-            'rviz_config = rviz_utils.scripts.rviz_config:main',
             'visualize_robot_model = rviz_utils.scripts.visualize_robot_model:main'
         ],
     },

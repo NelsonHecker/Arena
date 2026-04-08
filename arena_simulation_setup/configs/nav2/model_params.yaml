@@ -38,7 +38,5 @@ robot_odom_frame: 'odom'
 # --- Velocity Smoother defaults (jackal-like) ---
 # Override these in each robot's model_params.yaml
 # [linear_x, linear_y, angular_z]
-vel_smoother_max_velocity: [2.0, 0.0, 4.0]
-vel_smoother_min_velocity: [-2.0, 0.0, -4.0]
 vel_smoother_max_accel: [20.0, 0.0, 25.0]
 vel_smoother_max_decel: [-20.0, 0.0, -25.0]

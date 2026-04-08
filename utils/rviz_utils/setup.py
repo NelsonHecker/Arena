@@ -44,7 +44,6 @@ setup(
     # scripts here.
     entry_points={
         'console_scripts': [
-            'rviz_config = rviz_utils.scripts.rviz_config:main',
             'multi_env_rviz = rviz_utils.scripts.multi_env_rviz:main',
             'visualize_robot_model = rviz_utils.scripts.visualize_robot_model:main',
             'pedestrian_marker_publisher = rviz_utils.scripts.pedestrian_marker_publisher:main'

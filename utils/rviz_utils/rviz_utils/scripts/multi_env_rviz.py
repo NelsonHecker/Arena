@@ -173,14 +173,30 @@ class MultiEnvRvizGenerator(Node):
                 topic_name.endswith("/pedestrian_markers")
                 or topic_name.endswith("/wall_markers")
             ):
-                enabled = True
                 ped_group["Displays"].append(
                     Utils.Displays.pedestrians(
                         topic_name,
                         name=os.path.basename(topic_name),
-                        enabled=enabled,
+                        enabled=True,
                     )
                 )
+            elif "people_msgs/msg/People" in topic_types and topic_name.endswith("/people"):
+                ped_group["Displays"].append(
+                    Utils.Displays.pedestrians_raw(topic_name)
+                )
+            # hunav_msgs/msg/Agents: no rviz plugin available, skip
+
+        # Disabled TF display for quick pedestrian-frame debugging
+        ped_group["Displays"].append({
+            "Class": "rviz_default_plugins/TF",
+            "Name": "Pedestrian TF Frames",
+            "Enabled": False,
+            "Frame Timeout": 15,
+            "Marker Scale": 0.3,
+            "Show Arrows": True,
+            "Show Axes": False,
+            "Show Names": True,
+        })
         return ped_group
 
     def _create_robot_group(

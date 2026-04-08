@@ -1,7 +1,8 @@
 import os
 
 from arena_bringup.future import PythonExpression
-from arena_bringup.substitutions import (LaunchArgument, YAMLFileSubstitution,
+from arena_bringup.substitutions import (LaunchArgument, VelSmootherSubstitution,
+                                         YAMLFileSubstitution,
                                          YAMLMergeSubstitution,
                                          YAMLReplaceSubstitution,
                                          YAMLRetrieveSubstitution)
@@ -43,7 +44,7 @@ def generate_launch_description():
                 'model_params.yaml'
             ])
         ),
-        YAMLFileSubstitution(
+        robot_model_params_yaml := YAMLFileSubstitution(
             PathJoinSubstitution([
                 robots_root,
                 'robots',
@@ -133,6 +134,8 @@ def generate_launch_description():
                     ),
                     'bt_navigator/ros__parameters/plugin_lib_names'
                 ),
+                'vel_smoother_max_velocity': VelSmootherSubstitution(robot_model_params_yaml, use_max=True),
+                'vel_smoother_min_velocity': VelSmootherSubstitution(robot_model_params_yaml, use_max=False),
             },
             substitute=True
         ),
