@@ -445,6 +445,26 @@ class VelSmootherSubstitution(launch.Substitution):
         return [lin[idx], lat[idx], ang[idx]]
 
 
+class VelSmootherAccelSubstitution(launch.Substitution):
+    """Derives a ``[lin_x, lin_y, ang_z]`` acceleration or deceleration list
+    from the ``actions`` block in a robot's *model_params.yaml*.
+    The ``acceleration`` key holds positive values; ``deceleration`` holds
+    the matching negative values.
+    """
+
+    def __init__(self, model_params: YAMLFileSubstitution, *, decel: bool):
+        launch.Substitution.__init__(self)
+        self._model_params = model_params
+        self._decel = decel
+
+    def perform(self, context: launch.LaunchContext):
+        params = self._model_params.perform_load(context)
+        actions = params.get("actions") or {}
+        if self._decel:
+            return actions.get("deceleration", [-20.0, 0.0, -25.0])
+        return actions.get("acceleration", [20.0, 0.0, 25.0])
+
+
 class YAMLReplaceSubstitution(launch.Substitution):
 
     _substitutions: YAMLFileSubstitution
