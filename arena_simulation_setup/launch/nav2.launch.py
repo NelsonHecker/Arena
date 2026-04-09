@@ -1,7 +1,7 @@
 import os
 
 from arena_bringup.future import PythonExpression
-from arena_bringup.substitutions import (LaunchArgument, VelSmootherSubstitution,
+from arena_bringup.substitutions import (LaunchArgument, VelSmootherAccelSubstitution, VelSmootherSubstitution,
                                          YAMLFileSubstitution,
                                          YAMLMergeSubstitution,
                                          YAMLReplaceSubstitution,
@@ -136,6 +136,9 @@ def generate_launch_description():
                 ),
                 'vel_smoother_max_velocity': VelSmootherSubstitution(robot_model_params_yaml, use_max=True),
                 'vel_smoother_min_velocity': VelSmootherSubstitution(robot_model_params_yaml, use_max=False),
+                # Acceleration / deceleration derived from actions.continuous
+                'vel_smoother_max_accel': VelSmootherAccelSubstitution(robot_model_params_yaml, decel=False),
+                'vel_smoother_max_decel': VelSmootherAccelSubstitution(robot_model_params_yaml, decel=True),
             },
             substitute=True
         ),
