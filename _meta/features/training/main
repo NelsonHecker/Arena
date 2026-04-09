@@ -22,10 +22,6 @@ install(){
         -e "./deps/rosnav_rl/rosnav_rl"
     popd > /dev/null
 
-    echo "Removing incompatible torch companion packages..."
-    uv pip uninstall --python "$ARENA_DIR/.venv/bin/python" torchvision torchaudio || true
-
-    "$ARENA_DIR/_meta/tools/install_torch_companions" "$ARENA_DIR/.venv/bin/python"
 
     if ! grep -q "$name" "$INSTALLED" 2>/dev/null; then
         echo "$name" >> "$INSTALLED"

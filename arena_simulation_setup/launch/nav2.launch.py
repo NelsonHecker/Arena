@@ -1,7 +1,8 @@
 import os
 
 from arena_bringup.future import PythonExpression
-from arena_bringup.substitutions import (LaunchArgument, YAMLFileSubstitution,
+from arena_bringup.substitutions import (LaunchArgument, VelSmootherAccelSubstitution, VelSmootherSubstitution,
+                                         YAMLFileSubstitution,
                                          YAMLMergeSubstitution,
                                          YAMLReplaceSubstitution,
                                          YAMLRetrieveSubstitution)
@@ -43,7 +44,7 @@ def generate_launch_description():
                 'model_params.yaml'
             ])
         ),
-        YAMLFileSubstitution(
+        robot_model_params_yaml := YAMLFileSubstitution(
             PathJoinSubstitution([
                 robots_root,
                 'robots',
@@ -133,6 +134,11 @@ def generate_launch_description():
                     ),
                     'bt_navigator/ros__parameters/plugin_lib_names'
                 ),
+                'vel_smoother_max_velocity': VelSmootherSubstitution(robot_model_params_yaml, use_max=True),
+                'vel_smoother_min_velocity': VelSmootherSubstitution(robot_model_params_yaml, use_max=False),
+                # Acceleration / deceleration derived from actions.continuous
+                'vel_smoother_max_accel': VelSmootherAccelSubstitution(robot_model_params_yaml, decel=False),
+                'vel_smoother_max_decel': VelSmootherAccelSubstitution(robot_model_params_yaml, decel=True),
             },
             substitute=True
         ),
@@ -192,13 +198,17 @@ def generate_launch_description():
             name='goal_pose_relay',
             arguments=['/goal_pose', 'goal_pose'],
         ),
-        Node(
-            package='pose_to_tf',
-            executable='pose_to_tf',
-            name='pose_to_tf',
-            parameters=[{'odom_frame': 'odom', 'pose_topic': 'pose'}],
-            output='screen'
-        ),
+        # pose_to_tf disabled: map→odom TF is now published by the dynamic TF broadcaster in
+        # gazebo_simulator.py (_publish_map_to_odom_tfs). pose_to_tf incorrectly published
+        # map→odom = raw Gazebo pose without accounting for DiffDrive accumulated odom offset,
+        # which would double-count wheel motion and place the robot at the wrong map position.
+        # Node(
+        #     package='pose_to_tf',
+        #     executable='pose_to_tf',
+        #     name='pose_to_tf',
+        #     parameters=[{'odom_frame': 'odom', 'pose_topic': 'pose'}],
+        #     output='screen'
+        # ),
         # Node(
         #     package='tf2_ros',
         #     executable='static_transform_publisher',

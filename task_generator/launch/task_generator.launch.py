@@ -6,7 +6,7 @@ import launch.launch_description_sources
 import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.future import PythonExpression
-from arena_bringup.substitutions import CurrentNamespaceSubstitution, LaunchArgument
+from arena_bringup.substitutions import LaunchArgument
 
 import launch
 
@@ -104,23 +104,8 @@ def generate_launch_description():
             PythonExpression(['"', human.substitution, '" == "hunav"'])
         ),
     )
-    # Start the rviz config generator which launches also rviz2 with desired config file
-    rviz_node = launch_ros.actions.Node(
-        package="rviz_utils",
-        executable="rviz_config",
-        name="rviz_config_generator",
-        arguments=[
-            CurrentNamespaceSubstitution(),
-        ],
-        parameters=[
-            {
-                "use_sim_time": True,
-                "origin": reference.param_value(typing.List[float]),
-            }
-        ],
-        output="screen",
-        condition=launch.conditions.UnlessCondition(headless.substitution),
-    )
+    # rviz is now launched centrally by arena.launch.py (multi_env_rviz) so
+    # each task_generator no longer starts its own rviz instance.
 
     task_generator_node = launch_ros.actions.Node(
         package="task_generator",
@@ -151,7 +136,6 @@ def generate_launch_description():
                 **debug.param(bool),
                 **train_mode.param(bool),
             },
-            {"use_sim_time": False},
             parameter_file.substitution,
         ],
     )
@@ -180,7 +164,6 @@ def generate_launch_description():
                     ),
                     map_server_node,
                     pedestrian_marker_node,
-                    rviz_node,
                 ]
             ),
             launch.actions.RegisterEventHandler(
