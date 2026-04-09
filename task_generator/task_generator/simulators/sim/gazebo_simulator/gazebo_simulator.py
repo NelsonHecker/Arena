@@ -359,7 +359,6 @@ class GazeboSimulator(BaseSim):
                 return False
 
     async def _delete_entity(self, name: str):
-        return True
         async with self._semaphore:
             name = name
 
