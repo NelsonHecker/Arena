@@ -26,7 +26,7 @@ uninstall(){
 }
 
 source_fn(){
-    if [[ ! "$ARENA_MODELS_FORMATS" =~ usd ]]; then
+    if [[ ! "$ARENA_MODELS_FORMATS" =~ sdf ]]; then
         export ARENA_MODELS_FORMATS="${ARENA_MODELS_FORMATS},sdf"
     fi
 }
