@@ -150,6 +150,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pip" },
     { name = "py-trees" },
+    { name = "pyastar2d" },
     { name = "pycollada" },
     { name = "pydantic" },
     { name = "pytest" },
@@ -190,6 +191,7 @@ requires-dist = [
     { name = "pillow" },
     { name = "pip" },
     { name = "py-trees", specifier = ">=2.4.0" },
+    { name = "pyastar2d", specifier = ">=1.1.4" },
     { name = "pycollada" },
     { name = "pydantic" },
     { name = "pytest" },
@@ -1110,6 +1112,19 @@ wheels = [
 ]
 
 [[package]]
+name = "imageio"
+version = "2.37.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pillow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/84/93bcd1300216ea50811cee96873b84a1bebf8d0489ffaf7f2a3756bab866/imageio-2.37.3.tar.gz", hash = "sha256:bbb37efbfc4c400fcd534b367b91fcd66d5da639aaa138034431a1c5e0a41451", size = 389673, upload-time = "2026-03-09T11:31:12.573Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/fa/391e437a34e55095173dca5f24070d89cbc233ff85bf1c29c93248c6588d/imageio-2.37.3-py3-none-any.whl", hash = "sha256:46f5bb8522cd421c0f5ae104d8268f569d856b29eb1a13b92829d1970f32c9f0", size = 317646, upload-time = "2026-03-09T11:31:10.771Z" },
+]
+
+[[package]]
 name = "importlib-metadata"
 version = "8.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1725,6 +1740,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/8d/d529b5d697919ba8c11ad626e835d4039be708a35b0d22de83a269a6682c/pyasn1_modules-0.4.2-py3-none-any.whl", hash = "sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a", size = 181259, upload-time = "2025-03-28T02:41:19.028Z" },
+]
+
+[[package]]
+name = "pyastar2d"
+version = "1.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "imageio" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/22/66/46e5d5100815d5b7387389a50bc6d073b40025992646a14557aa9ceedd4b/pyastar2d-1.1.4.tar.gz", hash = "sha256:3f2716cf22e28f8fbec96de0419ce544f56d8e9f6195c1fc5f1c533f88e93a64", size = 4591760, upload-time = "2026-02-22T21:35:07.965Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/86/af9217b498ec34f1af0f2e91d707441a14562e927775a150c60c53c7c28b/pyastar2d-1.1.4-cp39-abi3-macosx_10_9_x86_64.whl", hash = "sha256:bd2a2e69616862ea1a99c36ddc4f2bf115b88304eaf46f6ad7a4e5629962fdc3", size = 12209, upload-time = "2026-02-22T21:35:00.652Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/e2/6ba4d65d869449f8d80d8ba83b0fb470a145d0f4fba9397fe5dab923f67c/pyastar2d-1.1.4-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:9dfe07c6f8074bc9f3634ca5afd054f34f0cad593396eda9a9b83bf8752439b7", size = 12679, upload-time = "2026-02-22T21:35:01.394Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/01/82f470e1a27e8069c70ad2dc80efc5f4e7be5c65096ca4af467d0b89b113/pyastar2d-1.1.4-cp39-abi3-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5b0d05b582ac262ef47ec680b7a6e05f59df0b71765e4c1725da1a16b7079220", size = 56586, upload-time = "2026-02-22T21:35:02.033Z" },
+    { url = "https://files.pythonhosted.org/packages/93/cf/3dc781f0d23b67e38b85a3c3e046c38f30dd83d8fb47b419e08f14010dec/pyastar2d-1.1.4-cp39-abi3-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:73f2dba4abd972188ed93f19290a215f260b0f9780d7de53398777f9b56f1b7b", size = 56658, upload-time = "2026-02-22T21:35:03.101Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/db/55247b5d3d1e27fda2c792c6324adeb2745cadaecc62a1e8802fc27e20d4/pyastar2d-1.1.4-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:0e05a341d596c6f7945afb863f5e1ac287bf6cfdfd2f3cb9d8ae860cde83bc93", size = 1031813, upload-time = "2026-02-22T21:35:03.891Z" },
+    { url = "https://files.pythonhosted.org/packages/82/31/c1ae991904df892392801a26ff06eedd7ce6b4b208481f4babfd291d0342/pyastar2d-1.1.4-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:d8ad689ff210e55a3880c8d89bc06be9337c75659028bb39d55219945bdabd60", size = 1084279, upload-time = "2026-02-22T21:35:05.159Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/63/5abf2e70e3383d8acddd0810d3ee0e086d3294464b3299e8da6b30348787/pyastar2d-1.1.4-cp39-abi3-win32.whl", hash = "sha256:1be597e6462166456851cb2133815eb8a8f2336cf754487916e3ff4f1c2a4716", size = 14806, upload-time = "2026-02-22T21:35:06.217Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/cd/e3d565782c122dab1949675c5b6cafe7e6f24a0aff4e8bf756584226cae2/pyastar2d-1.1.4-cp39-abi3-win_amd64.whl", hash = "sha256:8e36cdfa174ed280edb9780d6aff43a8c470194ddb365fcebb76630952b8b102", size = 15395, upload-time = "2026-02-22T21:35:07.181Z" },
 ]
 
 [[package]]

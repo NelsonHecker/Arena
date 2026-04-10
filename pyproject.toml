@@ -40,6 +40,7 @@ dependencies = [
     "colourings",
     "aiofiles",
     "py-trees>=2.4.0",
+    "pyastar2d>=1.1.4",
 ]
 
 [build-system]

@@ -20,7 +20,7 @@ def generate_launch_description():
                 launch_arguments={
                     'mode': 'subsystem',
                     'use_sim_time': 'true',
-                    'markers': 'true',
+                    'markers': '1',
                 }.items(),
             ),
         ]),
