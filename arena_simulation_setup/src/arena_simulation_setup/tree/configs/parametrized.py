@@ -65,8 +65,8 @@ class ParametrizedIdentifier(Identifier[ParametrizedConfig]):
         tree = ET.parse(path)
         root = tree.getroot()
 
-        assert isinstance(
-            root, ET.Element) and root.tag == "random", "not a random.xml desc"
+        if not (isinstance(root, ET.Element) and root.tag == "random"):
+            raise ValueError(f"{path} is not a random.xml desc (expected root tag 'random')")
 
         def xml_to_config(config) -> ParametrizedConfig.ObstacleConfig:
             return ParametrizedConfig.ObstacleConfig(

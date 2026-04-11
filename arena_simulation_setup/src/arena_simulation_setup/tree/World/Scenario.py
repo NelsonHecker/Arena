@@ -64,7 +64,8 @@ class ScenarioView(PathView):
         with open(self.scenario_path, 'r') as f:
             scenario = yaml.safe_load(f)
 
-        assert isinstance(scenario, dict), "Scenario file must contain a dictionary at the top level."
+        if not isinstance(scenario, dict):
+            raise ValueError(f"Scenario file {self.scenario_path} must contain a dictionary at the top level.")
 
         return Scenario(
             static=[
