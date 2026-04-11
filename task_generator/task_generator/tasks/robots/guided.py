@@ -48,7 +48,7 @@ class TM_Guided(TM_Random):
         Returns:
             bool: True if the guided task is done, False otherwise.
         """
-        for robot, manager in self._PROPS.robots.items():
+        for robot, manager in self._ctx.robots.items():
             if await manager.is_done:
                 waypoints = self._waypoints or [None]
                 self._waypoint_states[manager.name] += 1
@@ -92,7 +92,7 @@ class TM_Guided(TM_Random):
         )
 
         if len(self._waypoints) == 1:
-            for robot in self._PROPS.robots.values():
+            for robot in self._ctx.robots.values():
                 await robot.reset(None, pose)
 
     async def _reset_waypoints(self, *args, **kwargs):
@@ -111,13 +111,13 @@ class TM_Guided(TM_Random):
         self._waypoint_states = {
             name: 0
             for name
-            in self._PROPS.robots.keys()
+            in self._ctx.robots.keys()
         }
 
         for robot in self._waypoint_states:
             self._waypoint_states[robot] = 0
 
-        for robot in self._PROPS.robots.values():
+        for robot in self._ctx.robots.values():
             await robot.reset(robot.start_pos, robot.start_pos)
 
         self._waypoints = []

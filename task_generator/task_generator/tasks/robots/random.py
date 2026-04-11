@@ -28,25 +28,25 @@ class TM_Random(TM_Robots):
             tuple[Pose, Pose]
         ] = kwargs.get("ROBOT_POSITIONS", [])
         biggest_robot = max(
-            (robot.safe_distance for robot in self._PROPS.robots.values()),
+            (robot.safe_distance for robot in self._ctx.robots.values()),
             default=0
         )
 
         for robot_start, robot_goal in ROBOT_POSITIONS:
-            self._PROPS.world_manager.forbid(
+            self._ctx.world_manager.forbid(
                 [
                     PositionRadius(robot_start.position.x, robot_start.position.y, biggest_robot),
                     PositionRadius(robot_goal.position.x, robot_goal.position.y, biggest_robot),
                 ]
             )
 
-        if len(ROBOT_POSITIONS) < len(self._PROPS.robots):
+        if len(ROBOT_POSITIONS) < len(self._ctx.robots):
             to_generate = 2 * \
-                (len(self._PROPS.robots) - len(ROBOT_POSITIONS))
+                (len(self._ctx.robots) - len(ROBOT_POSITIONS))
 
             orientations = 2 * math.pi * \
                 self.node.conf.General.RNG.value.random(to_generate)
-            positions = self._PROPS.world_manager.get_positions_on_map(
+            positions = self._ctx.world_manager.get_positions_on_map(
                 n=to_generate,
                 safe_dist=biggest_robot
             )
@@ -66,5 +66,5 @@ class TM_Random(TM_Robots):
                 zip(generated_positions[::2], generated_positions[1::2])
             )
 
-        for robot, pos in zip(self._PROPS.robots.values(), ROBOT_POSITIONS):
+        for robot, pos in zip(self._ctx.robots.values(), ROBOT_POSITIONS):
             await robot.reset(start_pos=pos[0], goal_pos=pos[1])

@@ -18,12 +18,12 @@ from std_srvs.srv import Empty as EmptySrv
 from task_generator.constants import Constants
 from task_generator.constants.runtime import Configuration
 from task_generator.manager.environment_manager import EnvironmentManager
+from task_generator.manager.realizer import Realizer
 from task_generator.manager.robot_manager import RobotsManagerROS
 from task_generator.manager.robot_manager.robots_manager_ros import RobotsManager
 from task_generator.manager.world_manager.world_manager_ros import (
     WorldManagerROS as WorldManager,
 )
-from task_generator.shared import configure_node
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
 from task_generator.simulators.sim import BaseSim, SimulatorRegistry
 from task_generator.tasks import identifier_to_available
@@ -50,8 +50,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self,
         namespace: str = "task_generator_node",
     ):
-        configure_node(self)
-
         super().__init__('task_generator')
         self.conf = Configuration(self)
 
@@ -119,11 +117,16 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     async def _set_up_managers(self):
         self._logger.info("Setting up managers")
 
+        ref_x, ref_y = self.rosparam[tuple[float, float]].get('reference', (0.0, 0.0))
+        prefix = self.rosparam[str].get('prefix', '')
+        realizer = Realizer(Realizer._Configuration(x=ref_x, y=ref_y, prefix=prefix))
+
         self._logger.info("Setting up simulator")
         self._simulator = await SimulatorRegistry.get(
             self.conf.Arena.SIM.value,
             node=self,
             namespace=self._namespace,
+            realizer=realizer,
         )
 
         self._logger.info("Setting up human simulator")
@@ -137,9 +140,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self._logger.info("Setting up environment manager")
         self._environment_manager = EnvironmentManager(
             node=self,
-            namespace=self._namespace,
             simulator=self._simulator,
-            entity_manager=self._human_simulator,
+            human_simulator=self._human_simulator,
+            realizer=realizer,
         )
 
         self._logger.info("Setting up world manager")

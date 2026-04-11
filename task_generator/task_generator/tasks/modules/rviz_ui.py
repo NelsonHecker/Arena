@@ -1,5 +1,5 @@
 import geometry_msgs.msg as geometry_msgs
-from builtin_interfaces.msg import Time
+from arena_rclpy_mixins.Time import Time
 
 from task_generator.shared import Pose
 from task_generator.tasks.modules import TM_Module
@@ -7,7 +7,7 @@ from task_generator.tasks.modules import TM_Module
 
 class Mod_OverrideRobot(TM_Module):
     TOPIC_SET_POSITION = "/initialpose"
-    TOPIC_SET_GOAL = "/goalpose"
+    TOPIC_SET_GOAL = "/goal_pose"
     TOPIC_NEW_SCENARIO = "/clicked_point"
     PARAM_WAYPOINTS = "guided_waypoints"
 
@@ -26,7 +26,7 @@ class Mod_OverrideRobot(TM_Module):
         )
 
         self.node.create_subscription(
-            geometry_msgs.PoseWithCovarianceStamped,
+            geometry_msgs.PoseStamped,
             self.TOPIC_SET_GOAL,
             self._cb_set_goal,
             1
@@ -40,21 +40,21 @@ class Mod_OverrideRobot(TM_Module):
         )
 
     def _reset_timeout(self, index: int):
-        self._timeouts[index] = self._PROPS.clock.clock
+        self._timeouts[index] = self.node.sim_time
 
     async def _cb_set_position(self, pos: geometry_msgs.PoseWithCovarianceStamped):
-        await self._TASK.set_robot_position(
+        await self._task.set_robot_position(
             Pose.from_msg(
                 pos.pose.pose
             )
         )
 
     async def _cb_set_goal(self, pos: geometry_msgs.PoseStamped):
-        await self._TASK.set_robot_goal(
+        await self._task.set_robot_goal(
             Pose.from_msg(
                 pos.pose
             )
         )
 
     def _cb_new_scenario(self, *args, **kwargs):
-        self._TASK.force_reset()  # type: ignore
+        self._task.force_reset()  # type: ignore

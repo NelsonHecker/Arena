@@ -1,5 +1,4 @@
 import math
-import typing
 
 from arena_rclpy_mixins.Time import Time
 
@@ -18,7 +17,7 @@ class TM_Explore(TM_Random):
     async def reset(self, **kwargs):
         await super().reset(**kwargs)
         self._timeouts = {}
-        for name in self._PROPS.robots.keys():
+        for name in self._ctx.robots.keys():
             self._reset_timeout(name)
 
     @property
@@ -29,9 +28,9 @@ class TM_Explore(TM_Random):
         Returns:
             bool: True if the task is done for all robots, False otherwise.
         """
-        for robot, manager in self._PROPS.robots.items():
+        for robot, manager in self._ctx.robots.items():
             if await manager.is_done:
-                waypoint = self._PROPS.world_manager.get_position_on_map(
+                waypoint = self._ctx.world_manager.get_position_on_map(
                     safe_dist=manager.safe_distance, forbid=False
                 )
                 await self._set_goal(
@@ -42,8 +41,8 @@ class TM_Explore(TM_Random):
                     )
                 )
 
-            elif (self._PROPS.clock.clock.sec - self._timeouts.get(robot, Time()).sec) >= self.node.conf.Robot.TIMEOUT.value:
-                waypoint = self._PROPS.world_manager.get_position_on_map(
+            elif (self.node.sim_time.sec - self._timeouts.get(robot, Time()).sec) >= self.node.conf.Robot.TIMEOUT.value:
+                waypoint = self._ctx.world_manager.get_position_on_map(
                     safe_dist=manager.safe_distance, forbid=False
                 )
                 await self._set_position(
@@ -63,7 +62,7 @@ class TM_Explore(TM_Random):
         Args:
             robot (str): The name of the robot.
         """
-        self._timeouts[robot] = typing.cast(Time, self.node.sim_time)
+        self._timeouts[robot] = self.node.sim_time
 
     async def _set_position(self, name: str, pose: Pose):
         """
@@ -74,7 +73,7 @@ class TM_Explore(TM_Random):
             position (Pose): The new position of the robot.
         """
         self._reset_timeout(name)
-        await self._PROPS.robots[name].reset(pose, None)
+        await self._ctx.robots[name].reset(pose, None)
 
     async def _set_goal(self, name: str, pose: Pose):
         """
@@ -85,7 +84,7 @@ class TM_Explore(TM_Random):
             position (Pose): The new goal position of the robot.
         """
         self._reset_timeout(name)
-        await self._PROPS.robots[name].reset(None, pose)
+        await self._ctx.robots[name].reset(None, pose)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

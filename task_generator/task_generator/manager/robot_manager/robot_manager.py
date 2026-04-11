@@ -109,7 +109,8 @@ class RobotManager(NodeInterface):
         self._goal_tolerance_angle = self.node.conf.Robot.GOAL_TOLERANCE_ANGLE.value
         self._safety_distance = self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
 
-        self._robot = self.node._environment_manager.realize(robot)
+        self._robot = robot
+        self._robot.sim_path = self._environment_manager.realize(robot.name)
         self._robot.extra.setdefault('namespace', self.namespace)
         self._pose = self._start_pos
         self._goal_timer = None
@@ -128,8 +129,8 @@ class RobotManager(NodeInterface):
                     arguments=[
                         "0", "0", "0",
                         "0", "0", "0", "1",
-                        self.frame(self._config.model_params.odom_frame),
-                        self.frame(self._config.model_params.base_frame),
+                        self.frame(self._config.model_params.odom_frame).raw(),
+                        self.frame(self._config.model_params.base_frame).raw(),
                     ],
                     parameters=[{'use_sim_time': True}],
                 )
@@ -370,12 +371,12 @@ class RobotManager(NodeInterface):
                 'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
                 'namespace': self.namespace,
                 # 'use_namespace': 'True',
-                'frame': self._robot.frame(''),  # trailing slash
+                'frame': self._robot.frame('').raw(),  # trailing slash
                 'inter_planner': self._robot.inter_planner,
                 'global_planner': self._robot.global_planner,
                 'local_planner': self._robot.local_planner,
                 # 'complexity': self.node.declare_parameter('complexity', 1).value,
-                'train_mode': str(self.node._train_mode).lower(),
+                'train_mode': str(self.node.rosparam[bool].get('train_mode', False)).lower(),
                 'agent_name': self._robot.agent,
                 'use_sim_time': 'True',
                 'amcl': 'true' if self.node.conf.Arena.SIM.value in (Constants.SimSimulator.GAZEBO,) else 'false',

@@ -411,7 +411,7 @@ class Mod_Benchmark(TM_Module):
             self.needs_reincarnation = True
 
     def _reset_task(self):
-        self._TASK.reset()
+        self._task.reset()
 
     @property
     def _logger(self) -> logging.Logger:  # type: ignore

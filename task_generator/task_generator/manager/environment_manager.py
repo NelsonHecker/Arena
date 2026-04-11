@@ -1,208 +1,44 @@
 import asyncio
-import itertools
-import os
 import typing
-from collections.abc import Callable, Collection, Iterator, Sequence
+from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
-import attrs
-from arena_simulation_setup.shared import Elevator
 from arena_simulation_setup.tree.World import WorldDescription
 
 from task_generator import NodeInterface
+from task_generator.manager.realizer import Realizer
 from task_generator.shared import (
-    Door,
     DynamicObstacle,
-    Entity,
-    Floor,
-    FrameNamespace,
     Obstacle,
-    Orientation,
-    Pose,
-    Position,
     Robot,
-    Wall,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim
-from arena_simulation_setup.utils.geometry import Position
-
-EntityPropsT = typing.TypeVar('EntityPropsT', bound=Entity)
 
 
-class _Realizer:
-    @attrs.frozen()
-    class _Configuration:
-        x: float = 0.0
-        y: float = 0.0
-        prefix: str = ''
+class EnvironmentManager(NodeInterface):
 
-    _config: _Configuration
-
-    @typing.overload
-    def realize(self, target: str) -> str: ...
-
-    def _prefix(self, *s: str) -> str:
-        return str(FrameNamespace(self._config.prefix)(*s))
-
-    @typing.overload
-    def realize(self, target: Position) -> Position: ...
-
-    def _realize_position(self, position: Position) -> Position:
-        return Position(
-            x=position.x + self._config.x,
-            y=position.y + self._config.y,
-            z=position.z,
-        )
-
-    def _realize_position_inv(self, position: Position) -> Position:
-        return Position(
-            x=position.x - self._config.x,
-            y=position.y - self._config.y,
-            z=position.z,
-        )
-
-    def _realize_orientation(self, orientation: Orientation) -> Orientation:
-        return Orientation(*orientation)
-
-    def _realize_pose(self, pose: Pose) -> Pose:
-        return Pose(
-            self._realize_position(pose.position),
-            self._realize_orientation(pose.orientation)
-        )
-
-    @typing.overload
-    def realize(self, target: EntityPropsT) -> EntityPropsT: ...
-
-    @typing.overload
-    def realize(self, target: Pose) -> Pose: ...
-
-    def _realize_entity(self, entity: EntityPropsT) -> EntityPropsT:
-        entity = attrs.evolve(
-            entity,
-            pose=self._realize_pose(entity.pose),
-        )
-        return entity
-
-    @typing.overload
-    def realize(self, target: Wall) -> Wall: ...
-
-    def _realize_wall(self, wall: Wall) -> Wall:
-        return attrs.evolve(
-            wall,
-            start=self._realize_position(wall.start),
-            end=self._realize_position(wall.end),
-        )
-
-    @typing.overload
-    def realize(self, target: Floor) -> Floor: ...
-
-    def _realize_floor(self, floor: Floor) -> Floor:
-        return attrs.evolve(
-            floor,
-            name=self._prefix(floor.name),
-            pos=self._realize_position(floor.pos),
-        )
-
-    @typing.overload
-    def realize(self, target: Door) -> Door: ...
-
-    def _realize_door(self, door: Door) -> Door:
-        return attrs.evolve(
-            door,
-            name=self._prefix(door.name),
-            start=self._realize_position(door.start),
-            end=self._realize_position(door.end),
-        )
-
-    @typing.overload
-    def realize(self, target: Elevator) -> Elevator: ...
-
-    def _realize_elevator(self, elevator: Elevator) -> Elevator:
-        pos = list(elevator.position)
-        if len(pos) >= 2:
-            pos[0] += self._config.x
-            pos[1] += self._config.y
-        # Create Position object from modified list
-        new_position = Position(x=pos[0], y=pos[1], z=pos[2] if len(pos) > 2 else 0.0)
-        name = self._prefix(elevator.name)
-        destination = self._prefix(elevator.destination) if getattr(elevator, 'destination', None) else elevator.destination
-        return attrs.evolve(
-            elevator,
-            name=name,
-            position=new_position,
-            destination=destination,
-        )
-
-    def realize(
-        self,
-        target
-    ):
-        if isinstance(target, str):
-            return self._prefix(target)
-
-        if isinstance(target, Position):
-            return self._realize_position(target)
-
-        if isinstance(target, Pose):
-            return self._realize_pose(target)
-
-        if isinstance(target, Wall):
-            return self._realize_wall(target)
-
-        res = None
-
-        if isinstance(target, Entity):
-            res = self._realize_entity(target)
-
-        elif isinstance(target, Door):
-            res = self._realize_door(target)
-
-        elif isinstance(target, Floor):
-            res = self._realize_floor(target)
-
-        elif isinstance(target, Elevator):
-            res = self._realize_elevator(target)
-
-        if res is None:
-            raise TypeError(f'realization not implemented for type {type(target)}')
-
-        res.sim_path = self._prefix(res.name)
-        return res
-
-
-class EnvironmentManager(NodeInterface, _Realizer):
-
-    _namespace: str
     _human_simulator: BaseHumanSimulator
     _simulator: BaseSim
-
-    id_generator: Iterator[int]
+    _realizer: Realizer
 
     def __init__(
         self,
         *args,
-        namespace,
         simulator: BaseSim,
-        entity_manager: BaseHumanSimulator,
+        human_simulator: BaseHumanSimulator,
+        realizer: Realizer,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
-        self._namespace = namespace
         self._simulator = simulator
-        self._human_simulator = entity_manager
+        self._human_simulator = human_simulator
+        self._realizer = realizer
 
-        ref_x, ref_y = self.node.rosparam[tuple[float, float]].get('reference', (0.0, 0.0))
-        prefix = self.node.rosparam[str].get('prefix', '')
-        self._config = self._Configuration(
-            x=ref_x,
-            y=ref_y,
-            prefix=prefix,
-        )
-
-        self.id_generator = itertools.count(434)
+    def realize(self, target):
+        return self._realizer.realize(target)
 
     async def spawn_world_obstacles(self, world: WorldDescription):
         """

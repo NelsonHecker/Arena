@@ -133,6 +133,16 @@ class WorldLayers:
     def grid(self) -> np.ndarray:
         return self._combined.grid
 
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self._walls.grid.shape
+
+    def detect_walls(
+        self,
+        transform: Optional[Callable[[tuple[float, float]], Position]] = None,
+    ) -> WorldWalls:
+        return occupancy_to_walls(self._walls.grid, transform)
+
     # obstacle interface
     def obstacle_occupy(self, lo: tuple[int, int], hi: tuple[int, int]):
         self._obstacle.occupy(lo, hi)
@@ -210,7 +220,7 @@ class WorldMap:
 
     @property
     def shape(self) -> tuple[int, ...]:
-        return self.occupancy._walls.grid.shape
+        return self.occupancy.shape
 
     def tf_pos2grid(self, position: Position) -> tuple[int, int]:
         return np.round((position.y - self.origin.y) / self.resolution), np.round(
@@ -236,6 +246,9 @@ class WorldMap:
             )
         )
         return (lo, hi)
+
+    def detect_walls(self) -> WorldWalls:
+        return self.occupancy.detect_walls(self.tf_grid2pos)
 
 
 # END TYPES

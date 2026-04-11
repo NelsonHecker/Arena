@@ -1,0 +1,17 @@
+import attrs
+
+from task_generator.manager.environment_manager import EnvironmentManager
+from task_generator.manager.robot_manager import RobotManager
+from task_generator.manager.robot_manager.robots_manager_ros import RobotsManager
+from task_generator.manager.world_manager.world_manager_ros import WorldManager
+
+
+@attrs.define
+class TaskContext:
+    environment_manager: EnvironmentManager
+    robots_manager: RobotsManager
+    world_manager: WorldManager
+
+    @property
+    def robots(self) -> dict[str, RobotManager]:
+        return self.robots_manager.managers

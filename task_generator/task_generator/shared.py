@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import typing
-from typing import Optional, Type, TypeVar
+from typing import TYPE_CHECKING, Optional
 
 import attrs
 from arena_rclpy_mixins.shared import FrameNamespace, Namespace
@@ -26,39 +25,8 @@ from arena_simulation_setup.utils.geometry import (  # noqa
 )
 from arena_simulation_setup.utils.models import Model, ModelType, ModelWrapper  # noqa
 
-from . import TaskGenerator
-
-
-def configure_node(node: TaskGenerator) -> None:
-    global _node
-    _node = node
-
-
-# -- PREPARE REMOVAL, ONLY USED IN LEGACY FILES
-T = TypeVar("T")
-
-
-def rosparam_get(
-    cast: Type[T], param_name: str, default: T
-) -> T:
-    """
-    # TODO deprecate in favor of ROSParamServer.rosparam[T].get
-    Get typed ros parameter (strict)
-    @cast: Return type of function
-    @param_name: Name of parameter on parameter server
-    @default: Default value. Raise ValueError is default is unset and parameter can't be found.
-    """
-    return _node.rosparam[cast].get(param_name, default)
-
-
-def rosparam_set(
-    param_name: str, value: typing.Any
-) -> bool:
-    """
-    # TODO deprecate in favor of ROSParamServer.rosparam[T].set
-    """
-    return _node.rosparam.set(param_name, value)
-# -- END
+if TYPE_CHECKING:
+    from . import TaskGenerator
 
 
 @attrs.define
@@ -88,7 +56,7 @@ class Robot(Entity):
         return FrameNamespace('')
 
     @classmethod
-    def from_setup(cls, setup: RobotSetupConfig) -> Robot:
+    def from_setup(cls, setup: RobotSetupConfig, *, node: "TaskGenerator") -> Robot:
         dict_value = {}
         dict_value['model'] = setup.robot
         if setup.behavior is not None:
@@ -99,18 +67,18 @@ class Robot(Entity):
             dict_value['global_planner'] = setup.planner
         dict_value.update(setup.extra)
         dict_value['name'] = setup.name or ''
-        return cls.parse(dict_value)
+        return cls.parse(dict_value, node=node)
 
     @classmethod
-    def parse(cls, value: dict) -> "Robot":
+    def parse(cls, value: dict, *, node: "TaskGenerator") -> "Robot":
         name = str(value['name'])
         model = str(value['model'])
         pose = Pose(value.get("pos", (0, 0, 0)))
-        inter_planner = str(value.get("inter_planner", _node.conf.Robot.BEHAVIOR.value))
-        local_planner = str(value.get("local_planner", _node.conf.Robot.CONTROLLER.value))
-        global_planner = str(value.get("global_planner", _node.conf.Robot.PLANNER.value))
-        agent = str(value.get("agent", _node.conf.Robot.AGENT.value))
-        record_data = value.get("record_data_dir", _node.conf.Robot.RECORD_DATA_DIR.value)
+        inter_planner = str(value.get("inter_planner", node.conf.Robot.BEHAVIOR.value))
+        local_planner = str(value.get("local_planner", node.conf.Robot.CONTROLLER.value))
+        global_planner = str(value.get("global_planner", node.conf.Robot.PLANNER.value))
+        agent = str(value.get("agent", node.conf.Robot.AGENT.value))
+        record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
         return cls(
             name=name,

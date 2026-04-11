@@ -18,7 +18,7 @@ class TM_Scenario(TM_Robots):
     _config: ROSParamT[list[RobotGoal]]
 
     def _parse_scenario(self, scenario: str) -> list[RobotGoal]:
-        return WorldIdentifier(self.node._world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
+        return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
 
     async def reset(self, **kwargs):
         """
@@ -36,7 +36,7 @@ class TM_Scenario(TM_Robots):
         SCENARIO_ROBOTS = self._config.value
 
         # check robot manager length
-        managed_robots = list(self._PROPS.robots.values())
+        managed_robots = list(self._ctx.robots.values())
 
         scenario_robots_length = len(SCENARIO_ROBOTS)
         setup_robot_length = len(managed_robots)
@@ -53,7 +53,7 @@ class TM_Scenario(TM_Robots):
 
         for robot, config in zip(managed_robots, SCENARIO_ROBOTS):
             await robot.reset(start_pos=config.start, goal_pos=config.goal)
-            self._PROPS.world_manager.forbid(
+            self._ctx.world_manager.forbid(
                 [
                     PositionRadius(
                         x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance

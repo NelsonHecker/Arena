@@ -237,9 +237,9 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.sim_path)) for r in robots))
 
     async def remove_world(self):
-        await self._delete_entity(self._NS_WALL(self.node._environment_manager._prefix()))
-        await self._delete_entity(self._NS_DOOR(self.node._environment_manager._prefix()))
-        await self._delete_entity(self._NS_FLOOR(self.node._environment_manager._prefix()))
+        await self._delete_entity(self._NS_WALL(self._realizer.realize()))
+        await self._delete_entity(self._NS_DOOR(self._realizer.realize()))
+        await self._delete_entity(self._NS_FLOOR(self._realizer.realize()))
         return True
 
     async def spawn_walls(self, walls):
@@ -250,7 +250,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             end = segment.end.to_msg()
             end.z += segment.height
             try:
-                wall_name = self.node._environment_manager.realize(f"wall_{next(self.wall_counter)}")
+                wall_name = self._realizer.realize(f"wall_{next(self.wall_counter)}")
                 return Wall(
                     name=self._NS_WALL(wall_name),
                     start=segment.start.to_msg(),
@@ -265,7 +265,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         async def create_obstacle(obstacle: ObstacleDefinition) -> Prim | None:
             try:
-                prim_name = self.node._environment_manager.realize(f"obstacle_{next(self.wall_counter)}")
+                prim_name = self._realizer.realize(f"obstacle_{next(self.wall_counter)}")
                 model = await (await obstacle.model.resolve()).get(ModelType.USD)
                 if model.type is ModelType.UNKNOWN:
                     return None

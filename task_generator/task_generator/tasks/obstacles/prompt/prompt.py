@@ -263,7 +263,7 @@ class TM_Prompt(TM_Obstacles):
         # Get Arena World size
         x_min, y_min, x_max, y_max = np.inf, np.inf, -np.inf, -np.inf
 
-        for zones in self._PROPS.world_manager.world.zones:
+        for zones in self._ctx.world_manager.world.zones:
             x_min, y_min, x_max, y_max = (
                 min(x_min, *(corner.x for corner in zones.corners)),
                 min(y_min, *(corner.y for corner in zones.corners)),
@@ -290,7 +290,7 @@ class TM_Prompt(TM_Obstacles):
     async def _prompt_to_config(
         self, prompt: str, top_p: float, generation_mode: str, local: bool = False
     ) -> dict:
-        world_info = self.preprocess_world_description(self._PROPS.world_manager.world)
+        world_info = self.preprocess_world_description(self._ctx.world_manager.world)
 
         messages = []
         crowd_pedestrians = None
@@ -423,7 +423,7 @@ class TM_Prompt(TM_Obstacles):
 
             scenario, arena_entity_to_semantic_entity_map = (
                 arena_world_to_text_crowd_scenario(
-                    self._PROPS.world_manager.world, scenario_size=(1024, 1024)
+                    self._ctx.world_manager.world, scenario_size=(1024, 1024)
                 )
             )
 
@@ -431,7 +431,7 @@ class TM_Prompt(TM_Obstacles):
             velocity_field, crowd_pedestrians, text_crowd_scenario = cgp.generate(
                 prompt=ambient_agent_prompt,
                 scenario=scenario,
-                arena_world_description=self._PROPS.world_manager.world,
+                arena_world_description=self._ctx.world_manager.world,
                 arena_entity_to_semantic_entity_map=arena_entity_to_semantic_entity_map,
             )  # (n_groups, 64, 64, 2) (g, y, x, 2)
 
@@ -664,7 +664,7 @@ class TM_Prompt(TM_Obstacles):
 
         self.tmp_dir = tempfile.TemporaryDirectory(
             dir=os.path.join(
-                WorldIdentifier(self.node._world_manager.world_name)
+                WorldIdentifier(self._ctx.world_manager.world_name)
                 .resolve_sync()
                 .path,
                 "scenarios",
