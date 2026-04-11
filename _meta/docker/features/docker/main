@@ -10,7 +10,7 @@ docker_build(){
 docker_commit(){
     CONTAINER_ID=$(arena_docker_compose \
         ps -q -a arena \
-        | tail -n 1)
+        | head -n 1)
     echo "committing container $CONTAINER_ID to image $ARENA_IMAGE..."
     sudo env ${docker_env[*]} docker commit --no-pause "$CONTAINER_ID" "$ARENA_IMAGE"
     echo "done"
@@ -33,6 +33,12 @@ case "$1" in
     update)
         exit 0
     ;;
+    uninstall)
+        exit 0
+    ;;
+    source)
+        return 0
+    ;;
     commit)
         docker_commit
         exit $?
@@ -47,8 +53,8 @@ case "$1" in
         sudo docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             docker:cli \
-            sh -lc "docker compose --project-name '$ARENA_PROJECT_NAME' down --timeout 0" \
-        exit 0
+            sh -lc "docker compose --project-name '$ARENA_PROJECT_NAME' down --timeout 0"
+        exit $?
     ;;
     compose)
         shift

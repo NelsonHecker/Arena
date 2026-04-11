@@ -1,6 +1,7 @@
 services:
   arena:
     image: "${ARENA_IMAGE}"
+    pull_policy: "never"
     build:
       context: .
       dockerfile: src/Arena/_meta/docker/features/docker/Dockerfile
@@ -49,6 +50,7 @@ services:
 
   isaac:
     image: "arena_isaac"
+    pull_policy: "never"
     build:
       context: .
       dockerfile: src/Arena/_meta/docker/features/isaac/Dockerfile
