@@ -1,14 +1,12 @@
 import itertools
 import os
 
-import yaml
-
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 from arena_bringup.future import IfElseSubstitution, PythonExpression  # noqa
 from arena_bringup.substitutions import LaunchArgument
@@ -87,36 +85,31 @@ def generate_launch_description():
     os.environ["GAZEBO_MODEL_PATH"] = GZ_SIM_RESOURCE_PATHS_COMBINED
     # os.environ["GZ_SIM_PHYSICS_ENGINE_PATH"] = GZ_SIM_PHYSICS_ENGINE_PATH
 
-    desired_world = PathJoinSubstitution(
-        [
-            ss_root,
-            "worlds",
-            world.substitution,
-            "worlds",
-            PythonExpression(['"', world.substitution, '.world"']),
-        ]
-    )
+    desired_world = PathJoinSubstitution([
+        ss_root,
+        "worlds",
+        world.substitution,
+        "worlds",
+        PythonExpression(['"', world.substitution, '.world"']),
+    ])
 
     world_path = IfElseSubstitution(
         condition=PythonExpression(['not os.path.isfile("', desired_world, '")'], python_modules=['os']),
-        if_value=PathJoinSubstitution(
-            [
-                package_root,
-                'configs',
-                'gazebo',
-                'empty.sdf',
-            ]
-        ),
+        if_value=PathJoinSubstitution([
+            package_root,
+            'configs',
+            'gazebo',
+            'empty.sdf',
+        ]),
         else_value=desired_world,
     )
 
-    # Gazebo launch
-    gz_sim_launch_file = os.path.join(
-        get_package_share_directory("ros_gz_sim"), "launch", "gz_sim.launch.py"
-    )
-
     gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(gz_sim_launch_file),
+        PathJoinSubstitution([
+            FindPackageShare('ros_gz_sim'),
+            'launch',
+            'gz_sim.launch.py',
+        ]),
         launch_arguments={
             "gz_version": "8",
             "gz_args": [
