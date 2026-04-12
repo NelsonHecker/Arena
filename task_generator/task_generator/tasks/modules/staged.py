@@ -9,7 +9,6 @@ from arena_rclpy_mixins.shared import Namespace
 from filelock import FileLock
 from map_generator.constants import MAP_GENERATOR_NS
 
-from task_generator.shared import rosparam_get
 from task_generator.tasks.modules import TM_Module
 
 
@@ -100,10 +99,10 @@ class Mod_Staged(TM_Module):
 
         self.CURRICULUM_PATH = self.CONFIG_PATH("training_curriculums")
 
-        self.__debug_mode = rosparam_get(bool, "debug_mode", False)
+        self.__debug_mode = self.node.rosparam[bool].get("debug_mode", False)
 
         self.__training_config_path = (
-            rosparam_get(str, "training_config_path", None)
+            self.node.rosparam[str].get("training_config_path", None)
             if not self.__debug_mode
             else None
         )
@@ -113,7 +112,7 @@ class Mod_Staged(TM_Module):
 
         rospy.Subscriber(
             os.path.join(
-                self._TASK.namespace,
+                self._task.namespace,
                 self.TOPIC_NEXT_STAGE,
             ),
             std_msgs.Bool,
@@ -125,7 +124,7 @@ class Mod_Staged(TM_Module):
 
         rospy.Subscriber(
             os.path.join(
-                self._TASK.namespace,
+                self._task.namespace,
                 self.TOPIC_PREVIOUS_STAGE,
             ),
             std_msgs.Bool,
@@ -149,14 +148,15 @@ class Mod_Staged(TM_Module):
         if self.__current_stage != self.__target_stage:
             self.__current_stage = self.__target_stage
             rospy.loginfo(
-                f"[{self._TASK.namespace}] Loading stage {self.__current_stage}"
+                f"[{self._task.namespace}] Loading stage {self.__current_stage}"
             )
             # only update cpmfogiratopm with one task module instance
             if "sim_1" in rospy.get_name() or self.__debug_mode:
                 # publish goal radius
                 goal_radius = self.stage.goal_radius
                 if goal_radius is None:
-                    goal_radius = rosparam_get(float, self.PARAM_GOAL_RADIUS, 0.3)
+                    goal_radius = self.node.rosparam[float].get(
+                        self.PARAM_GOAL_RADIUS, 0.3)
                 rospy.set_param(self.PARAM_GOAL_RADIUS, goal_radius)
                 # set map generator params
                 if self.stage.dynamic_map.algorithm is not None:
@@ -227,7 +227,7 @@ class Mod_Staged(TM_Module):
         """
         Flag indicating whether the module is running in evaluation simulation mode.
         """
-        return "eval_sim" in self._TASK.namespace
+        return "eval_sim" in self._task.namespace
 
     @property
     def MIN_STAGE(self) -> StageIndex:
@@ -261,7 +261,7 @@ class Mod_Staged(TM_Module):
 
         if val < self.MIN_STAGE or val > self.MAX_STAGE:
             rospy.loginfo(
-                f"({self._TASK.namespace}) INFO: Tried to set stage {val} but was out of bounds [{self.MIN_STAGE}, {self.MAX_STAGE}]"
+                f"({self._task.namespace}) INFO: Tried to set stage {val} but was out of bounds [{self.MIN_STAGE}, {self.MAX_STAGE}]"
             )
             val = max(self.MIN_STAGE, min(self.MAX_STAGE, val))
 

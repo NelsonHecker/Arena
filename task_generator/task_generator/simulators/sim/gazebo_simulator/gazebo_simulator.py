@@ -288,7 +288,6 @@ class GazeboSimulator(BaseSim):
                 return False
 
     async def _delete_entity(self, name: str):
-        return True
         async with self._semaphore:
             name = name
 
@@ -403,7 +402,7 @@ class GazeboSimulator(BaseSim):
     async def spawn_walls(self, walls) -> bool:
         await self.remove_world()  # Clear existing walls
         for wall in walls:  # only walls, ignore obstacles
-            wall_name = self.node._environment_manager.realize(
+            wall_name = self._realizer.realize(
                 f"wall_{next(self._wall_counter)}"
             )
             wall_height = 2.0  # Wall height in meters
@@ -671,10 +670,8 @@ class GazeboSimulator(BaseSim):
             odom_frame = robot_config.model_params.odom_frame
             base_frame = robot_config.model_params.base_frame
 
-            # Get frame names as raw strings (FrameNamespace.__str__ is sanitized
-            # by auto_sanitize, but TF frames in the tree use unsanitized '/' names)
-            odom_frame_name = str.__str__(robot.frame(odom_frame))
-            base_frame_name = str.__str__(robot.frame(base_frame))
+            odom_frame_name = robot.frame(odom_frame).raw()
+            base_frame_name = robot.frame(base_frame).raw()
 
             # Compute the correct map→odom TF accounting for DiffDrive odom offset
             tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw = self._compute_map_to_odom_tf(
@@ -702,7 +699,7 @@ class GazeboSimulator(BaseSim):
                     str(tf_qz),
                     str(tf_qw),
                     "map",
-                    robot.frame(odom_frame),
+                    robot.frame(odom_frame).raw(),
                 ],
                 parameters=[{"use_sim_time": True}],
             )

@@ -1,9 +1,7 @@
-import os
-
 import launch.actions
-import launch.launch_description_sources
 import launch.substitutions
-from ament_index_python.packages import get_package_share_directory
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 import launch
 import launch_ros.actions
@@ -26,7 +24,6 @@ def generate_launch_description():
         default_value='False',
     )
 
-    # TODO temporary
     world = LaunchArgument(
         name='world'
     )
@@ -47,10 +44,10 @@ def generate_launch_description():
     launch_simulator.add(
         Constants.SimSimulator.GAZEBO.value,
         launch.actions.IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory(
-                    'arena_bringup'), 'launch/simulator/sim/gazebo/gazebo.launch.py')
-            ),
+            PathJoinSubstitution([
+                FindPackageShare('arena_bringup'),
+                'launch', 'simulator', 'sim', 'gazebo', 'gazebo.launch.py',
+            ]),
             launch_arguments={
                 **use_sim_time.dict,
                 **headless.dict,
@@ -62,10 +59,10 @@ def generate_launch_description():
     launch_simulator.add(
         Constants.SimSimulator.ISAAC.value,
         launch.actions.IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory(
-                    'arena_bringup'), 'launch/simulator/sim/isaac/isaac.launch.py')
-            ),
+            PathJoinSubstitution([
+                FindPackageShare('arena_bringup'),
+                'launch', 'simulator', 'sim', 'isaac', 'isaac.launch.py',
+            ]),
             launch_arguments={
                 'use_sim_time': use_sim_time.substitution,
                 # 'headless': headless.substitution

@@ -21,21 +21,21 @@ class TM_Parametrized(TM_Obstacles):
     def _zone_polygon(self, zone: str) -> Optional[shapely.Polygon]:
         if not zone:
             return None
-        vertices = self._PROPS.world_manager.world.lookup_zone_polygon(zone)
+        vertices = self._ctx.world_manager.world.lookup_zone_polygon(zone)
         if vertices is None:
             raise ValueError(f"zone '{zone}' not found in world")
         return shapely.Polygon([(v.x, v.y) for v in vertices])
 
     def _get_pose(self, polygon=None):
         return Pose(
-            self._PROPS.world_manager.get_position_on_map(1, polygon=polygon),
+            self._ctx.world_manager.get_position_on_map(1, polygon=polygon),
             Orientation.from_yaw(
                 self.node.conf.General.RNG.value.random() * 2 * math.pi
             ),
         )
 
     def _get_points(self, n, polygon=None):
-        return self._PROPS.world_manager.get_positions_on_map(
+        return self._ctx.world_manager.get_positions_on_map(
             n=n,
             safe_dist=1.0,
             polygon=polygon,

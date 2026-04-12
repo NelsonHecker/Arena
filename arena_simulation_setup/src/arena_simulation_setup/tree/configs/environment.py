@@ -33,7 +33,8 @@ class EnvironmentIdentifier(Identifier[EnvironmentDescription]):
         del kwargs
         with open(path, 'r') as f:
             value = yaml.safe_load(f)
-        assert isinstance(value, dict)
+        if not isinstance(value, dict):
+            raise ValueError(f"Environment file {path} must contain a mapping at the top level")
         return EnvironmentDescription(value)
 
 

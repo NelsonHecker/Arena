@@ -1,26 +1,13 @@
+from __future__ import annotations
+
 import typing
 
-import rclpy
-import rclpy.callback_groups
 import rclpy.impl.rcutils_logger
-import rclpy.node
-from typing_extensions import Self
 
-
-class SafeCallbackNode(rclpy.node.Node):
-    """
-    Automatically make clients part of a new MutuallyExclusiveCallbackGroup to avoid deadlocks.
-    """
-
-    @property
-    def default_callback_group(self) -> rclpy.callback_groups.CallbackGroup:
-        return rclpy.callback_groups.ReentrantCallbackGroup()
-
+from task_generator.safe_callback import SafeCallbackNode  # noqa: F401
 
 if typing.TYPE_CHECKING:
     from task_generator.node import TaskGenerator
-else:
-    TaskGenerator = object()
 
 
 class NodeInterface:

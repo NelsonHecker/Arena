@@ -129,7 +129,7 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
 
         def add(base: robot_setup.Config):
             name = base.name
-            config = Robot.from_setup(base)
+            config = Robot.from_setup(base, node=self.node)
 
             if name is None:  # anon
                 parsed_anonymous.setdefault(config.model.name, []).append(config)

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+[ -f /etc/bash.bashrc ] && source /etc/bash.bashrc
+[ -f ~/.bashrc ] && source ~/.bashrc
+
+source /opt/arena_ws/source

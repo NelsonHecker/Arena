@@ -1,46 +1,29 @@
-#!/bin/bash -i
+#!/usr/bin/env bash
 
 
 name="gazebo"
 
 update(){
-    echo "Updating $name..."
-    arena update
-    arena build
-}
-
-install(){
-    set -e
-
-    if ! grep -q "$name" "$INSTALLED" 2>/dev/null; then
-        echo "$name" >> "$INSTALLED"
-    fi
-
-    update
-    echo "Installed $name successfully."
+    return 0
 }
 
 uninstall(){
-    #TODO
-    sed -i "/$name/d" "$INSTALLED"
+    arena registry remove "$name"
+    arena resource
 }
 
 source_fn(){
-    if [[ ! "$ARENA_MODELS_FORMATS" =~ usd ]]; then
+    if [[ ! "$ARENA_MODELS_FORMATS" =~ sdf ]]; then
         export ARENA_MODELS_FORMATS="${ARENA_MODELS_FORMATS},sdf"
     fi
 }
 
 
 help(){
-    echo "Usage: $name <install|update|uninstall|source>"
+    echo "Usage: $name <update|uninstall|source>"
 }
 
 case "$1" in
-    install)
-        install
-        exit $?
-    ;;
     update)
         update
         exit $?

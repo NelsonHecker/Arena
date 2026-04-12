@@ -1,7 +1,6 @@
-import os
-
 import launch
-from ament_index_python.packages import get_package_share_directory
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 from arena_bringup.substitutions import LaunchArgument, SelectAction
 
@@ -33,10 +32,10 @@ def generate_launch_description():
     launch_human_simulator.add(
         Constants.HumanSimulator.HUNAV.value,
         launch.actions.IncludeLaunchDescription(
-            os.path.join(
-                get_package_share_directory('arena_bringup'),
-                'launch/simulator/human/hunav/hunav.launch.py'
-            ),
+            PathJoinSubstitution([
+                FindPackageShare('arena_bringup'),
+                'launch', 'simulator', 'human', 'hunav', 'hunav.launch.py',
+            ]),
             launch_arguments={
                 'use_sim_time': 'true',
                 'world_file': '',
@@ -48,10 +47,10 @@ def generate_launch_description():
     launch_human_simulator.add(
         Constants.HumanSimulator.ARENA.value,
         launch.actions.IncludeLaunchDescription(
-            os.path.join(
-                get_package_share_directory('arena_bringup'),
-                'launch/simulator/human/arena_humansim.launch.py'
-            ),
+            PathJoinSubstitution([
+                FindPackageShare('arena_bringup'),
+                'launch', 'simulator', 'human', 'arena_humansim.launch.py',
+            ]),
             launch_arguments={
                 'use_sim_time': 'true',
                 **namespace.dict

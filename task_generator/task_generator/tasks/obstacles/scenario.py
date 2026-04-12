@@ -11,7 +11,7 @@ class TM_Scenario(TM_Obstacles):
 
     def _get_scenario_view(self, scenario_name: str):
         return (
-            WorldIdentifier(self.node._world_manager.world_name)
+            WorldIdentifier(self._ctx.world_manager.world_name)
             .resolve_sync()
             .scenario(scenario_name)
             .resolve_sync()
@@ -19,7 +19,7 @@ class TM_Scenario(TM_Obstacles):
 
     async def reset(self, **kwargs) -> Obstacles:
         scenario_name = self._config.value
-        world_description = self._PROPS.world_manager.world
+        world_description = self._ctx.world_manager.world
 
         # Build a converter that resolves zone refs to concrete geometry
         zone_conv = world_description.zone_converter(self.node.conf.General.RNG.value)
@@ -37,7 +37,7 @@ class TM_Scenario(TM_Obstacles):
             )
             for name, r in scenario.regions.items()
         ]
-        await self._PROPS.environment_manager.setup_regions(regions)
+        await self._ctx.environment_manager.setup_regions(regions)
 
         return scenario.static, scenario.dynamic
 
@@ -48,7 +48,7 @@ class TM_Scenario(TM_Obstacles):
         if default_scenario not in (
             scenarios := list(
                 identifier_to_available(
-                    WorldIdentifier(self.node._world_manager.world_name)
+                    WorldIdentifier(self._ctx.world_manager.world_name)
                     .resolve_sync()
                     .scenario
                 )
@@ -57,7 +57,7 @@ class TM_Scenario(TM_Obstacles):
             default_scenario = next(iter(scenarios), None)
         if default_scenario is None:
             raise ValueError(
-                f"No scenarios found in world {self.node._world_manager.world_name}"
+                f"No scenarios found in world {self._ctx.world_manager.world_name}"
             )
 
         self._config = self.node.ROSParam[str](

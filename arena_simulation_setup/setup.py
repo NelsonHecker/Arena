@@ -4,6 +4,23 @@ from setuptools import setup, find_namespace_packages
 package_name = 'arena_simulation_setup'
 python_root = 'src'
 
+
+def _walk_data_files(*roots):
+    # os.path.isfile filters out dangling symlinks. colcon --symlink-install
+    # populates the build dir with per-file symlinks into source and does not
+    # prune them when source files are deleted, so os.walk would otherwise
+    # hand setuptools broken symlinks and the copy step would abort.
+    for root in roots:
+        for base, _dirs, files in os.walk(root):
+            kept = [
+                os.path.join(base, f)
+                for f in files
+                if os.path.isfile(os.path.join(base, f))
+            ]
+            if kept:
+                yield (os.path.join('share', package_name, base), kept)
+
+
 setup(
     name=package_name,
     version='1.0.0',
@@ -13,18 +30,8 @@ setup(
     package_dir={'': python_root},
     data_files=[
         ('share/' + package_name, ['package.xml']),
-        # Will recursively track all .yaml files in the entities/robots
-        # directory and its subdirectories.
-        *[
-            (
-                os.path.join('share', package_name, base),
-                [os.path.join(base, file)]
-            )
-            for dir in ['configs', 'launch', 'resource', 'worlds']
-            for base, dirs, files in os.walk(dir)
-            for file in files
-        ],
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+        *_walk_data_files('configs', 'launch', 'worlds'),
     ],
     install_requires=[
         'setuptools',

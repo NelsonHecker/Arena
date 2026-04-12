@@ -41,6 +41,9 @@ class FrameNamespace(Namespace):
     def __call__(self, *args: str) -> "FrameNamespace":
         return FrameNamespace(Namespace(self).__call__(*args))
 
+    def raw(self) -> str:
+        return str.__str__(self)
+
     def sanitize(self) -> str:
         return re.sub('[^A-Za-z0-9_]', '_', self)
 

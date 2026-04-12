@@ -1,31 +1,27 @@
-#!/bin/bash -i
+#!/usr/bin/env bash
 
 name="planners"
 
-install(){
-    echo 'Enabled optional planners'
+update(){
+    return 0
 }
 
 uninstall(){
-    #TODO
-    echo not implemented
+    arena registry remove "$name"
 }
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <install|uninstall>"
+    echo "Usage: $name <update|uninstall|source>"
 }
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
     help
     exit 1
 fi
 case "$1" in
-    install)
-        install
-        exit $?
-    ;;
     update)
-        exit 0
+        update
+        exit $?
     ;;
     uninstall)
         uninstall

@@ -1,5 +1,4 @@
 import os
-from glob import glob
 
 from setuptools import setup
 
@@ -46,14 +45,9 @@ setup(
     description='Arena bringup package',
     license='MIT',
     tests_require=['pytest'],
-    scripts=['scripts/test.py'],
     entry_points={
-        'console_scripts': [
-            'test = arena_bringup.test:main',
-        ],
         'launch_ros.node_action': [
             'NodeLogLevelExtension = arena_bringup.extensions.NodeLogLevelExtension:NodeLogLevelExtension',
         ],
-
     },
 )

@@ -12,14 +12,14 @@ class TM_Robots(TaskMode):
         **kwargs: Additional keyword arguments.
 
     Attributes:
-        _PROPS (TaskProperties): Task properties object.
+        _ctx (TaskContext): Shared task context.
 
     """
 
     _last_reset: int
 
     async def reset(self, **kwargs):
-        self._last_reset = self._PROPS.clock.clock.sec
+        self._last_reset = self.node.sim_time.sec
 
     async def set_position(self, pose: Pose):
         """
@@ -29,7 +29,7 @@ class TM_Robots(TaskMode):
             position (Pose): The desired position and orientation.
 
         """
-        for robot_manager in self._PROPS.robots.values():
+        for robot_manager in self._ctx.robots.values():
             await robot_manager.reset(pose, None)
 
     async def set_goal(self, pose: Pose):
@@ -40,7 +40,7 @@ class TM_Robots(TaskMode):
             position (Pose): The desired goal position and orientation.
 
         """
-        for robot_manager in self._PROPS.robots.values():
+        for robot_manager in self._ctx.robots.values():
             await robot_manager.reset(None, pose)
 
     @property
@@ -53,17 +53,17 @@ class TM_Robots(TaskMode):
 
         """
         if (
-            self._PROPS.clock.clock.sec - self._last_reset
+            self.node.sim_time.sec - self._last_reset
         ) > self.node.conf.Robot.TIMEOUT.value:
             return True
 
-        if not self._PROPS.robots:
+        if not self._ctx.robots:
             return False
         if not all(
             await asyncio.gather(
                 *(
                     robot_manager.is_done
-                    for robot_manager in self._PROPS.robots.values()
+                    for robot_manager in self._ctx.robots.values()
                 )
             )
         ):

@@ -11,7 +11,7 @@ import shapely
 from task_generator import NodeInterface
 from task_generator.shared import Position, PositionRadius, Wall
 
-from .utils import WorldMap, WorldOccupancy, occupancy_to_walls
+from .utils import WorldMap, WorldOccupancy
 
 
 class WorldManager(NodeInterface):
@@ -55,10 +55,7 @@ class WorldManager(NodeInterface):
     @property
     def detected_walls(self) -> Collection[Wall]:
         if self._detected_walls is None:
-            self._detected_walls = occupancy_to_walls(
-                occupancy_grid=self.map.occupancy._walls.grid,
-                transform=self.map.tf_grid2pos,
-            )
+            self._detected_walls = self._map.detect_walls()
         return self._detected_walls
 
     def update_world(
@@ -257,15 +254,7 @@ class WorldManager(NodeInterface):
             max_depth = 10
 
             for zone in forbidden_zones:
-                fork.occupy(
-                    *self.map.tf_posr2rect(
-                        PositionRadius(
-                            x=zone.x,
-                            y=zone.y,
-                            radius=zone.radius / self.resolution,
-                        )
-                    )
-                )
+                fork.occupy(*self.map.tf_posr2rect(zone))
 
             min_dist: float = safe_dist / self.resolution
             available_positions = self._occupancy_to_available(

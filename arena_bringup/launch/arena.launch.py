@@ -2,13 +2,12 @@ import os
 import typing
 
 import launch.conditions
-import launch.launch_description_sources
 import launch.utilities
 import launch.utilities.type_utils
 import launch_ros.actions
-from ament_index_python.packages import get_package_share_directory
 from launch.actions import LogInfo
-from launch.substitutions import LaunchConfiguration, TextSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 import launch
 from arena_bringup.actions import IsolatedGroupAction
@@ -18,8 +17,6 @@ from arena_bringup.substitutions import LaunchArgument
 
 
 def generate_launch_description():
-    bringup_dir = get_package_share_directory('arena_bringup')
-
     ld_items = []
     LaunchArgument.auto_append(ld_items)
 
@@ -206,21 +203,20 @@ def generate_launch_description():
                 TextSubstitution(text=namespace)
             ]),
             launch.actions.IncludeLaunchDescription(
-                launch.launch_description_sources.PythonLaunchDescriptionSource(
-                    os.path.join(bringup_dir, 'launch/simulator/human/human.launch.py')
-                ),
+                PathJoinSubstitution([
+                    FindPackageShare('arena_bringup'),
+                    'launch', 'simulator', 'human', 'human.launch.py',
+                ]),
                 launch_arguments={
                     'simulator': human.substitution,
                     'namespace': namespace,
                 }.items()
             ),
             launch.actions.IncludeLaunchDescription(
-                launch.launch_description_sources.PythonLaunchDescriptionSource(
-                    os.path.join(
-                        get_package_share_directory('task_generator'),
-                        'launch/task_generator.launch.py'
-                    )
-                ),
+                PathJoinSubstitution([
+                    FindPackageShare('task_generator'),
+                    'launch', 'task_generator.launch.py',
+                ]),
                 launch_arguments={
                     **sim.dict,
                     **human.dict,
@@ -238,7 +234,10 @@ def generate_launch_description():
                     'headless': headlessness,
                     'reference': str(reference),
                     'prefix': prefix,
-                    'parameter_file': os.path.join(get_package_share_directory('arena_bringup'), 'configs', 'task_generator.yaml'),
+                    'parameter_file': PathJoinSubstitution([
+                        FindPackageShare('arena_bringup'),
+                        'configs', 'task_generator.yaml',
+                    ]),
                     **train_mode.dict,
                 }.items(),
             )
@@ -253,9 +252,10 @@ def generate_launch_description():
     )
 
     launch_simulator = launch.actions.IncludeLaunchDescription(
-        launch.launch_description_sources.PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch/simulator/sim/sim.launch.py')
-        ),
+        PathJoinSubstitution([
+            FindPackageShare('arena_bringup'),
+            'launch', 'simulator', 'sim', 'sim.launch.py',
+        ]),
         launch_arguments={
             **use_sim_time.dict,
             'simulator': sim.substitution,

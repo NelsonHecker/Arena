@@ -7,11 +7,11 @@ if typing.TYPE_CHECKING:
 
 
 class TM_Module(TaskMode):
-    _TASK: "Task"
+    _task: "Task"
 
     def __init__(self, *args, task: "Task", **kwargs):
-        super().__init__(*args, props=task, **kwargs)
-        self._TASK = task
+        super().__init__(*args, **kwargs)
+        self._task = task
 
     def before_reset(self): ...
 
