@@ -183,6 +183,10 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     result=$?
                 fi
             ;;
+            deps)
+                rosdep install --ignore-src -r -y --rosdistro "${ARENA_ROS_DISTRO}" --from-paths src "$@"
+                result=$?
+            ;;
             update)
                 "${TOOLS_DIR}/pull" "$@"
                 result=$?
@@ -270,7 +274,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 return $?
             ;;
             *)
-                echo 'Usage: arena <build|update|launch|deactivate|feature|registry|resource> [args...]' >&2
+                echo 'Usage: arena <build|rebuild|deps|update|launch|deactivate|feature|registry|resource> [args...]' >&2
                 result=1
             ;;
         esac
