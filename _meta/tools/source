@@ -17,8 +17,8 @@ export shell
 current_stack=$(ulimit -s)
 if [ "$current_stack" != "unlimited" ] && [ "$current_stack" -lt 65536 ]; then
     ulimit -s 65536 2>/dev/null || {
-        echo "Warning: Could not increase stack limit to 65536KB (current: ${current_stack}KB)"
-        echo "Consider running: echo '* soft stack 65536' | sudo tee -a /etc/security/limits.conf"
+        echo "Warning: Could not increase stack limit to 65536KB (current: ${current_stack}KB)" >&2
+        echo "Consider running: echo '* soft stack 65536' | sudo tee -a /etc/security/limits.conf" >&2
     }
 fi
 unset current_stack
@@ -73,7 +73,7 @@ _feature_registry(){
             [ -f "$repos_file" ] || return 0
             vcs import --input "$repos_file" --shallow --recursive --ff \
                 --add-existing "$ARENA_WS_DIR/src" \
-                || echo "failed to pull all $name repos, ignoring"
+                || echo "failed to pull all $name repos, ignoring" >&2
             return 0
         ;;
         resolve)
@@ -97,7 +97,7 @@ export -f _feature_registry
 export ARENA_MODELS_FORMATS="yaml,png,jpg,mdl"
 
 exit(){
-    echo "Failed to source $1, skipping"
+    echo "Failed to source $1, skipping" >&2
 }
 while read -r feature; do
     if feature_path="$(_feature_registry resolve "$feature")"; then
@@ -170,7 +170,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
             ;;
             rebuild)
                 if [ $# -lt 1 ]; then
-                    echo "Usage: arena rebuild <package1> [package2 ...]"
+                    echo "Usage: arena rebuild <package1> [package2 ...]" >&2
                     result=1
                 else
                     for pkg in "$@"; do
@@ -214,8 +214,8 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 done
                 unset entry fname marker
                 if [ $# -lt 1 ]; then
-                    echo "Usage: arena feature <name> <install|uninstall|update|...>"
-                    echo "Available features: $features"
+                    echo "Usage: arena feature <name> <install|uninstall|update|...>" >&2
+                    echo "Available features: $features" >&2
                     result=1
                 elif feature_path="$(_feature_registry resolve "$1")"; then
                     fname="$1"
@@ -256,7 +256,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     unset fname fverb
                 else
                     echo "Unknown feature '$1'" >&2
-                    echo "Available features: $features"
+                    echo "Available features: $features" >&2
                     result=1
                 fi
             ;;
@@ -270,7 +270,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 return $?
             ;;
             *)
-                echo 'Usage: arena <build|update|launch|deactivate|feature|registry|resource> [args...]'
+                echo 'Usage: arena <build|update|launch|deactivate|feature|registry|resource> [args...]' >&2
                 result=1
             ;;
         esac
