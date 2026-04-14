@@ -119,7 +119,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
 
                     fq_name = self._NS_ROBOT(robot.sim_path)
-                    
+
                     await self._clients.SpawnUrdf.call_timeout(
                         SpawnUrdf.Request(
                             name=fq_name,
@@ -348,6 +348,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         res = bool(doors_res) and all(doors_res.ret)
         self._logger.info("All doors spawned successfully.")
         return res
+
     async def spawn_elevators(self, elevators) -> bool:
         self._logger.debug(f"IsaacSimulator.spawn_elevators ENTRY, elevators: {elevators}")
         self._logger.debug(f"IsaacSimulator.spawn_elevators called with: {[e.name for e in elevators]}")
@@ -376,7 +377,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             except Exception as e:
                 self._logger.error(f"Failed to append elevator: {elevator.name}: {e}\n{traceback.format_exc()}")
                 return None
-        
+
         req.elevators = list(filter(None, await asyncio.gather(*map(impl, elevators))))
         elevators_res = await self._clients.SpawnElevators.call_timeout(req)
         res = bool(elevators_res) and all(elevators_res.ret)

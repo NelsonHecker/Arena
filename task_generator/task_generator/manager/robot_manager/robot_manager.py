@@ -9,12 +9,12 @@ import geometry_msgs.msg
 import launch.launch_description_sources
 import launch_ros
 import lifecycle_msgs.msg
-import nav_msgs.msg as nav_msgs
 import rclpy
 import rclpy.client
 import rclpy.logging
 import rclpy.publisher
 import rclpy.timer
+import tf2_ros
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
@@ -44,7 +44,6 @@ class RobotManager(NodeInterface):
     _environment_manager: EnvironmentManager
     _start_pos: Pose
     _goal_pos: Pose
-    _pose: Pose
     _robot_radius: float
     _goal_tolerance_distance: float
     _goal_tolerance_angle: float
@@ -84,6 +83,26 @@ class RobotManager(NodeInterface):
         """
         return self._goal_pos
 
+    @property
+    def pose(self) -> typing.Optional[Pose]:
+        """Current robot pose in the map frame, looked up via tf2.
+
+        Returns None when the transform is not yet available (e.g. during
+        reset/respawn windows).
+        """
+        base = self.frame(self._config.model_params.base_frame).raw()
+        try:
+            t = self.node.tf_buffer.lookup_transform(
+                'map', base, rclpy.time.Time())
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException):
+            return None
+        tr = t.transform.translation
+        return Pose(
+            Position(tr.x, tr.y),
+            Orientation.from_msg(t.transform.rotation),
+        )
+
     def __init__(
         self,
         *args,
@@ -112,7 +131,6 @@ class RobotManager(NodeInterface):
         self._robot = robot
         self._robot.sim_path = self._environment_manager.realize(robot.name)
         self._robot.extra.setdefault('namespace', self.namespace)
-        self._pose = self._start_pos
         self._goal_timer = None
 
         self._publish_goal_task: typing.Optional[asyncio.Task] = None
@@ -153,13 +171,6 @@ class RobotManager(NodeInterface):
         )
 
         self.node.create_subscription(
-            nav_msgs.Odometry,
-            self.namespace("odom"),
-            self._robot_pos_callback,
-            10
-        )
-
-        self.node.create_subscription(
             action_msgs.msg.GoalStatusArray,
             self.namespace('navigate_to_pose', '_action', 'status'),
             self._goal_status_callback,
@@ -173,6 +184,11 @@ class RobotManager(NodeInterface):
             'robot_radius',
             self._robot_radius,
         )
+
+    @property
+    def radius(self) -> float:
+        """Physical radius of the robot in metres."""
+        return self._robot_radius
 
     @property
     def safe_distance(self) -> float:
@@ -323,7 +339,7 @@ class RobotManager(NodeInterface):
                     self.namespace.robot_ns.ParamNamespace()("goal"),
                     [self.goal_pos.position.x, self.goal_pos.position.y, self.goal_pos.orientation.to_yaw()]
                 )
-        return self._pose, self._goal_pos
+        return self._start_pos, self._goal_pos
 
     async def _publish_goal_loop(self):
         """Publish the goal to the robot.
@@ -404,23 +420,6 @@ class RobotManager(NodeInterface):
             self._logger.info(f'waiting for {bt_node_path}')
             while bt_node_path not in node_paths:
                 await asyncio.sleep(0.01)
-
-    def _robot_pos_callback(self, data: nav_msgs.Odometry):
-        """Callback for robot position updates.
-
-        Args:
-            data(nav_msgs.Odometry): The odometry data containing the robot's position.
-        """
-        current_position = data.pose.pose
-        quat = current_position.orientation
-
-        self._pose = Pose(
-            Position(
-                current_position.position.x,
-                current_position.position.y,
-            ),
-            Orientation.from_msg(quat)
-        )
 
     def _goal_status_callback(self, data: action_msgs.msg.GoalStatusArray):
         """Callback for goal status updates.

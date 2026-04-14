@@ -10,6 +10,7 @@ import arena_simulation_setup.tree.World as World
 import rclpy
 import std_srvs.srv as std_srvs
 import task_generator_msgs.srv
+import tf2_ros
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import Namespace
 from std_msgs.msg import Empty, Int16
@@ -46,6 +47,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
     _initialized: bool
 
+    @property
+    def robots_manager(self) -> RobotsManager:
+        return self._robots_manager
+
     def __init__(
         self,
         namespace: str = "task_generator_node",
@@ -54,6 +59,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self.conf = Configuration(self)
 
         self._namespace = Namespace(namespace)
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         Task.declare_parameters(self)
 

@@ -54,11 +54,6 @@ class GazeboSimulator(BaseSim):
         self._walls_entities: list[str] = []
         self._wall_counter = itertools.count()
 
-        # TF buffer for looking up current odom→base_link transforms
-        # Used to compute correct map→odom TF after robot teleportation
-        self._tf_buffer = tf2_ros.Buffer()
-        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self.node)
-
     async def before_reset_task(self):
         self._logger.warn("Pausing simulation before reset")
         return bool(await self.pause_simulation())
@@ -542,7 +537,7 @@ class GazeboSimulator(BaseSim):
         """
         try:
             # Look up odom → base_link TF (the current DiffDrive odom value)
-            odom_tf = self._tf_buffer.lookup_transform(
+            odom_tf = self.node.tf_buffer.lookup_transform(
                 odom_frame_name,
                 base_frame_name,
                 rclpy.time.Time(),  # latest available

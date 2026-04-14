@@ -42,19 +42,6 @@ from task_generator.simulators.sim import BaseSim
 from . import HunavDynamicObstacle
 
 
-def _create_robot_message():
-    """Creates a standard robot message for HuNav communication"""
-    robot_msg = Agent()
-    robot_msg.id = 0
-    robot_msg.name = "robot"
-    robot_msg.type = Agent.ROBOT
-    robot_msg.position.position.x = 0.0
-    robot_msg.position.position.y = 0.0
-    robot_msg.yaw = 0.0
-    robot_msg.radius = 0.3
-    return robot_msg
-
-
 class _PedestrianHelper:
 
     _ANIMATION_MAP = {
@@ -264,6 +251,20 @@ class HunavHumanSimulator(
     _arena_peds_publisher: rclpy.node.Publisher
     _wall_markers_publisher: rclpy.node.Publisher
 
+    _robot_msg: Agent
+
+    def _refresh_robot_msg(self) -> Agent:
+        """Update the shared robot Agent message"""
+        robot = next(iter(self.node.robots_manager.managers.values()), None)
+        if robot is None:
+            return self._robot_msg
+        self._robot_msg.radius = robot.radius
+        pose = robot.pose
+        if pose is not None:
+            self._robot_msg.position = pose.to_msg()
+            self._robot_msg.yaw = pose.orientation.to_yaw()
+        return self._robot_msg
+
     def __init__(self, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
         """Initialize HunavManager with debug logging"""
         super().__init__(*args, namespace=namespace, simulator=simulator, **kwargs)
@@ -272,6 +273,11 @@ class HunavHumanSimulator(
 
         self._logger.info("=== HUNAVMANAGER INIT START ===")
         self._logger.debug("Parent class initialized")
+
+        self._robot_msg = Agent()
+        self._robot_msg.id = 0
+        self._robot_msg.name = "robot"
+        self._robot_msg.type = Agent.ROBOT
 
         # Initialize collections
         self._logger.debug("Initializing collections...")
@@ -689,7 +695,7 @@ class HunavHumanSimulator(
 
                 # Create request
                 request = ComputeAgents.Request()
-                request.robot = _create_robot_message()
+                request.robot = self._refresh_robot_msg()
                 request.current_agents = self._agents_container
 
                 # Call HuNav service
@@ -927,7 +933,7 @@ class HunavHumanSimulator(
                         # Create request
                         request = ComputeAgents.Request()
                         request.current_agents = current_agents
-                        request.robot = _create_robot_message()
+                        request.robot = self._refresh_robot_msg()
                         response = await self._compute_agents_client.call_timeout(
                             request
                         )
