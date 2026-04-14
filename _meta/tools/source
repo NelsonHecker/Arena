@@ -92,7 +92,7 @@ _feature_registry(){
         ;;
     esac
 }
-export -f _feature_registry
+export -f _feature_registry 2>/dev/null || true
 
 export ARENA_MODELS_FORMATS="yaml,png,jpg,mdl"
 

@@ -41,7 +41,7 @@ arena_docker_compose(){
         --project-name "$ARENA_PROJECT_NAME" \
         "$@"
 }
-export -f arena_docker_compose
+export -f arena_docker_compose 2>/dev/null || true
 
 arena_service="arena"
 
