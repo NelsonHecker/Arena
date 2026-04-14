@@ -28,7 +28,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /build
 COPY src/Arena/pyproject.toml uv.lock* ./
 
-RUN uv venv /opt/venv
+RUN uv venv /opt/venv --system-site-packages
 
 
 # merge

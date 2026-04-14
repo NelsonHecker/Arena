@@ -124,6 +124,11 @@ if [ -f "$ARENA_WS_DIR/.env" ] ; then
     set +a
 fi
 
+_arena_heal_pip(){
+    python -c 'import pip.__main__' 2>/dev/null || python -m ensurepip --upgrade >/dev/null
+}
+export -f _arena_heal_pip 2>/dev/null || true
+
 if [ -z ${ARENA_SOURCED+x} ] ; then
 
     PS1_BACKUP=$PS1
@@ -134,7 +139,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     # python env
     pushd "$ARENA_DIR" > /dev/null || return 1
         if [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
-            uv venv "$ARENA_VENV_DIR" --allow-existing && \
+            uv venv "$ARENA_VENV_DIR" --allow-existing --system-site-packages && \
             UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project . && \
             touch "$ARENA_VENV_DIR/.installed"
         fi
@@ -190,6 +195,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
             update)
                 "${TOOLS_DIR}/pull" "$@"
                 result=$?
+                _arena_heal_pip
             ;;
             launch)
 		        killall -s 9 task_generator_node 2>/dev/null && sleep 1
@@ -294,3 +300,5 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     export PROMPT="(Arena) $PROMPT"
     echo 'sourced Arena environment'
 fi
+
+_arena_heal_pip
