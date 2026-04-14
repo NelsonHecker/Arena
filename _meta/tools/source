@@ -168,6 +168,16 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 . "$SOURCE_FILE"
                 result=$?
             ;;
+            rebuild)
+                for pkg in "$@"; do
+                    if [ -d "build/${pkg}" ] || [ -d "install/${pkg}" ]; then
+                        echo "cleaning build for ${pkg}..."
+                    fi
+                    rm -rf "build/${pkg}" "install/${pkg}"
+                done
+                arena build --packages-select "$@"
+                result=$?
+            ;;
             update)
                 "${TOOLS_DIR}/pull" "$@"
                 result=$?
