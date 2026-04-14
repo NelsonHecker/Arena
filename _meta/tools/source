@@ -169,14 +169,19 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 result=$?
             ;;
             rebuild)
-                for pkg in "$@"; do
-                    if [ -d "build/${pkg}" ] || [ -d "install/${pkg}" ]; then
-                        echo "cleaning build for ${pkg}..."
-                    fi
-                    rm -rf "build/${pkg}" "install/${pkg}"
-                done
-                arena build --packages-select "$@"
-                result=$?
+                if [ $# -lt 1 ]; then
+                    echo "Usage: arena rebuild <package1> [package2 ...]"
+                    result=1
+                else
+                    for pkg in "$@"; do
+                        if [ -d "build/${pkg}" ] || [ -d "install/${pkg}" ]; then
+                            echo "cleaning build for ${pkg}..."
+                        fi
+                        rm -rf "build/${pkg}" "install/${pkg}"
+                    done
+                    arena build --packages-select "$@"
+                    result=$?
+                fi
             ;;
             update)
                 "${TOOLS_DIR}/pull" "$@"
