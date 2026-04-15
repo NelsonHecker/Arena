@@ -39,6 +39,11 @@ dependencies = [
     "chromadb",
     "colourings",
     "aiofiles",
+    "pathfinding3d>=0.7.2",
+    "transformers>=5.5.4",
+    "diffusers>=0.37.1",
+    "rasterio>=1.5.0",
+    "pyglet>=2.1.14",
 ]
 
 [build-system]
