@@ -4,7 +4,7 @@ import time
 import chromadb
 import numpy as np
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
-from google import genai
+from task_generator.utils.gpt import genai
 from tqdm import tqdm
 
 EMBEDDING_MODEL = "gemini-embedding-001"
@@ -110,9 +110,7 @@ if __name__=="__main__":
     import os
     from arena_hunav_sim_bridge import CHROMA_DB_PATH
 
-    inference_client = genai.Client(
-        api_key=os.environ["GEMINI_API_KEY"]
-    )
+    inference_client = genai.Client()
     chroma_collection = get_chroma_collection(CHROMA_DB_PATH, inference_client)
 
     prompt="A group of 5 constructors rapidly organize themselves into a queue in the main central hallway, by the reception room door. As soon as a spot opens at the front, each person immediately steps forward, advancing in sequence toward the waiting area door. After reaching the front of the line, one person waits 20 seconds, then he enters the reception room, toward the reception counter, then he goes to main waiting area and find a seat that hasn't been taken. The lines continuously compress and move forward as people shuffle ahead whenever the person in front moves."

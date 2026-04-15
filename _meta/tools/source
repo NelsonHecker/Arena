@@ -258,6 +258,12 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                                 result=$?
                             fi
                         ;;
+                        uninstall)
+                            shift
+                            # shellcheck disable=SC1090
+                            source "$feature_path" uninstall "$@"
+                            result=$?
+                        ;;
                         *)
                             ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
                             result=$?

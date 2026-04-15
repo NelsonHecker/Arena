@@ -25,7 +25,8 @@ case "$1" in
     ;;
     uninstall)
         uninstall
-        exit $?
+        # shellcheck disable=SC2317
+        return $? 2>/dev/null || exit $?
     ;;
     source)
         return 0

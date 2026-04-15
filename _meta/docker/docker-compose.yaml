@@ -29,6 +29,7 @@ services:
       - HOST_UID
       - HOST_GID
       - HOST_ARENA_WS_DIR
+      - LLM_API_ENDPOINT
     env_file:
       - "$HOST_ARENA_WS_DIR/.env"
     user: "${HOST_UID}"
@@ -75,6 +76,7 @@ services:
       - HOST_UID
       - HOST_ARENA_WS_DIR
       - ROS_DOMAIN_ID=1
+      - LLM_API_ENDPOINT
     stdin_open: true 
     tty: true
     deploy:
@@ -84,9 +86,55 @@ services:
             - driver: nvidia
               capabilities: [gpu]
 
+  vllm:
+    image: vllm/vllm-openai:latest
+    profiles: [vllm]
+    network_mode: host
+    ipc: host
+    volumes:
+      - vllm-cache:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN
+    command:
+      - --model=${VLLM_MODEL:-Qwen/Qwen3-0.6B}
+      - --served-model-name=${VLLM_SERVED_MODEL_NAME:-qwen}
+      - --gpu-memory-utilization=${VLLM_GPU_MEMORY_UTILIZATION:-0.4}
+      - --max-model-len=${VLLM_MAX_MODEL_LEN:-4096}
+      - --dtype=${VLLM_DTYPE:-auto}
+      - --port=${VLLM_PORT:-8000}
+      - --reasoning-parser=${VLLM_REASONING_PARSER:-qwen3}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:${VLLM_PORT:-8000}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 8760h
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
+  vllm-proxy:
+    image: ghcr.io/berriai/litellm:main-stable
+    profiles: [vllm]
+    network_mode: host
+    depends_on: [vllm]
+    volumes:
+      - $HOST_ARENA_WS_DIR/src/Arena/_meta/docker/features/vllm/litellm.config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "${VLLM_PROXY_PORT:-4000}"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:${VLLM_PROXY_PORT:-4000}/health/liveliness\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
 volumes:
   shared:
     driver: local
     driver_opts:
       type: tmpfs
       device: tmpfs
+  vllm-cache:

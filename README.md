@@ -25,9 +25,26 @@ source arena
 arena feature isaac install # optional
 arena feature gazebo install # optional
 arena feature training install # optional
+arena feature vllm install # optional: local LLM backend
 ```
 
 We recommend installing at least one simulator.
+
+#### vllm
+
+Runs a local vLLM server plus a LiteLLM proxy that speaks the Gemini API, so GPT consumers in `task_generator` transparently hit local inference instead of Google. Defaults target an 11 GB 2080 Ti (Qwen3-0.6B, 40% GPU util).
+
+Tune via [`_meta/docker/features/vllm/config.yaml`](_meta/docker/features/vllm/config.yaml):
+
+| key | default | purpose |
+| --- | --- | --- |
+| `model` | `Qwen/Qwen3-0.6B` | HF model id |
+| `gpu_memory_utilization` | `0.4` | fraction of VRAM vllm may claim |
+| `max_model_len` | `4096` | context window |
+| `port` / `proxy_port` | `8000` / `4000` | vllm / LiteLLM ports |
+
+After editing, re-run `arena feature vllm update` to recreate the container.
+The container will start automatically on source and continue running in the background. To free up GPU memory, stop it with `arena feature docker stop`.
 
 ## Usage
 

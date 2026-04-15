@@ -13,7 +13,7 @@ import yaml
 
 import numpy as np
 
-from google import genai
+from task_generator.utils.gpt import genai
 
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 from ament_index_python.packages import get_package_share_directory
@@ -366,12 +366,16 @@ class TM_Prompt(TM_Obstacles):
             )
             split_prompt_answer = split_prompt_res.text
             assert split_prompt_answer is not None
-            if split_prompt_answer.startswith("```json"):
+            split_prompt_answer = split_prompt_answer.strip()
+            if split_prompt_answer.startswith("```"):
                 split_prompt_answer = (
-                    split_prompt_answer.strip("```json").strip("```").strip()
+                    split_prompt_answer.split("\n", 1)[1]
+                    if "\n" in split_prompt_answer
+                    else split_prompt_answer[3:]
                 )
-            elif split_prompt_answer.startswith("```"):
-                split_prompt_answer = split_prompt_answer.strip("```").strip()
+                if split_prompt_answer.endswith("```"):
+                    split_prompt_answer = split_prompt_answer[:-3]
+                split_prompt_answer = split_prompt_answer.strip()
             split_prompt_answer = json.loads(split_prompt_answer)
 
             prompt = split_prompt_answer["spotlight_agents_prompt"]
@@ -498,10 +502,12 @@ class TM_Prompt(TM_Obstacles):
             self._logger.info(f"Inference done, took: {end - start:.1f}s")
 
         assert answer is not None
-        if answer.startswith("```json"):
-            answer = answer.strip("```json").strip("```").strip()
-        elif answer.startswith("```"):
-            answer = answer.strip("```").strip()
+        answer = answer.strip()
+        if answer.startswith("```"):
+            answer = answer.split("\n", 1)[1] if "\n" in answer else answer[3:]
+            if answer.endswith("```"):
+                answer = answer[:-3]
+            answer = answer.strip()
 
         # Parse it into a Python dict
         config = self.llm_bt_output_to_config(
@@ -642,11 +648,7 @@ class TM_Prompt(TM_Obstacles):
             ),
         )
 
-        if "GEMINI_API_KEY" not in os.environ:
-            self._logger.error("GEMINI_API_KEY environment variable not set!")
-            raise OSError("GEMINI_API_KEY environment variable not set!")
-
-        self.inference_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        self.inference_client = genai.Client()
 
         try:
             caches = self.inference_client.caches.list()

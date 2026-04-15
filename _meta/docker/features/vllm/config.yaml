@@ -1,0 +1,7 @@
+model: Qwen/Qwen3-0.6B
+served_model_name: qwen
+gpu_memory_utilization: 0.4
+max_model_len: 4096
+dtype: auto
+port: 8000
+proxy_port: 4000
