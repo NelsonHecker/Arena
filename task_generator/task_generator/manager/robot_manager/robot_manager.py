@@ -1,8 +1,8 @@
 import asyncio
+import math
 import os
 import typing
 
-import action_msgs.msg
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
 import geometry_msgs.msg
@@ -52,7 +52,6 @@ class RobotManager(NodeInterface):
     _goal_pub: rclpy.publisher.Publisher
     _pub_goal_timer: rclpy.timer.Timer
     _clear_costmap_around_robot_srv: rclpy.client.Client
-    _is_goal_reached: bool
     _rate_setup: rclpy.timer.Rate
     _config: RobotView
 
@@ -121,7 +120,6 @@ class RobotManager(NodeInterface):
 
         self._start_pos = Pose()
         self._goal_pos = Pose()
-        self._is_goal_reached = False
         self._robot_radius = 0.25
 
         self._goal_tolerance_distance = self.node.conf.Robot.GOAL_TOLERANCE_RADIUS.value
@@ -168,13 +166,6 @@ class RobotManager(NodeInterface):
             geometry_msgs.msg.PoseStamped,
             _gen_goal_topic,
             10,
-        )
-
-        self.node.create_subscription(
-            action_msgs.msg.GoalStatusArray,
-            self.namespace('navigate_to_pose', '_action', 'status'),
-            self._goal_status_callback,
-            1
         )
 
         await self._launch_robot(node_names)
@@ -244,10 +235,32 @@ class RobotManager(NodeInterface):
     async def is_done(self) -> bool:
         """Check if the robot has reached its goal.
 
+        Done-detection uses TF + tolerance: compares the robot's current pose
+        (via :pyattr:`pose`) to :pyattr:`_goal_pos` against the configured
+        distance and (optional) angle tolerances. The pose accessor returns
+        ``None`` during reset windows; in that case the robot is treated as
+        not-done.
+
         Returns:
             bool: True if the goal is reached, False otherwise.
         """
-        return self._is_goal_reached
+        pose = self.pose
+        if pose is None:
+            return False
+
+        dx = pose.position.x - self._goal_pos.position.x
+        dy = pose.position.y - self._goal_pos.position.y
+        if math.hypot(dx, dy) > self._goal_tolerance_distance:
+            return False
+
+        if self._goal_tolerance_angle > 0:
+            dyaw = pose.orientation.to_yaw() - self._goal_pos.orientation.to_yaw()
+            # wrap to [-pi, pi]
+            dyaw = (dyaw + math.pi) % (2 * math.pi) - math.pi
+            if abs(dyaw) > self._goal_tolerance_angle:
+                return False
+
+        return True
 
     async def move_robot_to_pos(self, pose: Pose):
         """Move the robot to the specified pose.
@@ -346,17 +359,20 @@ class RobotManager(NodeInterface):
         """
         # only way to circumvent amcl absolutely trolling us is to create this loop
 
+        target = self._goal_pos
         with self.node.sim_time_rate(1.0, 60) as (done, rate):
             while not done.is_set():
                 await rate.get()
 
-                if self._is_goal_reached:
+                # Terminate when the goal has been superseded by a new reset.
+                # is-done is evaluated elsewhere by TM_Robots via the is_done
+                # property; the publish loop only keeps the current goal alive
+                # against amcl jitter until the next reset swaps _goal_pos.
+                if self._goal_pos is not target:
                     break
 
                 goal = self._goal_pos
                 self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
-
-                self._goal_pos = goal
 
                 if self._goal_timer is not None:
                     self._goal_timer.cancel()
@@ -420,15 +436,6 @@ class RobotManager(NodeInterface):
             self._logger.info(f'waiting for {bt_node_path}')
             while bt_node_path not in node_paths:
                 await asyncio.sleep(0.01)
-
-    def _goal_status_callback(self, data: action_msgs.msg.GoalStatusArray):
-        """Callback for goal status updates.
-
-        Args:
-            data(action_msgs.msg.GoalStatusArray): The goal status data.
-        """
-        last_goal = next(reversed(list(data.status_list)), None)
-        self._is_goal_reached = (last_goal is not None) and last_goal.status == action_msgs.msg.GoalStatus.STATUS_SUCCEEDED
 
     async def update(self):
         """Live - update some kwargs of robot

@@ -1,4 +1,3 @@
-import abc
 import asyncio
 import contextlib
 import os
@@ -43,9 +42,15 @@ class _RobotDiff:
     to_update: dict[str, Robot] = attrs.field(factory=dict)
 
 
-class RobotsManager(abc.ABC):
-    """Abstract base class for managing multiple robots.
+class RobotsManager(NodeInterface):
+    """Dynamically loads and manages multiple robots via ROS.
+
+    Args:
+        environment_manager (EnvironmentManager): The environment manager.
     """
+    _initialpose: typing.Generator
+    _robot_configurations: ROSParamT[_RobotDiff]
+    _diff: _RobotDiff
 
     @property
     def managers(self) -> dict[str, RobotManager]:
@@ -55,27 +60,6 @@ class RobotsManager(abc.ABC):
             dict[str, RobotManager]: The robot managers.
         """
         return self._managers
-
-    @abc.abstractmethod
-    async def set_up(self):
-        """Set up the robot managers.
-        """
-
-    def __init__(self, *args, environment_manager: EnvironmentManager, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._environment_manager: EnvironmentManager = environment_manager
-        self._managers: dict[str, RobotManager] = {}
-
-
-class RobotsManagerROS(NodeInterface, RobotsManager):
-    """ROS interface for dynamically loading multiple robots.
-
-    Args:
-        environment_manager (EnvironmentManager): The environment manager.
-    """
-    _initialpose: typing.Generator
-    _robot_configurations: ROSParamT[_RobotDiff]
-    _diff: _RobotDiff
 
     @contextlib.contextmanager
     def provide_node_paths(self, paths: set[str]):
@@ -220,6 +204,8 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
         return self._diff
 
     async def set_up(self):
+        """Set up the robot managers.
+        """
         futures: list[typing.Awaitable] = []
         for robot_name in self._diff.to_remove:
             futures.append(self.managers.pop(robot_name).destroy())
@@ -258,8 +244,10 @@ class RobotsManagerROS(NodeInterface, RobotsManager):
 
         self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, environment_manager: EnvironmentManager, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._environment_manager: EnvironmentManager = environment_manager
+        self._managers: dict[str, RobotManager] = {}
         self._initialpose = _initialpose_generator(-10, -10, -5)
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](

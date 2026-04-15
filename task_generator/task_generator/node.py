@@ -20,8 +20,7 @@ from task_generator.constants import Constants
 from task_generator.constants.runtime import Configuration
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.realizer import Realizer
-from task_generator.manager.robot_manager import RobotsManagerROS
-from task_generator.manager.robot_manager.robots_manager_ros import RobotsManager
+from task_generator.manager.robot_manager import RobotsManager
 from task_generator.manager.world_manager.world_manager_ros import (
     WorldManagerROS as WorldManager,
 )
@@ -169,7 +168,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         await self._world_manager.start()
 
         self._logger.info("Setting up robots manager")
-        self._robots_manager = RobotsManagerROS(
+        self._robots_manager = RobotsManager(
             node=self,
             environment_manager=self._environment_manager
         )

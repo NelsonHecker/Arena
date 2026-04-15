@@ -10,7 +10,7 @@ from arena_rclpy_mixins.shared import DefaultParameter
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
-from task_generator.manager.robot_manager.robots_manager_ros import RobotsManager
+from task_generator.manager.robot_manager import RobotsManager
 from task_generator.manager.world_manager.world_manager_ros import WorldManager
 from task_generator.shared import Pose
 from task_generator.tasks.registry import _TaskRegistry
