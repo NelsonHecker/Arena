@@ -1,0 +1,6 @@
+task_modes:
+  - kind: STRING
+    produces: GOTO_POSE
+    assignments:
+      - ROBOT_NAME
+    config: {}

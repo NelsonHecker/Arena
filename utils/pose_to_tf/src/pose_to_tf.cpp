@@ -9,12 +9,12 @@ public:
   PoseToTF()
   : Node("pose_to_tf")
   {
-    //Declare and get parameters
-    this->declare_parameter<std::string>("odom_frame", "odom");
-    odom_frame_ = this->get_parameter("odom_frame").as_string();
+    this->declare_parameter<std::string>("parent_frame", "odom");
+    this->declare_parameter<std::string>("child_frame", "base_link");
+    this->declare_parameter<std::string>("pose_topic", "pose");
 
-    // Subscribe to the robot's pose topic
-    this->declare_parameter<std::string>("pose_topic", "/jackal/pose");
+    parent_frame_ = this->get_parameter("parent_frame").as_string();
+    child_frame_ = this->get_parameter("child_frame").as_string();
     std::string pose_topic = this->get_parameter("pose_topic").as_string();
 
     subscription_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -27,14 +27,13 @@ private:
   {
     geometry_msgs::msg::TransformStamped transform_stamped;
 
-    transform_stamped.header.stamp = this->now();
-    transform_stamped.header.frame_id = "map";
-    transform_stamped.child_frame_id = odom_frame_;
+    transform_stamped.header.stamp = msg->header.stamp;
+    transform_stamped.header.frame_id = parent_frame_;
+    transform_stamped.child_frame_id = child_frame_;
 
     transform_stamped.transform.translation.x = msg->pose.position.x;
     transform_stamped.transform.translation.y = msg->pose.position.y;
     transform_stamped.transform.translation.z = msg->pose.position.z;
-
     transform_stamped.transform.rotation = msg->pose.orientation;
 
     tf_broadcaster_->sendTransform(transform_stamped);
@@ -42,7 +41,8 @@ private:
 
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscription_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
-  std::string odom_frame_;
+  std::string parent_frame_;
+  std::string child_frame_;
 };
 
 int main(int argc, char * argv[])

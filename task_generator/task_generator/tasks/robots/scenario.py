@@ -4,16 +4,11 @@ from arena_simulation_setup.tree.World.Scenario import RobotGoal
 
 from task_generator.shared import PositionRadius
 from task_generator.tasks.robots import TM_Robots
+from task_generator.tasks.robots.request import GoToPhase, TaskRequest
 
 
 class TM_Scenario(TM_Robots):
-    """
-    This class represents a scenario for robots in the task generator.
-    It inherits from TM_Robots class and Node class.
-
-    Attributes:
-        _config (Config): The configuration object for the scenario.
-    """
+    """Scenario task mode for robots."""
 
     _config: ROSParamT[list[RobotGoal]]
 
@@ -21,21 +16,10 @@ class TM_Scenario(TM_Robots):
         return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
 
     async def reset(self, **kwargs):
-        """
-        Resets the scenario.
-
-        Args:
-            kwargs: Additional keyword arguments.
-
-        Returns:
-            None
-        """
-
         await super().reset(**kwargs)
 
         SCENARIO_ROBOTS = self._config.value
 
-        # check robot manager length
         managed_robots = list(self._ctx.robots.values())
 
         scenario_robots_length = len(SCENARIO_ROBOTS)
@@ -52,7 +36,10 @@ class TM_Scenario(TM_Robots):
                 "Scenario file contains more robots than setup.", once=True)
 
         for robot, config in zip(managed_robots, SCENARIO_ROBOTS):
-            await robot.reset(start_pos=config.start, goal_pos=config.goal)
+            await robot.move(config.start)
+            await robot.submit_task(
+                TaskRequest(phases=[GoToPhase(pose=config.goal)])
+            )
             self._ctx.world_manager.forbid(
                 [
                     PositionRadius(

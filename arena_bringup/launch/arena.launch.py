@@ -47,6 +47,14 @@ def generate_launch_description():
         default_value='navfn',
         description='global planner type [navfn]'
     )
+    navigator = LaunchArgument(
+        name='navigator',
+        default_value='nav2',
+        description=(
+            'default navstack adapter kind [nav2, none, ...]. '
+            'per-robot ``navigator:`` in robot_setup YAML wins.'
+        ),
+    )
     sim = LaunchArgument(
         name='sim',
         default_value='dummy',  # todo select first installed simulator
@@ -79,6 +87,18 @@ def generate_launch_description():
     tm_robots = LaunchArgument(
         name='tm_robots',
         default_value='explore'
+    )
+    # Structured task_modes config path; when empty, the legacy
+    # ``tm_robots:=<kind>`` arg is synthesized into a one-element list.
+    # If both are explicitly set, task_config wins.
+    task_config = LaunchArgument(
+        name='task_config',
+        default_value='',
+        description=(
+            'Path to a task_modes YAML config '
+            '(see arena_bringup/configs/tasks/SCHEMA.yaml). '
+            'Empty = synthesize from legacy ``tm_robots`` arg.'
+        ),
     )
     tm_obstacles = LaunchArgument(
         name='tm_obstacles',
@@ -222,11 +242,13 @@ def generate_launch_description():
                     **human.dict,
                     **tm_obstacles.dict,
                     **tm_robots.dict,
+                    **task_config.dict,
                     **tm_modules.dict,
                     **robot.dict,
                     **inter_planner.dict,
                     **local_planner.dict,
                     **global_planner.dict,
+                    **navigator.dict,
                     **world.dict,
                     **record_data_dir.dict,
                     **debug.dict,

@@ -8,9 +8,6 @@ import typing
 
 import arena_robots.Robot
 import launch_ros
-import rclpy.time
-import rclpy.duration
-import tf2_ros
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from ros_gz_interfaces.msg import Entity as EntityMsg
@@ -479,6 +476,41 @@ class GazeboSimulator(BaseSim):
                 ],
             )
         )
+        # pose_to_tf: publish odom→base_link from Gazebo's ground-truth pose
+        # so downstream localization is not contaminated by wheel-slip odometry.
+        # DiffDrive's own TF is suppressed via <tf_topic>/discard_tf</tf_topic>
+        # in each robot's gazebo file.
+        launch_description.add_action(
+            launch_ros.actions.Node(
+                package="pose_to_tf",
+                executable="pose_to_tf",
+                name="pose_to_tf",
+                output="screen",
+                parameters=[{
+                    "use_sim_time": True,
+                    "parent_frame": robot.frame(robot_config.model_params.odom_frame).raw(),
+                    "child_frame": robot.frame(robot_config.model_params.base_frame).raw(),
+                    "pose_topic": "pose",
+                }],
+            )
+        )
+        # Static identity map→odom. pose_to_tf already publishes odom→base_link =
+        # robot's world pose, and map coincides with world, so this makes
+        # map→base_link track ground truth with no per-reset recomputation.
+        launch_description.add_action(
+            launch_ros.actions.Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="map_to_odom_publisher",
+                arguments=[
+                    "0", "0", "0",
+                    "0", "0", "0", "1",
+                    "map",
+                    robot.frame(robot_config.model_params.odom_frame).raw(),
+                ],
+                parameters=[{"use_sim_time": True}],
+            )
+        )
 
         # launch_description.add_action(
         #     launch_ros.actions.Node(
@@ -505,92 +537,6 @@ class GazeboSimulator(BaseSim):
             qos_profile=1,
         ).publish(pose)
 
-    @staticmethod
-    def _quaternion_to_yaw(qx, qy, qz, qw):
-        """Extract yaw angle from quaternion."""
-        siny_cosp = 2 * (qw * qz + qx * qy)
-        cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
-        return math.atan2(siny_cosp, cosy_cosp)
-
-    @staticmethod
-    def _yaw_to_quaternion(yaw):
-        """Convert yaw angle to quaternion (x, y, z, w)."""
-        return 0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)
-
-    def _compute_map_to_odom_tf(
-        self,
-        desired_x, desired_y, desired_z,
-        desired_qx, desired_qy, desired_qz, desired_qw,
-        odom_frame_name: str,
-        base_frame_name: str,
-    ):
-        """Compute the correct map→odom TF accounting for current DiffDrive odom.
-
-        The DiffDrive odometry plugin integrates wheel rotations and does NOT
-        reset when the robot is teleported. So after teleportation, the odom
-        frame still has the accumulated wheel motion offset. We must compute:
-            map_to_odom = desired_map_pose * inv(current_odom_to_base)
-        so that the robot appears at the desired position in the map frame.
-
-        Returns:
-            tuple: (tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw)
-        """
-        try:
-            # Look up odom → base_link TF (the current DiffDrive odom value)
-            odom_tf = self.node.tf_buffer.lookup_transform(
-                odom_frame_name,
-                base_frame_name,
-                rclpy.time.Time(),  # latest available
-                timeout=rclpy.duration.Duration(seconds=2.0),
-            )
-
-            odom_x = odom_tf.transform.translation.x
-            odom_y = odom_tf.transform.translation.y
-            odom_yaw = self._quaternion_to_yaw(
-                odom_tf.transform.rotation.x,
-                odom_tf.transform.rotation.y,
-                odom_tf.transform.rotation.z,
-                odom_tf.transform.rotation.w,
-            )
-
-            desired_yaw = self._quaternion_to_yaw(
-                desired_qx, desired_qy, desired_qz, desired_qw,
-            )
-
-            # Compute map→odom TF: desired_map_pos = TF * odom_pos
-            # Orientation: tf_yaw = desired_yaw - odom_yaw
-            tf_yaw = desired_yaw - odom_yaw
-
-            # Position: desired = tf_translation + R(tf_yaw) * odom_translation
-            # => tf_translation = desired - R(tf_yaw) * odom_translation
-            cos_tf = math.cos(tf_yaw)
-            sin_tf = math.sin(tf_yaw)
-            tf_x = desired_x - (odom_x * cos_tf - odom_y * sin_tf)
-            tf_y = desired_y - (odom_x * sin_tf + odom_y * cos_tf)
-            tf_z = desired_z
-
-            tf_qx, tf_qy, tf_qz, tf_qw = self._yaw_to_quaternion(tf_yaw)
-
-            self._logger.info(
-                f"Corrected map→odom TF: "
-                f"odom=({odom_x:.2f}, {odom_y:.2f}, {math.degrees(odom_yaw):.1f}°) "
-                f"desired=({desired_x:.2f}, {desired_y:.2f}) "
-                f"TF=({tf_x:.2f}, {tf_y:.2f}, {math.degrees(tf_yaw):.1f}°)"
-            )
-
-            return tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw
-
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException) as e:
-            self._logger.warn(
-                f"Could not look up odom TF ({odom_frame_name} → {base_frame_name}), "
-                f"using desired position directly (OK for first spawn): {e}"
-            )
-            # Fallback: use desired position directly (correct when odom = identity)
-            return (
-                desired_x, desired_y, desired_z,
-                desired_qx, desired_qy, desired_qz, desired_qw,
-            )
 
     async def _robot_move(self, robot: Robot) -> bool:
         name = robot.name
@@ -626,45 +572,6 @@ class GazeboSimulator(BaseSim):
                 self._logger.error(
                     f"Failed to set initial pose for {name} after {max_attempts} attempts"
                 )
-
-            robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
-            odom_frame = robot_config.model_params.odom_frame
-            base_frame = robot_config.model_params.base_frame
-
-            odom_frame_name = robot.frame(odom_frame).raw()
-            base_frame_name = robot.frame(base_frame).raw()
-
-            # Compute the correct map→odom TF accounting for DiffDrive odom offset
-            tf_x, tf_y, tf_z, tf_qx, tf_qy, tf_qz, tf_qw = self._compute_map_to_odom_tf(
-                desired_x=robot.pose.position.x,
-                desired_y=robot.pose.position.y,
-                desired_z=robot.pose.position.z,
-                desired_qx=robot.pose.orientation.x,
-                desired_qy=robot.pose.orientation.y,
-                desired_qz=robot.pose.orientation.z,
-                desired_qw=robot.pose.orientation.w,
-                odom_frame_name=odom_frame_name,
-                base_frame_name=base_frame_name,
-            )
-
-            transform_pub_node = launch_ros.actions.Node(
-                package="tf2_ros",
-                executable="static_transform_publisher",
-                name="map_to_odomframe_publisher",
-                arguments=[
-                    str(tf_x),
-                    str(tf_y),
-                    str(tf_z),
-                    str(tf_qx),
-                    str(tf_qy),
-                    str(tf_qz),
-                    str(tf_qw),
-                    "map",
-                    robot.frame(odom_frame).raw(),
-                ],
-                parameters=[{"use_sim_time": True}],
-            )
-            await self.node.do_launch(launch.LaunchDescription([transform_pub_node]))
 
             return True
 

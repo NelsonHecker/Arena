@@ -80,7 +80,7 @@ def Configuration(server: ROSParamServer):
 
             GOAL_TOLERANCE_ANGLE = server.ROSParam[float](
                 'goal_tolerance_angle',
-                30.0 * np.pi / 360.,
+                30.0 * np.pi / 180.,
             )
 
             SPAWN_ROBOT_SAFE_DIST = server.ROSParam[float](
@@ -118,6 +118,11 @@ def Configuration(server: ROSParamServer):
             BEHAVIOR = server.ROSParam[str](
                 'inter_planner',
                 '',
+            )
+
+            NAVIGATOR = server.ROSParam[str](
+                'navigator',
+                'nav2',
             )
 
         class TaskMode:

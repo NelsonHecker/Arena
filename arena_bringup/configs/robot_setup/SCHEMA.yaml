@@ -5,3 +5,7 @@
       amount: NUMBER
       model: ROBOT_MODEL
       planner: LOCAL_PLANNER
+      navigator: nav2
+      # capabilities:
+      #   - kind: nav2
+      #   - kind: none

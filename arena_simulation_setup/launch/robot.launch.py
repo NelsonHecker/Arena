@@ -25,13 +25,12 @@ def generate_launch_description():
     robot = LaunchArgument("robot")
     frame = LaunchArgument("frame")
 
-    global_planner = LaunchArgument("global_planner")
-    local_planner = LaunchArgument("local_planner")
-    inter_planner = LaunchArgument("inter_planner", default_value="navigate_to_pose")
-
     record_data_dir = LaunchArgument('record_data_dir', default_value='')
-    amcl = LaunchArgument('amcl', default_value='false')
     train_mode = LaunchArgument('train_mode', default_value='false')
+
+    # `local_planner` is read only for the rosnav_rl action-server condition
+    # below; the adapter navstack dispatch lives in RobotManager Python.
+    local_planner = LaunchArgument("local_planner", default_value='')
     agents_dir = LaunchArgument(
         'agents_dir',
         default_value=launch.substitutions.EnvironmentVariable('ROSNAV_AGENTS_DIR', default_value=''),
@@ -40,30 +39,6 @@ def generate_launch_description():
             'Forwarded as ROSNAV_AGENTS_DIR to the action server. '
             'Defaults to the ROSNAV_AGENTS_DIR env var.'
         ),
-    )
-
-    # Include the Nav2 launch file
-    nav2_launch = launch.actions.IncludeLaunchDescription(
-        launch.launch_description_sources.PythonLaunchDescriptionSource(
-            launch.substitutions.PathJoinSubstitution(
-                [
-                    ss_path,
-                    "launch",
-                    "nav2.launch.py",
-                ]
-            )),
-        launch_arguments={
-            **use_sim_time.dict,
-            **robot.dict,
-            **task_generator_node.dict,
-            **namespace.dict,
-            **global_planner.dict,
-            **local_planner.dict,
-            **inter_planner.dict,
-            **frame.dict,
-            **amcl.dict,
-            **train_mode.dict,
-        }.items(),
     )
 
     # launch robot control
@@ -126,7 +101,6 @@ def generate_launch_description():
         ),
         PushRosNamespace(namespace=namespace.substitution),
         # robot_localization_node,
-        nav2_launch,
         # state_pub_launch,
         rosnav_rl_action_server,
         data_recorder,
