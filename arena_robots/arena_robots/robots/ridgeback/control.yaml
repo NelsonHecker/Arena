@@ -18,7 +18,7 @@ ridgeback_velocity_controller:
   linear:
     x:
       has_velocity_limits    : true
-      max_velocity          : 1.1   # Ridgeback官方最大速度
+      max_velocity          : 1.1   # Ridgeback spec max speed
       min_velocity          : -1.1
       has_acceleration_limits: true
       max_acceleration      : 2.0

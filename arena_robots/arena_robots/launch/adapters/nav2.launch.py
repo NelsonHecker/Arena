@@ -1,9 +1,5 @@
 """Nav2 adapter launch."""
 
-import tempfile
-
-import launch
-import yaml
 from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import (
     LaunchArgument,
@@ -12,6 +8,7 @@ from arena_bringup.substitutions import (
     YAMLReplaceSubstitution,
     YAMLRetrieveSubstitution,
 )
+from arena_robots.nav2 import Nav2SubBlockYAML, SensorsDerivedYAML
 from launch.actions import GroupAction
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node, SetRemap
@@ -20,38 +17,6 @@ from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import RewrittenYaml
 
 from launch import LaunchDescription
-
-
-class _SensorsDerivedYAML(YAMLFileSubstitution):
-    """Read `sensors:` from a model_params.yaml and emit
-    observation_sources_string / observation_sources / observation_sources_dict
-    as a temp YAML file consumable by YAMLMergeSubstitution.
-
-    Nav2's costmap layers want both the source-name list (string and list form)
-    and a per-source param dict; deriving them from one `sensors:` declaration
-    keeps the three blocks in sync.
-    """
-
-    def __init__(self, model_params_path: launch.SomeSubstitutionsType):
-        super().__init__(path=[], default={}, substitute=False)
-        self._mp_path = launch.utilities.normalize_to_list_of_substitutions(model_params_path)
-
-    def perform(self, context: launch.LaunchContext):
-        mp = launch.utilities.perform_substitutions(context, self._mp_path)
-        with open(mp) as f:
-            data = yaml.safe_load(f) or {}
-        from arena_robots.Robot import ModelParams, compile_sensors_to_nav2
-        sensors = ModelParams(data).sensors
-        names = [s.name for s in sensors]
-        derived = {
-            'observation_sources_string': ' '.join(names),
-            'observation_sources': list(names),
-            'observation_sources_dict': compile_sensors_to_nav2(sensors),
-        }
-        tmp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.yaml')
-        yaml.dump(derived, tmp)
-        tmp.close()
-        return tmp.name
 
 
 def generate_launch_description():
@@ -73,8 +38,8 @@ def generate_launch_description():
     def nav2_cfg(*parts):
         return PathJoinSubstitution([robots_root, 'config', 'nav2', *parts])
 
-    model_params_path = PathJoinSubstitution([
-        robots_root, 'robots', robot.substitution, 'model_params.yaml'
+    mobile_path = PathJoinSubstitution([
+        robots_root, 'robots', robot.substitution, 'caps', 'mobile.yaml'
     ])
     interplanner_cfg = nav2_cfg('interplanners', inter_planner.substitution, 'interplanner_config.yaml')
     interplanner_yaml = YAMLFileSubstitution(interplanner_cfg)
@@ -84,10 +49,9 @@ def generate_launch_description():
 
     substitutions = YAMLMergeSubstitution(
         YAMLFileSubstitution(nav2_cfg('defaults', 'model_params.yaml')),
-        YAMLFileSubstitution(model_params_path),
-        # Derive observation_sources{,_string,_dict} from the robot's `sensors:`
-        # declaration so the three nav2 forms stay in sync from one source.
-        _SensorsDerivedYAML(model_params_path),
+        YAMLFileSubstitution(mobile_path),
+        Nav2SubBlockYAML(mobile_path),
+        SensorsDerivedYAML(mobile_path),
         YAMLFileSubstitution(nav2_cfg('defaults', 'controller_config.yaml')),
         YAMLFileSubstitution(nav2_cfg('controllers', local_planner.substitution, 'controller_config.yaml')),
         YAMLFileSubstitution(nav2_cfg('defaults', 'planner_config.yaml')),

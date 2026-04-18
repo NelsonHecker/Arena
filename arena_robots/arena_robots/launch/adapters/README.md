@@ -55,7 +55,7 @@ class MyAdapter(Adapter):
 | Field | Source |
 | --- | --- |
 | `namespace`, `robot_name`, `frame` | robot instance |
-| `base_frame`, `odom_frame`, `sensors` | robot's `model_params.yaml` |
+| `base_frame`, `odom_frame`, `sensors` | robot's `caps/mobile.yaml` (forwarded by `ModelParams` accessors) |
 | `use_sim_time`, `task_generator_node` | task_generator runtime |
 | `tf_buffer`, `node_handle` | shared rclpy resources |
 

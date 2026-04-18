@@ -29,7 +29,7 @@
   # 2D LaserScan  (Gazebo -> ROS2)
   {
     "gz_topic": "{world}/model/{robot_name}/link/base_link/sensor/gpu_lidar/scan",
-    "ros_topic": "lidar",   # FIXME: 若话题名不同请修改
+    "ros_topic": "lidar",   # FIXME: update if topic name differs
     "ros_type": "sensor_msgs/msg/LaserScan",
     "gz_type": "gz.msgs.LaserScan",
     "direction": "[",

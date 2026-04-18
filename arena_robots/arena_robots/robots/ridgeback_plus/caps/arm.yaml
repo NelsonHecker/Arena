@@ -1,0 +1,16 @@
+arm:
+  base_link: chassis_link
+  tip_link: arm_tool0
+  chain:
+    - arm_shoulder_pan_joint
+    - arm_shoulder_lift_joint
+    - arm_elbow_joint
+    - arm_wrist_1_joint
+    - arm_wrist_2_joint
+    - arm_wrist_3_joint
+  controller: arm_controller
+  moveit:
+    package: ur_moveit_config
+    args:
+      ur_type: ur5e
+      safety_limits: true

@@ -10,7 +10,7 @@
   <xacro:include filename="$(find arena_robots)/robots/rbrobout/urdf/bases/rbrobout/rbrobout_base.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/rbrobout/urdf/bases/rbrobout/rbrobout_top_cover.urdf.xacro" />
 
-  <xacro:include filename="$(find arena_robots)/robots/rbrobout/urdf/base_hw/rbrobout.ros2_control.urdf" />
+  <xacro:include filename="$(find arena_robots)/robots/rbrobout_plus/urdf/base_hw/rbrobout_plus.ros2_control.urdf" />
   <xacro:include filename="$(find arena_robots)/robots/rbrobout/simulators/gazebo_classic/rbrobout/rbrobout_control.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/rbrobout/simulators/gazebo_ignition/rbrobout/rbrobout_control.urdf.xacro" />
   

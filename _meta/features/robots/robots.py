@@ -13,6 +13,8 @@ from pathlib import Path
 
 ROBOTS_PREFIX = "arena_robots/arena_robots/robots"
 
+EXIT_NEEDS_DEPS = 10  # main script runs `arena deps` when seen
+
 MESH_URI_RE = re.compile(r'package://arena_robots/([^\s"\'<>\)\}\$]+)')
 FIND_URI_RE = re.compile(r'\$\(find\s+arena_robots\)/([^\s"\'<>\)\}\$]+)')
 DYN_RE = re.compile(r'\$\{|\$\(')
@@ -46,7 +48,8 @@ def submodule_status(arena: Path) -> dict[str, str]:
 
 
 def robot_submodules(arena: Path) -> dict[str, list[str]]:
-    """{robot: [paths]} — union of path-prefix under ROBOTS_PREFIX and `robot =` attribute."""
+    """{robot: [paths]} — union of path-prefix under ROBOTS_PREFIX and `robot =` attribute.
+    `robot =` may list multiple whitespace-separated names (shared upstream dep)."""
     cfg = configparser.ConfigParser()
     cfg.read(arena / ".gitmodules")
     out: dict[str, list[str]] = {}
@@ -56,13 +59,23 @@ def robot_submodules(arena: Path) -> dict[str, list[str]]:
         path = cfg[section].get("path", "").strip()
         if not path:
             continue
-        robot = cfg[section].get("robot", "").strip() or None
-        if robot is None:
+        robots = cfg[section].get("robot", "").split()
+        if not robots:
             rel = path.removeprefix(f"{ROBOTS_PREFIX}/")
             if rel == path:
                 continue
-            robot = rel.split("/", 1)[0]
-        out.setdefault(robot, []).append(path)
+            robots = [rel.split("/", 1)[0]]
+        for robot in robots:
+            out.setdefault(robot, []).append(path)
+    return out
+
+
+def _path_robots(arena: Path) -> dict[str, set[str]]:
+    """{path: {robots tagging it}} — reverse of robot_submodules for sharing checks."""
+    out: dict[str, set[str]] = {}
+    for robot, paths in robot_submodules(arena).items():
+        for p in paths:
+            out.setdefault(p, set()).add(robot)
     return out
 
 
@@ -89,26 +102,46 @@ def cmd_ls(arena: Path, _args) -> int:
 
 def cmd_add(arena: Path, args) -> int:
     subs = robot_submodules(arena)
-    for robot in args.names:
+    if args.all:
+        if args.names:
+            print("robots: --all is mutually exclusive with robot names", file=sys.stderr)
+            return 2
+        names = sorted(subs)
+    else:
+        if not args.names:
+            print("robots: specify robot name(s) or --all", file=sys.stderr)
+            return 2
+        names = args.names
+    status_before = submodule_status(arena)
+    newly_init = False
+    for robot in names:
         paths = subs.get(robot)
         if not paths:
             print(f"robots: '{robot}' has no submodules — nothing to install")
             continue
         for p in paths:
-            # --checkout overrides .gitmodules update=none for this invocation
+            if status_before.get(p) == "uninit":
+                newly_init = True
             _git(["-c", "protocol.file.allow=always",
                   "submodule", "update", "--init", "--checkout", p], arena)
-    return 0
+    return EXIT_NEEDS_DEPS if newly_init else 0
 
 
 def cmd_rm(arena: Path, args) -> int:
     subs = robot_submodules(arena)
+    shared = _path_robots(arena)
     for robot in args.names:
         paths = subs.get(robot)
         if not paths:
             print(f"robots: '{robot}' has no submodules — nothing to remove")
             continue
         for p in paths:
+            others = shared.get(p, set()) - {robot}
+            if others and not args.force:
+                print(f"robots: keeping '{p}' (still tagged by: {', '.join(sorted(others))})")
+                continue
+            if others:
+                print(f"robots: force-removing '{p}' (also pending: {', '.join(sorted(others))})")
             _git(["submodule", "deinit", "-f", p], arena, check=False)
     return 0
 
@@ -209,9 +242,13 @@ def main() -> int:
     sub.add_parser("ls")
     sub.add_parser("update")
     sub.add_parser("uninstall")
-    for verb in ("add", "rm"):
-        p = sub.add_parser(verb)
-        p.add_argument("names", nargs="+")
+    p_add = sub.add_parser("add")
+    p_add.add_argument("names", nargs="*")
+    p_add.add_argument("--all", action="store_true", help="fetch every robot")
+    p_rm = sub.add_parser("rm")
+    p_rm.add_argument("names", nargs="+")
+    p_rm.add_argument("-f", "--force", action="store_true",
+                      help="deinit shared paths too; co-tagged robots become pending")
     p = sub.add_parser("check")
     p.add_argument("--all", action="store_true")
     p.add_argument("-q", "--quiet", action="store_true")

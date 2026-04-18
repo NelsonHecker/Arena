@@ -27,5 +27,5 @@ planner_plugins_dict:
 
 footprint: "[ [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1] ]"
 
-robot_base_frame: 'base_link'
-robot_odom_frame: 'odom'
+base_frame: 'base_link'
+odom_frame: 'odom'

@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<robot name="ridgeback_plus" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:arg name="gazebo_classic" default="false"/>
+  <xacro:arg name="gazebo_ignition" default="false"/>
+
+  <ros2_control name="ridgeback_plus_arm" type="system">
+    <hardware>
+      <xacro:if value="$(arg gazebo_classic)">
+        <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+      </xacro:if>
+      <xacro:unless value="$(arg gazebo_classic)">
+        <xacro:if value="$(arg gazebo_ignition)">
+          <plugin>ign_ros2_control/IgnitionSystem</plugin>
+        </xacro:if>
+        <xacro:unless value="$(arg gazebo_ignition)">
+          <plugin>mock_components/GenericSystem</plugin>
+        </xacro:unless>
+      </xacro:unless>
+    </hardware>
+
+    <joint name="arm_shoulder_pan_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="arm_shoulder_lift_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="arm_elbow_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="arm_wrist_1_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="arm_wrist_2_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="arm_wrist_3_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+</robot>

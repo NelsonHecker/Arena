@@ -22,7 +22,12 @@ fi
 case "$1" in
     update|add|rm|ls|check)
         python3 "$_py" "$@"
-        exit $?
+        rc=$?
+        if [ "$rc" -eq 10 ]; then
+            arena deps
+            exit $?
+        fi
+        exit "$rc"
     ;;
     uninstall)
         python3 "$_py" uninstall

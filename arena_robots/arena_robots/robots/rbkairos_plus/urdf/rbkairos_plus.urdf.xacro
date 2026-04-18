@@ -9,7 +9,7 @@
 
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/bases/rbkairos/rbkairos_base.urdf.xacro" />
 
-  <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/base_hw/rbkairos.ros2_control.urdf" />
+  <xacro:include filename="$(find arena_robots)/robots/rbkairos_plus/urdf/base_hw/rbkairos_plus.ros2_control.urdf" />
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/simulators/gazebo_classic/rbkairos/rbkairos_control.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/simulators/gazebo_ignition/rbkairos/rbkairos_control.urdf.xacro" />
 

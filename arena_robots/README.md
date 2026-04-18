@@ -21,7 +21,8 @@ deps):
 ```
 arena feature robots ls                 # [x] ready / [ ] pending per robot
 arena feature robots add <name...>      # fetch robot's submodules
-arena feature robots rm <name...>       # deinit robot's submodules
+arena feature robots add --all          # fetch every robot
+arena feature robots rm [-f] <name...>  # deinit robot's submodules (-f: shared paths too)
 arena feature robots check [--all]      # verify package:// URIs resolve
 arena feature robots update             # refresh initialized submodules
 ```
@@ -40,7 +41,9 @@ points for everything downstream:
   robot name to its directory via `SimplePathResolver` pointed at
   `get_package_share_path('arena_robots') / 'robots'`, and `.load()` returns
   a `RobotView` that lazy-reads `model_params.yaml` / `control.yaml` /
-  `mappings.yaml` and exposes a `ModelWrapper` covering URDF and USD.
+  `mappings.yaml` / `caps/*.yaml` and exposes a `ModelWrapper` covering URDF
+  and USD. Cap advertisement is derived from the `caps/` tree — see the
+  [robot-authoring guide](arena_robots/robots/README.md).
 - **`RobotSetupIdentifier`** ([SetupFile.py](arena_robots/SetupFile.py)) —
   resolves a setup name to `config/setup/<name>.yaml` and returns a
   `list[Config]`, one per spawned instance (after `count` expansion). See

@@ -1,3 +1,4 @@
+import functools
 import typing
 from pathlib import Path
 
@@ -10,33 +11,76 @@ from arena_simulation_setup.utils.models.model_loader import (
     ModelProvider_URDF,
     ModelProvider_USD,
 )
-from arena_robots.Sensor import SensorSpec, SensorType
+from arena_robots.Sensor import SensorSpec
+from arena_robots.caps import RobotCaps
 
 
 class ModelParams(dict[str, typing.Any]):
+    """Robot-wide identity (from ``model_params.yaml``) with typed accessors
+    that delegate to the sibling ``caps/`` tree for mobile primitives.
+
+    Constructed via :meth:`from_yaml` which records the file path; the
+    ``caps`` cached property resolves ``<path>.parent / 'caps'`` so every
+    ``ModelParams`` that came from disk can see its robot's cap tree without
+    external wiring."""
+
+    _path: Path | None = None
+
     @classmethod
-    def from_yaml(cls, path: str) -> 'ModelParams':
+    def from_yaml(cls, path: str | Path) -> 'ModelParams':
+        path = Path(path)
         with open(path) as f:
             data = yaml.safe_load(f)
-            if not isinstance(data, dict):
-                raise ValueError(f"Top-level structure in {path} must be a mapping")
-            return cls(data)
+        if not isinstance(data, dict):
+            raise ValueError(f"Top-level structure in {path} must be a mapping")
+        inst = cls(data)
+        inst._path = path
+        return inst
+
+    @functools.cached_property
+    def caps(self) -> RobotCaps:
+        """Lazy view over ``<robot_dir>/caps/``. Empty if this ``ModelParams``
+        wasn't loaded from disk or the caps dir doesn't exist."""
+        caps_dir = (
+            self._path.parent / 'caps' if self._path is not None else Path('/dev/null')
+        )
+        return RobotCaps(caps_dir=caps_dir)
+
+    def _mobile(self):
+        if 'mobile' not in self.caps.available:
+            return None
+        return self.caps.mobile
 
     @property
     def base_frame(self) -> str:
+        m = self._mobile()
+        if m is not None:
+            return m.base_frame
         return self.get('robot_base_frame', 'base_link')
 
     @property
     def odom_frame(self) -> str:
+        m = self._mobile()
+        if m is not None:
+            return m.odom_frame
         return self.get('robot_odom_frame', 'odom')
 
     @property
     def z_offset(self) -> float:
-        return self.get('z_offset', 0.0)
+        m = self._mobile()
+        if m is not None:
+            return m.z_offset
+        return float(self.get('z_offset', 0.0))
 
     @property
     def actuator_caps(self) -> frozenset[str]:
-        """Actuator-capability set this robot honors; defaults to {"mobile"}."""
+        """Authoritative cap advertisement. Derived from caps/*.yaml filenames
+        when the directory exists; falls back to the legacy explicit list for
+        pre-migration robots."""
+        if self._caps is not None:
+            declared = self._caps.available
+            if declared:
+                return declared
         raw = self.get('actuator_caps', ['mobile'])
         if not isinstance(raw, (list, tuple, set, frozenset)):
             raise ValueError(
@@ -52,7 +96,10 @@ class ModelParams(dict[str, typing.Any]):
 
     @property
     def sensors(self) -> list["SensorSpec"]:
-        """Declared sensors parsed into SensorSpec entries; extra keys are ignored."""
+        """Declared sensors parsed into SensorSpec entries."""
+        m = self._mobile()
+        if m is not None:
+            return m.sensors
         raw = self.get('sensors', [])
         if not isinstance(raw, list):
             raise ValueError(
@@ -92,47 +139,24 @@ class ModelParams(dict[str, typing.Any]):
         return [dict(entry) for entry in raw]
 
 
-def compile_sensors_to_nav2(
-    sensors: list["SensorSpec"],
-    *,
-    max_obstacle_height: float = 2.0,
-    clearing: bool = True,
-    marking: bool = True,
-) -> dict[str, dict[str, typing.Any]]:
-    """Compile Arena SensorSpec entries into nav2's observation_sources_dict shape."""
-    # Unknown type strings fall through unchanged so third-party sensor
-    # kinds nav2 understands keep working.
-    _TYPE_TO_NAV2: dict[str, str] = {
-        SensorType.LASERSCAN.value: "LaserScan",
-        SensorType.POINTCLOUD.value: "PointCloud2",
-        SensorType.IMAGE.value: "Image",
-        SensorType.DEPTH.value: "DepthImage",
-    }
-
-    out: dict[str, dict[str, typing.Any]] = {}
-    for spec in sensors:
-        type_str = (
-            spec.type.value
-            if isinstance(spec.type, SensorType)
-            else str(spec.type)
-        )
-        data_type = _TYPE_TO_NAV2.get(type_str, type_str)
-        out[spec.name] = {
-            "topic": spec.topic,
-            "data_type": data_type,
-            "max_obstacle_height": max_obstacle_height,
-            "clearing": clearing,
-            "marking": marking,
-        }
-    return out
-
-
 class RobotView(PathView):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._cached_params: ModelParams | None = None
         self._cached_control: dict | None = None
+
+    @property
+    def caps(self) -> RobotCaps:
+        """Lazy view over robots/<name>/caps/, equivalent to
+        ``self.model_params.caps`` — exposed directly on ``RobotView`` for
+        readability."""
+        return self.model_params.caps
+
+    @property
+    def actuator_caps(self) -> frozenset[str]:
+        """Authoritative cap advertisement, sourced from caps/*.yaml filenames."""
+        return self.caps.available
 
     @property
     def model_params(self) -> ModelParams:
@@ -142,7 +166,7 @@ class RobotView(PathView):
                 raise FileNotFoundError(
                     f"model_params.yaml not found for robot '{self.name}' at {path}"
                 )
-            self._cached_params = ModelParams.from_yaml(str(path))
+            self._cached_params = ModelParams.from_yaml(path)
         return self._cached_params
 
     @property
