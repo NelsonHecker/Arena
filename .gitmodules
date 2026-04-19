@@ -1,16 +1,20 @@
 [submodule "arena_tools"]
 	path = arena_tools
 	url = https://github.com/voshch/arena-tools.git
+	update = none
 [submodule "arena_isaac"]
 	path = arena_isaac
 	url = https://github.com/Arena-Rosnav/arena-isaac
+	update = none
 [submodule "arena_evaluation"]
 	path = arena_evaluation
 	url = https://github.com/voshch/arena-evaluation.git
+	update = none
 [submodule "arena_training"]
 	path = arena_training
 	url = https://github.com/Arena-Rosnav/Arena-Training.git
 	branch = main
+	update = none
 [submodule "arena_robots/deps/jackal"]
 	path = arena_robots/deps/jackal
 	url = https://github.com/jackal/jackal.git
