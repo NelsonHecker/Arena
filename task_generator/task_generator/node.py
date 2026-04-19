@@ -183,8 +183,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
             self._start_time = self.sim_time
 
-            await self._simulator.before_reset_task()
-
             self.get_logger().info("resetting")
 
             await self._task.reset(**kwargs)
@@ -192,8 +190,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             self._pub_task_reset.publish(Int16(data=self._number_of_resets))
             self._number_of_resets += 1
             self._send_end_message_on_end()
-
-            await self._simulator.after_reset_task()
 
             self.get_logger().warn("=============")
             self.get_logger().warn("Task Reset!")

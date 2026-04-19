@@ -6,7 +6,7 @@ A modular ROS 2 (Humble) platform for researching and benchmarking autonomous ro
 
 ## Installation
 
-Preqeuisites: [Docker](https://docs.docker.com/engine/install/) installation with [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) for GPU support. Current user must be in group `docker`.
+Prerequisites: [Docker](https://docs.docker.com/engine/install/) installation with [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) for GPU support. Current user must be in group `docker`.
 Afterwards, run the following commands to install Arena:
 
 ### Basic Installation
@@ -62,7 +62,7 @@ Place your trained agent folder inside `Arena/arena_training/agents/<agent_name>
 
 ## Troubleshooting
 
-### Unknown runtime speficied 'nvidia'
+### Unknown runtime specified 'nvidia'
 
 ```sh
 sudo nvidia-ctk runtime configure --runtime=docker

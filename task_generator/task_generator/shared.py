@@ -36,10 +36,17 @@ class Robot(Entity):
     local_planner: str
     global_planner: str
     agent: str
+    navigator: str = 'nav2'
     record_data_dir: Optional[str] = None
 
     def compatible(self, value: Robot) -> bool:
-        return self.model.name == value.model.name and self.local_planner == value.local_planner and self.global_planner == value.global_planner and self.agent == value.agent
+        return (
+            self.model.name == value.model.name
+            and self.local_planner == value.local_planner
+            and self.global_planner == value.global_planner
+            and self.agent == value.agent
+            and self.navigator == value.navigator
+        )
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Robot):
@@ -65,6 +72,8 @@ class Robot(Entity):
             dict_value['local_planner'] = setup.controller
         if setup.planner is not None:
             dict_value['global_planner'] = setup.planner
+        if setup.navigator is not None:
+            dict_value['navigator'] = setup.navigator
         dict_value.update(setup.extra)
         dict_value['name'] = setup.name or ''
         return cls.parse(dict_value, node=node)
@@ -78,6 +87,12 @@ class Robot(Entity):
         local_planner = str(value.get("local_planner", node.conf.Robot.CONTROLLER.value))
         global_planner = str(value.get("global_planner", node.conf.Robot.PLANNER.value))
         agent = str(value.get("agent", node.conf.Robot.AGENT.value))
+        # CLI / YAML precedence for the navstack adapter: per-robot YAML
+        # wins; the ``navigator`` rosparam (set from the launch CLI) is
+        # the default only. Mirrors the same shape as ``local_planner``
+        # et al. — per-robot entry in robot_setup YAML overrides the
+        # node-level default.
+        navigator = str(value.get("navigator", node.conf.Robot.NAVIGATOR.value))
         record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
         return cls(
@@ -88,6 +103,7 @@ class Robot(Entity):
             global_planner=global_planner,
             model=RobotIdentifier.parse(model),
             agent=agent,
+            navigator=navigator,
             record_data_dir=record_data,
             extra=value,
         )

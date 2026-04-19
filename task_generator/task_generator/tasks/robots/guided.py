@@ -1,87 +1,25 @@
 from task_generator.shared import Pose
 from task_generator.tasks.robots.random import TM_Random
+from task_generator.tasks.robots.request import GoToPhase, TaskPhase, TaskRequest
 
 
 class TM_Guided(TM_Random):
-    """
-    A class representing a guided task manager for robots.
-
-    Inherits from TM_Random.
-
-    Attributes:
-        PARAM_WAYPOINTS (str): The parameter name for storing the guided waypoints.
-        _waypoints (list[Pose]): The list of waypoints for the guided task.
-        _waypoint_states (dict[str, int]): The dictionary storing the current waypoint state for each robot.
-
-    Methods:
-        __init__(self, **kwargs): Initializes the TM_Guided object.
-        reset(self, **kwargs): Resets the TM_Guided object.
-        done(self): Checks if the guided task is done.
-        set_position(self, pose: Pose): Sets the position for the guided task.
-        set_goal(self, pose: Pose): Sets the goal for the guided task.
-        _reset_waypoints(self, *args, **kwargs): Resets the waypoints for the guided task.
-    """
+    """Guided-waypoints task mode; emits a single multi-phase TaskRequest per robot."""
 
     PARAM_WAYPOINTS = "guided_waypoints"
 
     _waypoints: list[Pose]
-    _waypoint_states: dict[str, int]
 
     async def reset(self, **kwargs):
-        """
-        Resets the TM_Guided object.
-
-        Args:
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            None
-        """
         await super().reset(**kwargs)
         await self._reset_waypoints()
 
-    @property
-    async def done(self):
-        """
-        Checks if the guided task is done.
-
-        Returns:
-            bool: True if the guided task is done, False otherwise.
-        """
-        for robot, manager in self._ctx.robots.items():
-            if await manager.is_done:
-                waypoints = self._waypoints or [None]
-                self._waypoint_states[manager.name] += 1
-                self._waypoint_states[manager.name] %= len(waypoints)
-                await manager.reset(
-                    start_pos=None,
-                    goal_pos=waypoints[self._waypoint_states[robot]],
-                )
-
-        return False
-
     async def set_position(self, pose: Pose):
-        """
-        Sets the position for the guided task.
-
-        Args:
-            position (Pose): The position to set.
-
-        Returns:
-            None
-        """
+        del pose
         await self._reset_waypoints()
 
     async def set_goal(self, pose: Pose):
-        """
-        Sets the goal for the guided task.
-
-        Args:
-            position (Pose): The goal position to set.
-
-        Returns:
-            None
-        """
+        """Append a waypoint and re-submit the full sequence."""
         self._waypoints.append(pose)
         self.node.rosparam[list[list[float]]].set(
             self.PARAM_WAYPOINTS, [
@@ -91,38 +29,26 @@ class TM_Guided(TM_Random):
             ]
         )
 
-        if len(self._waypoints) == 1:
-            for robot in self._ctx.robots.values():
-                await robot.reset(None, pose)
+        phases: list[TaskPhase] = [GoToPhase(pose=wp) for wp in self._waypoints]
+        request = TaskRequest(phases=phases)
+        for robot in self._ctx.robots.values():
+            await robot.submit_task(request)
 
     async def _reset_waypoints(self, *args, **kwargs):
-        """
-        Resets the waypoints for the guided task.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-
-        Returns:
-            None
-        """
-
+        del args, kwargs
         self._waypoints = []
-        self._waypoint_states = {
-            name: 0
-            for name
-            in self._ctx.robots.keys()
-        }
 
-        for robot in self._waypoint_states:
-            self._waypoint_states[robot] = 0
-
+        # Stand each robot at its start pose by submitting a single-phase
+        # request there — clears any outstanding TaskRequest.
         for robot in self._ctx.robots.values():
-            await robot.reset(robot.start_pos, robot.start_pos)
+            await robot.move(robot.start_pos)
+            await robot.submit_task(
+                TaskRequest(phases=[GoToPhase(pose=robot.start_pos)])
+            )
 
-        self._waypoints = []
         self.node.rosparam[list[list[float]]].set(self.PARAM_WAYPOINTS, [])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._waypoints = []
         self.node.wait_for(self._reset_waypoints())

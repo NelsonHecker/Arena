@@ -2,26 +2,13 @@ import math
 
 from task_generator.shared import Orientation, Pose, PositionRadius
 from task_generator.tasks.robots import TM_Robots
+from task_generator.tasks.robots.request import GoToPhase, TaskRequest
 
 
 class TM_Random(TM_Robots):
-    """
-    A class representing a task generator for random robot positions.
-
-    Inherits from TM_Robots class.
-    """
+    """Random-goal task mode."""
 
     async def reset(self, **kwargs):
-        """
-        Reset the task generator.
-
-        Args:
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            None
-        """
-
         await super().reset(**kwargs)
 
         ROBOT_POSITIONS: list[
@@ -67,4 +54,7 @@ class TM_Random(TM_Robots):
             )
 
         for robot, pos in zip(self._ctx.robots.values(), ROBOT_POSITIONS):
-            await robot.reset(start_pos=pos[0], goal_pos=pos[1])
+            await robot.move(pos[0])
+            await robot.submit_task(
+                TaskRequest(phases=[GoToPhase(pose=pos[1])])
+            )

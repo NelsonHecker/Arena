@@ -1,7 +1,12 @@
 /**:
   ros__parameters:
     robots:
-    - agent: AGENT_NAME
-      amount: NUMBER
-      model: ROBOT_MODEL
-      planner: LOCAL_PLANNER
+    - robot: ROBOT_MODEL        # required: directory name under arena_robots/robots/<name>/
+      name: NAME_OR_PREFIX      # optional: instance name / namespace prefix
+      count: NUMBER             # optional: expand into N identical instances (default: 1)
+      planner: GLOBAL_PLANNER   # optional: nav2 planner override
+      controller: LOCAL_PLANNER # optional: nav2 controller override
+      behavior: BEHAVIOR_TREE   # optional: nav2 behavior tree override
+      navigator: nav2           # optional: navstack adapter kind (overrides model_params.navigator)
+      extra:                    # optional: free-form pass-through (e.g. agent, capabilities)
+        agent: AGENT_NAME
