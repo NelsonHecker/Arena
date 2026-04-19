@@ -30,9 +30,19 @@ uninstall(){
     unset LLM_API_ENDPOINT
 }
 
+_all_healthy(){
+    local n
+    n=$(arena_docker_compose --profile vllm ps --format json vllm vllm-proxy 2>/dev/null \
+        | grep -o '"Health":"healthy"' | wc -l)
+    [ "$n" -eq 2 ]
+}
+
 source_fn(){
     _load_config
     export LLM_API_ENDPOINT="http://localhost:${VLLM_PROXY_PORT}"
+    if _all_healthy; then
+        return 0
+    fi
     arena_docker_compose --profile vllm up -d --wait vllm vllm-proxy
 }
 
