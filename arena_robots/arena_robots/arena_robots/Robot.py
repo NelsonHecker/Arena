@@ -11,8 +11,9 @@ from arena_simulation_setup.utils.models.model_loader import (
     ModelProvider_URDF,
     ModelProvider_USD,
 )
-from arena_robots.Sensor import SensorSpec
+
 from arena_robots.caps import RobotCaps
+from arena_robots.Sensor import SensorSpec
 
 
 class ModelParams(dict[str, typing.Any]):
@@ -41,12 +42,10 @@ class ModelParams(dict[str, typing.Any]):
     def caps(self) -> RobotCaps:
         """Lazy view over ``<robot_dir>/caps/``. Empty if this ``ModelParams``
         wasn't loaded from disk or the caps dir doesn't exist."""
-        caps_dir = (
-            self._path.parent / 'caps' if self._path is not None else Path('/dev/null')
-        )
+        caps_dir = self._path.parent / 'caps' if self._path is not None else Path('/dev/null')
         return RobotCaps(caps_dir=caps_dir)
 
-    def _mobile(self):
+    def _mobile(self) -> object:
         if 'mobile' not in self.caps.available:
             return None
         return self.caps.mobile
@@ -75,28 +74,22 @@ class ModelParams(dict[str, typing.Any]):
     def sensors(self) -> list["SensorSpec"]:
         raw = self.get('sensors', [])
         if not isinstance(raw, list):
-            raise ValueError(
-                f"model_params 'sensors' must be a list; got {type(raw).__name__}"
-            )
+            raise ValueError(f"model_params 'sensors' must be a list; got {type(raw).__name__}")
         out: list[SensorSpec] = []
         for i, entry in enumerate(raw):
             if not isinstance(entry, dict):
-                raise ValueError(
-                    f"model_params 'sensors[{i}]' must be a mapping; "
-                    f"got {type(entry).__name__}"
-                )
+                raise ValueError(f"model_params 'sensors[{i}]' must be a mapping; got {type(entry).__name__}")
             missing = {'name', 'type', 'topic', 'frame'} - set(entry)
             if missing:
-                raise ValueError(
-                    f"model_params 'sensors[{i}]' missing required "
-                    f"keys: {sorted(missing)}"
+                raise ValueError(f"model_params 'sensors[{i}]' missing required keys: {sorted(missing)}")
+            out.append(
+                SensorSpec(
+                    name=str(entry['name']),
+                    type=str(entry['type']),
+                    topic=str(entry['topic']),
+                    frame=str(entry['frame']),
                 )
-            out.append(SensorSpec(
-                name=str(entry['name']),
-                type=str(entry['type']),
-                topic=str(entry['topic']),
-                frame=str(entry['frame']),
-            ))
+            )
         return out
 
     @property
@@ -104,16 +97,12 @@ class ModelParams(dict[str, typing.Any]):
         """Structured multi-adapter declaration as a list of dicts."""
         raw = self.get('capabilities', [])
         if not isinstance(raw, list):
-            raise ValueError(
-                f"model_params 'capabilities' must be a list; got "
-                f"{type(raw).__name__}"
-            )
+            raise ValueError(f"model_params 'capabilities' must be a list; got {type(raw).__name__}")
         return [dict(entry) for entry in raw]
 
 
 class RobotView(PathView):
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._cached_params: ModelParams | None = None
         self._cached_control: dict | None = None
@@ -130,9 +119,7 @@ class RobotView(PathView):
         if self._cached_params is None:
             path = self.path / 'model_params.yaml'
             if not path.is_file():
-                raise FileNotFoundError(
-                    f"model_params.yaml not found for robot '{self.name}' at {path}"
-                )
+                raise FileNotFoundError(f"model_params.yaml not found for robot '{self.name}' at {path}")
             self._cached_params = ModelParams.from_yaml(path)
         return self._cached_params
 
@@ -145,9 +132,7 @@ class RobotView(PathView):
         if self._cached_control is None:
             control_path = self.path / 'control.yaml'
             if not control_path.is_file():
-                raise FileNotFoundError(
-                    f"control.yaml not found for robot '{self.name}' at {control_path}"
-                )
+                raise FileNotFoundError(f"control.yaml not found for robot '{self.name}' at {control_path}")
             with open(control_path) as f:
                 mapping = yaml.safe_load(f)
                 if not isinstance(mapping, dict):
@@ -162,13 +147,13 @@ class RobotView(PathView):
             {
                 **ModelProvider_URDF.asdict(self.path, self.name),
                 **ModelProvider_USD.asdict(self.path, self.name),
-            }
+            },
         )
 
 
 @attrs.define(eq=False, hash=False)
 class RobotIdentifier(Identifier[RobotView]):
-    def load(self, path: Path, /, **kwargs) -> RobotView:
+    def load(self, path: Path, /, **kwargs: object) -> RobotView:
         del kwargs  # unused
         return RobotView(path)
 

@@ -1,20 +1,21 @@
 import os
+
 import numpy as np
 
 
 class Utils:
     @classmethod
-    def generate_random_color(cls):
+    def generate_random_color(cls) -> list[int]:
         return list(np.random.choice(range(0, 200), size=3))
 
     @classmethod
-    def get_random_rviz_color(cls):
+    def get_random_rviz_color(cls) -> str:
         r, g, b = cls.generate_random_color()
         return f"{r}; {g}; {b}"
 
     # Sensor display generators moved to class methods
     @classmethod
-    def get_sensor_color(cls, sensor_type, index=0):
+    def get_sensor_color(cls, sensor_type: str, index: int = 0) -> str:
         """Generate appropriate colors for different sensor types"""
         if sensor_type == "sensor_msgs/msg/Imu":
             return "204; 51; 204"  # Consistent purple for IMU
@@ -29,7 +30,7 @@ class Utils:
 
     class Displays:
         @classmethod
-        def laser_scan(cls, topic_name, sensor_color, queue_size=20):
+        def laser_scan(cls, topic_name: str, sensor_color: str, queue_size: int = 20) -> dict[str, object]:
             """Create LaserScan display configuration"""
             return {
                 "Class": "rviz_default_plugins/LaserScan",
@@ -50,7 +51,7 @@ class Utils:
             }
 
         @classmethod
-        def pointcloud(cls, topic_name, sensor_color, queue_size=20):
+        def pointcloud(cls, topic_name: str, sensor_color: str, queue_size: int = 20) -> dict[str, object]:
             """Create PointCloud2 display configuration"""
             return {
                 "Class": "rviz_default_plugins/PointCloud2",
@@ -71,7 +72,7 @@ class Utils:
             }
 
         @classmethod
-        def pointcloud_legacy(cls, topic_name, sensor_color, queue_size=20):
+        def pointcloud_legacy(cls, topic_name: str, sensor_color: str, queue_size: int = 20) -> dict[str, object]:
             """Create PointCloud (legacy) display configuration"""
             return {
                 "Class": "rviz_default_plugins/PointCloud",
@@ -91,7 +92,7 @@ class Utils:
             }
 
         @classmethod
-        def imu(cls, topic_name, sensor_color, queue_size=20):
+        def imu(cls, topic_name: str, sensor_color: str, queue_size: int = 20) -> dict[str, object]:
             """Create IMU display configuration"""
             return {
                 "Class": "rviz_default_plugins/Imu",
@@ -110,7 +111,7 @@ class Utils:
             }
 
         @classmethod
-        def footcontact(cls, topic_name, sensor_color, queue_size=20):
+        def footcontact(cls, topic_name: str, sensor_color: str, queue_size: int = 20) -> dict[str, object]:
             """Create FootContact display configuration"""
             return {
                 "Class": "rviz_default_plugins/Marker",
@@ -127,7 +128,7 @@ class Utils:
             }
 
         @classmethod
-        def robot_footprint(cls, topic, color, queue_size=20):
+        def robot_footprint(cls, topic: str, color: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/Polygon",
                 "Name": "Robot Footprint",
@@ -144,7 +145,7 @@ class Utils:
             }
 
         @classmethod
-        def local_path(cls, topic, queue_size=20):
+        def local_path(cls, topic: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/Path",
                 "Name": "Local Plan",
@@ -161,7 +162,7 @@ class Utils:
             }
 
         @classmethod
-        def global_path(cls, topic, color, queue_size=20):
+        def global_path(cls, topic: str, color: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/Path",
                 "Name": "Global Plan",
@@ -178,7 +179,7 @@ class Utils:
             }
 
         @classmethod
-        def global_costmap(cls, topic, queue_size=20):
+        def global_costmap(cls, topic: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/Map",
                 "Name": "Global Costmap",
@@ -196,7 +197,7 @@ class Utils:
             }
 
         @classmethod
-        def local_costmap(cls, topic, queue_size=20):
+        def local_costmap(cls, topic: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/Map",
                 "Name": "Local Costmap",
@@ -214,7 +215,7 @@ class Utils:
             }
 
         @classmethod
-        def odom(cls, topic, color, queue_size=20):
+        def odom(cls, topic: str, color: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/Odometry",
                 "Name": "Odometry",
@@ -238,7 +239,7 @@ class Utils:
             }
 
         @classmethod
-        def robot_model(cls, topic, robot_name, queue_size=20):
+        def robot_model(cls, topic: str, robot_name: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/RobotModel",
                 "Name": "Robot Model",
@@ -256,7 +257,7 @@ class Utils:
             }
 
         @classmethod
-        def image(cls, topic, queue_size=20):
+        def image(cls, topic: str, queue_size: int = 20) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/Image",
                 "Enabled": True,
@@ -277,9 +278,7 @@ class Utils:
 
         # Hunavsim-Pedestrian Display Methods
         @classmethod
-        def pedestrians(
-            cls, topic, queue_size=20, name: str = "Pedestrians", enabled: bool = True
-        ):
+        def pedestrians(cls, topic: str, queue_size: int = 20, name: str = "Pedestrians", enabled: bool = True) -> dict[str, object]:
             """
             Create a MarkerArray display specifically for pedestrians using people_msgs/msg/People topic.
             This will be used with a custom node that converts People messages to MarkerArray.
@@ -304,7 +303,7 @@ class Utils:
             }
 
         @classmethod
-        def pedestrians_raw(cls, topic, queue_size=20):
+        def pedestrians_raw(cls, topic: str, queue_size: int = 20) -> dict[str, object]:
             """
             Alternative: Display raw people topic as simple markers
             Fallback if MarkerArray conversion node is not available

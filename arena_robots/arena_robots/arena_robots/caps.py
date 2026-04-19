@@ -37,10 +37,7 @@ class CapConfig:
         """Return the adapter-specific sub-block or an empty dict."""
         v = self.raw.get(adapter, {})
         if not isinstance(v, dict):
-            raise ValueError(
-                f"{self.path}: '{adapter}' sub-block must be a mapping; got "
-                f"{type(v).__name__}"
-            )
+            raise ValueError(f"{self.path}: '{adapter}' sub-block must be a mapping; got {type(v).__name__}")
         return v
 
 
@@ -88,29 +85,21 @@ class ArmSpec(InstanceSpec):
     def _srdf(self) -> dict[str, typing.Any]:
         if self._srdf_cache is None:
             srdf_ref = self.raw.get('srdf')
-            self._srdf_cache = (
-                _parse_srdf_group(srdf_ref, self.name) if srdf_ref else {}
-            )
+            self._srdf_cache = _parse_srdf_group(srdf_ref, self.name) if srdf_ref else {}
         return self._srdf_cache
 
     @property
     def base_link(self) -> str:
         v = self.raw.get('base_link') or self._srdf().get('base_link')
         if v is None:
-            raise ValueError(
-                f"{self.path}: arm '{self.name}' has no base_link "
-                f"(not explicit, not derivable from srdf)"
-            )
+            raise ValueError(f"{self.path}: arm '{self.name}' has no base_link (not explicit, not derivable from srdf)")
         return str(v)
 
     @property
     def tip_link(self) -> str:
         v = self.raw.get('tip_link') or self._srdf().get('tip_link')
         if v is None:
-            raise ValueError(
-                f"{self.path}: arm '{self.name}' has no tip_link "
-                f"(not explicit, not derivable from srdf)"
-            )
+            raise ValueError(f"{self.path}: arm '{self.name}' has no tip_link (not explicit, not derivable from srdf)")
         return str(v)
 
     @property
@@ -119,20 +108,14 @@ class ArmSpec(InstanceSpec):
         if v is None:
             v = self._srdf().get('chain')
         if not isinstance(v, list):
-            raise ValueError(
-                f"{self.path}: arm '{self.name}' has no chain "
-                f"(not explicit, not derivable from srdf)"
-            )
+            raise ValueError(f"{self.path}: arm '{self.name}' has no chain (not explicit, not derivable from srdf)")
         return [str(j) for j in v]
 
     @property
     def controller(self) -> str:
         v = self.raw.get('controller')
         if v is None:
-            raise ValueError(
-                f"{self.path}: arm '{self.name}' missing 'controller' "
-                f"(controllers are not in SRDF; always author explicitly)"
-            )
+            raise ValueError(f"{self.path}: arm '{self.name}' missing 'controller' (controllers are not in SRDF; always author explicitly)")
         return str(v)
 
 
@@ -144,18 +127,14 @@ class LiftSpec(InstanceSpec):
     def joint(self) -> str:
         v = self.raw.get('joint')
         if v is None:
-            raise ValueError(
-                f"{self.path}: lift '{self.name}' missing 'joint'"
-            )
+            raise ValueError(f"{self.path}: lift '{self.name}' missing 'joint'")
         return str(v)
 
     @property
     def controller(self) -> str:
         v = self.raw.get('controller')
         if v is None:
-            raise ValueError(
-                f"{self.path}: lift '{self.name}' missing 'controller'"
-            )
+            raise ValueError(f"{self.path}: lift '{self.name}' missing 'controller'")
         return str(v)
 
 
@@ -172,18 +151,14 @@ class GripperSpec(InstanceSpec):
     def joint(self) -> str:
         v = self.raw.get('joint')
         if v is None:
-            raise ValueError(
-                f"{self.path}: gripper '{self.name}' missing 'joint'"
-            )
+            raise ValueError(f"{self.path}: gripper '{self.name}' missing 'joint'")
         return str(v)
 
     @property
     def controller(self) -> str:
         v = self.raw.get('controller')
         if v is None:
-            raise ValueError(
-                f"{self.path}: gripper '{self.name}' missing 'controller'"
-            )
+            raise ValueError(f"{self.path}: gripper '{self.name}' missing 'controller'")
         return str(v)
 
 
@@ -219,16 +194,11 @@ class RobotCaps:
             return self._cached[cap]
         path = self.caps_dir / f'{cap}.yaml'
         if not path.is_file():
-            raise FileNotFoundError(
-                f"cap '{cap}' not declared: {path} does not exist"
-            )
+            raise FileNotFoundError(f"cap '{cap}' not declared: {path} does not exist")
         with open(path) as f:
             data = yaml.safe_load(f) or {}
         if not isinstance(data, dict):
-            raise ValueError(
-                f"{path}: top-level structure must be a mapping; got "
-                f"{type(data).__name__}"
-            )
+            raise ValueError(f"{path}: top-level structure must be a mapping; got {type(data).__name__}")
         self._cached[cap] = data
         return data
 
@@ -259,11 +229,7 @@ class RobotCaps:
         out: dict[str, typing.Any] = {}
         for name, entry in data.items():
             if not isinstance(entry, dict):
-                raise ValueError(
-                    f"{path}: '{name}' must be a mapping (dict-keyed instance); "
-                    f"got {type(entry).__name__}. See robots/README.md on the "
-                    f"uniform dict-keyed shape for multi-instance caps."
-                )
+                raise ValueError(f"{path}: '{name}' must be a mapping (dict-keyed instance); got {type(entry).__name__}. See robots/README.md on the uniform dict-keyed shape for multi-instance caps.")
             out[str(name)] = cls(path=path, raw=entry, name=str(name))
         return out
 
@@ -277,7 +243,8 @@ def _parse_srdf_group(srdf_ref: str, group_name: str) -> dict[str, typing.Any]:
     src_path = _resolve_find_ref(srdf_ref)
     if src_path.suffix == '.xacro':
         xml_text = subprocess.check_output(
-            ['xacro', '--inorder', str(src_path)], text=True,
+            ['xacro', '--inorder', str(src_path)],
+            text=True,
         )
         root = ET.fromstring(xml_text)
     else:
@@ -285,9 +252,7 @@ def _parse_srdf_group(srdf_ref: str, group_name: str) -> dict[str, typing.Any]:
 
     group = root.find(f"./group[@name='{group_name}']")
     if group is None:
-        raise ValueError(
-            f"{srdf_ref}: no <group name='{group_name}'> found"
-        )
+        raise ValueError(f"{srdf_ref}: no <group name='{group_name}'> found")
 
     out: dict[str, typing.Any] = {}
     chain = group.find('./chain')
@@ -308,8 +273,9 @@ def _resolve_find_ref(ref: str) -> Path:
     ref = ref.strip()
     if ref.startswith('$(find '):
         end = ref.index(')')
-        pkg = ref[len('$(find '):end]
-        rest = ref[end + 1:].lstrip('/')
+        pkg = ref[len('$(find ') : end]
+        rest = ref[end + 1 :].lstrip('/')
         from ament_index_python.packages import get_package_share_path
+
         return get_package_share_path(pkg) / rest
     return Path(ref)

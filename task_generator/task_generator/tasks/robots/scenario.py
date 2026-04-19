@@ -15,7 +15,7 @@ class TM_Scenario(TM_Robots):
     def _parse_scenario(self, scenario: str) -> list[RobotGoal]:
         return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
 
         SCENARIO_ROBOTS = self._config.value
@@ -27,31 +27,23 @@ class TM_Scenario(TM_Robots):
 
         if setup_robot_length > scenario_robots_length:
             managed_robots = managed_robots[:scenario_robots_length]
-            self._logger.warn(
-                "Robot setup contains more robots than the scenario file.", once=True)
+            self._logger.warn("Robot setup contains more robots than the scenario file.", once=True)
 
         if scenario_robots_length > setup_robot_length:
             SCENARIO_ROBOTS = SCENARIO_ROBOTS[:setup_robot_length]
-            self._logger.warn(
-                "Scenario file contains more robots than setup.", once=True)
+            self._logger.warn("Scenario file contains more robots than setup.", once=True)
 
-        for robot, config in zip(managed_robots, SCENARIO_ROBOTS):
+        for robot, config in zip(managed_robots, SCENARIO_ROBOTS, strict=False):
             await robot.move(config.start)
-            await robot.submit_task(
-                TaskRequest(phases=[GoToPhase(pose=config.goal)])
-            )
+            await robot.submit_task(TaskRequest(phases=[GoToPhase(pose=config.goal)]))
             self._ctx.world_manager.forbid(
                 [
-                    PositionRadius(
-                        x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance
-                    ),
-                    PositionRadius(
-                        x=config.goal.position.x, y=config.goal.position.y, radius=robot.safe_distance
-                    ),
+                    PositionRadius(x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance),
+                    PositionRadius(x=config.goal.position.x, y=config.goal.position.y, radius=robot.safe_distance),
                 ]
             )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         TM_Robots.__init__(self, **kwargs)
 
         self._config = self.node.ROSParam[list[RobotGoal]](

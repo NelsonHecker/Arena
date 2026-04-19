@@ -1,4 +1,3 @@
-
 import asyncio
 import os
 import tempfile
@@ -7,6 +6,7 @@ import typing
 from pathlib import Path
 
 import arena_simulation_setup.tree.World as World
+import launch
 import launch.actions
 import launch.launch_description_sources
 import lifecycle_msgs.msg
@@ -20,7 +20,6 @@ from arena_rclpy_mixins.Time import Time
 from arena_simulation_setup.shared import Position
 from arena_simulation_setup.tree import DynamicPaths
 
-import launch
 from task_generator import NodeInterface
 from task_generator.manager.environment_manager import EnvironmentManager
 
@@ -44,19 +43,17 @@ _DUMMY_MAP = nav_msgs.msg.OccupancyGrid(
             ),
             ((_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING), (_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING)),
             mode='constant',
-            constant_values=1
+            constant_values=1,
         ).flat
-    )
+    ),
 )
 
 
 class MapServerHandler(NodeInterface):
-    """Handler functions for the map server lifecycle.
-    """
+    """Handler functions for the map server lifecycle."""
 
     async def ensure_map_server(self):
-        """Restart the map server if it is not active.
-        """
+        """Restart the map server if it is not active."""
 
         wait_interval = 15.0
 
@@ -69,26 +66,12 @@ class MapServerHandler(NodeInterface):
 
             self._logger.warn('shutting down map server...')
 
-            await self.node.change_lifecycle_state_async(
-                self.node.service_namespace('map_server'),
-                lifecycle_msgs.msg.Transition.TRANSITION_DESTROY
-            )
+            await self.node.change_lifecycle_state_async(self.node.service_namespace('map_server'), lifecycle_msgs.msg.Transition.TRANSITION_DESTROY)
 
             self._logger.warn('map server shut down.')
             self._logger.warn('relaunching map server...')
 
-            await self.node.do_launch(
-                launch.LaunchDescription([
-                    launch.actions.IncludeLaunchDescription(
-                        launch.launch_description_sources.PythonLaunchDescriptionSource(
-                            os.path.join(
-                                get_package_share_directory('arena_bringup'),
-                                'launch/utils/map_server.launch.py'
-                            )
-                        )
-                    )
-                ])
-            )
+            await self.node.do_launch(launch.LaunchDescription([launch.actions.IncludeLaunchDescription(launch.launch_description_sources.PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('arena_bringup'), 'launch/utils/map_server.launch.py')))]))
 
         self._logger.info('map server launched.')
 
@@ -122,7 +105,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         # create shifted yaml
         target = map_dir / 'map.yaml'
-        with open(target, 'r') as f:
+        with open(target) as f:
             map_yaml = yaml.safe_load(f)
             assert isinstance(map_yaml, dict), "map.yaml must be a dictionary"
         origin = list(map_yaml.get('origin', [0, 0, 0]))
@@ -151,7 +134,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         return map_tmpdir
 
-    def _world_callback(self, value: typing.Any) -> bool:
+    def _world_callback(self, value: object) -> bool:
         """Handle world change events.
 
         Args:
@@ -185,21 +168,15 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             'map.yaml',
         )
 
-        response = self._cli.call_timeout_sync(
-            nav2_msgs.srv.LoadMap.Request(
-                map_url=f'{map_yaml}'
-            )
-        )
+        response = self._cli.call_timeout_sync(nav2_msgs.srv.LoadMap.Request(map_url=f'{map_yaml}'))
 
         tmp_map.cleanup()
 
         if response is None:
-            raise RuntimeError(
-                f'failed to load map for world {world_name}: service timed out')
+            raise RuntimeError(f'failed to load map for world {world_name}: service timed out')
 
         if response.result > 0:
-            raise RuntimeError(
-                f'failed to load map for world {world_name}: status code {response.result}')
+            raise RuntimeError(f'failed to load map for world {world_name}: status code {response.result}')
 
         return True
 
@@ -210,7 +187,6 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             costmap (nav_msgs.msg.OccupancyGrid): The updated costmap.
         """
         if self._map.time <= costmap.info.map_load_time:
-
             world = await World.WorldIdentifier(self.world_name).resolve()
             world_map = WorldMap.from_costmap(costmap)
 
@@ -219,10 +195,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
                 self._origin = None
 
             DynamicPaths.WORLD.path = world.path
-            self.update_world(
-                world_map=world_map,
-                world_description=world.load()
-            )
+            self.update_world(world_map=world_map, world_description=world.load())
 
             self._map_name = self.world_name
             try:
@@ -238,7 +211,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """
         self._callbacks.append(callback)
 
-    def __init__(self, *args, environment_manager: EnvironmentManager, **kwargs) -> None:
+    def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager = environment_manager
 
@@ -249,8 +222,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._map_name = None
 
     async def start(self):
-        """Start the world manager.
-        """
+        """Start the world manager."""
         self._logger.info("starting")
 
         # retrieving map from map_server

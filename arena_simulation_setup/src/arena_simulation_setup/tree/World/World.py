@@ -2,8 +2,9 @@ import io
 import os
 import tarfile
 import typing
-from typing import Optional, List
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Self
 
 import attrs
 import yaml
@@ -17,7 +18,7 @@ from arena_simulation_setup.shared import (
     Obstacle,
     Wall,
 )
-from arena_simulation_setup.tree import Identifier, PathView, FallbackResolver
+from arena_simulation_setup.tree import FallbackResolver, Identifier, PathView
 from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
@@ -46,6 +47,7 @@ class WorldDescription:
             """
             Description of the entities within the 3D world
             """
+
             static: list[Obstacle] = attrs.field(factory=list)
             dynamic: list[DynamicObstacle] = attrs.field(factory=list)
 
@@ -102,10 +104,10 @@ class WorldDescription:
         self,
         resolution: float = 0.05,
         *,
-        default_asset_bbox: Optional[tuple[tuple[float, float], tuple[float, float]]] = None,
-        asset_color: Optional[str] = None,
-        asset_name_color: Optional[str] = None,
-    ) -> typing.Tuple[bytes, tuple[float, float]]:
+        default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
+        asset_color: str | None = None,
+        asset_name_color: str | None = None,
+    ) -> tuple[bytes, tuple[float, float]]:
         """
         Render the world description to a PNG image.
 
@@ -158,12 +160,7 @@ class WorldDescription:
         )
         return png, origin
 
-    def export(
-        self,
-        resolution: float = 0.05,
-        extra_files: dict[str, bytes] | None = None,
-        **kwargs
-    ) -> tarfile.TarFile:
+    def export(self, resolution: float = 0.05, extra_files: dict[str, bytes] | None = None, **kwargs: object) -> tarfile.TarFile:
         """
         Export the world description to world.yaml, map.png, map.yaml
         """
@@ -197,24 +194,18 @@ class WorldDescription:
 
 
 class World(PathView):
-
     @property
-    def scenario(self) -> typing.Type[Identifier[ScenarioView]]:
+    def scenario(self) -> type[Identifier[ScenarioView]]:
         class ScenarioIdentifier(Identifier[ScenarioView]):
             @classmethod
-            def listall(cls, **kwargs):
+            def listall(cls, **kwargs: object) -> Iterator[Self]:
                 scenarios_dir = self.path / 'scenarios'
                 if not scenarios_dir.is_dir():
                     yield from ()
                     return
-                yield from (
-                    cls(entry.name)
-                    for entry
-                    in os.scandir(scenarios_dir)
-                    if entry.is_dir()
-                )
+                yield from (cls(entry.name) for entry in os.scandir(scenarios_dir) if entry.is_dir())
 
-            def load(self, path: Path, /, **kwargs) -> ScenarioView:
+            def load(self, path: Path, /, **kwargs: object) -> ScenarioView:
                 del kwargs
                 return ScenarioView(path)
 
@@ -222,7 +213,7 @@ class World(PathView):
         return ScenarioIdentifier
 
     @property
-    def map(self):
+    def map(self) -> Map:
         return Map(self.path / 'map')
 
     @property
@@ -231,12 +222,9 @@ class World(PathView):
 
     def load(self) -> WorldDescription:
         with open(self.world_path) as f:
-            return converter.structure(
-                yaml.safe_load(f),
-                WorldDescription
-            )
+            return converter.structure(yaml.safe_load(f), WorldDescription)
 
-    def save(self, world: WorldDescription, map_only: bool = False, **kwargs) -> Path:
+    def save(self, world: WorldDescription, map_only: bool = False, **kwargs: object) -> Path:
         os.makedirs(self.path, exist_ok=True)
         tarball = world.export(**kwargs)
 
@@ -246,12 +234,14 @@ class World(PathView):
 
         _filter = tarfile.data_filter
         if map_only:
-            def map_only_filter(member, destpath):
+
+            def map_only_filter(member: tarfile.TarInfo, destpath: str) -> tarfile.TarInfo | None:
                 if not tarfile.data_filter(member, destpath):
                     return None
                 if not member.name.startswith('map/'):
                     return None
                 return member
+
             _filter = map_only_filter
 
         tarball.extractall(self.path, filter=_filter)
@@ -260,10 +250,10 @@ class World(PathView):
 
 class WorldIdentifier(Identifier[World]):
     @classmethod
-    def listall(cls, **kwargs):
+    def listall(cls, **kwargs: object) -> Iterator[Self]:
         yield from (WorldIdentifier(name) for name in os.listdir(ASS_DIR / 'worlds'))
 
-    def load(self, path: Path, /, **kwargs) -> World:
+    def load(self, path: Path, /, **kwargs: object) -> World:
         del kwargs
         return World(path)
 

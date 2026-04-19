@@ -19,7 +19,7 @@ class Bringup(ABC):
     kind: ClassVar[str]
     requires: ClassVar[frozenset[str]]
 
-    def __init__(self, robot: "RobotView", namespace: str) -> None:
+    def __init__(self, robot: RobotView, namespace: str) -> None:
         self.robot = robot
         self.namespace = Namespace(namespace)
 
@@ -29,20 +29,21 @@ class Bringup(ABC):
         *,
         use_sim_time: bool = True,
         frame: str = "",
-        **launch_args,
-    ) -> list[Action]:
-        ...
+        **launch_args: object,
+    ) -> list[Action]: ...
 
     def _task_server_node(self, *, use_sim_time: bool = True) -> Node:
         return Node(
             package="arena_robots",
             executable="task_server",
             namespace=self.namespace,
-            parameters=[{
-                "robot_name": self.robot.name,
-                "bringup_kind": self.kind,
-                "use_sim_time": use_sim_time,
-            }],
+            parameters=[
+                {
+                    "robot_name": self.robot.name,
+                    "bringup_kind": self.kind,
+                    "use_sim_time": use_sim_time,
+                }
+            ],
         )
 
     def launch_description(
@@ -50,16 +51,19 @@ class Bringup(ABC):
         *,
         use_sim_time: bool = True,
         frame: str = "",
-        **launch_args,
+        **launch_args: object,
     ) -> LaunchDescription:
-        return LaunchDescription([
-            *self._launch_actions(use_sim_time=use_sim_time, frame=frame, **launch_args),
-            self._task_server_node(use_sim_time=use_sim_time),
-        ])
+        return LaunchDescription(
+            [
+                *self._launch_actions(use_sim_time=use_sim_time, frame=frame, **launch_args),
+                self._task_server_node(use_sim_time=use_sim_time),
+            ]
+        )
 
     @property
-    def accepts_task_kinds(self) -> "frozenset":
+    def accepts_task_kinds(self) -> frozenset:
         from arena_robots.task_server_handlers import HANDLERS
+
         return frozenset(tk for (tk, k) in HANDLERS.keys() if k == self.kind)
 
 
@@ -81,10 +85,7 @@ def check_caps(bringup: Bringup) -> None:
     available = bringup.robot.caps.available
     missing = bringup.requires - available
     if missing:
-        raise AdapterCapMismatch(
-            f"Bringup {bringup.kind!r} requires caps {sorted(missing)} "
-            f"but robot {bringup.robot.name!r} only advertises {sorted(available)}"
-        )
+        raise AdapterCapMismatch(f"Bringup {bringup.kind!r} requires caps {sorted(missing)} but robot {bringup.robot.name!r} only advertises {sorted(available)}")
 
 
-from . import nav2, none, external  # noqa: F401
+from . import external, nav2, none  # noqa: F401

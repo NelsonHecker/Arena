@@ -20,8 +20,8 @@ from arena_simulation_setup.utils.material import ImgUtil, MdlUtil
 
 @attrs.define(eq=False, hash=False)
 class MaterialIdentifier(ModifiersDomainAssetIdentifier["Material"]):
-    """Represents an identifier referencing a material asset.
-    """
+    """Represents an identifier referencing a material asset."""
+
     _asset_type = 'Material'
 
     @classmethod
@@ -45,7 +45,7 @@ class MaterialIdentifier(ModifiersDomainAssetIdentifier["Material"]):
             path=str(path.resolve()),
         )
 
-    def load(self, path: Path, /, **kwargs) -> Material:
+    def load(self, path: Path, /, **kwargs: object) -> Material:
         del kwargs  # unused
         mat = Material(
             name=self.name,

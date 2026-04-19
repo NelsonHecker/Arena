@@ -7,10 +7,9 @@ particular ``(task_kind, bringup_kind)`` pair is actually requested.
 
 from __future__ import annotations
 
+from collections.abc import Callable, KeysView
 from typing import (
     TYPE_CHECKING,
-    Callable,
-    Generic,
     Protocol,
     TypeVar,
 )
@@ -31,7 +30,7 @@ ResultT = TypeVar("ResultT")
 
 
 class TaskHandler(Protocol[GoalT, FeedbackT, ResultT]):
-    def __init__(self, bringup: "Bringup", *, tf_buffer, node) -> None: ...
+    def __init__(self, bringup: Bringup, *, tf_buffer: object, node: object) -> None: ...
 
     async def execute(self, goal_handle: ServerGoalHandle) -> ResultT: ...
 
@@ -40,7 +39,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class HandlerRegistry(Generic[K, V]):
+class HandlerRegistry[K, V]:
     def __init__(self) -> None:
         self._loaders: dict[K, Callable[[], V]] = {}
         self._cache: dict[K, V] = {}
@@ -51,6 +50,7 @@ class HandlerRegistry(Generic[K, V]):
                 raise ValueError(f"registry key {key!r} already registered")
             self._loaders[key] = loader
             return loader
+
         return _dec
 
     def get(self, key: K) -> V:
@@ -58,20 +58,18 @@ class HandlerRegistry(Generic[K, V]):
             try:
                 loader = self._loaders[key]
             except KeyError:
-                raise KeyError(
-                    f"no entry for {key!r}; known: {sorted(self._loaders)!r}"
-                ) from None
+                raise KeyError(f"no entry for {key!r}; known: {sorted(self._loaders)!r}") from None
             self._cache[key] = loader()
         return self._cache[key]
 
-    def keys(self):
+    def keys(self) -> KeysView[K]:
         return self._loaders.keys()
 
 
 HANDLERS: HandlerRegistry[tuple[TaskKind, str], type[TaskHandler]] = HandlerRegistry()
 
 
-async def _executor_sleep(node, seconds: float, *, wall: bool = False) -> None:
+async def _executor_sleep(node: object, seconds: float, *, wall: bool = False) -> None:
     """Timer-backed sleep that yields to rclpy's executor. Works inside action
     server callbacks (which run under rclpy.spin, not asyncio).
 

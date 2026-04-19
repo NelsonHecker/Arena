@@ -22,7 +22,7 @@ class _ScopedRobotsView:
     _inner: typing.Any  # real RobotsManager
     _names: frozenset[str]
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> object:
         return getattr(self._inner, item)
 
     @property
@@ -47,18 +47,17 @@ class TM_Composite(TM_Robots):
 
     _sub_modes: list[TM_Robots]
 
-    def __init__(self, *args, sub_modes: typing.Sequence[TM_Robots], **kwargs):
+    def __init__(self, *args: object, sub_modes: typing.Sequence[TM_Robots], **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._sub_modes = list(sub_modes)
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
         await asyncio.gather(*(m.reset(**kwargs) for m in self._sub_modes))
 
     @property
     async def done(self) -> bool:
-        if (self.node.sim_time.sec - self._last_reset) \
-                > self.node.conf.Robot.TIMEOUT.value:
+        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
             return True
         if not self._sub_modes:
             return False
@@ -77,13 +76,12 @@ class TM_Composite(TM_Robots):
 class TM_Null(TM_Robots):
     """Idle sink for unallocated robots."""
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
 
     @property
     async def done(self) -> bool:
-        if (self.node.sim_time.sec - self._last_reset) \
-                > self.node.conf.Robot.TIMEOUT.value:
+        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
             return True
         return False
 
@@ -99,11 +97,11 @@ class TM_Null(TM_Robots):
 _COMPOSITE_EXTRA: dict[str, typing.Any] = {}
 
 
-def _register_extra(kind_str: str, loader) -> None:
+def _register_extra(kind_str: str, loader: typing.Callable[[], type[TM_Robots]]) -> None:
     _COMPOSITE_EXTRA[kind_str] = loader
 
 
-def get_extra_tm_loader(kind_str: str):
+def get_extra_tm_loader(kind_str: str) -> typing.Callable[[], type[TM_Robots]] | None:
     """Look up a TM loader registered by sentinel string (currently ``null``)."""
     return _COMPOSITE_EXTRA.get(kind_str)
 

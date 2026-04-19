@@ -1,11 +1,10 @@
 import itertools
 from collections.abc import Collection
 from math import floor
-from typing import Optional
 
+import arena_simulation_setup.tree.World as World
 import numpy as np
 import scipy.signal
-import arena_simulation_setup.tree.World as World
 
 from task_generator import NodeInterface
 from task_generator.shared import Position, PositionRadius, Wall
@@ -24,7 +23,7 @@ class WorldManager(NodeInterface):
     _map: WorldMap
     _classic_forbidden_zones: list[PositionRadius]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._detected_walls = None
         self._classic_forbidden_zones = []
@@ -49,7 +48,7 @@ class WorldManager(NodeInterface):
     def resolution(self) -> float:
         return self._map.resolution
 
-    _detected_walls: Optional[Collection[Wall]] = None
+    _detected_walls: Collection[Wall] | None = None
 
     @property
     def detected_walls(self) -> Collection[Wall]:
@@ -79,21 +78,19 @@ class WorldManager(NodeInterface):
                     PositionRadius(
                         x=obstacle.pose.position.x,
                         y=obstacle.pose.position.y,
-                        radius=1,   # TODO actual radius
+                        radius=1,  # TODO actual radius
                     )
                 )
             )
 
     def forbid(self, forbidden_zones: list[PositionRadius]):
         for zone in forbidden_zones:
-            self.map.occupancy.forbidden_occupy(
-                *self.map.tf_posr2rect(zone))
+            self.map.occupancy.forbidden_occupy(*self.map.tf_posr2rect(zone))
 
     def forbid_clear(self):
         self._map.occupancy.forbidden_clear()
 
-    def _classic_get_random_pos_on_map(self, safe_dist: float, forbid: bool = True,
-                                       forbidden_zones: Optional[list[PositionRadius]] = None) -> Position:
+    def _classic_get_random_pos_on_map(self, safe_dist: float, forbid: bool = True, forbidden_zones: list[PositionRadius] | None = None) -> Position:
         """
         This function is used by the robot manager and
         obstacles manager to get new positions for both
@@ -121,23 +118,20 @@ class WorldManager(NodeInterface):
 
         import math
 
-        def is_pos_valid(x: float, y: float, safe_dist: float,
-                         forbidden_zones: list[PositionRadius]):
+        def is_pos_valid(x: float, y: float, safe_dist: float, forbidden_zones: list[PositionRadius]) -> bool:
             """
             @safe_dist: minimal distance to the next obstacles for calculated positions
             """
             for p in forbidden_zones:
                 # euklidian distance to the forbidden zone
-                dist = math.floor(np.linalg.norm(
-                    np.array([x, y]) - np.array([p.x, p.y]))) - p.radius
+                dist = math.floor(np.linalg.norm(np.array([x, y]) - np.array([p.x, p.y]))) - p.radius
 
                 if dist <= safe_dist:
                     return False
 
             return True
 
-        safe_dist_in_cells = math.ceil(
-            safe_dist / self.map.resolution) + 1
+        safe_dist_in_cells = math.ceil(safe_dist / self.map.resolution) + 1
 
         forbidden_zones_in_cells: list[PositionRadius] = [
             PositionRadius(
@@ -149,8 +143,7 @@ class WorldManager(NodeInterface):
         ]
 
         # Now get index of all cells were dist is > safe_dist_in_cells
-        possible_cells: list[tuple[np.intp, np.intp]] = np.array(
-            np.where(self.map.occupancy.grid > safe_dist_in_cells)).transpose().tolist()
+        possible_cells: list[tuple[np.intp, np.intp]] = np.array(np.where(self.map.occupancy.grid > safe_dist_in_cells)).transpose().tolist()
 
         # return (random.randint(1,6), random.randint(1, 9), 0)
         assert len(possible_cells) > 0, "No cells available"
@@ -162,15 +155,11 @@ class WorldManager(NodeInterface):
         # forbidden zones is high enough
 
         while len(possible_cells) > 0:
-
             # Select a random cell
-            x, y = possible_cells.pop(
-                self.node.conf.General.RNG.value.integers(
-                    len(possible_cells)))
+            x, y = possible_cells.pop(self.node.conf.General.RNG.value.integers(len(possible_cells)))
 
             # Check if valid
-            if is_pos_valid(float(x), float(y), safe_dist_in_cells,
-                            forbidden_zones_in_cells):
+            if is_pos_valid(float(x), float(y), safe_dist_in_cells, forbidden_zones_in_cells):
                 break
 
         else:
@@ -187,12 +176,7 @@ class WorldManager(NodeInterface):
 
         return Position(x=point.x, y=point.y)
 
-    def get_positions_on_map(
-        self,
-        n: int, safe_dist: float,
-        forbidden_zones: Optional[list[PositionRadius]] = None,
-        forbid: bool = True
-    ) -> list[Position]:
+    def get_positions_on_map(self, n: int, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> list[Position]:
         """
         This function is used by the robot manager and
         obstacles manager to get new positions for both
@@ -240,8 +224,7 @@ class WorldManager(NodeInterface):
                 fork.occupy(*self.map.tf_posr2rect(zone))
 
             min_dist: float = safe_dist / self.resolution
-            available_positions = self._occupancy_to_available(
-                occupancy=fork.grid, safe_dist=min_dist)
+            available_positions = self._occupancy_to_available(occupancy=fork.grid, safe_dist=min_dist)
 
             def sample(target: int) -> Collection[Position]:
 
@@ -255,31 +238,23 @@ class WorldManager(NodeInterface):
 
                 try:
                     while depth < max_depth:
-
                         if to_produce > len(available_positions):
                             raise RuntimeError()
 
-                        candidates = available_positions[self.node.conf.General.RNG.value.choice(
-                            len(available_positions), to_produce, replace=False), :]
+                        candidates = available_positions[self.node.conf.General.RNG.value.choice(len(available_positions), to_produce, replace=False), :]
 
                         for candidate in candidates:
-
                             banned = all_banned[:banned_index, :]
 
-                            if np.any(np.linalg.norm(
-                                    banned - candidate, axis=1) < min_dist):
+                            if np.any(np.linalg.norm(banned - candidate, axis=1) < min_dist):
                                 continue
 
                             all_banned[banned_index] = candidate
                             banned_index += 1
 
-                            fork.occupy(
-                                (candidate - min_dist),
-                                (candidate + min_dist)
-                            )
+                            fork.occupy((candidate - min_dist), (candidate + min_dist))
 
-                            result.append(self._map.tf_grid2pos(
-                                (candidate[0], candidate[1])))
+                            result.append(self._map.tf_grid2pos((candidate[0], candidate[1])))
 
                         to_produce = target - len(result)
                         if to_produce <= 0:
@@ -288,19 +263,11 @@ class WorldManager(NodeInterface):
                         depth += 1
 
                     else:
-                        raise RuntimeError(
-                            f"Failed to find free position after {depth} tries")
+                        raise RuntimeError(f"Failed to find free position after {depth} tries")
 
                 except RuntimeError:
-                    result += [
-                        self._map.tf_grid2pos(
-                            (
-                                (-1 - floor(i / 5)) * int(self._shape[1] / 5),
-                                int((i % 5) * self._shape[0] / 5)
-                            )
-                        ) for i in range(to_produce)]
-                    self._logger.warn(
-                        f"Couldn't find enough empty cells for {to_produce} requests")
+                    result += [self._map.tf_grid2pos(((-1 - floor(i / 5)) * int(self._shape[1] / 5), int((i % 5) * self._shape[0] / 5))) for i in range(to_produce)]
+                    self._logger.warn(f"Couldn't find enough empty cells for {to_produce} requests")
 
                 return result
 
@@ -311,28 +278,17 @@ class WorldManager(NodeInterface):
 
         return points
 
-    def get_position_on_map(
-            self, safe_dist: float, forbidden_zones: Optional[list[PositionRadius]] = None, forbid: bool = True) -> Position:
-        return self.get_positions_on_map(
-            n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid
-        )[0]
+    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> Position:
+        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid)[0]
 
     id_gen = itertools.count()
 
-    def _occupancy_to_available(
-            self, occupancy: np.ndarray, safe_dist: float) -> np.ndarray:
+    def _occupancy_to_available(self, occupancy: np.ndarray, safe_dist: float) -> np.ndarray:
 
         filt_size = int(2 * safe_dist + 1)
-        filt = np.full((filt_size, filt_size), 1) / (filt_size ** 2)
+        filt = np.full((filt_size, filt_size), 1) / (filt_size**2)
 
-        spread = scipy.signal.convolve2d(
-            WorldOccupancy.not_full(occupancy).astype(
-                np.uint8) * np.iinfo(np.uint8).max,
-            filt,
-            mode="full",
-            boundary="fill",
-            fillvalue=int(WorldOccupancy.FULL)
-        )
+        spread = scipy.signal.convolve2d(WorldOccupancy.not_full(occupancy).astype(np.uint8) * np.iinfo(np.uint8).max, filt, mode="full", boundary="fill", fillvalue=int(WorldOccupancy.FULL))
 
         # import cv2
 

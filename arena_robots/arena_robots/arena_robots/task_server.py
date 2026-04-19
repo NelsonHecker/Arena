@@ -3,13 +3,13 @@
 import threading
 
 import rclpy
-from rclpy.node import Node
 import tf2_ros
 from rclpy.action import ActionServer
 from rclpy.action.server import ServerGoalHandle
+from rclpy.node import Node
 
+from arena_robots.bringup import check_caps, get_bringup
 from arena_robots.Robot import RobotIdentifier
-from arena_robots.bringup import get_bringup, check_caps
 from arena_robots.task_kinds import TaskKind, action_type, endpoint
 from arena_robots.task_server_handlers import HANDLERS
 
@@ -45,9 +45,7 @@ class TaskServerNode(Node):
         self._servers: list[ActionServer] = []
         for tk in self._bringup.accepts_task_kinds:
             handler_cls = HANDLERS.get((tk, self._bringup.kind))
-            handler = handler_cls(
-                self._bringup, tf_buffer=self._tf_buffer, node=self
-            )
+            handler = handler_cls(self._bringup, tf_buffer=self._tf_buffer, node=self)
             server = ActionServer(
                 self,
                 action_type(tk),
@@ -57,7 +55,7 @@ class TaskServerNode(Node):
             )
             self._servers.append(server)
 
-    def _make_handle_accepted(self, tk: TaskKind):
+    def _make_handle_accepted(self, tk: TaskKind) -> object:
         def _handle_accepted(goal_handle: ServerGoalHandle) -> None:
             with self._handle_lock:
                 prev = self._current_handles.get(tk)
@@ -65,10 +63,11 @@ class TaskServerNode(Node):
             if prev is not None and prev.is_active:
                 prev.abort()
             goal_handle.execute()
+
         return _handle_accepted
 
 
-def main(args=None) -> None:
+def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
     node = TaskServerNode()
     try:

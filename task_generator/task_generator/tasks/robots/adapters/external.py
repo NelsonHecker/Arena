@@ -17,6 +17,7 @@ from task_generator.tasks.robots.request import GoToPhase, TaskPhase
 
 if TYPE_CHECKING:
     import geometry_msgs.msg
+
     from task_generator.manager.robot_manager.robot_manager import RobotManager
 
 
@@ -27,18 +28,15 @@ class ExternalAdapter(Adapter):
     bringup_cls = ExternalBringup
     client_cls = GotoPoseClient
 
-    def is_phase_done(self, phase: TaskPhase, robot: "RobotManager") -> bool | None:
+    def is_phase_done(self, phase: TaskPhase, robot: RobotManager) -> bool | None:
         return None
 
     async def dispatch_phase(
         self,
         phase: TaskPhase,
-        robot: "RobotManager",
+        robot: RobotManager,
     ) -> None:
-        assert isinstance(phase, GoToPhase), (
-            f"ExternalAdapter only accepts GOTO_POSE phases; got "
-            f"{type(phase).__name__} (kind={phase.kind!r})"
-        )
+        assert isinstance(phase, GoToPhase), f"ExternalAdapter only accepts GOTO_POSE phases; got {type(phase).__name__} (kind={phase.kind!r})"
         robot._goal_pos = phase.pose  # pylint: disable=protected-access
         goal = GotoPose.Goal()
         goal.target = self._phase_to_pose_stamped(phase, robot)
@@ -48,10 +46,11 @@ class ExternalAdapter(Adapter):
 
     def _phase_to_pose_stamped(
         self,
-        phase: "GoToPhase",
-        robot: "RobotManager",
-    ) -> "geometry_msgs.msg.PoseStamped":
+        phase: GoToPhase,
+        robot: RobotManager,
+    ) -> geometry_msgs.msg.PoseStamped:
         import geometry_msgs.msg
+
         msg = geometry_msgs.msg.PoseStamped()
         msg.header.frame_id = "map"
         msg.header.stamp = robot.node.sim_time.to_msg()

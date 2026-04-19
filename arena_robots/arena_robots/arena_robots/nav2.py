@@ -32,11 +32,7 @@ def compile_sensors_to_nav2(
 
     out: dict[str, dict[str, typing.Any]] = {}
     for spec in sensors:
-        type_str = (
-            spec.type.value
-            if isinstance(spec.type, SensorType)
-            else str(spec.type)
-        )
+        type_str = spec.type.value if isinstance(spec.type, SensorType) else str(spec.type)
         data_type = _TYPE_TO_NAV2.get(type_str, type_str)
         out[spec.name] = {
             "topic": spec.topic,

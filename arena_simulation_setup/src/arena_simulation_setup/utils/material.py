@@ -1,12 +1,11 @@
 import re
-import typing
 from pathlib import Path
 
 import colourings
 from PIL import Image
 
 
-def Color(color: typing.Any) -> colourings.Color:
+def Color(color: object) -> colourings.Color:
     """Convert a color representation to a Colourings Color object.
 
     Args:
@@ -24,12 +23,12 @@ def Color(color: typing.Any) -> colourings.Color:
         t, c = color.split('(', 1)
         return colourings.Color(**{t: tuple(map(float, c.rstrip(')').split(',')))})  # type: ignore
     except BaseException:
-        raise exc
+        raise exc from None
 
 
 class ImgUtil:
     @classmethod
-    def tint(cls, img: Path | Image.Image, tint: typing.Any) -> Image.Image:
+    def tint(cls, img: Path | Image.Image, tint: object) -> Image.Image:
         """Apply a tint to an image.
 
         Args:
@@ -49,11 +48,13 @@ class ImgUtil:
         orig_alpha = img.split()[3]
         base_rgb = img.convert("RGB")
         overlay_rgb = Image.new(
-            "RGB", img.size, (
+            "RGB",
+            img.size,
+            (
                 int(tint_color[0] * 255),
                 int(tint_color[1] * 255),
                 int(tint_color[2] * 255),
-            )
+            ),
         )
         blended_rgb = Image.blend(base_rgb, overlay_rgb, strength)
         r, g, b = blended_rgb.split()
@@ -62,8 +63,7 @@ class ImgUtil:
 
 
 class MdlUtil:
-    """.mdl material helper
-    """
+    """.mdl material helper"""
 
     def __init__(self, path: Path):
         self.path = path
@@ -75,7 +75,7 @@ class MdlUtil:
         Yields:
             Path: Path to a texture file.
         """
-        with open(self.path, 'r') as f:
+        with open(self.path) as f:
             for line in f:
                 match = re.search(r'diffuse_texture:\s*texture_2d\("([^"]+)"', line)
                 if match:

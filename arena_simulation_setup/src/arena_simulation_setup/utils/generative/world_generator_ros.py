@@ -46,7 +46,7 @@ class WorldGeneratorROS(WorldGenerator, ServiceNamespace):
         self.create_service(std_srvs.srv.Trigger, self.service_namespace('generate_world'), self._cb_generate)
 
 
-def main(argv=sys.argv):
+def main(argv: list[str] = sys.argv) -> None:
     import os
 
     import rclpy

@@ -34,7 +34,7 @@ class Constants:
             PROMPT = "prompt"
 
             @classmethod
-            def prefix(cls, *args):
+            def prefix(cls, *args: object) -> Namespace:
                 return Namespace("tm_obstacles")(*args)
 
             @classmethod
@@ -49,7 +49,7 @@ class Constants:
             SCENARIO = "scenario"
 
             @classmethod
-            def prefix(cls, *args):
+            def prefix(cls, *args: object) -> Namespace:
                 return Namespace("tm_robots")(*args)
 
             @classmethod
@@ -65,7 +65,7 @@ class Constants:
             BENCHMARK = "benchmark"
 
             @classmethod
-            def prefix(cls, *args):
+            def prefix(cls, *args: object) -> Namespace:
                 return Namespace("tm_module")(*args)
 
             @classmethod
@@ -94,6 +94,7 @@ class Constants:
 class UnityConstants:
     WALL_HEIGHT = 4.0
     ATTACH_SAFE_DIST_SENSOR_TOPIC = "attach_safe_dist_sensor"
+
 
 # if __name__ == "__main__":
 #     rospack = rospkg.RosPack()

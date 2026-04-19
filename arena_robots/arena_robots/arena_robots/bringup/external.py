@@ -40,7 +40,7 @@ class ExternalBringup(Bringup):
         *,
         use_sim_time: bool = True,
         frame: str = "",
-        **_,
+        **_: object,
     ) -> list[Action]:
         args: dict[str, str] = {
             "goal_topic": self.goal_topic,

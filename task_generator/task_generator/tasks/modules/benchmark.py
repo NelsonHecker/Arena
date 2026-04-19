@@ -19,7 +19,7 @@ from task_generator.tasks.modules import TM_Module
 
 class _Config(typing.NamedTuple):
     @classmethod
-    def parse(cls, obj: typing.Dict):
+    def parse(cls, obj: dict) -> "_Config":
         return cls(
             suite=cls.Suite(**obj["suite"]),
             contest=cls.Contest(**obj["contest"]),
@@ -43,11 +43,8 @@ class _Config(typing.NamedTuple):
 
 class Suite(typing.NamedTuple):
     @classmethod
-    def parse(cls, name: str, obj: typing.Dict, config_class=None):
-        return cls(
-            name=name,
-            stages=[cls.Stage.parse(stage, config_class) for stage in obj["stages"]]
-        )
+    def parse(cls, name: str, obj: dict, config_class: object = None) -> "Suite":
+        return cls(name=name, stages=[cls.Stage.parse(stage, config_class) for stage in obj["stages"]])
 
     class Index(int):
         pass
@@ -59,12 +56,12 @@ class Suite(typing.NamedTuple):
         map: str
         tm_robots: Constants.TaskMode.TM_Robots
         tm_obstacles: Constants.TaskMode.TM_Obstacles
-        config: typing.Dict
+        config: dict
         seed: int
         timeout: str
 
         @classmethod
-        def _make_serializable(cls, item):
+        def _make_serializable(cls, item: object) -> object:
             if isinstance(item, dict):
                 return {k: cls._make_serializable(v) for k, v in item.items()}
             elif isinstance(item, (list, tuple)):
@@ -81,20 +78,18 @@ class Suite(typing.NamedTuple):
             return item
 
         @classmethod
-        def hash(cls, obj: typing.Dict) -> int:
+        def hash(cls, obj: dict) -> int:
             logger = logging.getLogger("benchmark")
             hashable_obj = {k: v for k, v in obj.items() if k != "config"}
             hashable_obj = cls._make_serializable(hashable_obj)
             try:
-                return 0x7fffffff & int.from_bytes(
-                    hashlib.sha1(json.dumps(hashable_obj).encode()).digest()[-4:], byteorder="big"
-                )
+                return 0x7FFFFFFF & int.from_bytes(hashlib.sha1(json.dumps(hashable_obj).encode()).digest()[-4:], byteorder="big")
             except Exception as e:
                 logger.error(f"Hash failed: {e}, using fallback seed")
                 return 0
 
         @classmethod
-        def parse(cls, obj: typing.Dict, config_class=None) -> "Suite.Stage":
+        def parse(cls, obj: dict, config_class: object = None) -> "Suite.Stage":
             if config_class is None:
                 raise ValueError("Configuration class must be provided")
             logger = logging.getLogger("benchmark")
@@ -131,14 +126,14 @@ class Suite(typing.NamedTuple):
             return cls(**obj)
 
     name: str
-    stages: typing.List[Stage]
+    stages: list[Stage]
 
     @property
-    def min_index(self):
+    def min_index(self) -> "Suite.Index":
         return self.Index()
 
     @property
-    def max_index(self) -> Index:
+    def max_index(self) -> "Suite.Index":
         return self.Index(len(self.stages) - 1)
 
     def config(self, index: Index) -> Stage:
@@ -147,11 +142,8 @@ class Suite(typing.NamedTuple):
 
 class Contest(typing.NamedTuple):
     @classmethod
-    def parse(cls, name: str, obj: dict):
-        return cls(
-            name=name,
-            contestants=[cls.Contestant.parse(contestant) for contestant in obj["contestants"]]
-        )
+    def parse(cls, name: str, obj: dict) -> "Contest":
+        return cls(name=name, contestants=[cls.Contestant.parse(contestant) for contestant in obj["contestants"]])
 
     class Index(int):
         pass
@@ -163,19 +155,19 @@ class Contest(typing.NamedTuple):
         agent_name: str = ""
 
         @classmethod
-        def parse(cls, obj: typing.Dict) -> "Contest.Contestant":
+        def parse(cls, obj: dict) -> "Contest.Contestant":
             obj.setdefault("inter_planner", "navigate_w_replanning_time")
             return cls(**obj)
 
     name: str
-    contestants: typing.List[Contestant]
+    contestants: list[Contestant]
 
     @property
-    def min_index(self):
+    def min_index(self) -> "Contest.Index":
         return self.Index()
 
     @property
-    def max_index(self) -> Index:
+    def max_index(self) -> "Contest.Index":
         return self.Index(len(self.contestants) - 1)
 
     def config(self, index: int) -> Contestant:
@@ -220,14 +212,14 @@ class Mod_Benchmark(TM_Module):
             return Contest.parse(pathlib.Path(contest).name.strip(".yaml"), config)
 
     @classmethod
-    def _load_suite(cls, suite: str, config_class):
+    def _load_suite(cls, suite: str, config_class: object) -> Suite:
         with open(cls.DIR / "suites" / suite) as f:
             config = yaml.safe_load(f)
             assert isinstance(config, dict), "expected a dict in suite.yaml"
             return Suite.parse(pathlib.Path(suite).name.strip(".yaml"), config, config_class)
 
     @classmethod
-    def _resume(cls):
+    def _resume(cls) -> tuple[str, "Contest.Index", "Suite.Index", int]:
         with open(cls.DIR / cls.LOCK_FILE) as f:
             runid, contest, suite, headless = f.read().split(" ")
             return runid, Contest.Index(contest), Suite.Index(suite), int(headless)
@@ -237,7 +229,7 @@ class Mod_Benchmark(TM_Module):
         namespace = os.path.normpath(namespace)
         return os.path.join("/", namespace) if namespace else self.node.service_namespace()
 
-    def _validate_parameters(self, param_names):
+    def _validate_parameters(self, param_names: list[str]) -> list[str]:
         logger = self._logger
         clean_node_name = self._primary_node
         service_name = os.path.join(clean_node_name, "describe_parameters")
@@ -251,7 +243,7 @@ class Mod_Benchmark(TM_Module):
         try:
             future = describe_client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future, timeout_sec=self.PARAM_SET_TIMEOUT)
-            if (result := future.result()):
+            if result := future.result():
                 valid_params = [desc.name for desc in result.descriptors]
                 logger.debug(f"Valid parameters for {clean_node_name}: {valid_params}")
                 return valid_params
@@ -264,7 +256,7 @@ class Mod_Benchmark(TM_Module):
         finally:
             self.node.destroy_client(describe_client)
 
-    def _set_node_parameters(self, suite_config):
+    def _set_node_parameters(self, suite_config: Suite.Stage) -> bool:
         """
         Apply map/world, task modes, and scenario file for the current stage.
         Only touches parameters that actually need to change.
@@ -303,11 +295,7 @@ class Mod_Benchmark(TM_Module):
             current = self.node.get_parameter("task.scenario.file").value
             if current != scenario_file:
                 try:
-                    self.node.set_parameters([
-                        Parameter("task.scenario.file",
-                                  Parameter.Type.STRING,
-                                  scenario_file)
-                    ])
+                    self.node.set_parameters([Parameter("task.scenario.file", Parameter.Type.STRING, scenario_file)])
                     logger.info(f"[Benchmark] Scenario file → {scenario_file}")
                     updated = True
                 except Exception as e:
@@ -321,10 +309,7 @@ class Mod_Benchmark(TM_Module):
         clean_node_name = self._primary_node
         logger.debug(f"Setting parameters for {clean_node_name}")
 
-        params_to_set = [
-            ('tm_robots', Parameter.Type.STRING, suite_config.tm_robots.value),
-            ('tm_obstacles', Parameter.Type.STRING, suite_config.tm_obstacles.value)
-        ]
+        params_to_set = [('tm_robots', Parameter.Type.STRING, suite_config.tm_robots.value), ('tm_obstacles', Parameter.Type.STRING, suite_config.tm_obstacles.value)]
 
         # Check if parameters are declared
         # valid_params = self._validate_parameters([name for name, _, _ in params_to_set])
@@ -355,7 +340,7 @@ class Mod_Benchmark(TM_Module):
                         logger.warning(f"Failed to set {name} on {clean_node_name}: {future.result().results[0].reason if future.result() else 'No result'}")
                         time.sleep(self.PARAM_SET_BACKOFF)
                 except Exception as e:
-                    logger.warning(f"Error setting {name} on {clean_node_name} (attempt {attempt+1}/{self.PARAM_SET_RETRIES}): {e}")
+                    logger.warning(f"Error setting {name} on {clean_node_name} (attempt {attempt + 1}/{self.PARAM_SET_RETRIES}): {e}")
                     time.sleep(self.PARAM_SET_BACKOFF)
             else:
                 logger.error(f"Failed to set {name} on {clean_node_name} after {self.PARAM_SET_RETRIES} attempts")
@@ -364,7 +349,7 @@ class Mod_Benchmark(TM_Module):
         self.node.destroy_client(set_client)
         return success
 
-    def __init__(self, task, **kwargs):
+    def __init__(self, task: object, **kwargs: object) -> None:
         super().__init__(task, **kwargs)
 
         self.needs_reincarnation: bool = True
@@ -428,16 +413,16 @@ class Mod_Benchmark(TM_Module):
         return self._logger_object
 
     def _log_contest(self):
-        self._logger.info(f"C [{1+self._contest_index}/{1+self._contest.max_index}] {self._contest.config(self._contest_index).name}")
+        self._logger.info(f"C [{1 + self._contest_index}/{1 + self._contest.max_index}] {self._contest.config(self._contest_index).name}")
 
     def _log_suite(self):
-        self._logger.info(f"S [{1+self._suite_index}/{1+self._suite.max_index}] {self._suite.config(self._suite_index).name}")
+        self._logger.info(f"S [{1 + self._suite_index}/{1 + self._suite.max_index}] {self._suite.config(self._suite_index).name}")
 
     def _log_episode(self):
         if self._episode_index < 0:
             return
         episode_limit = int(self._suite.config(self._suite_index).episodes * self._config.suite.scale_episodes)
-        self._logger.info(f"E [{1+self._episode_index}/{episode_limit}]")
+        self._logger.info(f"E [{1 + self._episode_index}/{episode_limit}]")
 
     @property
     def contest_index(self) -> Contest.Index:

@@ -3,26 +3,25 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import TYPE_CHECKING, ClassVar
 
 import lifecycle_msgs.msg
-from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
-import os
-
 from arena_robots.bringup.nav2 import Nav2Bringup
 from arena_robots.clients.goto_pose import GotoPoseClient
 from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import GotoPose
+from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
 
 from task_generator.tasks.robots.adapters import (
     Adapter,
-    AdapterCtx,
     register_adapter,
 )
 from task_generator.tasks.robots.request import GoToPhase, TaskPhase
 
 if TYPE_CHECKING:
     import geometry_msgs.msg
+
     from task_generator.manager.robot_manager.robot_manager import RobotManager
     from task_generator.shared import Pose
 
@@ -38,12 +37,9 @@ class Nav2Adapter(Adapter):
     async def dispatch_phase(
         self,
         phase: TaskPhase,
-        robot: "RobotManager",
+        robot: RobotManager,
     ) -> None:
-        assert isinstance(phase, GoToPhase), (
-            f"Nav2Adapter only accepts GOTO_POSE phases; got "
-            f"{type(phase).__name__} (kind={phase.kind!r})"
-        )
+        assert isinstance(phase, GoToPhase), f"Nav2Adapter only accepts GOTO_POSE phases; got {type(phase).__name__} (kind={phase.kind!r})"
         robot._goal_pos = phase.pose  # pylint: disable=protected-access
         goal = GotoPose.Goal()
         goal.target = self._phase_to_pose_stamped(phase, robot)
@@ -53,10 +49,11 @@ class Nav2Adapter(Adapter):
 
     def _phase_to_pose_stamped(
         self,
-        phase: "GoToPhase",
-        robot: "RobotManager",
-    ) -> "geometry_msgs.msg.PoseStamped":
+        phase: GoToPhase,
+        robot: RobotManager,
+    ) -> geometry_msgs.msg.PoseStamped:
         import geometry_msgs.msg
+
         msg = geometry_msgs.msg.PoseStamped()
         msg.header.frame_id = "map"
         msg.header.stamp = robot.node.sim_time.to_msg()
@@ -65,7 +62,7 @@ class Nav2Adapter(Adapter):
 
     async def wait_until_ready(
         self,
-        robot: "RobotManager",
+        robot: RobotManager,
         node_paths: set[str],
     ) -> None:
         bt_node_path = str(robot.namespace("bt_navigator"))
@@ -80,8 +77,8 @@ class Nav2Adapter(Adapter):
 
     async def on_move(
         self,
-        pose: "Pose",
-        robot: "RobotManager",
+        pose: Pose,
+        robot: RobotManager,
     ) -> None:
         await self._clear_local_costmap(robot)
 
@@ -94,12 +91,10 @@ class Nav2Adapter(Adapter):
 
     async def _clear_local_costmap(
         self,
-        robot: "RobotManager",
+        robot: RobotManager,
         reset_distance: float = -1.0,
     ) -> bool:
-        node_name = robot.node.service_namespace(
-            robot.name, "local_costmap/local_costmap"
-        )
+        node_name = robot.node.service_namespace(robot.name, "local_costmap/local_costmap")
 
         if reset_distance < 0:
             srv_name = os.path.abspath(node_name("../clear_entirely_local_costmap"))
@@ -120,8 +115,6 @@ class Nav2Adapter(Adapter):
 
         result = await cli.call_timeout(req)
         if result is None:
-            robot.node.get_logger().error(
-                f"service call failed for {srv_name}"
-            )
+            robot.node.get_logger().error(f"service call failed for {srv_name}")
             return False
         return True

@@ -12,23 +12,25 @@ from arena_robots_msgs.action import GotoPose
 from arena_robots.task_kinds import TaskKind
 from arena_robots.task_server_handlers import HANDLERS, TaskHandler
 
-
 GotoPoseHandler = TaskHandler[GotoPose.Goal, GotoPose.Feedback, GotoPose.Result]
 
 
 @HANDLERS.register((TaskKind.GOTO_POSE, "nav2"))
-def _load_nav2():
+def _load_nav2() -> type[GotoPoseHandler]:
     from .nav2 import GotoPoseHandlerNav2
+
     return GotoPoseHandlerNav2
 
 
 @HANDLERS.register((TaskKind.GOTO_POSE, "none"))
-def _load_none():
+def _load_none() -> type[GotoPoseHandler]:
     from ._passthrough import GotoPoseHandlerNone
+
     return GotoPoseHandlerNone
 
 
 @HANDLERS.register((TaskKind.GOTO_POSE, "external"))
-def _load_external():
+def _load_external() -> type[GotoPoseHandler]:
     from ._passthrough import GotoPoseHandlerExternal
+
     return GotoPoseHandlerExternal

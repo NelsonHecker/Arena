@@ -17,6 +17,7 @@ PUBLIC_SUFFIX: dict[TaskKind, str] = {
 def action_type(tk: TaskKind) -> type:
     if tk is TaskKind.GOTO_POSE:
         from arena_robots_msgs.action import GotoPose
+
         return GotoPose
     raise KeyError(tk)
 

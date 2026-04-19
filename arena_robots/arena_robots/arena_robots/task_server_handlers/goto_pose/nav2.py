@@ -3,11 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from action_msgs.msg import GoalStatus
+from arena_robots_msgs.action import GotoPose
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
-
-from arena_robots_msgs.action import GotoPose
 
 from arena_robots.task_server_handlers import _executor_sleep
 
@@ -26,28 +25,24 @@ def _translate_nav2_status(nav2_status: int) -> int:
 
 
 class GotoPoseHandlerNav2:
-    def __init__(self, bringup: "Nav2Bringup", *, tf_buffer, node) -> None:
+    def __init__(self, bringup: Nav2Bringup, *, tf_buffer: object, node: object) -> None:
         self._bringup = bringup
         self._tf_buffer = tf_buffer
         self._node = node
         self._native_client = ActionClient(node, NavigateToPose, bringup.native_action_name)
 
-    async def execute(self, goal_handle) -> GotoPose.Result:
+    async def execute(self, goal_handle: object) -> GotoPose.Result:
         arena_goal: GotoPose.Goal = goal_handle.request
         nav2_goal = NavigateToPose.Goal()
         nav2_goal.pose = arena_goal.target
 
-        def _on_nav2_feedback(fb_msg):
+        def _on_nav2_feedback(fb_msg: object) -> None:
             fb = fb_msg.feedback
             arena_fb = GotoPose.Feedback()
             arena_fb.current_pose = fb.current_pose
             arena_fb.distance_remaining = fb.distance_remaining
             eta = fb.estimated_time_remaining
-            arena_fb.eta_seconds = (
-                eta.sec + eta.nanosec * 1e-9
-                if hasattr(eta, "sec")
-                else float(getattr(eta, "seconds", 0.0))
-            )
+            arena_fb.eta_seconds = eta.sec + eta.nanosec * 1e-9 if hasattr(eta, "sec") else float(getattr(eta, "seconds", 0.0))
             goal_handle.publish_feedback(arena_fb)
 
         result = GotoPose.Result()
@@ -68,9 +63,7 @@ class GotoPoseHandlerNav2:
                 result.status = GotoPose.Result.STATUS_CANCELED
                 return result
 
-            send_future = self._native_client.send_goal_async(
-                nav2_goal, feedback_callback=_on_nav2_feedback
-            )
+            send_future = self._native_client.send_goal_async(nav2_goal, feedback_callback=_on_nav2_feedback)
             nav2_goal_handle = await send_future
 
             if not nav2_goal_handle.accepted:

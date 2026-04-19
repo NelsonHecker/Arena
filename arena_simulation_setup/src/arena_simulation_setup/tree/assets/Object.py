@@ -16,18 +16,18 @@ from arena_simulation_setup.utils.models.model_loader import (
 
 @attrs.define(eq=False, hash=False)
 class ObjectIdentifier(DomainAssetIdentifier[ModelWrapper]):
-    """Represents an identifier referencing a 3D model asset.
-    """
+    """Represents an identifier referencing a 3D model asset."""
+
     _asset_type = 'Object'
 
-    def load(self, path: Path, /, **kwargs) -> ModelWrapper:
+    def load(self, path: Path, /, **kwargs: object) -> ModelWrapper:
         del kwargs  # unused
         return ModelWrapper(
             self.name,
             {
                 **ModelProvider_USD.asdict(path, path.name),
                 **ModelProvider_SDF.asdict(path, path.name),
-            }
+            },
         )
 
 

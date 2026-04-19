@@ -60,6 +60,33 @@ arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path t
 Place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `local_planner:=rosnav_rl agent_name:=<agent_name>`. Refer to the [arena_training](arena_training/README.md) for training instructions.
 
 
+## Development
+
+### Linting
+
+Linting is handled by [Ruff](https://docs.astral.sh/ruff/), driven by [pre-commit](https://pre-commit.com/). Config lives in root [`pyproject.toml`](pyproject.toml); the hook pin is in [`.pre-commit-config.yaml`](.pre-commit-config.yaml). Auto-formatting is intentionally not enforced.
+
+**One-time setup:**
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+**Everyday use:** hooks run automatically on `git commit` against staged files. To run manually:
+```bash
+pre-commit run            # staged files only
+pre-commit run -a         # entire repo
+ruff check .              # check without pre-commit
+```
+
+If the hook auto-fixes something, the commit is aborted and the fixes are left unstaged — `git add` and re-commit.
+
+### CI
+
+[`.github/workflows/lint.yml`](.github/workflows/lint.yml) runs the same pre-commit hooks on every push to `jazzy` and every pull request targeting it. The GH check uses the exact config and hook pins from `.pre-commit-config.yaml`, so local and CI never drift. Make the check required in branch protection to block merges on lint failures.
+
+Bump the Ruff version with `pre-commit autoupdate`.
+
 ## Troubleshooting
 
 ### Unknown runtime specified 'nvidia'

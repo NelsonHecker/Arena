@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import typing
-from typing import TYPE_CHECKING, Iterable
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 import attrs
 
@@ -29,37 +29,24 @@ class FleetManager:
     @staticmethod
     def match(
         task_modes: list[TaskModeSpec],
-        robots: Iterable["RobotManager"],
-    ) -> dict[TaskModeSpec, list["RobotManager"]]:
+        robots: Iterable[RobotManager],
+    ) -> dict[TaskModeSpec, list[RobotManager]]:
         """Allocate each RobotManager to exactly one TM spec."""
-        robots_list: list["RobotManager"] = list(robots)
-        by_name: dict[str, "RobotManager"] = {r.name: r for r in robots_list}
+        robots_list: list[RobotManager] = list(robots)
+        by_name: dict[str, RobotManager] = {r.name: r for r in robots_list}
 
-        allocation: dict[TaskModeSpec, list["RobotManager"]] = {
-            spec: [] for spec in task_modes
-        }
+        allocation: dict[TaskModeSpec, list[RobotManager]] = {spec: [] for spec in task_modes}
         used: set[str] = set()
 
         for spec in task_modes:
             for name in spec.assignments:
                 if name not in by_name:
-                    raise KeyError(
-                        f"task_mode {spec.kind!r} pins robot {name!r} "
-                        f"but no such robot exists; known: "
-                        f"{sorted(by_name.keys())}"
-                    )
+                    raise KeyError(f"task_mode {spec.kind!r} pins robot {name!r} but no such robot exists; known: {sorted(by_name.keys())}")
                 if name in used:
-                    raise AssertionError(
-                        f"robot {name!r} is pinned to multiple task_modes"
-                    )
+                    raise AssertionError(f"robot {name!r} is pinned to multiple task_modes")
                 robot = by_name[name]
                 if spec.produces not in robot.accepts:
-                    raise AssertionError(
-                        f"task_mode {spec.kind!r} requires task kind "
-                        f"{spec.produces!r} but robot "
-                        f"{name!r} accepts only "
-                        f"{sorted(k.name for k in robot.accepts)}"
-                    )
+                    raise AssertionError(f"task_mode {spec.kind!r} requires task kind {spec.produces!r} but robot {name!r} accepts only {sorted(k.name for k in robot.accepts)}")
                 allocation[spec].append(robot)
                 used.add(name)
 
@@ -73,7 +60,7 @@ class FleetManager:
                     used.add(robot.name)
                     break
 
-        null_spec: typing.Optional[TaskModeSpec] = next(
+        null_spec: TaskModeSpec | None = next(
             (spec for spec in task_modes if spec.kind == "null"),
             None,
         )

@@ -25,7 +25,7 @@ def line_pairs(geom: MultiLineString | LineString | Polygon):
     for line in geom.geoms:
         coords = list(line.coords)
         if len(coords) >= 2:
-            for start, end in zip(coords[:-1], coords[1:]):
+            for start, end in zip(coords[:-1], coords[1:], strict=False):
                 yield Point(start), Point(end)
 
 
@@ -41,7 +41,7 @@ def to_corners(geom: Polygon) -> list[Position]:
     return [Position(x=pt[0], y=pt[1]) for pt in geom.exterior.coords]
 
 
-def to_walls(geom) -> list[Wall]:
+def to_walls(geom: MultiLineString | LineString | Polygon) -> list[Wall]:
     """Convert a geometry to a list of Wall segments.
 
     Args:
@@ -50,10 +50,4 @@ def to_walls(geom) -> list[Wall]:
     Returns:
         list[Wall]: A list of Wall segments representing the geometry.
     """
-    return [
-        Wall(
-            start=Position(x=start.x, y=start.y),
-            end=Position(x=end.x, y=end.y)
-        )
-        for (start, end) in line_pairs(geom)
-    ]
+    return [Wall(start=Position(x=start.x, y=start.y), end=Position(x=end.x, y=end.y)) for (start, end) in line_pairs(geom)]

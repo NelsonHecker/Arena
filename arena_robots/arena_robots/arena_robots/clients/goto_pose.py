@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from arena_robots.task_kinds import TaskKind, action_type, endpoint
+import rclpy.node
+import tf2_ros
+
 from arena_robots.clients import Client, register_client
+from arena_robots.Robot import RobotView
+from arena_robots.task_kinds import TaskKind, action_type, endpoint
 
 
 @register_client
 class GotoPoseClient(Client):
     task_kind = TaskKind.GOTO_POSE
 
-    def __init__(self, robot, namespace, *, node, tf_buffer) -> None:
+    def __init__(self, robot: RobotView, namespace: str, *, node: rclpy.node.Node, tf_buffer: tf2_ros.Buffer) -> None:
         super().__init__(robot, namespace, node=node, tf_buffer=tf_buffer)
         self._action = node.create_action_client_wrapper(
             action_type(self.task_kind),
@@ -27,7 +31,7 @@ class GotoPoseClient(Client):
     async def wait_ready(self) -> None:
         await self._action.ensure()
 
-    async def send_goal(self, goal) -> object:
+    async def send_goal(self, goal: object) -> object:
         self._done = False
         self._result = None
         self._status = None
@@ -59,13 +63,13 @@ class GotoPoseClient(Client):
         return self._status
 
     @property
-    def feedback(self):
+    def feedback(self) -> object:
         return self._feedback
 
-    def _on_feedback(self, msg) -> None:
+    def _on_feedback(self, msg: object) -> None:
         self._feedback = msg.feedback
 
-    def _on_result(self, future) -> None:
+    def _on_result(self, future: object) -> None:
         if future is not self._result_future:
             return
         try:

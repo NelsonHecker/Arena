@@ -70,7 +70,7 @@ WORLD_DESCRIPTION = """
     -   - `model`: the type of object (e.g., `shelf`).
     -   - `pose`: a list [x, y, yaw] representing the object's position and rotation.
     - `description`: a human-readable name of the zone.
-    The velocity of a pedestrian ranges between [0, 3.5], where [0, 0.3] is stationary, (0.3, 1.0] is idling, (1.0, 2.0] is normal walking and (2.0, 3.5] is running. 
+    The velocity of a pedestrian ranges between [0, 3.5], where [0, 0.3] is stationary, (0.3, 1.0] is idling, (1.0, 2.0] is normal walking and (2.0, 3.5] is running.
     The average crowd density ranges between [0.0, 1.0], where [0, 0.3] is sparse, (0.3, 0.6] is normal and (0.6, 1.0] is considered crowded. If the user doesn't specify the number of agent to be spawned explicitly, you must interpret the density and calculate the number of to be spawned pedestrians by <total number of generated agents> = <intepreted density>*<summation of the zones area>.
     Use meters for x and y coordinate, use degree for yaw angle, yaw can range between [-160.0, 160.0].
 """

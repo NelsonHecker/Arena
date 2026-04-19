@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import copy
 import itertools
-from pathlib import Path
 import typing
 from collections.abc import Sequence
+from pathlib import Path
 
 import attrs
 import yaml
@@ -15,22 +15,20 @@ from arena_robots import ARENA_ROBOTS_DIR
 
 @attrs.define()
 class Config:
-    """Configuration for setting up a robot instance.
-    """
+    """Configuration for setting up a robot instance."""
 
     robot: str  # name of robot
-    name: typing.Optional[str] = None  # name or name prefix
-    planner: typing.Optional[str] = None  # nav2 planner
-    controller: typing.Optional[str] = None  # nav2 controller
-    behavior: typing.Optional[str] = None  # nav2 behavior tree
-    navigator: typing.Optional[str] = None  # navstack adapter kind (overrides model_params.navigator)
+    name: str | None = None  # name or name prefix
+    planner: str | None = None  # nav2 planner
+    controller: str | None = None  # nav2 controller
+    behavior: str | None = None  # nav2 behavior tree
+    navigator: str | None = None  # navstack adapter kind (overrides model_params.navigator)
 
     extra: dict[str, typing.Any] = attrs.field(factory=dict)  # extra arbitrary data
 
     @classmethod
     def parse(cls, data: str | dict[str, typing.Any]) -> Sequence[Config]:
-        """Parse a configuration from the given data.
-        """
+        """Parse a configuration from the given data."""
         if isinstance(data, str):
             return (cls(robot=data, name=data),)
         count = data.get('count', 1)
@@ -41,7 +39,7 @@ class Config:
 class RobotSetupResolver(ResolverBase):
     base_path = ARENA_ROBOTS_DIR / 'config' / 'setup'
 
-    async def resolve(self, identifier):
+    async def resolve(self, identifier: object) -> Path | None:
         target_path = self.base_path / f'{identifier.name}.yaml'
         if target_path.exists():
             return target_path
@@ -49,10 +47,9 @@ class RobotSetupResolver(ResolverBase):
 
 
 class RobotSetupIdentifier(Identifier[list[Config]]):
-
-    def load(self, path: Path, /, **kwargs) -> list[Config]:
+    def load(self, path: Path, /, **kwargs: object) -> list[Config]:
         del kwargs  # unused
-        with open(path, 'r') as f:
+        with open(path) as f:
             configuration = yaml.safe_load(f)
 
         if not isinstance(configuration, list):

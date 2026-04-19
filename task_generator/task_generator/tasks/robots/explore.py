@@ -12,7 +12,7 @@ class TM_Explore(TM_Random):
 
     _timeouts: dict[str, Time]
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
         self._timeouts = {}
         for name in self._ctx.robots.keys():
@@ -23,28 +23,12 @@ class TM_Explore(TM_Random):
         """Roll over completed robots to fresh goals; teleport timed-out robots."""
         for robot, manager in self._ctx.robots.items():
             if await manager.is_done:
-                waypoint = self._ctx.world_manager.get_position_on_map(
-                    safe_dist=manager.safe_distance, forbid=False
-                )
-                await self._set_goal(
-                    robot,
-                    Pose(
-                        waypoint,
-                        Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)
-                    )
-                )
+                waypoint = self._ctx.world_manager.get_position_on_map(safe_dist=manager.safe_distance, forbid=False)
+                await self._set_goal(robot, Pose(waypoint, Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)))
 
             elif (self.node.sim_time.sec - self._timeouts.get(robot, Time()).sec) >= self.node.conf.Robot.TIMEOUT.value:
-                waypoint = self._ctx.world_manager.get_position_on_map(
-                    safe_dist=manager.safe_distance, forbid=False
-                )
-                await self._set_position(
-                    robot,
-                    Pose(
-                        waypoint,
-                        Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)
-                    )
-                )
+                waypoint = self._ctx.world_manager.get_position_on_map(safe_dist=manager.safe_distance, forbid=False)
+                await self._set_position(robot, Pose(waypoint, Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)))
 
         return False
 
@@ -57,9 +41,7 @@ class TM_Explore(TM_Random):
 
     async def _set_goal(self, name: str, pose: Pose):
         self._reset_timeout(name)
-        await self._ctx.robots[name].submit_task(
-            TaskRequest(phases=[GoToPhase(pose=pose)])
-        )
+        await self._ctx.robots[name].submit_task(TaskRequest(phases=[GoToPhase(pose=pose)]))
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)

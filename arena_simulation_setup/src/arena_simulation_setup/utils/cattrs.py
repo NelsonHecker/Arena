@@ -3,23 +3,21 @@ from __future__ import annotations
 import abc
 import traceback
 import typing
-
 from copy import deepcopy
 
 import cattrs
 
 
 class ArenaConverter(cattrs.Converter):
-    """Custom converter for Arena types that exposes an API for retrieving registered structure and unstructure hooks.
-    """
+    """Custom converter for Arena types that exposes an API for retrieving registered structure and unstructure hooks."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self._encoders: typing.Dict[typing.Type, typing.Callable] = {}
-        self._decoders: typing.List[typing.Tuple[typing.Callable[[typing.Type], bool], typing.Callable]] = []
+        self._encoders: dict[type, typing.Callable] = {}
+        self._decoders: list[tuple[typing.Callable[[type], bool], typing.Callable]] = []
 
     @property
-    def type_encoders(self) -> typing.Dict[typing.Type, typing.Callable]:
+    def type_encoders(self) -> dict[type, typing.Callable]:
         """
         Get the registered type encoders.
 
@@ -29,7 +27,7 @@ class ArenaConverter(cattrs.Converter):
         return self._encoders
 
     @property
-    def type_decoders(self) -> typing.List[typing.Tuple[typing.Callable[[typing.Type], bool], typing.Callable]]:
+    def type_decoders(self) -> list[tuple[typing.Callable[[type], bool], typing.Callable]]:
         """
         Get the registered type decoders.
 
@@ -38,7 +36,7 @@ class ArenaConverter(cattrs.Converter):
         """
         return self._decoders
 
-    def register_unstructure_hook(self, cl, *args, **kwargs):
+    def register_unstructure_hook(self, cl: type, *args: object, **kwargs: object) -> None:
         """
         Register an unstructure hook for a given type.
         """
@@ -47,16 +45,18 @@ class ArenaConverter(cattrs.Converter):
             self._encoders[cl] = func
         return super().register_unstructure_hook(cl, *args, **kwargs)
 
-    def register_structure_hook(self, cl, *args, **kwargs):
+    def register_structure_hook(self, cl: type, *args: object, **kwargs: object) -> None:
         """
         Register a structure hook for a given type.
         """
         if args:
-            def predicate(t, c=cl):
+
+            def predicate(t: type, c: type = cl) -> bool:
                 try:
                     return isinstance(t, type) and issubclass(t, c)
                 except TypeError:
                     return False
+
             func = args[0]
             self._decoders.insert(0, (predicate, func))
             # return super().register_structure_hook_func(predicate, func)
@@ -74,7 +74,7 @@ class Idempotent:
     """
 
     @classmethod
-    def _compatible(cls: typing.Type[IdempotentT], obj: typing.Any) -> typing.Optional[IdempotentT]:
+    def _compatible(cls, obj: object) -> typing.Self | None:
         """
         Check if the object is compatible with the class.
         """
@@ -83,16 +83,17 @@ class Idempotent:
         return None
 
     @classmethod
-    def instance_or(cls: typing.Type[IdempotentT], *chain: typing.Callable):
-        def inner(v: typing.Any) -> IdempotentT:
+    def instance_or(cls, *chain: typing.Callable) -> typing.Callable[[object], typing.Self]:
+        def inner(v: object) -> typing.Self:
             for fn in (cls._compatible, *chain):
                 if (inst := fn(v)) is not None:
                     return inst
             raise ValueError(f'Cannot convert {v} to {cls}')
+
         return inner
 
     @classmethod
-    def converter(cls: typing.Type[IdempotentT], *args, **kwargs) -> IdempotentT:
+    def converter(cls, *args: object, **kwargs: object) -> typing.Self:
         """
         If the value is already an instance of the class , return it.
         Otherwise, create a new instance of the class with the value.
@@ -102,7 +103,7 @@ class Idempotent:
         return cls(*args, **kwargs)
 
     @classmethod
-    def converter_clone(cls: typing.Type[IdempotentT], *args, **kwargs) -> IdempotentT:
+    def converter_clone(cls, *args: object, **kwargs: object) -> typing.Self:
         """
         If the value is already an instance of the class , return a deepcopy of it.
         If not , create a new instance of the class with the value.
@@ -115,13 +116,14 @@ class Idempotent:
 T = typing.TypeVar('T')
 
 
-def idempotent(cls: typing.Type[T]):
+def idempotent(cls: type[T]) -> type[T]:
     """
     Make class idempotent.
     """
     if not issubclass(cls, Idempotent):
         return type(cls.__name__, (Idempotent, cls), {})
     return cls
+
 
 # Serialization and Deserialization
 
@@ -131,15 +133,18 @@ class Serializable(abc.ABC):
     A base class for serializable objects.
     """
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
 
         if not getattr(cls, "__abstractmethods__", set()):
-            def unstructure_hook(obj): return obj.serialize()
+
+            def unstructure_hook(obj: Serializable) -> object:
+                return obj.serialize()
+
             converter.register_unstructure_hook(cls, unstructure_hook)
 
     @abc.abstractmethod
-    def serialize(self) -> typing.Any:
+    def serialize(self) -> object:
         """
         Define the custom serialization logic for this object.
         """
@@ -149,17 +154,17 @@ class Serializable(abc.ABC):
 ParseableT = typing.TypeVar('ParseableT', bound='Parseable')
 
 
-class Parseable(abc.ABC):
+class Parseable:
     """
     A base class for parseable objects.
     """
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
 
         if not getattr(cls, "__abstractmethods__", set()):
 
-            def try_parse(value, target_type):
+            def try_parse(value: object, target_type: type) -> object:
                 errors: list[Exception] = []
                 # check idempotence
                 try:
@@ -186,20 +191,14 @@ class Parseable(abc.ABC):
                     errors_repr += ''.join(traceback.format_exception(type(error), error, error.__traceback__))
                 raise ValueError(f'could not parse into {target_type} from {value}:{errors_repr}')
 
-            converter.register_structure_hook(
-                cls,
-                try_parse
-            )
+            converter.register_structure_hook(cls, try_parse)
 
     @classmethod
-    def parse(cls: typing.Type[ParseableT], value: typing.Any) -> ParseableT:
+    def parse(cls, value: object) -> typing.Self:
         return converter.structure_attrs_fromdict(deepcopy(value), cls)
 
 
-converter.register_structure_hook(
-    dict,
-    lambda v, t: v if isinstance(v, dict) else dict(v)
-)
+converter.register_structure_hook(dict, lambda v, t: v if isinstance(v, dict) else dict(v))
 
 __all__ = [
     "Serializable",

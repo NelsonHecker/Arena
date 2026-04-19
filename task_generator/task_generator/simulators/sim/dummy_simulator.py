@@ -1,13 +1,12 @@
 import asyncio
-
+import typing
 from collections.abc import Sequence
 
 import rosgraph_msgs.msg
-
+from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins.Time import Time
-from task_generator.shared import Entity, Wall
+from task_generator.shared import Door, DynamicObstacle, Elevator, Entity, Floor, Obstacle, Robot, Wall
 from task_generator.simulators.sim import BaseSim
-import typing
 
 T = typing.TypeVar('T')
 
@@ -20,12 +19,10 @@ class DummySimulator(BaseSim):
     _clock_task: asyncio.Task
     _paused: bool
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._paused = False
-        self._clock_publisher = self.node.create_publisher(
-            rosgraph_msgs.msg.Clock, '/clock', 10
-        )
+        self._clock_publisher = self.node.create_publisher(rosgraph_msgs.msg.Clock, '/clock', 10)
         self._clock_task = asyncio.create_task(self._publish_clock_loop())
 
     async def _publish_clock_loop(self):
@@ -53,12 +50,12 @@ class DummySimulator(BaseSim):
         except Exception as e:
             self._logger.exception("clock loop crashed: %s", repr(e))
 
-    async def before_reset_task(self):
+    async def before_reset_task(self) -> bool:
         self._logger.debug("pausing")
         self._paused = True
         return True
 
-    async def after_reset_task(self):
+    async def after_reset_task(self) -> bool:
         self._logger.debug("unpausing")
         self._paused = False
         return True
@@ -71,20 +68,16 @@ class DummySimulator(BaseSim):
     async def __spawn_entity(self, entities: Sequence[Entity]) -> Sequence[bool]:
         self._logger.debug(f"spawning {len(entities)} entities")
 
-        await asyncio.gather(*(
-            self.safe_resolve(e.model)
-            for e
-            in entities)
-        )
+        await asyncio.gather(*(self.safe_resolve(e.model) for e in entities))
         return tuple(True for _ in entities)
 
-    async def obstacle_spawn(self, obstacles):
+    async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return await self.__spawn_entity(obstacles)
 
-    async def pedestrian_spawn(self, pedestrians):
+    async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         return await self.__spawn_entity(pedestrians)
 
-    async def robot_spawn(self, robots):
+    async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         return await self.__spawn_entity(robots)
 
     # fake move
@@ -92,13 +85,13 @@ class DummySimulator(BaseSim):
         self._logger.debug(f"moving {len(entities)} entities")
         return tuple(True for _ in entities)
 
-    async def obstacle_move(self, obstacles):
+    async def obstacle_move(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return self.__move_entity(obstacles)
 
-    async def pedestrian_move(self, pedestrians):
+    async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         return self.__move_entity(pedestrians)
 
-    async def robot_move(self, robots):
+    async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
         return self.__move_entity(robots)
 
     # fake delete
@@ -106,22 +99,22 @@ class DummySimulator(BaseSim):
         self._logger.debug(f"deleting {len(entities)} entities")
         return tuple(True for _ in entities)
 
-    async def obstacle_delete(self, obstacles):
+    async def obstacle_delete(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return self.__delete_entity(obstacles)
 
-    async def pedestrian_delete(self, pedestrians):
+    async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         return self.__delete_entity(pedestrians)
 
-    async def robot_delete(self, robots):
+    async def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
         return self.__delete_entity(robots)
 
     # assorted
-    async def pedestrian_update(self, pedestrians):
+    async def pedestrian_update(self, pedestrians: Pedestrians) -> Sequence[bool]:
         self._logger.debug(f'updating {len(pedestrians.pedestrians)} pedestrians')
         return tuple(True for _ in pedestrians.pedestrians)
 
     # world interface
-    async def spawn_walls(self, walls):
+    async def spawn_walls(self, walls: Sequence[Wall]) -> bool:
         self._logger.debug(f'spawning {len(walls)} walls')
 
         async def resolve(wall: Wall):
@@ -134,21 +127,21 @@ class DummySimulator(BaseSim):
         await asyncio.gather(*map(resolve, walls))
         return True
 
-    async def spawn_floors(self, floors):
+    async def spawn_floors(self, floors: Sequence[Floor]) -> bool:
         self._logger.debug(f'spawning {len(floors)} floors')
         await asyncio.gather(*(self.safe_resolve(floor.material) for floor in floors))
         return True
 
-    async def spawn_doors(self, doors):
+    async def spawn_doors(self, doors: Sequence[Door]) -> bool:
         self._logger.debug(f'spawning {len(doors)} doors')
         await asyncio.gather(*(self.safe_resolve(door.material) for door in doors))
         return True
 
-    async def spawn_elevators(self, elevators) -> bool:
+    async def spawn_elevators(self, elevators: Sequence[Elevator]) -> bool:
         self._logger.debug(f'spawning {len(elevators)} elevators')
         await asyncio.gather(*(self.safe_resolve(elevator.material) for elevator in elevators))
         return True
 
-    async def remove_world(self):
+    async def remove_world(self) -> bool:
         self._logger.debug('removing all walls and doors')
         return True

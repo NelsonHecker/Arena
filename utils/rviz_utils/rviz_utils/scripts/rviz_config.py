@@ -16,14 +16,14 @@ import rclpy
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
+
 from rviz_utils.utils import Utils
 
 
 class ConfigFileGenerator(Node):
-
-    _origin: typing.List[float]
-    topics: typing.List[typing.Tuple[str, typing.List[str]]]
-    robot_names: typing.List[str]
+    _origin: list[float]
+    topics: list[tuple[str, list[str]]]
+    robot_names: list[str]
 
     def _wait_for_param(
         self,
@@ -75,15 +75,10 @@ class ConfigFileGenerator(Node):
 
         # self.cli_load = self.create_client('/rviz2/load_config', rcl_interfaces.srv.SetString)
 
-    def _create_pedestrian_group(self):
+    def _create_pedestrian_group(self) -> dict[str, object]:
         """Creates a Pedestrian Group with stylized human visualizations"""
 
-        pedestrian_group = {
-            'Class': 'rviz_common/Group',
-            'Name': 'Pedestrians',
-            'Enabled': True,
-            'Displays': []
-        }
+        pedestrian_group = {'Class': 'rviz_common/Group', 'Name': 'Pedestrians', 'Enabled': True, 'Displays': []}
 
         # Check if pedestrian topics exist
         pedestrian_topics = []
@@ -138,7 +133,6 @@ class ConfigFileGenerator(Node):
             'Show Arrows': True,
             'Show Axes': False,
             'Show Names': True,
-
         }
         pedestrian_group['Displays'].append(tf_display)
 
@@ -153,32 +147,25 @@ class ConfigFileGenerator(Node):
         displays = []
 
         # Add the map display
-        displays.append({
-            'Class': 'rviz_default_plugins/Map',
-            'Enabled': True,
-            'Name': 'Map',
-            'Topic': {
-                'Value': os.path.join(self._TASKGEN_NODE, 'map'),
-                'Depth': 20,
-                'History Policy': 'Keep Last',
-                'Reliability Policy': 'Reliable',
-                'Durability Policy': 'Transient Local',
-            },
-            'Use Timestamp': False,
-            'Alpha': 0.7
-        })
+        displays.append(
+            {
+                'Class': 'rviz_default_plugins/Map',
+                'Enabled': True,
+                'Name': 'Map',
+                'Topic': {
+                    'Value': os.path.join(self._TASKGEN_NODE, 'map'),
+                    'Depth': 20,
+                    'History Policy': 'Keep Last',
+                    'Reliability Policy': 'Reliable',
+                    'Durability Policy': 'Transient Local',
+                },
+                'Use Timestamp': False,
+                'Alpha': 0.7,
+            }
+        )
 
         # Add TF display
-        displays.append({
-            'Class': 'rviz_default_plugins/TF',
-            'Enabled': True,
-            'Name': 'TF',
-            'Frame Timeout': 15,
-            'Marker Scale': 1.0,
-            'Show Arrows': True,
-            'Show Axes': True,
-            'Show Names': False
-        })
+        displays.append({'Class': 'rviz_default_plugins/TF', 'Enabled': True, 'Name': 'TF', 'Frame Timeout': 15, 'Marker Scale': 1.0, 'Show Arrows': True, 'Show Axes': True, 'Show Names': False})
 
         published_topics = [topic[0] for topic in self.get_topic_names_and_types()]
 
@@ -206,11 +193,7 @@ class ConfigFileGenerator(Node):
 
         python_yaw: float = 3.8
         try:
-            python_yaw = sum(
-                2 * (i % 2 - 0.5) * float(d) / 10**i
-                for i, d
-                in enumerate(sys.version.split(' ', 1)[0].split('.'))
-            )  # i am going insane
+            python_yaw = sum(2 * (i % 2 - 0.5) * float(d) / 10**i for i, d in enumerate(sys.version.split(' ', 1)[0].split('.')))  # i am going insane
         except BaseException:
             pass
 
@@ -227,7 +210,7 @@ class ConfigFileGenerator(Node):
             "Pitch": 0.9,
             "Target Frame": "<Fixed Frame>",
             "Value": True,
-            "Yaw": python_yaw
+            "Yaw": python_yaw,
         }
 
         default_file["Visualization Manager"]["Displays"] = displays
@@ -237,22 +220,17 @@ class ConfigFileGenerator(Node):
 
         return file_path
 
-    def _start_setup_callback(self, request, response):
+    def _start_setup_callback(self, request: object, response: object) -> object:
         self.get_logger().info("Service callback triggered.")
         file_path = self.create_config()
         self._send_load_config(file_path)
         return response
 
-    def _create_robot_group(self, robot_name):
+    def _create_robot_group(self, robot_name: str) -> dict[str, object]:
         """Creates a Robot Group with all visualizations for a robot"""
         color = Utils.get_random_rviz_color()
 
-        robot_group = {
-            'Class': 'rviz_common/Group',
-            'Name': f'Robot: {robot_name}',
-            'Enabled': True,
-            'Displays': []
-        }
+        robot_group = {'Class': 'rviz_common/Group', 'Name': f'Robot: {robot_name}', 'Enabled': True, 'Displays': []}
 
         # Add robot model using RobotModel display
         robot_model_topic = f'{self._TASKGEN_NODE}/{robot_name}/robot_description'
@@ -351,7 +329,7 @@ class ConfigFileGenerator(Node):
 
         return robot_group
 
-    def _read_default_file(self):
+    def _read_default_file(self) -> dict[str, object]:
         package_path = get_package_share_directory("rviz_utils")
         file_path = os.path.join(package_path, "config", "rviz_default.rviz")
 
@@ -362,7 +340,7 @@ class ConfigFileGenerator(Node):
             return yaml.safe_load(content)
 
     @classmethod
-    def _tmp_config_file(cls, config_file):
+    def _tmp_config_file(cls, config_file: dict[str, object]) -> str:
         f = tempfile.NamedTemporaryFile('w', delete=False)
         yaml.dump(config_file, f)
         f.close()
@@ -378,19 +356,19 @@ def main():
         config_file = config_file_generator.create_config()
         launch_service = launch.launch_service.LaunchService()
         launch_service.include_launch_description(
-            launch.LaunchDescription([
-                NodeLogLevelExtension.SetGlobalLogLevelAction(
-                    rclpy.logging.get_logger_effective_level(config_file_generator.get_logger().name).name.lower()
-                ),
-                launch_ros.actions.Node(
-                    package="rviz2",
-                    executable="rviz2",
-                    name="rviz2",
-                    arguments=['-d', config_file],
-                    parameters=[{"use_sim_time": True}],
-                    output="screen",
-                )
-            ])
+            launch.LaunchDescription(
+                [
+                    NodeLogLevelExtension.SetGlobalLogLevelAction(rclpy.logging.get_logger_effective_level(config_file_generator.get_logger().name).name.lower()),
+                    launch_ros.actions.Node(
+                        package="rviz2",
+                        executable="rviz2",
+                        name="rviz2",
+                        arguments=['-d', config_file],
+                        parameters=[{"use_sim_time": True}],
+                        output="screen",
+                    ),
+                ]
+            )
         )
         launch_service.run()
     except KeyboardInterrupt:

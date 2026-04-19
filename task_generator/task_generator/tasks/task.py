@@ -31,8 +31,8 @@ from .robots import TM_Robots
 
 
 class Task(_TaskRegistry, NodeInterface):
-    """Task class that comibnes task modes.
-    """
+    """Task class that comibnes task modes."""
+
     last_reset_time: int
 
     TOPIC_RESET_START = "reset_start"
@@ -66,8 +66,8 @@ class Task(_TaskRegistry, NodeInterface):
         robots_manager: RobotsManager,
         world_manager: WorldManager,
         modules: Sequence[Constants.TaskMode.TM_Module] = (),
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> "Task":
         self = cls(
             environment_manager=environment_manager,
             robots_manager=robots_manager,
@@ -93,18 +93,18 @@ class Task(_TaskRegistry, NodeInterface):
         return self._ctx.world_manager
 
     @property
-    def robots(self):
+    def robots(self) -> dict:
         return self._ctx.robots
 
     def __init__(
         self,
-        *args,
+        *args: object,
         environment_manager: EnvironmentManager,
         robots_manager: RobotsManager,
         world_manager: WorldManager,
         modules: Sequence[Constants.TaskMode.TM_Module] = (),
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self._force_reset = False
@@ -169,16 +169,12 @@ class Task(_TaskRegistry, NodeInterface):
             else:
                 extra = get_extra_tm_loader(spec.kind)
                 if extra is None:
-                    raise KeyError(
-                        f"task_mode kind {spec.kind!r} is not registered"
-                    )
+                    raise KeyError(f"task_mode kind {spec.kind!r} is not registered")
                 loader = extra
                 ns = _TaskRegistry._namespace(spec.kind)
 
             scoped = _scoped_ctx(self._ctx, (r.name for r in robots))
-            sub_modes.append(
-                loader()(ctx=scoped, namespace=ns, node=self.node)
-            )
+            sub_modes.append(loader()(ctx=scoped, namespace=ns, node=self.node))
 
         self.__tm_robots = TM_Composite(
             ctx=self._ctx,
@@ -191,14 +187,13 @@ class Task(_TaskRegistry, NodeInterface):
         # from retriggering a rebind.
         self.__param_tm_robots = None  # type: ignore[assignment]
 
-    def set_tm_obstacles(
-            self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
+    def set_tm_obstacles(self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
         assert tm_obstacles in self.registry_obstacles, f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
         loader, ns = self.registry_obstacles[tm_obstacles]
         self.__tm_obstacles = loader()(ctx=self._ctx, namespace=ns, node=self.node)
         self.__param_tm_obstacles = tm_obstacles
 
-    async def _reset_task(self, **kwargs):
+    async def _reset_task(self, **kwargs: object) -> None:
         try:
             self.__reset_start.publish(std_msgs.Empty())
 
@@ -208,14 +203,10 @@ class Task(_TaskRegistry, NodeInterface):
 
             try:
                 if not self._train_mode:
-                    if (
-                        new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value
-                    ) != self.__param_tm_robots:
+                    if (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
                         self.set_tm_robots(new_tm_robots)
 
-                    if (
-                        new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value
-                    ) != self.__param_tm_obstacles:
+                    if (new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value) != self.__param_tm_obstacles:
                         self.set_tm_obstacles(new_tm_obstacles)
 
                 for module in self.__modules:
@@ -246,7 +237,7 @@ class Task(_TaskRegistry, NodeInterface):
         finally:
             self.__reset_end.publish(std_msgs.Empty())
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> None:
         self._force_reset = False
         await self._reset_task(**kwargs)
 

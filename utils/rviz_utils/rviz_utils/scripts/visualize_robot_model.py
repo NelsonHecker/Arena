@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
 
-import rclpy
 import os
 import traceback
+
+import rclpy
 import yaml
-from ament_index_python.packages import get_package_share_directory
-from std_srvs.srv import Empty 
-from std_msgs.msg import ColorRGBA
-from nav_msgs.msg import Odometry
-from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point, Vector3
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from std_msgs.msg import ColorRGBA
+from std_srvs.srv import Empty
+from visualization_msgs.msg import Marker, MarkerArray
 
 
 class VisualizeRobotModel(Node):
     def __init__(self):
         super().__init__('visualize_robot_model')
-        
-        self.srv_start_setup = self.create_service(
-            Empty,
-            "start_model_visualization",
-            self.start_model_visualization_callback
-        )
+
+        self.srv_start_setup = self.create_service(Empty, "start_model_visualization", self.start_model_visualization_callback)
 
         self.robot_models = {}
         self.publisher_map = {}
         self.subscribers = []
 
-    def start_model_visualization_callback(self, request, response):
+    def start_model_visualization_callback(self, request: Empty.Request, response: Empty.Response) -> Empty.Response:
         # Declare parameters for robot_names
         self.declare_parameter('robot_names', [])
         robot_names = self.get_parameter('robot_names').value
@@ -50,25 +46,14 @@ class VisualizeRobotModel(Node):
             self.robot_models[robot_model] = markers_for_model
 
             # Create publisher for each robot
-            self.publisher_map[name] = self.create_publisher(
-                MarkerArray,
-                os.path.join(name, "visualize", "model"),
-                10
-            )
+            self.publisher_map[name] = self.create_publisher(MarkerArray, os.path.join(name, "visualize", "model"), 10)
 
             # Create subscriber for each robot's odometry
-            self.subscribers.append(
-                self.create_subscription(
-                    Odometry,
-                    os.path.join(name, robot_odom_topic),
-                    lambda msg, args=(robot_model, name): self.publish_model(msg, args),
-                    10
-                )
-            )
+            self.subscribers.append(self.create_subscription(Odometry, os.path.join(name, robot_odom_topic), lambda msg, args=(robot_model, name): self.publish_model(msg, args), 10))
 
         return Empty.Response()
 
-    def publish_model(self, data, args):
+    def publish_model(self, data: Odometry, args: tuple[str, str]) -> None:
         robot_model, name = args
 
         try:
@@ -88,20 +73,12 @@ class VisualizeRobotModel(Node):
             self.get_logger().error(traceback.format_exc())
             self.get_logger().error(f"Error - publishing markers {name}")
 
-            
-
-    def read_robot_model_file(self, robot_model):
+    def read_robot_model_file(self, robot_model: str) -> list[object]:
         try:
             # In ROS2, use ament_index_python instead of rospkg
             from ament_index_python.packages import get_package_share_directory
-            
-            file_path = os.path.join(
-                get_package_share_directory('simulation_setup'),
-                "entities",
-                "robots",
-                robot_model,
-                f"{robot_model}.model.yaml"
-            )
+
+            file_path = os.path.join(get_package_share_directory('simulation_setup'), "entities", "robots", robot_model, f"{robot_model}.model.yaml")
 
             with open(file_path) as file:
                 return yaml.safe_load(file)["bodies"]
@@ -109,19 +86,11 @@ class VisualizeRobotModel(Node):
             self.get_logger().error(f"Error reading robot model file: {e}")
             return self.get_default_model()
 
-    def get_default_model(self):
+    def get_default_model(self) -> list[object]:
         # Simple default model if the real one can't be found
-        return [{
-            'color': [0, 0, 1, 1],
-            'footprints': [
-                {
-                    'type': 'circle',
-                    'radius': 0.25
-                }
-            ]
-        }]
+        return [{'color': [0, 0, 1, 1], 'footprints': [{'type': 'circle', 'radius': 0.25}]}]
 
-    def create_marker_array_for_robot(self, bodies):
+    def create_marker_array_for_robot(self, bodies: list[object]) -> list[Marker]:
         markers = []
 
         for i, body in enumerate(bodies):
@@ -133,7 +102,7 @@ class VisualizeRobotModel(Node):
 
         return markers
 
-    def create_marker_from_footprint(self, footprint, color, id):
+    def create_marker_from_footprint(self, footprint: dict[str, object], color: list[float], id: int) -> Marker:
         r, g, b, a = color
 
         marker = Marker()
@@ -143,11 +112,7 @@ class VisualizeRobotModel(Node):
 
         if footprint.get("type") == "circle":
             marker.type = Marker.SPHERE
-            marker.scale = Vector3(
-                x=footprint.get("radius", 0.25) * 2,
-                y=footprint.get("radius", 0.25) * 2,
-                z=0.1
-            )
+            marker.scale = Vector3(x=footprint.get("radius", 0.25) * 2, y=footprint.get("radius", 0.25) * 2, z=0.1)
         else:
             marker.type = Marker.LINE_STRIP
             marker.scale = Vector3(x=0.03, y=0, z=0)
@@ -161,7 +126,7 @@ class VisualizeRobotModel(Node):
 
         return marker
 
-    def get_complexity_odom_topic(self):
+    def get_complexity_odom_topic(self) -> str:
         self.declare_parameter('complexity', 1)
         complexity = self.get_parameter('complexity').value
 
@@ -173,13 +138,13 @@ class VisualizeRobotModel(Node):
             return "odom"  # Default
 
 
-def main(args=None):
+def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
-    
+
     visualizer = VisualizeRobotModel()
-    
+
     rclpy.spin(visualizer)
-    
+
     visualizer.destroy_node()
     rclpy.shutdown()
 

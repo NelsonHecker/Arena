@@ -11,8 +11,7 @@ if typing.TYPE_CHECKING:
 
 
 class NodeInterface:
-
-    def __init__(self, *args, node: TaskGenerator, **kwargs) -> None:
+    def __init__(self, *args: object, node: TaskGenerator, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self.__node = node
 

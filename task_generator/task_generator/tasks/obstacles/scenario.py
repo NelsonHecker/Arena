@@ -7,16 +7,15 @@ from task_generator.tasks.obstacles import Obstacles, TM_Obstacles
 
 
 class TM_Scenario(TM_Obstacles):
-
     _config: ROSParamT[Scenario]
 
     def _parse_scenario(self, scenario: str) -> Scenario:
         return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load()
 
-    async def reset(self, **kwargs) -> Obstacles:
+    async def reset(self, **kwargs: object) -> Obstacles:
         return self._config.value.static, self._config.value.dynamic
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         TM_Obstacles.__init__(self, **kwargs)
 
         default_scenario: str | None = 'default'

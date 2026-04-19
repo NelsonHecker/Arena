@@ -3,8 +3,8 @@ from __future__ import annotations
 from launch import Action
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 from arena_robots.bringup import Bringup, register_bringup
 
@@ -23,12 +23,16 @@ class NoneBringup(Bringup):
         *,
         use_sim_time: bool = True,
         frame: str = "",
-        **_,
+        **_: object,
     ) -> list[Action]:
-        launch_file = PathJoinSubstitution([
-            FindPackageShare("arena_robots"),
-            "launch", "adapters", "none.launch.py",
-        ])
+        launch_file = PathJoinSubstitution(
+            [
+                FindPackageShare("arena_robots"),
+                "launch",
+                "adapters",
+                "none.launch.py",
+            ]
+        )
         return [
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(launch_file),

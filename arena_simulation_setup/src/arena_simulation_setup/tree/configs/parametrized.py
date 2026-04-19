@@ -1,19 +1,13 @@
-from typing_extensions import Self
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
+from typing import Self
 
 import attrs
-
 from arena_simulation_setup import AB_DIR
 from arena_simulation_setup.tree import Identifier, PathResolverBase
 
 
-def _get_attrib(
-    element: ET.Element,
-    attribute: str,
-    default: Optional[str] = None
-) -> str:
+def _get_attrib(element: ET.Element, attribute: str, default: str | None = None) -> str:
     val = element.get(attribute)
     if val is not None:
         return str(val)
@@ -59,7 +53,7 @@ class ParametrizedIdentifier(Identifier[ParametrizedConfig]):
             return cls(name=str(relpath.with_suffix('')))
         raise FileNotFoundError(f"Invalid file {relpath} for parametrized identifier")
 
-    def load(self, path: Path, /, **kwargs) -> ParametrizedConfig:
+    def load(self, path: Path, /, **kwargs: object) -> ParametrizedConfig:
         del kwargs
 
         tree = ET.parse(path)
@@ -68,13 +62,8 @@ class ParametrizedIdentifier(Identifier[ParametrizedConfig]):
         if not (isinstance(root, ET.Element) and root.tag == "random"):
             raise ValueError(f"{path} is not a random.xml desc (expected root tag 'random')")
 
-        def xml_to_config(config) -> ParametrizedConfig.ObstacleConfig:
-            return ParametrizedConfig.ObstacleConfig(
-                min=int(_get_attrib(config, "min")),
-                max=int(_get_attrib(config, "max")),
-                type=_get_attrib(config, "type", ""),
-                model=_get_attrib(config, "model")
-            )
+        def xml_to_config(config: ET.Element) -> ParametrizedConfig.ObstacleConfig:
+            return ParametrizedConfig.ObstacleConfig(min=int(_get_attrib(config, "min")), max=int(_get_attrib(config, "max")), type=_get_attrib(config, "type", ""), model=_get_attrib(config, "model"))
 
         return ParametrizedConfig(
             STATIC=list(map(xml_to_config, root.findall("./static/obstacle") or [])),

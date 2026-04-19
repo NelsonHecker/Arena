@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from arena_robots.Robot import RobotView
 
-from arena_robots.task_kinds import TaskKind, PUBLIC_SUFFIX
+from arena_robots.task_kinds import TaskKind
 
 
 class Client(ABC):
@@ -28,11 +28,11 @@ class Client(ABC):
 
     def __init__(
         self,
-        robot: "RobotView",
+        robot: RobotView,
         namespace: str,
         *,
-        node: "rclpy.node.Node",
-        tf_buffer: "tf2_ros.Buffer",
+        node: rclpy.node.Node,
+        tf_buffer: tf2_ros.Buffer,
     ) -> None:
         self.robot = robot
         self.namespace = namespace
@@ -40,25 +40,21 @@ class Client(ABC):
         self.tf_buffer = tf_buffer
 
     @abstractmethod
-    def action_endpoint(self) -> str:
-        ...
+    def action_endpoint(self) -> str: ...
 
     @abstractmethod
-    async def wait_ready(self) -> None:
-        ...
+    async def wait_ready(self) -> None: ...
 
     @abstractmethod
-    async def send_goal(self, goal) -> "object":
+    async def send_goal(self, goal: object) -> object:
         """Send goal; return once accepted by the server (returns GoalHandle)."""
         ...
 
     @abstractmethod
-    async def await_result(self) -> object:
-        ...
+    async def await_result(self) -> object: ...
 
     @abstractmethod
-    def is_done(self) -> bool | None:
-        ...
+    def is_done(self) -> bool | None: ...
 
     def cancel(self) -> None:
         raise NotImplementedError
@@ -82,9 +78,7 @@ def register_client(cls: type[Client]) -> type[Client]:
 
 def get_client(task_kind: TaskKind) -> type[Client]:
     if task_kind not in _CLIENTS:
-        raise KeyError(
-            f"No client registered for task_kind {task_kind!r}; available: {list(_CLIENTS)}"
-        )
+        raise KeyError(f"No client registered for task_kind {task_kind!r}; available: {list(_CLIENTS)}")
     return _CLIENTS[task_kind]
 
 

@@ -35,8 +35,8 @@ def _initialpose_generator(x: float, y: float, d: float):
 
 @attrs.frozen
 class _RobotDiff:
-    """Change to robot configurations to execute.
-    """
+    """Change to robot configurations to execute."""
+
     to_remove: list[str] = attrs.field(factory=list)
     to_add: dict[str, Robot] = attrs.field(factory=dict)
     to_update: dict[str, Robot] = attrs.field(factory=dict)
@@ -48,6 +48,7 @@ class RobotsManager(NodeInterface):
     Args:
         environment_manager (EnvironmentManager): The environment manager.
     """
+
     _initialpose: typing.Generator
     _robot_configurations: ROSParamT[_RobotDiff]
     _diff: _RobotDiff
@@ -73,11 +74,13 @@ class RobotsManager(NodeInterface):
         """
         t: asyncio.Task | None = None
         try:
+
             async def task():
                 while True:
                     latest = self.node.get_node_names_and_namespaces()
                     paths.update(os.path.join(ns, name) for name, ns in latest)
                     await asyncio.sleep(1.0)
+
             t = asyncio.create_task(task())
             yield t
         except asyncio.CancelledError:
@@ -88,10 +91,7 @@ class RobotsManager(NodeInterface):
             if t and not t.done():
                 t.cancel()
 
-    def _parse_robot_configurations(
-        self,
-        v: typing.Any
-    ) -> _RobotDiff:
+    def _parse_robot_configurations(self, v: object) -> _RobotDiff:
         """Parse robot configurations from the given value.
 
         Args:
@@ -114,14 +114,11 @@ class RobotsManager(NodeInterface):
             config = Robot.from_setup(base, node=self.node)
 
             if name is None:  # anon
-                parsed_anonymous.setdefault(
-                    config.model.name, []
-                ).append(config)
+                parsed_anonymous.setdefault(config.model.name, []).append(config)
 
             else:  # explicit name
                 if name in parsed_explicit:
-                    raise RuntimeError(
-                        f'naming conflict for robots with name {name}')
+                    raise RuntimeError(f'naming conflict for robots with name {name}')
 
                 parsed_explicit[name] = config
 
@@ -129,7 +126,7 @@ class RobotsManager(NodeInterface):
             if arg.endswith('.yaml'):
                 for addition in robot_setup.RobotSetupIdentifier(arg).resolve_sync():
                     add(addition)
-            elif (match := re.match(r'(.*)\[(\d+)\]', arg)):
+            elif match := re.match(r'(.*)\[(\d+)\]', arg):
                 # multi-instantiations via model[count]
                 for _ in range(int(match.group(2))):
                     add(robot_setup.Config(robot=match.group(1)))
@@ -137,11 +134,7 @@ class RobotsManager(NodeInterface):
                 # just robot
                 add(robot_setup.Config(robot=arg))
 
-        existing = {
-            k: v.robot
-            for k, v
-            in self.managers.items()
-        }
+        existing = {k: v.robot for k, v in self.managers.items()}
 
         existing_keys = set(existing.keys())
         matchable_keys = set(existing_keys)
@@ -151,10 +144,7 @@ class RobotsManager(NodeInterface):
 
         # explicit naming first
         for prefix, config in parsed_explicit.items():
-            match = next(
-                (key for key in matchable_keys if existing[key] == config),
-                None
-            )
+            match = next((key for key in matchable_keys if existing[key] == config), None)
 
             if match is None:  # no matches
                 to_add[prefix] = config
@@ -166,15 +156,7 @@ class RobotsManager(NodeInterface):
             unassigned: list[Robot] = []
 
             for config in configs:
-                match = next(
-                    (
-                        key
-                        for key
-                        in matchable_keys
-                        if existing[key].compatible(config)
-                    ),
-                    None
-                )
+                match = next((key for key in matchable_keys if existing[key].compatible(config)), None)
 
                 if match is None:  # no similar robot found
                     unassigned.append(config)
@@ -204,14 +186,13 @@ class RobotsManager(NodeInterface):
         return self._diff
 
     async def set_up(self):
-        """Set up the robot managers.
-        """
+        """Set up the robot managers."""
         futures: list[typing.Awaitable] = []
         for robot_name in self._diff.to_remove:
             futures.append(self.managers.pop(robot_name).destroy())
         self._diff.to_remove.clear()
 
-        for robot_name, config in self._diff.to_update.items():
+        for robot_name in self._diff.to_update:
             futures.append(self.managers[robot_name].update())
             # TODO
         self._diff.to_update.clear()
@@ -227,7 +208,7 @@ class RobotsManager(NodeInterface):
                     self.node.get_name(),
                 ),
                 environment_manager=self._environment_manager,
-                robot=config
+                robot=config,
             )
             futures.append(manager.set_up_robot(node_paths))
             self.managers[robot_name] = manager
@@ -244,7 +225,7 @@ class RobotsManager(NodeInterface):
 
         self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
 
-    def __init__(self, *args, environment_manager: EnvironmentManager, **kwargs) -> None:
+    def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager: EnvironmentManager = environment_manager
         self._managers: dict[str, RobotManager] = {}
