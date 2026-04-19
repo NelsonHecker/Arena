@@ -54,3 +54,47 @@ build-backend = "setuptools.build_meta"
 dev = [
     "aiomonitor>=0.7.1",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 320
+src = [
+    "task_generator/task_generator",
+    "arena_bringup/arena_bringup",
+    "arena_robots/arena_robots/arena_robots",
+    "arena_simulation_setup/src/arena_simulation_setup",
+    "utils/arena_rclpy_mixins/arena_rclpy_mixins",
+    "utils/rviz_utils/rviz_utils",
+]
+extend-exclude = [
+    "_meta",
+    "arena_tools",
+    "arena_isaac",
+    "arena_evaluation",
+    "arena_training",
+    "arena_robots/deps",
+    ".venv",
+    "**/launch",
+    "**/*.launch.py",
+    "**/setup.py",
+    "**/tests",
+    "**/test",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN", "PYI"]
+ignore = ["E501", "E402", "F841", "E731", "PYI051", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+"arena_simulation_setup/**/*.py" = ["UP"]
+
+[tool.ruff.lint.flake8-annotations]
+suppress-none-returning = true
+mypy-init-return = true
+allow-star-arg-any = true
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
