@@ -175,17 +175,32 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
             ;;
             rebuild)
                 if [ $# -lt 1 ]; then
-                    echo "Usage: arena rebuild <package1> [package2 ...]" >&2
+                    echo "Usage: arena rebuild <colcon-selection-args|package names>" >&2
+                    echo "  e.g. arena rebuild foo bar" >&2
+                    echo "       arena rebuild --packages-select foo bar" >&2
+                    echo "       arena rebuild --packages-select-regex 'arena_.*'" >&2
                     result=1
                 else
-                    for pkg in "$@"; do
-                        if [ -d "build/${pkg}" ] || [ -d "install/${pkg}" ]; then
-                            echo "cleaning build for ${pkg}..."
-                        fi
-                        rm -rf "build/${pkg}" "install/${pkg}"
-                    done
-                    arena build --packages-select "$@"
-                    result=$?
+                    if [[ "$1" != --* ]]; then
+                        set -- --packages-select "$@"
+                    fi
+                    mapfile -t _REBUILD_PKGS < <(colcon list --names-only --base-paths "$ARENA_WS_DIR/src" "$@")
+                    if [ ${#_REBUILD_PKGS[@]} -eq 0 ]; then
+                        echo "arena rebuild: no packages matched" >&2
+                        result=1
+                    else
+                        echo "arena rebuild: resolved ${#_REBUILD_PKGS[@]} package(s): ${_REBUILD_PKGS[*]}"
+                        for pkg in "${_REBUILD_PKGS[@]}"; do
+                            if [ -d "build/${pkg}" ] || [ -d "install/${pkg}" ]; then
+                                echo "  rm -rf build/${pkg} install/${pkg}"
+                            fi
+                            rm -rf "build/${pkg}" "install/${pkg}"
+                        done
+                        echo "arena rebuild: clean done, invoking arena build"
+                        arena build "$@"
+                        result=$?
+                    fi
+                    unset _REBUILD_PKGS
                 fi
             ;;
             deps)
