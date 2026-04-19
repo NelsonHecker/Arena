@@ -128,3 +128,12 @@ class EnvironmentManager(NodeInterface):
         Unuse and remove all obstacles
         """
         await self._human_simulator.remove_obstacles(purge=purge)
+
+    async def step(self, n: int = 1) -> bool:
+        return await self._simulator.step(n)
+
+    async def before_reset_task(self) -> bool:
+        return await self._simulator.before_reset_task()
+
+    async def after_reset_task(self) -> bool:
+        return await self._simulator.after_reset_task()

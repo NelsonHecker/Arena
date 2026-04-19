@@ -53,10 +53,7 @@ class ModelParams(dict[str, typing.Any]):
 
     @property
     def base_frame(self) -> str:
-        m = self._mobile()
-        if m is not None:
-            return m.base_frame
-        return self.get('robot_base_frame', 'base_link')
+        return str(self.get('base_frame', self.get('robot_base_frame', 'base_link')))
 
     @property
     def odom_frame(self) -> str:
@@ -67,27 +64,7 @@ class ModelParams(dict[str, typing.Any]):
 
     @property
     def z_offset(self) -> float:
-        m = self._mobile()
-        if m is not None:
-            return m.z_offset
         return float(self.get('z_offset', 0.0))
-
-    @property
-    def actuator_caps(self) -> frozenset[str]:
-        """Authoritative cap advertisement. Derived from caps/*.yaml filenames
-        when the directory exists; falls back to the legacy explicit list for
-        pre-migration robots."""
-        if self._caps is not None:
-            declared = self._caps.available
-            if declared:
-                return declared
-        raw = self.get('actuator_caps', ['mobile'])
-        if not isinstance(raw, (list, tuple, set, frozenset)):
-            raise ValueError(
-                f"model_params 'actuator_caps' must be a list/sequence of "
-                f"strings; got {type(raw).__name__}"
-            )
-        return frozenset(str(c) for c in raw)
 
     @property
     def navigator(self) -> str:
@@ -96,15 +73,10 @@ class ModelParams(dict[str, typing.Any]):
 
     @property
     def sensors(self) -> list["SensorSpec"]:
-        """Declared sensors parsed into SensorSpec entries."""
-        m = self._mobile()
-        if m is not None:
-            return m.sensors
         raw = self.get('sensors', [])
         if not isinstance(raw, list):
             raise ValueError(
-                f"model_params 'sensors' must be a list; got "
-                f"{type(raw).__name__}"
+                f"model_params 'sensors' must be a list; got {type(raw).__name__}"
             )
         out: list[SensorSpec] = []
         for i, entry in enumerate(raw):
@@ -152,11 +124,6 @@ class RobotView(PathView):
         ``self.model_params.caps`` — exposed directly on ``RobotView`` for
         readability."""
         return self.model_params.caps
-
-    @property
-    def actuator_caps(self) -> frozenset[str]:
-        """Authoritative cap advertisement, sourced from caps/*.yaml filenames."""
-        return self.caps.available
 
     @property
     def model_params(self) -> ModelParams:

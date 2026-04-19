@@ -1,13 +1,7 @@
-base_frame: robot_base_footprint
 odom_frame: odom
 sensor_frame: lidar
 radius: 0.4
 is_holonomic: true
-sensors:
-  - name: lidar
-    type: laserscan
-    topic: ${namespace}/lidar
-    frame: lidar
 
 nav2:
   polygons:

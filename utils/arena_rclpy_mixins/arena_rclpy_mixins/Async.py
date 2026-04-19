@@ -5,6 +5,8 @@ import functools
 import inspect
 import typing
 
+import rclpy.action
+import rclpy.action.client
 import rclpy.client
 import rclpy.node
 import rclpy.qos
@@ -157,6 +159,13 @@ class AsyncNode(TimeNode, rclpy.node.Node):
             timeout=timeout,
         )
 
+    def create_action_client_wrapper(self, action_type, action_name: str, timeout: float = 60.0, *, callback_group: rclpy.client.CallbackGroup | None = None) -> ActionClientWrapper:
+        return ActionClientWrapper(
+            self,
+            rclpy.action.ActionClient(self, action_type, action_name, callback_group=callback_group),
+            timeout=timeout,
+        )
+
 
 class AsyncUtil:
     # timeout wrappers
@@ -247,3 +256,164 @@ class ClientWrapper(typing.Generic[ServiceT]):
             timeout_sec (float | None, optional): Timeout in seconds. If None, wait forever. Defaults to None.
         """
         return await self._node.wait_for_service_async(self._client, timeout=timeout_sec)
+
+
+ActionT = typing.TypeVar('ActionT')
+
+
+class ActionClientWrapper(typing.Generic[ActionT]):
+    """A wrapper around rclpy.action.ActionClient to provide async utilities.
+    """
+
+    def __init__(self, node: AsyncNode, action_client: rclpy.action.ActionClient, timeout: float = 60.0):
+        """
+        Args:
+            node (AsyncNode): node that will own the client.
+            action_client (rclpy.action.ActionClient): The rclpy action client to wrap.
+            timeout (float, optional): Timeout in seconds. Defaults to 60.0.
+        """
+        self._node: AsyncNode = node
+        self._client: rclpy.action.ActionClient = action_client
+        self._timeout: float = timeout
+
+    @property
+    def client(self) -> rclpy.action.ActionClient:
+        """The underlying rclpy action client.
+        """
+        return self._client
+
+    async def send_goal(
+        self,
+        goal: ActionT.Goal,
+        *,
+        feedback_callback: typing.Callable[[typing.Any], None] | None = None,
+    ) -> rclpy.action.client.ClientGoalHandle:
+        """Send a goal and await its acceptance.
+
+        Args:
+            goal (ActionT.Goal): The goal message.
+            feedback_callback: Optional callback invoked with each feedback message.
+
+        Returns:
+            ClientGoalHandle: handle for the accepted goal. Raises if rejected.
+        """
+        send_future = self._client.send_goal_async(goal, feedback_callback=feedback_callback)
+        goal_handle = await self._node.await_ros(send_future)
+        if not goal_handle.accepted:
+            raise RuntimeError(f"goal was rejected by action server {self._client._action_name!r}")
+        return goal_handle
+
+    async def send_goal_timeout(
+        self,
+        goal: ActionT.Goal,
+        timeout_sec: float | None = None,
+        *,
+        feedback_callback: typing.Callable[[typing.Any], None] | None = None,
+    ) -> rclpy.action.client.ClientGoalHandle | None:
+        """Send a goal with a timeout on acceptance.
+
+        Args:
+            goal (ActionT.Goal): The goal message.
+            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
+            feedback_callback: Optional callback invoked with each feedback message.
+
+        Returns:
+            ClientGoalHandle | None: handle for the accepted goal, or None if timed out.
+        """
+        if timeout_sec is None:
+            timeout_sec = self._timeout
+        res = await AsyncUtil.timeout(
+            self.send_goal(goal, feedback_callback=feedback_callback),
+            timeout_sec=timeout_sec,
+        )
+        if res is None:
+            self._node.get_logger().warning(f"send_goal to {self._client._action_name} timed out after {timeout_sec} seconds")
+        return res
+
+    async def await_result(
+        self,
+        goal_handle: rclpy.action.client.ClientGoalHandle,
+    ) -> typing.Any:
+        """Await the final result for an accepted goal.
+
+        Args:
+            goal_handle (ClientGoalHandle): handle returned by :meth:`send_goal`.
+
+        Returns:
+            The wrapped result response (with ``.status`` and ``.result`` attributes).
+        """
+        return await self._node.await_ros(goal_handle.get_result_async())
+
+    async def await_result_timeout(
+        self,
+        goal_handle: rclpy.action.client.ClientGoalHandle,
+        timeout_sec: float | None = None,
+    ) -> typing.Any | None:
+        """Await the final result with a timeout.
+
+        Args:
+            goal_handle (ClientGoalHandle): handle returned by :meth:`send_goal`.
+            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
+
+        Returns:
+            The wrapped result response, or None if timed out.
+        """
+        if timeout_sec is None:
+            timeout_sec = self._timeout
+        res = await AsyncUtil.timeout(
+            self.await_result(goal_handle),
+            timeout_sec=timeout_sec,
+        )
+        if res is None:
+            self._node.get_logger().warning(f"await_result on {self._client._action_name} timed out after {timeout_sec} seconds")
+        return res
+
+    async def send_and_await(
+        self,
+        goal: ActionT.Goal,
+        timeout_sec: float | None = None,
+        *,
+        feedback_callback: typing.Callable[[typing.Any], None] | None = None,
+    ) -> typing.Any | None:
+        """Convenience: send a goal and await its result in one call.
+
+        Args:
+            goal (ActionT.Goal): The goal message.
+            timeout_sec (float | None, optional): Combined acceptance + result timeout. Defaults to constructor timeout.
+            feedback_callback: Optional callback invoked with each feedback message.
+
+        Returns:
+            The wrapped result response, or None if timed out.
+        """
+        if timeout_sec is None:
+            timeout_sec = self._timeout
+        goal_handle = await self.send_goal_timeout(goal, timeout_sec=timeout_sec, feedback_callback=feedback_callback)
+        if goal_handle is None:
+            return None
+        return await self.await_result_timeout(goal_handle, timeout_sec=timeout_sec)
+
+    async def cancel(self, goal_handle: rclpy.action.client.ClientGoalHandle) -> typing.Any:
+        """Cancel an in-flight goal and await the cancel response.
+
+        Args:
+            goal_handle (ClientGoalHandle): handle returned by :meth:`send_goal`.
+
+        Returns:
+            The cancel response.
+        """
+        return await self._node.await_ros(goal_handle.cancel_goal_async())
+
+    async def ensure(self, timeout_sec: float | None = None) -> bool:
+        """Ensure the action server is available within the given timeout.
+
+        Args:
+            timeout_sec (float | None, optional): Timeout in seconds. If None, wait forever. Defaults to None.
+        """
+        start_time = self._node.wall_time
+        interval = 0.1
+        while not self._client.server_is_ready():
+            if timeout_sec is not None:
+                if (self._node.wall_time - start_time).to_seconds() >= timeout_sec:
+                    return False
+            await asyncio.sleep(interval)
+        return True

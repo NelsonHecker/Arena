@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import enum
 import math
 import typing
 from abc import ABC, abstractmethod
@@ -10,16 +9,11 @@ from typing import TYPE_CHECKING, Callable, ClassVar, Optional
 
 import attrs
 
+from arena_robots.task_kinds import TaskKind
 from task_generator.shared import Pose
 
 if TYPE_CHECKING:
     from task_generator.manager.robot_manager.robot_manager import RobotManager
-
-
-class TaskKind(enum.Enum):
-    """Canonical vocabulary of task-phase kinds."""
-
-    GOTO_POSE = "goto_pose"
 
 
 class TaskPhase(ABC):

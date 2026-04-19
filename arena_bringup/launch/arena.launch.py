@@ -47,17 +47,17 @@ def generate_launch_description():
         default_value='navfn',
         description='global planner type [navfn]'
     )
+    sim = LaunchArgument(
+        name='sim',
+        default_value='dummy',  # todo select first installed simulator
+    )
     navigator = LaunchArgument(
         name='navigator',
-        default_value='nav2',
+        default_value=PythonExpression([str({"dummy": "none"}), '.get("', sim.substitution, '", "nav2")']),
         description=(
             'default navstack adapter kind [nav2, none, ...]. '
             'per-robot ``navigator:`` in robot_setup YAML wins.'
         ),
-    )
-    sim = LaunchArgument(
-        name='sim',
-        default_value='dummy',  # todo select first installed simulator
     )
     headless = LaunchArgument(
         name='headless',

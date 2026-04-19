@@ -1,1 +1,8 @@
 robot_model: WLP311D
+base_frame: base
+z_offset: 0.34
+sensors:
+  - name: lidar
+    type: laserscan
+    topic: ${namespace}/lidar
+    frame: lidar

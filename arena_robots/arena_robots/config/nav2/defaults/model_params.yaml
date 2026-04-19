@@ -1,9 +1,3 @@
-sensors:
-  - name: scan
-    type: laserscan
-    topic: /front/scan
-    frame: scan
-
 polygons:
   - StopPolygon
 polygons_dict:
@@ -27,5 +21,4 @@ planner_plugins_dict:
 
 footprint: "[ [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1] ]"
 
-base_frame: 'base_link'
 odom_frame: 'odom'

@@ -23,8 +23,6 @@ from pathlib import Path
 import attrs
 import yaml
 
-from arena_robots.Sensor import SensorSpec
-
 
 @attrs.define(slots=False)
 class CapConfig:
@@ -51,10 +49,6 @@ class MobileSpec(CapConfig):
     """Primitives from caps/mobile.yaml (flat, single-instance)."""
 
     @property
-    def base_frame(self) -> str:
-        return str(self.raw.get('base_frame', 'base_link'))
-
-    @property
     def odom_frame(self) -> str:
         return str(self.raw.get('odom_frame', 'odom'))
 
@@ -69,39 +63,8 @@ class MobileSpec(CapConfig):
         return None if v is None else float(v)
 
     @property
-    def z_offset(self) -> float:
-        return float(self.raw.get('z_offset', 0.0))
-
-    @property
     def is_holonomic(self) -> bool:
         return bool(self.raw.get('is_holonomic', False))
-
-    @property
-    def sensors(self) -> list[SensorSpec]:
-        raw = self.raw.get('sensors', [])
-        if not isinstance(raw, list):
-            raise ValueError(
-                f"{self.path}: 'sensors' must be a list; got {type(raw).__name__}"
-            )
-        out: list[SensorSpec] = []
-        for i, entry in enumerate(raw):
-            if not isinstance(entry, dict):
-                raise ValueError(
-                    f"{self.path}: sensors[{i}] must be a mapping; got "
-                    f"{type(entry).__name__}"
-                )
-            missing = {'name', 'type', 'topic', 'frame'} - set(entry)
-            if missing:
-                raise ValueError(
-                    f"{self.path}: sensors[{i}] missing keys: {sorted(missing)}"
-                )
-            out.append(SensorSpec(
-                name=str(entry['name']),
-                type=str(entry['type']),
-                topic=str(entry['topic']),
-                frame=str(entry['frame']),
-            ))
-        return out
 
 
 @attrs.define(slots=False)

@@ -59,6 +59,14 @@ class RobotManager(NodeInterface):
         return self._robot
 
     @property
+    def robot_view(self):
+        return self._config
+
+    @property
+    def tf_buffer(self):
+        return self.node.tf_buffer
+
+    @property
     def start_pos(self) -> Pose:
         return self._start_pos
 
@@ -148,10 +156,6 @@ class RobotManager(NodeInterface):
             adapter_kwargs = {
                 k: v for k, v in matching_caps[0].items() if k != 'kind'
             }
-            if 'requires' in adapter_kwargs:
-                adapter_kwargs['requires'] = frozenset(
-                    str(c) for c in adapter_kwargs['requires']
-                )
         other_kinds = sorted({
             str(entry.get('kind', ''))
             for entry in caps_list
@@ -177,7 +181,7 @@ class RobotManager(NodeInterface):
             )
 
         try:
-            adapter = adapter_cls(**adapter_kwargs)
+            adapter = adapter_cls(robot_manager=self, **adapter_kwargs)
         except TypeError as exc:
             raise AssertionError(
                 f"adapter {navigator_kind!r} rejected capability-derived "
@@ -185,7 +189,7 @@ class RobotManager(NodeInterface):
                 f"{self._robot.name!r}: {exc}"
             ) from exc
 
-        robot_caps = self._config.model_params.actuator_caps
+        robot_caps = self._config.caps.available
         missing = adapter.requires - robot_caps
         if missing:
             raise AssertionError(

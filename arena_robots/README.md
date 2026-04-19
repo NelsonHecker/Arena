@@ -12,6 +12,8 @@ consume lives here.
   selection via `model_params.navigator`, adding a new one.
 - [Robot setup files](arena_robots/config/setup/README.md) — `robot_setup.yaml`
   schema for listing robots to spawn in a scenario.
+- [Task kinds](arena_robots/arena_robots/task_server_handlers/README.md) —
+  `task_server` endpoints, `TaskKind` registry, adding a new kind.
 
 ## CLI
 
@@ -37,14 +39,14 @@ individual repos under [github.com/arena-robots](https://github.com/arena-robots
 Two `Identifier` types from `arena_simulation_setup.tree` are the entry
 points for everything downstream:
 
-- **`RobotIdentifier`** ([Robot.py](arena_robots/Robot.py)) — resolves a
+- **`RobotIdentifier`** ([Robot.py](arena_robots/arena_robots/Robot.py)) — resolves a
   robot name to its directory via `SimplePathResolver` pointed at
   `get_package_share_path('arena_robots') / 'robots'`, and `.load()` returns
   a `RobotView` that lazy-reads `model_params.yaml` / `control.yaml` /
   `mappings.yaml` / `caps/*.yaml` and exposes a `ModelWrapper` covering URDF
   and USD. Cap advertisement is derived from the `caps/` tree — see the
   [robot-authoring guide](arena_robots/robots/README.md).
-- **`RobotSetupIdentifier`** ([SetupFile.py](arena_robots/SetupFile.py)) —
+- **`RobotSetupIdentifier`** ([SetupFile.py](arena_robots/arena_robots/SetupFile.py)) —
   resolves a setup name to `config/setup/<name>.yaml` and returns a
   `list[Config]`, one per spawned instance (after `count` expansion). See
   the [setup files guide](arena_robots/config/setup/README.md).
@@ -52,3 +54,8 @@ points for everything downstream:
 Both `Identifier`s are registered at import time, so third-party code can
 use them by name without touching this package's filesystem layout
 directly.
+
+## Driving a robot standalone
+
+Launch, CLI, and Python examples for sending goals to a robot without
+task_generator: see [DRIVING.md](DRIVING.md).

@@ -40,6 +40,11 @@ class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc
         """
         raise NotImplementedError()
 
+    async def step(self, n: int = 1) -> bool:
+        """Advance the simulation by ``n`` ticks. Default no-op."""
+        del n
+        return True
+
     # Utils
     async def safe_resolve(self, identifier: IdentifierProtocol):
         try:

@@ -1,1 +1,12 @@
 robot_model: boxer
+base_frame: base_link
+z_offset: 0.0635
+sensors:
+  - name: front_laser
+    type: laserscan
+    topic: ${namespace}/front_laser
+    frame: lidar
+  - name: rear_laser
+    type: laserscan
+    topic: ${namespace}/rear_laser
+    frame: lidar

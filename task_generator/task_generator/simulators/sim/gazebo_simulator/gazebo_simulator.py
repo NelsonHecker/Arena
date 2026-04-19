@@ -341,23 +341,17 @@ class GazeboSimulator(BaseSim):
                 traceback.print_exc()
                 return False
 
-    async def step_simulation(self, steps):
+    async def step(self, n: int = 1) -> bool:
         async with self._semaphore:
-            self._logger.debug(f"Stepping simulation by {steps} steps")
             request = ControlWorld.Request()
             request.world_control = WorldControl()
-            request.world_control.multi_step = steps
-
+            request.world_control.multi_step = n
             try:
                 result = await self._service_control_world.call_timeout(request)
-
                 if result is None:
                     self._logger.error("Step service call failed")
                     return False
-
-                self._logger.debug(f"Step result: {result.success}")
                 return result.success
-
             except Exception as e:
                 self._logger.error(f"Error stepping simulation: {str(e)}")
                 traceback.print_exc()

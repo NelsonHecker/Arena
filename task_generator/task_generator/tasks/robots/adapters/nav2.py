@@ -1,89 +1,39 @@
-"""Nav2 adapter — wraps the generic ``nav2.launch.py`` in arena_robots."""
+"""Nav2 adapter — thin composer of Nav2Bringup + GotoPoseClient."""
 
 from __future__ import annotations
 
 import asyncio
-import os
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, ClassVar
 
 import lifecycle_msgs.msg
-import launch
-import launch.actions
-import launch.launch_description_sources
-import launch.substitutions
-from action_msgs.msg import GoalStatus
-from launch_ros.substitutions import FindPackageShare
-from nav2_msgs.action import NavigateToPose
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
-from rclpy.action import ActionClient
+import os
+
+from arena_robots.bringup.nav2 import Nav2Bringup
+from arena_robots.clients.goto_pose import GotoPoseClient
+from arena_robots.task_kinds import TaskKind
+from arena_robots_msgs.action import GotoPose
 
 from task_generator.tasks.robots.adapters import (
     Adapter,
     AdapterCtx,
     register_adapter,
 )
-from task_generator.tasks.robots.request import GoToPhase, TaskKind, TaskPhase
+from task_generator.tasks.robots.request import GoToPhase, TaskPhase
 
 if TYPE_CHECKING:
-    from rclpy.action.client import ClientGoalHandle
-
+    import geometry_msgs.msg
     from task_generator.manager.robot_manager.robot_manager import RobotManager
     from task_generator.shared import Pose
 
 
-
-
 @register_adapter
 class Nav2Adapter(Adapter):
-    """Adapter wrapping the nav2 stack; uses NavigateToPose for dispatch+verdict."""
-
     kind = "nav2"
-    requires = frozenset({"mobile"})
     accepts = frozenset({TaskKind.GOTO_POSE})
-    # Goal transport is owned by the NavigateToPose action client below;
-    # the RobotManager goal-republish loop must not race it.
+    bringup_cls = Nav2Bringup
+    client_cls = GotoPoseClient
     republishes_goal: ClassVar[bool] = False
-
-    def __init__(
-        self,
-        *,
-        global_planner: str,
-        local_planner: str,
-        inter_planner: str,
-        train_mode: bool = False,
-    ) -> None:
-        self.global_planner = str(global_planner)
-        self.local_planner = str(local_planner)
-        self.inter_planner = str(inter_planner)
-        self.train_mode = bool(train_mode)
-        self._action_client: Optional[ActionClient] = None
-        self._goal_handle: Optional["ClientGoalHandle"] = None
-        self._terminal_status: Optional[int] = None
-        self._dispatch_lock: asyncio.Lock = asyncio.Lock()
-        self._resubmit_task: Optional[asyncio.Task] = None
-
-    def launch_description(self, ctx: AdapterCtx):
-        return launch.actions.IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                launch.substitutions.PathJoinSubstitution([
-                    FindPackageShare("arena_robots"),
-                    "launch",
-                    "adapters",
-                    "nav2.launch.py",
-                ])
-            ),
-            launch_arguments=[
-                ("robot", ctx.robot_name),
-                ("namespace", str(ctx.namespace)),
-                ("frame", ctx.frame),
-                ("use_sim_time", "true" if ctx.use_sim_time else "false"),
-                ("task_generator_node", ctx.task_generator_node),
-                ("global_planner", self.global_planner),
-                ("local_planner", self.local_planner),
-                ("inter_planner", self.inter_planner),
-                ("train_mode", "true" if self.train_mode else "false"),
-            ],
-        )
 
     async def dispatch_phase(
         self,
@@ -94,138 +44,24 @@ class Nav2Adapter(Adapter):
             f"Nav2Adapter only accepts GOTO_POSE phases; got "
             f"{type(phase).__name__} (kind={phase.kind!r})"
         )
-        # Serializes external dispatches against async resubmits spawned
-        # from is_phase_done on ABORTED.
-        async with self._dispatch_lock:
-            await self._do_dispatch(phase, robot)
+        robot._goal_pos = phase.pose  # pylint: disable=protected-access
+        goal = GotoPose.Goal()
+        goal.target = self._phase_to_pose_stamped(phase, robot)
+        goal.pose_tolerance = float(phase.tolerance_radius or 0.0)
+        goal.yaw_tolerance = float(phase.tolerance_angle or 0.0)
+        await self.client.send_goal(goal)
 
-    async def _do_dispatch(
+    def _phase_to_pose_stamped(
         self,
         phase: "GoToPhase",
         robot: "RobotManager",
-    ) -> None:
-        # pylint: disable=protected-access
-        robot._goal_pos = phase.pose
-
-        if self._action_client is None:
-            self._action_client = ActionClient(
-                robot.node,
-                NavigateToPose,
-                str(robot.namespace("navigate_to_pose")),
-            )
-
-        # bt_navigator is a lifecycle node — its action server is
-        # discoverable before ACTIVATE finishes, and goals sent in that
-        # window are rejected. Wait for ACTIVE before dispatching.
-        await robot.node.wait_for_lifecycle_state_async(
-            str(robot.namespace('bt_navigator')),
-            lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE,
-        )
-
-        while not self._action_client.server_is_ready():
-            await asyncio.sleep(0.1)
-
-        # Cancel any in-flight goal and wait for its result to settle;
-        # otherwise the server may still be running the previous goal when
-        # we submit a new one and reject it.
-        if self._goal_handle is not None and self._terminal_status is None:
-            try:
-                await robot.node.await_ros(
-                    self._goal_handle.cancel_goal_async()
-                )
-            except Exception:
-                pass
-            try:
-                await robot.node.await_ros(
-                    self._goal_handle.get_result_async()
-                )
-            except Exception:
-                pass
-
-        self._goal_handle = None
-        self._terminal_status = None
-
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose.header.frame_id = "map"
-        goal_msg.pose.header.stamp = robot.node.sim_time.to_msg()
-        goal_msg.pose.pose = phase.pose.to_msg()
-
-        # Retry on rejection — transient causes include lingering state
-        # from the previous goal's cancellation or the nav stack finishing
-        # warmup even after lifecycle hit ACTIVE.
-        handle = None
-        for _ in range(30):
-            handle = await robot.node.await_ros(
-                self._action_client.send_goal_async(goal_msg)
-            )
-            if handle.accepted:
-                break
-            await asyncio.sleep(0.5)
-        assert handle is not None and handle.accepted, (
-            f"Nav2Adapter: NavigateToPose goal rejected by server for "
-            f"robot {robot.name!r} after 30 attempts"
-        )
-
-        self._goal_handle = handle
-
-        # Bind the callback to this specific handle so a late-arriving
-        # result from a previous goal can't overwrite fresh state.
-        def on_result(future, h=handle):
-            if self._goal_handle is not h:
-                return
-            try:
-                self._terminal_status = future.result().status
-            except Exception:
-                self._terminal_status = GoalStatus.STATUS_ABORTED
-
-        handle.get_result_async().add_done_callback(on_result)
-
-    def is_phase_done(
-        self,
-        phase: TaskPhase,
-        robot: "RobotManager",
-    ) -> Optional[bool]:
-        if self._goal_handle is None:
-            # Pre-dispatch race window; let Tier-3 run as a safety net.
-            return None
-        if self._terminal_status is None:
-            return False
-        if self._terminal_status == GoalStatus.STATUS_SUCCEEDED:
-            return True
-        if self._terminal_status == GoalStatus.STATUS_CANCELED:
-            # We cancelled (e.g. to dispatch a new goal); the new dispatch
-            # is in flight or done. Wait for it rather than declaring the
-            # phase over.
-            return False
-        # STATUS_ABORTED (or unknown): bt_navigator gave up — typically
-        # because a teleport or external disturbance invalidated the plan.
-        # Resubmit to mirror the old republish-loop semantics where nav2
-        # kept getting the goal until it succeeded. TIMEOUT is the backstop
-        # for genuinely unreachable goals.
-        if self._resubmit_task is None or self._resubmit_task.done():
-            self._resubmit_task = asyncio.create_task(
-                self.dispatch_phase(phase, robot)
-            )
-        return False
-
-    def on_episode_end(self) -> None:
-        if self._resubmit_task is not None and not self._resubmit_task.done():
-            self._resubmit_task.cancel()
-        self._resubmit_task = None
-        if self._goal_handle is not None and self._terminal_status is None:
-            try:
-                self._goal_handle.cancel_goal_async()
-            except Exception:
-                pass
-        self._goal_handle = None
-        self._terminal_status = None
-
-    async def on_move(
-        self,
-        pose: "Pose",
-        robot: "RobotManager",
-    ) -> None:
-        await self._clear_local_costmap(robot)
+    ) -> "geometry_msgs.msg.PoseStamped":
+        import geometry_msgs.msg
+        msg = geometry_msgs.msg.PoseStamped()
+        msg.header.frame_id = "map"
+        msg.header.stamp = robot.node.sim_time.to_msg()
+        msg.pose = phase.pose.to_msg()
+        return msg
 
     async def wait_until_ready(
         self,
@@ -240,13 +76,27 @@ class Nav2Adapter(Adapter):
             bt_node_path,
             lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE,
         )
+        await super().wait_until_ready(robot, node_paths)
+
+    async def on_move(
+        self,
+        pose: "Pose",
+        robot: "RobotManager",
+    ) -> None:
+        await self._clear_local_costmap(robot)
+
+        request = robot._current_request
+        if request is None or robot._phase_index >= len(request.phases):
+            return
+        if self.client.is_done() is False:
+            self.client.cancel()
+        await self.dispatch_phase(request.phases[robot._phase_index], robot)
 
     async def _clear_local_costmap(
         self,
         robot: "RobotManager",
         reset_distance: float = -1.0,
     ) -> bool:
-        """Clear the local costmap; reset_distance < 0 clears entirely, else around the robot."""
         node_name = robot.node.service_namespace(
             robot.name, "local_costmap/local_costmap"
         )

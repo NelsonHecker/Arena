@@ -1,12 +1,6 @@
-base_frame: robot_base_footprint
 odom_frame: odom
 sensor_frame: robot_front_laser_link
 radius: 0.61
-sensors:
-  - name: lidar
-    type: laserscan
-    topic: ${namespace}/lidar
-    frame: robot_front_laser_link
 
 nav2:
   footprint: "[ [0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35] ]"

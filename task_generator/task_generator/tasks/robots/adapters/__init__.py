@@ -5,14 +5,17 @@ from __future__ import annotations
 import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Type
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Type
 
 import attrs
 from arena_robots.Sensor import SensorSpec, SensorType, SensorTypeOrStr
+from launch.actions import GroupAction
 
 if TYPE_CHECKING:
     from arena_rclpy_mixins.shared import Namespace
 
+    from arena_robots.bringup import Bringup
+    from arena_robots.clients import Client
     from task_generator.manager.robot_manager.robot_manager import RobotManager
     from task_generator.shared import Pose
     from task_generator.tasks.robots.request import TaskKind, TaskPhase
@@ -49,57 +52,76 @@ class Adapter(ABC):
     """Abstract base class for robot navstack adapters."""
 
     kind: ClassVar[str]
-    requires: ClassVar[frozenset[str]]
     accepts: ClassVar[frozenset]
+    bringup_cls: ClassVar[Type["Bringup"]]
+    client_cls: ClassVar[Type["Client"]]
 
-    # True: adapter relies on RobotManager._publish_goal_loop to keep
-    # republishing the goal_pose topic against AMCL jitter. False: adapter
-    # owns goal transport (e.g. action client) and the republish loop must
-    # not run — otherwise it races the adapter's dispatch.
     republishes_goal: ClassVar[bool] = True
 
-    @abstractmethod
+    def __init__(self, robot_manager: "RobotManager", **bringup_kwargs):
+        self.rm = robot_manager
+        self._bringup_kwargs = bringup_kwargs
+        self.bringup = self.bringup_cls(
+            robot_manager.robot_view,
+            str(robot_manager.namespace),
+        )
+        self.client = self.client_cls(
+            robot_manager.robot_view,
+            str(robot_manager.namespace),
+            node=robot_manager.node,
+            tf_buffer=robot_manager.tf_buffer,
+        )
+
+    @property
+    def requires(self) -> frozenset[str]:
+        return self.bringup.requires
+
     def launch_description(self, ctx: AdapterCtx):
-        """Build the launch description that brings up this adapter."""
-
-    def on_episode_start(self) -> None:
-        return None
-
-    def on_episode_end(self) -> None:
-        return None
-
-    async def on_move(
-        self,
-        pose: "Pose",
-        robot: "RobotManager",
-    ) -> None:
-        """Called after the robot has been teleported. Default no-op."""
-        return None
+        return GroupAction([
+            *self.bringup._launch_actions(
+                use_sim_time=ctx.use_sim_time,
+                frame=ctx.frame,
+                task_generator_node=ctx.task_generator_node,
+                **self._bringup_kwargs,
+            ),
+            self.bringup._task_server_node(use_sim_time=ctx.use_sim_time),
+        ])
 
     async def wait_until_ready(
         self,
         robot: "RobotManager",
         node_paths: set[str],
     ) -> None:
-        """Block until the adapter's nodes are discoverable. Default no-op."""
-        return None
+        await self.client.wait_ready()
 
+    @abstractmethod
     async def dispatch_phase(
         self,
         phase: "TaskPhase",
         robot: "RobotManager",
-    ) -> None:
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement dispatch_phase; "
-            f"accepts={sorted(getattr(self, 'accepts', frozenset()))}"
-        )
+    ) -> None: ...
 
     def is_phase_done(
         self,
         phase: "TaskPhase",
         robot: "RobotManager",
     ) -> Optional[bool]:
-        """Tier-2 completion check; return None to defer to the phase default."""
+        done = self.client.is_done()
+        if done is None or not done:
+            return done
+        return self.client.status == 0
+
+    def on_episode_start(self) -> None:
+        return None
+
+    def on_episode_end(self) -> None:
+        self.client.cancel()
+
+    async def on_move(
+        self,
+        pose: "Pose",
+        robot: "RobotManager",
+    ) -> None:
         return None
 
 

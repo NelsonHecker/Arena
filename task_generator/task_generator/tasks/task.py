@@ -204,35 +204,40 @@ class Task(_TaskRegistry, NodeInterface):
 
             await self.robots_manager.set_up()
 
-            if not self._train_mode:
-                if (
-                    new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value
-                ) != self.__param_tm_robots:
-                    self.set_tm_robots(new_tm_robots)
+            await self.environment_manager.before_reset_task()
 
-                if (
-                    new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value
-                ) != self.__param_tm_obstacles:
-                    self.set_tm_obstacles(new_tm_obstacles)
+            try:
+                if not self._train_mode:
+                    if (
+                        new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value
+                    ) != self.__param_tm_robots:
+                        self.set_tm_robots(new_tm_robots)
 
-            for module in self.__modules:
-                module.before_reset()
+                    if (
+                        new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value
+                    ) != self.__param_tm_obstacles:
+                        self.set_tm_obstacles(new_tm_obstacles)
 
-            await self.__tm_robots.reset(**kwargs)
-            obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
+                for module in self.__modules:
+                    module.before_reset()
 
-            async def respawn():
-                await asyncio.gather(
-                    self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
-                    self.environment_manager.spawn_obstacles(obstacles),
-                )
+                await self.__tm_robots.reset(**kwargs)
+                obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
 
-            await self.environment_manager.respawn(respawn)
+                async def respawn():
+                    await asyncio.gather(
+                        self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
+                        self.environment_manager.spawn_obstacles(obstacles),
+                    )
 
-            for module in self.__modules:
-                module.after_reset()
+                await self.environment_manager.respawn(respawn)
 
-            self.last_reset_time = self.node.sim_time.sec
+                for module in self.__modules:
+                    module.after_reset()
+
+                self.last_reset_time = self.node.sim_time.sec
+            finally:
+                await self.environment_manager.after_reset_task()
 
         except Exception as e:
             self.node.get_logger().error(repr(e))

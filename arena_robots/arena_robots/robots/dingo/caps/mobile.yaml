@@ -1,13 +1,7 @@
-base_frame: base_link
 odom_frame: odom
 sensor_frame: lidar
 radius: 0.38
 is_holonomic: false
-sensors:
-  - name: lidar
-    type: laserscan
-    topic: ${namespace}/lidar
-    frame: lidar
 
 nav2:
   footprint: "[ [0.2755, 0.2585], [0.2755, -0.2585], [-0.2755, -0.2585], [-0.2755, 0.2585] ]"

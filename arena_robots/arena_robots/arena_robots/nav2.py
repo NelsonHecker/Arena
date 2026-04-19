@@ -9,6 +9,7 @@ import yaml
 from arena_bringup.substitutions import YAMLFileSubstitution
 
 from arena_robots.caps import MobileSpec
+from arena_robots.Robot import ModelParams
 from arena_robots.Sensor import SensorSpec, SensorType
 
 
@@ -57,16 +58,16 @@ def _load_mobile(path_str: str) -> MobileSpec:
 
 class SensorsDerivedYAML(YAMLFileSubstitution):
     """Emit a temp YAML file with `observation_sources{,_string,_dict}` derived
-    from the `sensors:` block of caps/mobile.yaml. Keeps the three nav2 costmap
+    from the `sensors:` block of model_params.yaml. Keeps the three nav2 costmap
     forms in sync from one source."""
 
-    def __init__(self, mobile_path: launch.SomeSubstitutionsType):
+    def __init__(self, model_params_path: launch.SomeSubstitutionsType):
         super().__init__(path=[], default={}, substitute=False)
-        self._path = launch.utilities.normalize_to_list_of_substitutions(mobile_path)
+        self._path = launch.utilities.normalize_to_list_of_substitutions(model_params_path)
 
     def perform(self, context: launch.LaunchContext) -> str:
         path_str = launch.utilities.perform_substitutions(context, self._path)
-        sensors = _load_mobile(path_str).sensors
+        sensors = ModelParams.from_yaml(path_str).sensors
         names = [s.name for s in sensors]
         derived = {
             'observation_sources_string': ' '.join(names),

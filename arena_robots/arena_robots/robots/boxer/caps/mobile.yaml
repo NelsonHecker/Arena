@@ -1,18 +1,7 @@
-base_frame: base_link
 odom_frame: odom
 sensor_frame: lidar
 radius: 0.42
-z_offset: 0.0635
 is_holonomic: false
-sensors:
-  - name: front_laser
-    type: laserscan
-    topic: ${namespace}/front_laser
-    frame: lidar
-  - name: rear_laser
-    type: laserscan
-    topic: ${namespace}/rear_laser
-    frame: lidar
 
 nav2:
   polygons:

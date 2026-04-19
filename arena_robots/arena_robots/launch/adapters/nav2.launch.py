@@ -9,7 +9,7 @@ from arena_bringup.substitutions import (
     YAMLRetrieveSubstitution,
 )
 from arena_robots.nav2 import Nav2SubBlockYAML, SensorsDerivedYAML
-from launch.actions import GroupAction
+from launch.actions import GroupAction, OpaqueFunction
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node, SetRemap
 from launch_ros.descriptions import ParameterFile
@@ -26,7 +26,7 @@ def generate_launch_description():
     LaunchArgument.auto_append(ld_items)
 
     robot = LaunchArgument('robot')
-    task_generator_node = LaunchArgument('task_generator_node')
+    task_generator_node = LaunchArgument('task_generator_node', default_value='')
     namespace = LaunchArgument('namespace')
     frame = LaunchArgument('frame')
     use_sim_time = LaunchArgument('use_sim_time')
@@ -41,6 +41,9 @@ def generate_launch_description():
     mobile_path = PathJoinSubstitution([
         robots_root, 'robots', robot.substitution, 'caps', 'mobile.yaml'
     ])
+    model_params_path = PathJoinSubstitution([
+        robots_root, 'robots', robot.substitution, 'model_params.yaml'
+    ])
     interplanner_cfg = nav2_cfg('interplanners', inter_planner.substitution, 'interplanner_config.yaml')
     interplanner_yaml = YAMLFileSubstitution(interplanner_cfg)
 
@@ -51,7 +54,7 @@ def generate_launch_description():
         YAMLFileSubstitution(nav2_cfg('defaults', 'model_params.yaml')),
         YAMLFileSubstitution(mobile_path),
         Nav2SubBlockYAML(mobile_path),
-        SensorsDerivedYAML(mobile_path),
+        SensorsDerivedYAML(model_params_path),
         YAMLFileSubstitution(nav2_cfg('defaults', 'controller_config.yaml')),
         YAMLFileSubstitution(nav2_cfg('controllers', local_planner.substitution, 'controller_config.yaml')),
         YAMLFileSubstitution(nav2_cfg('defaults', 'planner_config.yaml')),
@@ -94,13 +97,6 @@ def generate_launch_description():
         allow_substs=True,
     )
 
-    remappings = [
-        ('map_server', '/map_server'),
-        ('/tf', '/tf'),
-        ('/tf_static', '/tf_static'),
-        ('map', PathJoinSubstitution([task_generator_node.substitution, 'map'])),
-    ]
-
     lifecycle_nodes = [
         'controller_server',
         'smoother_server',
@@ -112,56 +108,61 @@ def generate_launch_description():
         'collision_monitor'
     ]
 
-    bringup_cmd_group = GroupAction([
-        *(SetRemap(src=r[0], dst=r[1]) for r in remappings),
-        Node(
-            package='topic_tools',
-            executable='relay',
-            name='goal_pose_relay',
-            arguments=['/goal_pose', 'goal_pose'],
-        ),
-        # nav2 nodes
-        Node(
-            package='nav2_controller', executable='controller_server', name='controller_server',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_smoother', executable='smoother_server', name='smoother_server',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_planner', executable='planner_server', name='planner_server',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_behaviors', executable='behavior_server', name='behavior_server',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_bt_navigator', executable='bt_navigator', name='bt_navigator',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_waypoint_follower', executable='waypoint_follower', name='waypoint_follower',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_velocity_smoother', executable='velocity_smoother', name='velocity_smoother',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_collision_monitor', executable='collision_monitor', name='collision_monitor',
-            output='screen', parameters=[nav2_configured_params]
-        ),
-        Node(
-            package='nav2_lifecycle_manager', executable='lifecycle_manager', name='lifecycle_manager_navigation',
-            output='screen',
-            parameters=[
-                {'autostart': True},
-                {'node_names': lifecycle_nodes},
-                nav2_configured_params
-            ]
-        ),
-    ])
+    def launch_setup(context, *args, **kwargs):
+        tgn = task_generator_node.substitution.perform(context)
+        remappings = [
+            ('map_server', '/map_server'),
+            ('/tf', '/tf'),
+            ('/tf_static', '/tf_static'),
+        ]
+        if tgn:
+            remappings.append(('map', PathJoinSubstitution([tgn, 'map'])))
 
-    return LaunchDescription([*ld_items, bringup_cmd_group])
+        bringup_cmd_group = GroupAction([
+            *(SetRemap(src=r[0], dst=r[1]) for r in remappings),
+            # nav2 nodes
+            Node(
+                package='nav2_controller', executable='controller_server', name='controller_server',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_smoother', executable='smoother_server', name='smoother_server',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_planner', executable='planner_server', name='planner_server',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_behaviors', executable='behavior_server', name='behavior_server',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_bt_navigator', executable='bt_navigator', name='bt_navigator',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_waypoint_follower', executable='waypoint_follower', name='waypoint_follower',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_velocity_smoother', executable='velocity_smoother', name='velocity_smoother',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_collision_monitor', executable='collision_monitor', name='collision_monitor',
+                output='screen', parameters=[nav2_configured_params]
+            ),
+            Node(
+                package='nav2_lifecycle_manager', executable='lifecycle_manager', name='lifecycle_manager_navigation',
+                output='screen',
+                parameters=[
+                    {'autostart': True},
+                    {'node_names': lifecycle_nodes},
+                    nav2_configured_params
+                ]
+            ),
+        ])
+        return [bringup_cmd_group]
+
+    return LaunchDescription([*ld_items, OpaqueFunction(function=launch_setup)])

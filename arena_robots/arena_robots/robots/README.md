@@ -17,42 +17,45 @@ files, and the `arena feature robots` CLI all look robots up by this name.
 
 ### `model_params.yaml`
 
-Minimal robot-wide identity. No cap data lives here.
+Robot-wide identity. Cap data does not live here except for fields that apply
+to any robot regardless of cap — `base_frame` (every robot has a base link),
+`z_offset` (spawn-placement offset, defaults to 0.0), and `sensors` (hardware
+sensor declarations, defaults to `[]`).
 
 ```yaml
 robot_model: my_robot       # required; matches the directory name
+base_frame: base_link       # required; TF frame of the robot's base link
+z_offset: 0.37              # optional; metres to lift the robot above the ground plane at spawn
+sensors:                    # optional; declared sensors parsed into SensorSpec entries
+  - {name: lidar, type: laserscan, topic: ${namespace}/scan, frame: base_scan}
 navigator: nav2             # optional; default adapter kind for the navigator (overridable at runtime)
 ```
 
-Parsed by [`arena_robots.Robot.ModelParams`](../Robot.py). Additional keys pass
+Parsed by [`arena_robots.Robot.ModelParams`](../arena_robots/Robot.py). Additional keys pass
 through unchanged; nothing in-tree consumes them.
 
 ### `caps/` — capability declarations
 
 Each `caps/<cap>.yaml` declares one capability the robot physically has. **File
 presence IS the advertisement**: `caps/arm.yaml` existing means this robot
-advertises `arm`. Derived at load time as:
-
-```python
-robot_view.actuator_caps == frozenset(stem for stem in robot_view.caps.available)
-```
+advertises `arm`. Derived at load time as `robot_view.caps.available` — a
+`frozenset[str]` of cap stems.
 
 Adapters declare `requires: set[str]`; the broker gates binding on
-`adapter.requires ⊆ robot.actuator_caps`. A cap must have a documented
+`adapter.requires ⊆ robot.caps.available`. A cap must have a documented
 vocabulary entry before any adapter cites it in `requires`.
 
 #### Active cap vocabulary
 
-| Cap | File | Shape | Meaning | Present on |
-|---|---|---|---|---|
-| `mobile` | `caps/mobile.yaml` | **flat** (singleton) | drivable chassis (wheeled / tracked / omni) | all 18 |
-| `arm` | `caps/arm.yaml` | **dict** (named instances) | serial manipulator with an IK-solvable tip | rbkairos_plus, rbrobout_plus, rbvogui_plus, ridgeback_plus |
-| `lift` | `caps/lift.yaml` | **dict** (named instances) | prismatic vertical positioner (Ewellix column, torso lift, scissor) | rbrobout_plus |
+| Cap | File | Shape | Meaning |
+|---|---|---|---|
+| `mobile` | `caps/mobile.yaml` | **flat** (singleton) | drivable chassis (wheeled / tracked / omni) |
+| `arm` | `caps/arm.yaml` | **dict** (named instances) | serial manipulator with an IK-solvable tip |
+| `lift` | `caps/lift.yaml` | **dict** (named instances) | prismatic vertical positioner (Ewellix column, torso lift, scissor) |
 
-Reserved for future (no robot has these vendored): `gripper`, `ptu_head`,
-`dual_arm`. Continuum arms either discretize into the serial-chain shape or
-use a future `kind: continuum` variant of `caps/arm.yaml` — see the plan in
-`.claude/plans/` for the extensibility discussion.
+Reserved for future: `gripper`, `ptu_head`, `dual_arm`. Continuum arms either
+discretize into the serial-chain shape or use a future `kind: continuum`
+variant of `caps/arm.yaml`.
 
 #### `caps/mobile.yaml` — flat, singleton
 
@@ -60,14 +63,10 @@ A robot has exactly one mobile base by construction. Primitives at top level;
 adapter-specific config under namespaced sub-blocks (`nav2:`, `rl:`).
 
 ```yaml
-base_frame: base_link
 odom_frame: odom
 sensor_frame: base_scan
 radius: 0.5
-z_offset: 0.37            # optional; defaults to 0.0
 is_holonomic: false
-sensors:
-  - {name: lidar, type: laserscan, topic: ${namespace}/scan, frame: base_scan}
 
 nav2:                      # consumed by the nav2 launch adapter
   footprint: "[ [0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35] ]"
@@ -82,10 +81,6 @@ rl:                        # consumed by RL adapters / training code
     discrete: [{name: move_forward, linear: 0.3, angular: 0.0}, ...]
   laser: {angle: {min: -2.35619, max: 2.35619}, num_beams: 720, range: 30.0, update_rate: 10}
 ```
-
-`sensors` entries require `name`, `type`, `topic`, `frame`. Canonical `type`
-values (from [`Sensor.py`](../Sensor.py)): `laserscan`, `pointcloud`, `image`,
-`depth`. Unknown types pass through unchanged.
 
 #### `caps/arm.yaml`, `caps/lift.yaml`, `caps/gripper.yaml` — dict-keyed
 
@@ -212,5 +207,5 @@ When a new subsystem kind (e.g. `gripper`, `ptu_head`) becomes needed:
 2. Define the primitive fields (what every adapter-agnostic consumer can count
    on) and document adapter sub-block conventions if any exist.
 3. If adding a typed accessor is warranted, extend
-   [`caps.py`](../caps.py) with a `<Cap>Spec` subclass. The loader dict-keyed
+   [`caps.py`](../arena_robots/caps.py) with a `<Cap>Spec` subclass. The loader dict-keyed
    pattern is uniform — see `ArmSpec`/`LiftSpec` for the template.

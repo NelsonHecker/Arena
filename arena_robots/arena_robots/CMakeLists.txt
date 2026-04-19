@@ -29,4 +29,6 @@ install(
 
 ament_python_install_package(${PROJECT_NAME})
 
+install(PROGRAMS scripts/task_server DESTINATION lib/${PROJECT_NAME})
+
 ament_package()

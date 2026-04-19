@@ -398,6 +398,12 @@ class IsaacSimulator(BaseSim, NodeInterface):
     async def _unpause(self):
         await self._clients.UnpauseSimulation.call_timeout(std_srvs.srv.Trigger.Request())
 
+    async def step(self, n: int = 1) -> bool:
+        await self._unpause()
+        await asyncio.sleep(0.01 * n)
+        await self._pause()
+        return True
+
     async def pedestrian_spawn(self, pedestrians):
 
         on_success: list[tuple[str, str]] = []
