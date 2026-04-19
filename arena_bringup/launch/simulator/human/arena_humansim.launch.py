@@ -1,7 +1,6 @@
 import os
 
 import launch
-import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.actions import IsolatedGroupAction
 
@@ -11,7 +10,6 @@ def generate_launch_description():
 
     return launch.LaunchDescription([
         IsolatedGroupAction([
-            launch_ros.actions.PushRosNamespace(namespace),
             launch.actions.IncludeLaunchDescription(
                 os.path.join(
                     get_package_share_directory('arena_humansim'),
@@ -21,6 +19,7 @@ def generate_launch_description():
                     'mode': 'subsystem',
                     'use_sim_time': 'true',
                     'markers': '1',
+                    'namespace': namespace,
                 }.items(),
             ),
         ]),

@@ -2,8 +2,8 @@ from pathlib import Path
 
 import attrs
 import numpy as np
-from arena_humansim.agents import BUILTIN_AGENTS, SampledParams, sample_agent_type
-from arena_humansim.agents.loader import is_path_agent_type, load_agent_type_from_file
+from arena_humansim.core.agents import BUILTIN_AGENTS, SampledParams, sample_agent_type
+from arena_humansim.core.agents.loader import is_path_agent_type, load_agent_type_from_file
 from arena_humansim_msgs.msg import Waypoint as WaypointMsg
 from arena_humansim_msgs.msg import Waypoints as WaypointsMsg
 from geometry_msgs.msg import Pose2D as Pose2DMsg
