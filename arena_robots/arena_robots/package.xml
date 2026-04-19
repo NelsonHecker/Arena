@@ -32,6 +32,10 @@
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>topic_tools</exec_depend>
 
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-hypothesis</test_depend>
+
   <export>
     <build_type>ament_cmake</build_type>
   </export>

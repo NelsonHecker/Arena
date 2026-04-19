@@ -76,7 +76,7 @@ class Robot(Entity):
     def parse(cls, value: dict, *, node: TaskGenerator) -> Robot:
         name = str(value['name'])
         model = str(value['model'])
-        pose = Pose(value.get("pos", (0, 0, 0)))
+        pose = Pose.parse(value.get("pos", (0, 0, 0)))
         inter_planner = str(value.get("inter_planner", node.conf.Robot.BEHAVIOR.value))
         local_planner = str(value.get("local_planner", node.conf.Robot.CONTROLLER.value))
         global_planner = str(value.get("global_planner", node.conf.Robot.PLANNER.value))

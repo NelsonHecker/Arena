@@ -217,6 +217,29 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 ros2 launch arena_bringup arena.launch.py "$@"
                 result=$?
             ;;
+            test)
+                if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
+                    set -- --packages-select "$@"
+                fi
+                if ! printf '%s\n' "$@" | grep -qE -- '^--packages-(select|select-regex|up-to|above|ignore)'; then
+                    set -- --packages-select-regex '^arena_' '^task_generator$' "$@"
+                fi
+                mapfile -t _TEST_PKGS < <(colcon list --names-only --base-paths "$ARENA_WS_DIR/src" "$@" 2>/dev/null)
+                colcon test --event-handlers console_direct+ "$@"
+                local _test_rc=$?
+                if [ ${#_TEST_PKGS[@]} -gt 0 ]; then
+                    "${TOOLS_DIR}/test_summary" "$ARENA_WS_DIR/build" --packages "${_TEST_PKGS[@]}"
+                else
+                    "${TOOLS_DIR}/test_summary" "$ARENA_WS_DIR/build"
+                fi
+                local _result_rc=$?
+                if [ $_test_rc -ne 0 ]; then
+                    result=$_test_rc
+                else
+                    result=$_result_rc
+                fi
+                unset _test_rc _result_rc _TEST_PKGS
+            ;;
             deactivate)
                 deactivate 2>/dev/null || true
                 export PS1=$PS1_BACKUP
@@ -301,7 +324,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 return $?
             ;;
             *)
-                echo 'Usage: arena <build|rebuild|deps|update|launch|deactivate|feature|registry|resource> [args...]' >&2
+                echo 'Usage: arena <build|rebuild|deps|update|launch|test|deactivate|feature|registry|resource> [args...]' >&2
                 result=1
             ;;
         esac

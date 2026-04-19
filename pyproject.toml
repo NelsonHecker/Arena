@@ -1,6 +1,10 @@
 [tool.uv]
 package = false
 
+[tool.pytest.ini_options]
+norecursedirs = ["deps", ".git", ".venv", "build", "install", "log", "_meta"]
+addopts = "-ra --strict-markers --import-mode=importlib"
+
 [project]
 name = "arena-rosnav"
 version = "0.1.0"
@@ -39,6 +43,7 @@ dependencies = [
     "chromadb",
     "colourings",
     "aiofiles",
+    "hypothesis",
     "pathfinding3d>=0.7.2",
     "transformers>=5.5.4",
     "diffusers>=0.37.1",

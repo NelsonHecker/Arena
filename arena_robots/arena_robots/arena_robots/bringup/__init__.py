@@ -71,6 +71,8 @@ _BRINGUPS: dict[str, type[Bringup]] = {}
 
 
 def register_bringup(cls: type[Bringup]) -> type[Bringup]:
+    if cls.kind in _BRINGUPS:
+        raise ValueError(f"Bringup kind {cls.kind!r} is already registered to {_BRINGUPS[cls.kind]!r}")
     _BRINGUPS[cls.kind] = cls
     return cls
 

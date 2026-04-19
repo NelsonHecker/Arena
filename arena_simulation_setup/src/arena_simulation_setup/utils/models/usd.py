@@ -128,7 +128,7 @@ async def process_dae(dae_file: Path, package_dir: Path) -> Path:
     """
     import collada
 
-    file = collada.Collada(dae_file)
+    file = collada.Collada(str(dae_file))
     tree = file.xmlnode
     root = tree.getroot()
     assert root is not None

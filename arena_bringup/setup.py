@@ -45,6 +45,9 @@ setup(
         *recursive_walk('configs'),
     ],
     install_requires=['setuptools'],
+    extras_require={
+        'test': ['pytest>=7', 'hypothesis>=6'],
+    },
     zip_safe=True,
     maintainer='voshch',
     maintainer_email='dev@voshch.dev',
