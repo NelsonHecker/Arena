@@ -23,7 +23,6 @@ python -m pip install git+https://github.com/voshch/vcstool.git || echo 'failed 
 if [ $_GIT -eq 1 ] ; then
     echo updating Arena...
     git pull --ff-only --autostash && git submodule update --recursive
-    git submodule update --init --recursive arena_robots
 
     # re-source
     . "$ARENA_DIR/_meta/tools/source"
@@ -41,7 +40,7 @@ fi
 if [ $_ROSDEP -eq 1 ] ; then
     # shellcheck disable=SC2016
     rosdep update --rosdistro "$ARENA_ROS_DISTRO" \
-        && rosdep install --from-paths "$ARENA_WS_DIR/src" --ignore-src -r -y --skip-keys "$ROSDEP_EXCLUDES" \
+        && arena deps --skip-keys "$ROSDEP_EXCLUDES" \
     || echo "rosdep failed to install all dependencies"
 fi
 

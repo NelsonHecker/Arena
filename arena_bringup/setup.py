@@ -13,17 +13,23 @@ def recursive_walk(base_dir, *, destination=None, relative_to=None):
 
     def process(base, files):
         adjusted_base = os.path.relpath(base, relative_to)
+        kept = [
+            os.path.join(base, file)
+            for file in files
+            if os.path.isfile(os.path.join(base, file))
+        ]
         return (
             os.path.normpath(os.path.join(destination, adjusted_base)),
-            [
-                os.path.join(base, file)
-                for file in files
-            ]
+            kept,
         )
 
     return [
-        process(base, files)
-        for base, _, files in os.walk(base_dir)
+        entry
+        for entry in (
+            process(base, files)
+            for base, _, files in os.walk(base_dir)
+        )
+        if entry[1]
     ]
 
 
@@ -39,6 +45,9 @@ setup(
         *recursive_walk('configs'),
     ],
     install_requires=['setuptools'],
+    extras_require={
+        'test': ['pytest>=7', 'hypothesis>=6'],
+    },
     zip_safe=True,
     maintainer='voshch',
     maintainer_email='dev@voshch.dev',

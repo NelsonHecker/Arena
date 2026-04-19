@@ -1,48 +1,58 @@
-# Arena Rosnav Task Generator
+# task_generator
 
-This is the task generator package designed to work with the [Arena](https://github.com/Arena) infrastructure.
+Runtime task orchestration for Arena. Assigns goals to robots, populates the
+simulator with obstacles, and coordinates across episodes via a three-axis
+task-mode registry.
 
-## Task Modes
+## Guides
 
-Our task generator package offers four task modes. We define a task as the process of a robot driving to a desired goal. A new task is started when the robot reaches the goal or after 3 min have past. For the scenario task, the task is only resetted for the in the scenario file defined amount.
+- [Task system](task_generator/tasks/README.md) — `Task`, `TaskMode` ABC,
+  `TaskContext`, `_TaskRegistry`, the three axes, reset semantics.
+- [Robot task modes](task_generator/tasks/robots/README.md) — `TM_Robots`
+  subclasses, fleet manager, adapters.
+- [Robot adapters](task_generator/tasks/robots/adapters/README.md) — `Adapter`
+  ABC, shipped kinds, adding a new one.
+- [Obstacle task modes](task_generator/tasks/obstacles/README.md) — `TM_Obstacles`
+  subclasses, shipped modes, zone-ref resolution, PROMPT registration.
+- [Modules](task_generator/tasks/modules/README.md) — `TM_Module` lifecycle
+  hooks, shipped modules.
+- [Managers](task_generator/manager/README.md) — `RobotsManager`,
+  `RobotManager`, `WorldManager`, `EnvironmentManager`, `Realizer`.
+- [Sim interface](task_generator/simulators/sim/README.md) — `BaseSim` and its
+  four sub-interfaces; registered implementations.
+- [Human simulator](task_generator/simulators/human/README.md) —
+  `BaseHumanSimulator`, PROMPT registration, hunav default agent.
+- [Utils](task_generator/utils/README.md) — generic `Registry`, arena helpers,
+  GPT shim, map generator.
+- [Constants](task_generator/constants/README.md) — `Configuration(server)`
+  factory; all published ROS parameters.
 
-### Random Task
+## Internals
 
-Creates random static and dynamic obstacles when a new task is started. When starting the task a random goal and start position is selected. After the robot reaching the goal a new task is started.
+### The `Constants.TaskMode` registry
 
-### Staged Task
+[`constants/__init__.py`](task_generator/constants/__init__.py) defines three
+`enum.Enum` axes inside `Constants.TaskMode`:
 
-The staged task mode is designed for the trainings process of arena-rosnav. In general, it behaves like the random task mode but there are multiple stages between one can switch. Between the stages, the amount of static and dynamic obstacles changes. The amount of obstacles is defined in a curriculum file, the path to said file is a key in the `paths` parameter.
+| Axis | Enum | Default |
+| --- | --- | --- |
+| Robot goal dispatch | `TM_Robots` | `random` |
+| Obstacle population | `TM_Obstacles` | `random` |
+| Cross-cutting modules | `TM_Module` | *(empty set)* |
 
-The **curriculum** file has the following schema.
+All three are wired at import time in
+[`tasks/registry.py`](task_generator/tasks/registry.py) via
+`_TaskRegistry.register_robots`, `register_obstacles`, and `register_module`.
+Each registration stores a lazy loader (a zero-argument callable that imports
+and returns the class) and a `Namespace` derived from the enum value, so
+dependencies are not imported until the mode is first selected.
 
-```yaml
-1:
-  static: <amount of static obstacles for stage 1>
-  dynamic: <amount of dynamic obstacles for stage 1>
-2:
-  static: <amount of static obstacles for stage 2>
-  dynamic: <amount of dynamic obstacles for stage 2>
----
-N:
-  static: <amount of static obstacles for stage N>
-  dynamic: <amount of dynamic obstacles for stage N>
-```
+`Task.__init__` reads `tm_robots`, `tm_obstacles`, and `tm_modules` from the
+ROS parameter server (via `node.conf.TaskMode.*`) and calls the matching
+loaders. On each reset `Task._reset_task` re-reads the parameters, swapping
+the active mode if it changed.
 
-### Scenario Task
+### Episode loop
 
-The scenario task is especially designed for evaluation. One can defined scenarios
-is a scenario file, which is read in when starting the simulation. In the scenario
-file dynamic and static obstacles as well as the start and goal position of the
-robot are defined.
-
-The scenario declaration file can be created with [arena-tools](https://github.com/Arena-Rosnav/arena-tools) and has to follow
-the specified file schema.
-
-## Simulator Factory
-
-To be able to use the task generator module in all our Simulators without changes, a unified interface between Simulator and task generator is needed. The interface contains a lot of functions to spawn, publish or move robots or obstacles, and a lot more.
-
-At the moment we provide simulator interfaces for **Flatland** and **Gazebo**. In order to add a new simulator, in which the task generator should be used, a new simulator interface has to be created in `/taks_generator/simulators/` and has to be registrated in the simulator factory.
-
-Your newly created simulator interface should derive the **BaseSimulator** located [here](TODO) and implement all functions. A detailed description of the functions is contained in the **BaseSimulator** itself.
+See [task_generator/tasks/README.md](task_generator/tasks/README.md#reset-semantics)
+for the full `Task._reset_task` ordering and the WORLD-layer invariant.

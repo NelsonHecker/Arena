@@ -7,7 +7,6 @@ from arena_humansim.agents.loader import is_path_agent_type, load_agent_type_fro
 from arena_humansim_msgs.msg import Waypoint as WaypointMsg
 from arena_humansim_msgs.msg import Waypoints as WaypointsMsg
 from geometry_msgs.msg import Pose2D as Pose2DMsg
-
 from task_generator.shared import DynamicObstacle
 
 _WAYPOINT_MODE_MAP = {
@@ -28,9 +27,7 @@ class ArenaHumanDynamicObstacle:
     _waypoints: list = attrs.Factory(list)
 
     @classmethod
-    def from_dynamic_obstacle(
-        cls, obs: DynamicObstacle
-    ) -> "ArenaHumanDynamicObstacle | None":
+    def from_dynamic_obstacle(cls, obs: DynamicObstacle) -> "ArenaHumanDynamicObstacle | None":
         extra = getattr(obs, "extra", None) or {}
         raw = extra.get("agent")
         if raw is None:
@@ -66,7 +63,7 @@ class ArenaHumanDynamicObstacle:
         )
 
     @staticmethod
-    def _resolve_agent_type_path(agent_type: str, obs) -> str:
+    def _resolve_agent_type_path(agent_type: str, obs: DynamicObstacle) -> str:
         if is_path_agent_type(agent_type) and not Path(agent_type).is_absolute():
             included_from = getattr(obs, "included_from", None)
             if included_from is not None:
@@ -101,9 +98,7 @@ class ArenaHumanDynamicObstacle:
         params = sample_agent_type(agent_type_def, rng)
 
         # Apply velocity/radius overrides
-        desired_velocity = float(
-            rng.uniform(self.desired_velocity_min, self.desired_velocity_max)
-        )
+        desired_velocity = float(rng.uniform(self.desired_velocity_min, self.desired_velocity_max))
         return attrs.evolve(
             params,
             desired_velocity=desired_velocity,

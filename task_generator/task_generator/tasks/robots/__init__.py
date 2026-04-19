@@ -2,6 +2,7 @@ import asyncio
 
 from task_generator.shared import Pose
 from task_generator.tasks import TaskMode
+from task_generator.tasks.robots.request import GoToPhase, TaskRequest
 
 
 class TM_Robots(TaskMode):
@@ -18,30 +19,19 @@ class TM_Robots(TaskMode):
 
     _last_reset: int
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> None:
         self._last_reset = self.node.sim_time.sec
 
     async def set_position(self, pose: Pose):
-        """
-        Set the position of all robots.
-
-        Args:
-            position (Pose): The desired position and orientation.
-
-        """
+        """Teleport every robot to ``pose``."""
         for robot_manager in self._ctx.robots.values():
-            await robot_manager.reset(pose, None)
+            await robot_manager.move(pose)
 
     async def set_goal(self, pose: Pose):
-        """
-        Set the goal position for all robots.
-
-        Args:
-            position (Pose): The desired goal position and orientation.
-
-        """
+        """Dispatch a single-phase GOTO request targeting ``pose`` on every robot."""
         for robot_manager in self._ctx.robots.values():
-            await robot_manager.reset(None, pose)
+            realized = robot_manager._environment_manager.realize(pose)  # noqa: SLF001
+            await robot_manager.submit_task(TaskRequest(phases=[GoToPhase(pose=realized)]))
 
     @property
     async def done(self) -> bool:
@@ -52,20 +42,11 @@ class TM_Robots(TaskMode):
             bool: True if all robots are done, False otherwise.
 
         """
-        if (
-            self.node.sim_time.sec - self._last_reset
-        ) > self.node.conf.Robot.TIMEOUT.value:
+        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
             return True
 
         if not self._ctx.robots:
             return False
-        if not all(
-            await asyncio.gather(
-                *(
-                    robot_manager.is_done
-                    for robot_manager in self._ctx.robots.values()
-                )
-            )
-        ):
+        if not all(await asyncio.gather(*(robot_manager.is_done for robot_manager in self._ctx.robots.values()))):
             return False
         return True

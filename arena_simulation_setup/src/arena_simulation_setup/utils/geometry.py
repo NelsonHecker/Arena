@@ -3,10 +3,11 @@ from __future__ import annotations
 import math
 import typing
 from collections.abc import Iterator, Sequence
+from typing import Self
 
 import attrs
 import numpy as np
-from typing_extensions import Self
+
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable
 
 try:
@@ -14,15 +15,16 @@ try:
     import geometry_msgs.msg
 except ImportError:
     if not typing.TYPE_CHECKING:
-        class _uninstanceable(object):
+
+        class _uninstanceable:
             """
             class that cannot be instantiated
             """
 
-            def __new__(cls, *args, **kwargs):
+            def __new__(cls, *args: object, **kwargs: object) -> object:
                 raise TypeError(f"installation of geometry_msgs is required to use {cls.__name__}")
 
-            def __init__(self, *args, **kwargs):
+            def __init__(self, *args: object, **kwargs: object) -> None:
                 raise TypeError(f"installation of geometry_msgs is required to use {self.__class__.__name__}")
 
             def __getattribute__(self, name: str):
@@ -34,14 +36,12 @@ except ImportError:
             """
 
             class msg:
-                class Point(_uninstanceable):
-                    ...
+                class Point(_uninstanceable): ...
 
-                class Quaternion(_uninstanceable):
-                    ...
+                class Quaternion(_uninstanceable): ...
 
-                class Pose(_uninstanceable):
-                    ...
+                class Pose(_uninstanceable): ...
+
 
 assert geometry_msgs  # type: ignore
 
@@ -68,41 +68,25 @@ class Vector3:
         yield self.z
 
     def __add__(self, other: Position) -> Position:
-        return Position(
-            x=self.x + other.x,
-            y=self.y + other.y,
-            z=self.z + other.z
-        )
+        return Position(x=self.x + other.x, y=self.y + other.y, z=self.z + other.z)
 
     def __sub__(self, other: Position) -> Position:
-        return Position(
-            x=self.x - other.x,
-            y=self.y - other.y,
-            z=self.z - other.z
-        )
+        return Position(x=self.x - other.x, y=self.y - other.y, z=self.z - other.z)
 
     def __mul__(self, other: float) -> Position:
-        return Position(
-            x=self.x * other,
-            y=self.y * other,
-            z=self.z * other
-        )
+        return Position(x=self.x * other, y=self.y * other, z=self.z * other)
 
     def __rmul__(self, other: float) -> Position:
         return self * other
 
     def __truediv__(self, other: float) -> Position:
-        return Position(
-            x=self.x / other,
-            y=self.y / other,
-            z=self.z / other
-        )
+        return Position(x=self.x / other, y=self.y / other, z=self.z / other)
 
     def norm(self, n: float = 2) -> float:
         """
         return norm of position vector
         """
-        return (self.x ** n + self.y ** n + self.z ** n) ** (1 / n)
+        return (self.x**n + self.y**n + self.z**n) ** (1 / n)
 
     def normalized(self) -> Position:
         return self / (self.norm() or 1)
@@ -137,33 +121,20 @@ class Position(Parseable, Idempotent, Vector3):
         if len(value) == 2:
             return cls(value[0], value[1], 0.0)
 
-        raise ValueError(
-            f"Translation must be [x,y] or [x,y,z], got {value}"
-        )
+        raise ValueError(f"Translation must be [x,y] or [x,y,z], got {value}")
 
     @classmethod
-    def from_msg(
-        cls,
-        point: geometry_msgs.msg.Point
-    ) -> Self:
+    def from_msg(cls, point: geometry_msgs.msg.Point) -> Self:
         """
         parse geometry_msgs.msg.Point
         """
-        return cls(
-            x=point.x,
-            y=point.y,
-            z=point.z
-        )
+        return cls(x=point.x, y=point.y, z=point.z)
 
     def to_msg(self) -> geometry_msgs.msg.Point:
         """
         return self as geometry_msgs.msg.Point
         """
-        return geometry_msgs.msg.Point(
-            x=self.x,
-            y=self.y,
-            z=self.z
-        )
+        return geometry_msgs.msg.Point(x=self.x, y=self.y, z=self.z)
 
 
 @attrs.define
@@ -204,33 +175,20 @@ class Orientation(Parseable, Idempotent):
         return cls(1.0, 0.0, 0.0, 0.0)
 
     @classmethod
-    def from_msg(
-        cls,
-        quaternion: geometry_msgs.msg.Quaternion
-    ) -> Self:
+    def from_msg(cls, quaternion: geometry_msgs.msg.Quaternion) -> Self:
         """
         parse geometry_msgs.msg.Quaternion
         """
-        return cls(
-            w=quaternion.w,
-            x=quaternion.x,
-            y=quaternion.y,
-            z=quaternion.z
-        )
+        return cls(w=quaternion.w, x=quaternion.x, y=quaternion.y, z=quaternion.z)
 
     def to_msg(self) -> geometry_msgs.msg.Quaternion:
         """
         return self as geometry_msgs.msg.Quaternion
         """
-        return geometry_msgs.msg.Quaternion(
-            w=self.w,
-            x=self.x,
-            y=self.y,
-            z=self.z
-        )
+        return geometry_msgs.msg.Quaternion(w=self.w, x=self.x, y=self.y, z=self.z)
 
     @classmethod
-    def from_euler(cls, angles: typing.Tuple[float, float, float], order: EulerOrder = 'xyz') -> Self:
+    def from_euler(cls, angles: tuple[float, float, float], order: EulerOrder = 'xyz') -> Self:
         x, y, z = (angles[index] for index in _EulerIndices[order])
 
         cr = math.cos(x * 0.5)
@@ -266,7 +224,7 @@ class Orientation(Parseable, Idempotent):
         yaw = math.atan2(siny_cosp, cosy_cosp)
 
         result: list[float] = [0, 0, 0]
-        for (index, value) in zip(_EulerIndices[order], (roll, pitch, yaw)):
+        for index, value in zip(_EulerIndices[order], (roll, pitch, yaw), strict=False):
             result[index] = value
 
         return (result[0], result[1], result[2])
@@ -285,12 +243,10 @@ class Orientation(Parseable, Idempotent):
         return self.to_euler()[2]
 
     @typing.overload
-    def __mul__(self, other: Orientation) -> Self:
-        ...
+    def __mul__(self, other: Orientation) -> Self: ...
 
     @typing.overload
-    def __mul__(self, other: Vector3) -> Vector3:
-        ...
+    def __mul__(self, other: Vector3) -> Vector3: ...
 
     def __mul__(self, other: Orientation | Vector3) -> Orientation | Vector3:
         if isinstance(other, Vector3):
@@ -338,54 +294,33 @@ class Pose(Parseable, Idempotent):
             value = typing.cast(typing.Sequence[float], value)
 
             if len(value) == 2:
-                return cls(
-                    Position(x=value[0], y=value[1], z=0.0),
-                    Orientation(w=1.0, x=0.0, y=0.0, z=0.0)
-                )
+                return cls(Position(x=value[0], y=value[1], z=0.0), Orientation(w=1.0, x=0.0, y=0.0, z=0.0))
 
             if len(value) == 3:
-                return cls(
-                    Position(x=value[0], y=value[1], z=0.0),
-                    Orientation.from_yaw(value[2])
-                )
+                return cls(Position(x=value[0], y=value[1], z=0.0), Orientation.from_yaw(value[2]))
 
             if len(value) in (6, 7):
-                return cls(
-                    position=Position.parse(value[:3]),
-                    orientation=Orientation.parse(value[3:])
-                )
+                return cls(position=Position.parse(value[:3]), orientation=Orientation.parse(value[3:]))
 
         # split sequence
         if len(value) == 2 and all(isinstance(v, Sequence) and all(isinstance(n, (int, float)) for n in v) for v in value):
             value = typing.cast(typing.Sequence[typing.Sequence[float]], value)
-            return cls(
-                position=Position.parse(value[0]),
-                orientation=Orientation.parse(value[1])
-            )
+            return cls(position=Position.parse(value[0]), orientation=Orientation.parse(value[1]))
 
         raise ValueError(f"could not parse Pose from {value}")
 
     @classmethod
-    def from_msg(
-        cls,
-        pose: geometry_msgs.msg.Pose
-    ) -> Self:
+    def from_msg(cls, pose: geometry_msgs.msg.Pose) -> Self:
         """
         parse geometry_msgs.msg.Pose
         """
-        return cls(
-            position=Position.from_msg(pose.position),
-            orientation=Orientation.from_msg(pose.orientation)
-        )
+        return cls(position=Position.from_msg(pose.position), orientation=Orientation.from_msg(pose.orientation))
 
     def to_msg(self) -> geometry_msgs.msg.Pose:
         """
         return self as geometry_msgs.msg.Pose
         """
-        return geometry_msgs.msg.Pose(
-            position=self.position.to_msg(),
-            orientation=self.orientation.to_msg()
-        )
+        return geometry_msgs.msg.Pose(position=self.position.to_msg(), orientation=self.orientation.to_msg())
 
     def to_2d(self) -> tuple[float, float, float]:
         """
@@ -438,33 +373,20 @@ class Scale(Parseable, Idempotent):
         if len(value) == 3:
             return cls(*value)
 
-        raise ValueError(
-            f"{cls.__name__} must be [x,y,z], got {value}"
-        )
+        raise ValueError(f"{cls.__name__} must be [x,y,z], got {value}")
 
     @classmethod
-    def from_msg(
-        cls,
-        point: geometry_msgs.msg.Point
-    ) -> Self:
+    def from_msg(cls, point: geometry_msgs.msg.Point) -> Self:
         """
         parse geometry_msgs.msg.Point
         """
-        return cls(
-            x=point.x,
-            y=point.y,
-            z=point.z
-        )
+        return cls(x=point.x, y=point.y, z=point.z)
 
     def to_msg(self) -> geometry_msgs.msg.Point:
         """
         return self as geometry_msgs.msg.Point
         """
-        return geometry_msgs.msg.Point(
-            x=self.x,
-            y=self.y,
-            z=self.z
-        )
+        return geometry_msgs.msg.Point(x=self.x, y=self.y, z=self.z)
 
 
 def sample_point_in_polygon(
@@ -493,9 +415,10 @@ def sample_point_in_polygon(
     r = float(rng.random()) * total
     cumulative = 0.0
     tri = triangles[0]
-    for tri, area in zip(triangles, areas):
+    for _tri, area in zip(triangles, areas, strict=False):
         cumulative += area
         if cumulative >= r:
+            tri = _tri
             break
 
     # Barycentric sample

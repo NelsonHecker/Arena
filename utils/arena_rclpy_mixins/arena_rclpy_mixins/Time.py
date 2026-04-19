@@ -3,13 +3,13 @@ import contextlib
 import datetime
 import functools
 import typing
+from typing import Self
 
 import attrs
 import builtin_interfaces.msg
-import rosgraph_msgs.msg
 import rclpy.node
 import rclpy.time
-from typing_extensions import Self
+import rosgraph_msgs.msg
 
 
 @functools.total_ordering
@@ -18,6 +18,7 @@ class Time:
     """
     Wrapper for builtin_interfaces.msg.Time
     """
+
     sec: int = attrs.field(converter=int, default=0)
     nanosec: int = attrs.field(converter=int, default=0)
 
@@ -127,9 +128,7 @@ class Time:
         """
         Create rosgraph_msgs.msg.Clock from self.
         """
-        return rosgraph_msgs.msg.Clock(
-            clock=self.to_msg()
-        )
+        return rosgraph_msgs.msg.Clock(clock=self.to_msg())
 
     def to_seconds(self) -> float:
         """
@@ -139,10 +138,9 @@ class Time:
 
 
 class TimeNode(rclpy.node.Node):
-    """Mixin class to provide clock utilities for rclpy nodes.
-    """
+    """Mixin class to provide clock utilities for rclpy nodes."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._clock_subscriber = self.create_subscription(
             rosgraph_msgs.msg.Clock,
@@ -196,22 +194,22 @@ class TimeNode(rclpy.node.Node):
     def sim_time_rate(self, rate: float, lifetime: float | None = None) -> typing.Generator[tuple[asyncio.Event, asyncio.Queue[float]], None, None]:
         """Context manager to perform a task at a given simulated time rate.
 
-            Usage:
-                ```
-                with node.sim_time_rate(10.0) as (done, rate):
-                    while not done.is_set():
-                        dt = await rate.get()
-                        # do something
-                ```
+        Usage:
+            ```
+            with node.sim_time_rate(10.0) as (done, rate):
+                while not done.is_set():
+                    dt = await rate.get()
+                    # do something
+            ```
 
-            Can be canceled by setting the `done` event or exiting the context.
+        Can be canceled by setting the `done` event or exiting the context.
 
-            Args:
-                rate (float): Rate in Hz to perform the task.
-                lifetime (float | None): Optional lifetime in seconds for the rate context.
+        Args:
+            rate (float): Rate in Hz to perform the task.
+            lifetime (float | None): Optional lifetime in seconds for the rate context.
 
-            Yields:
-                asyncio.Queue: Queue that yields the time delta in seconds at each rate interval.
+        Yields:
+            asyncio.Queue: Queue that yields the time delta in seconds at each rate interval.
         """
         interval = 1.0 / rate
         last_time = self.sim_time
@@ -225,7 +223,7 @@ class TimeNode(rclpy.node.Node):
             while not done.is_set():
                 await asyncio.sleep(0.01)
                 now = self.sim_time
-                if (is_put := (dt := (now - last_time).to_seconds()) >= interval):
+                if is_put := (dt := (now - last_time).to_seconds()) >= interval:
                     last_time = now
                     await events.put(dt)
                 if finish_time is not None and now >= finish_time:
@@ -234,7 +232,7 @@ class TimeNode(rclpy.node.Node):
                         await events.put(dt)
                     break
 
-        events.put_nowait(0.)
+        events.put_nowait(0.0)
         loop_task = asyncio.create_task(_rate_loop())
         try:
             yield done, events

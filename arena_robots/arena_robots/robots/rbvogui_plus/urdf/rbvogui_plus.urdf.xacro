@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<robot name="rbvogui_plus" xmlns:xacro="http://wiki.ros.org/xacro">
+  <xacro:include filename="$(find robotnik_description)/robots/rbvogui/rbvogui_plus.urdf.xacro"/>
+</robot>

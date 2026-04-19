@@ -1,8 +1,7 @@
 import attrs
 
 from task_generator.manager.environment_manager import EnvironmentManager
-from task_generator.manager.robot_manager import RobotManager
-from task_generator.manager.robot_manager.robots_manager_ros import RobotsManager
+from task_generator.manager.robot_manager import RobotManager, RobotsManager
 from task_generator.manager.world_manager.world_manager_ros import WorldManager
 
 

@@ -1,19 +1,15 @@
 import shapely
 
-
 from . import (
-    WorldDescription,
     BaseConfiguration,
+    WorldDescription,
     WorldGeneratorImpl,
 )
-
 from .utils import to_corners, to_walls
 
 
 class WorldGeneratorEmpty(WorldGeneratorImpl):
-
-    class Configuration(BaseConfiguration):
-        ...
+    class Configuration(BaseConfiguration): ...
 
     config: Configuration
 
@@ -22,12 +18,14 @@ class WorldGeneratorEmpty(WorldGeneratorImpl):
 
     def compute(self) -> WorldDescription:
 
-        room = shapely.Polygon([
-            (0, 0),
-            (self.config.width, 0),
-            (self.config.width, self.config.height),
-            (0, self.config.height),
-        ])
+        room = shapely.Polygon(
+            [
+                (0, 0),
+                (self.config.width, 0),
+                (self.config.width, self.config.height),
+                (0, self.config.height),
+            ]
+        )
 
         return WorldDescription(
             zones=[

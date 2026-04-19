@@ -5,7 +5,6 @@ import traceback
 
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.tree import IdentifierProtocol
-
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
@@ -18,7 +17,7 @@ class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc
     _namespace: Namespace
     _realizer: Realizer
 
-    def __init__(self, *args, namespace: Namespace, realizer: Realizer, **kwargs):
+    def __init__(self, *args: object, namespace: Namespace, realizer: Realizer, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._namespace = namespace
         self._realizer = realizer
@@ -39,14 +38,17 @@ class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc
         """
         raise NotImplementedError()
 
+    async def step(self, n: int = 1) -> bool:
+        """Advance the simulation by ``n`` ticks. Default no-op."""
+        del n
+        return True
+
     # Utils
-    async def safe_resolve(self, identifier: IdentifierProtocol):
+    async def safe_resolve(self, identifier: IdentifierProtocol) -> object:
         try:
             return await identifier.resolve()
         except Exception as e:
-            self._logger.error(
-                f"Failed to resolve {identifier}:\n{e}\n{traceback.format_exc()}"
-            )
+            self._logger.error(f"Failed to resolve {identifier}:\n{e}\n{traceback.format_exc()}")
             return None
 
 
@@ -54,7 +56,7 @@ SimulatorRegistry = Registry[Constants.SimSimulator, BaseSim]()
 
 
 @SimulatorRegistry.register(Constants.SimSimulator.DUMMY)
-async def lazy_dummy(**kwargs):
+async def lazy_dummy(**kwargs: object) -> BaseSim:
     from .dummy_simulator import DummySimulator
 
     return DummySimulator(**kwargs)
@@ -67,7 +69,7 @@ async def lazy_dummy(**kwargs):
 
 
 @SimulatorRegistry.register(Constants.SimSimulator.GAZEBO)
-async def lazy_gazebo(**kwargs):
+async def lazy_gazebo(**kwargs: object) -> BaseSim:
     from .gazebo_simulator import GazeboSimulator
 
     return await GazeboSimulator.create(**kwargs)
@@ -80,7 +82,7 @@ async def lazy_gazebo(**kwargs):
 
 
 @SimulatorRegistry.register(Constants.SimSimulator.ISAAC)
-async def lazy_isaac(**kwargs):
+async def lazy_isaac(**kwargs: object) -> BaseSim:
     from .isaac_simulator import IsaacSimulator
 
     return await IsaacSimulator.create(**kwargs)

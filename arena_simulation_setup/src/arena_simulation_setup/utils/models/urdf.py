@@ -5,7 +5,6 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any
 
 import aiofiles
 import attrs
@@ -14,9 +13,8 @@ from . import Model, ModelProvider, ModelType
 
 
 class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
-
     @classmethod
-    async def load(cls, model_dir, model, loader_args):
+    async def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
 
         if loader_args is None:
             loader_args = {}
@@ -28,7 +26,7 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
         if not xacro_path.is_file():
             raise FileNotFoundError(f"Xacro file for model {model} not found at {xacro_path}")
 
-        def to_string(v: Any) -> str:
+        def to_string(v: object) -> str:
             if attrs.has(type(v)):
                 v = attrs.asdict(v)
             if isinstance(v, dict):
@@ -41,16 +39,10 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
             "xacro",
             "xacro",
             str(xacro_path),
-            *(
-                f"{k}:={to_string(v)}"
-                for k, v
-                in loader_args.items()
-                if v is not None
-            ),
+            *(f"{k}:={to_string(v)}" for k, v in loader_args.items() if v is not None),
         ]
 
         try:
-
             process = await asyncio.subprocess.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             stdout, stderr = await process.communicate()
             if process.returncode != 0:
@@ -73,7 +65,7 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                     # Remove the specific package prefix if present
                     if original_path.startswith(prefix):
                         # Remove the prefix and any leading '/'
-                        new_relative = original_path[len(prefix):].lstrip('/')
+                        new_relative = original_path[len(prefix) :].lstrip('/')
                         original_path = new_relative
                         print(f"Removed prefix: {prefix} -> New relative path: {original_path}")
                     # Convert to absolute path if it's not already
@@ -88,17 +80,9 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                 await tmp.write(ser)
                 print(f"Converted URDF saved to temporary file: {tmp.name}")
 
-            return Model(
-                type=ModelType.URDF,
-                name=model,
-                description=model_desc,
-                path=Path(tmp.name)
-            )
+            return Model(type=ModelType.URDF, name=model, description=model_desc, path=Path(tmp.name))
 
         except subprocess.CalledProcessError as e:
-            print(
-                f"error processing model {model} URDF file {xacro_path}. refusing to load.\n{e}\n{e.output.decode('utf-8')}",
-                file=sys.stderr
-            )
+            print(f"error processing model {model} URDF file {xacro_path}. refusing to load.\n{e}\n{e.output.decode('utf-8')}", file=sys.stderr)
             print(f"Command executed: {' '.join(cmd)}", file=sys.stderr)
             raise

@@ -4,10 +4,10 @@ import attrs
 import yaml
 
 
-class MappingDirection(str, enum.Enum):
-    BIDIRECTIONAL = "@"
-    GZ_TO_ROS = "["
-    ROS_TO_GZ = "]"
+class MappingDirection(enum.StrEnum):
+    BIDIRECTIONAL = '@'
+    GZ_TO_ROS = '['
+    ROS_TO_GZ = ']'
 
 
 @attrs.define
@@ -28,26 +28,16 @@ class _TopicMapping(dict[str, str]):
         return (self.gz_topic, self.ros_topic)
 
     def as_dict(self) -> dict[str, str]:
-        return attrs.asdict(
-            self,
-            value_serializer=lambda _, __, v: (
-                v.value if isinstance(v, MappingDirection) else v
-            ),
-        )
+        return attrs.asdict(self, value_serializer=lambda _, __, v: v.value if isinstance(v, MappingDirection) else v)
 
     def as_yaml_dict(self) -> dict[str, str]:
-        return attrs.asdict(
-            self,
-            value_serializer=lambda _, __, v: (
-                v.name if isinstance(v, MappingDirection) else v
-            ),
-        )
+        return attrs.asdict(self, value_serializer=lambda _, __, v: v.name if isinstance(v, MappingDirection) else v)
 
 
 class BridgeConfiguration(list[_TopicMapping]):
     @classmethod
     def from_file(cls, path: str) -> "BridgeConfiguration":
-        with open(path, "r") as f:
+        with open(path) as f:
             config = yaml.safe_load(f)
             assert isinstance(config, list), "expected a list of topic mappings"
             return BridgeConfiguration([_TopicMapping(**mapping) for mapping in config])
@@ -65,5 +55,5 @@ class BridgeConfiguration(list[_TopicMapping]):
         result = yaml.safe_dump(list(map(_TopicMapping.as_yaml_dict, self)))
         assert result is not None
         if isinstance(result, bytes):
-            return result.decode("utf-8")
+            return result.decode('utf-8')
         return str(result)

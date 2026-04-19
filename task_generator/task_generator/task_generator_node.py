@@ -8,21 +8,21 @@ import rclpy.executors
 from .node import TaskGenerator
 
 
-def spin_blocking(executor):
+def spin_blocking(executor: rclpy.executors.Executor) -> None:
     try:
         executor.spin()
     except rclpy.executors.ExternalShutdownException:
         pass
 
 
-async def app_logic(node):
-    node.get_logger().info("Beginning client, shut down with CTRL-C")
+async def app_logic(node: TaskGenerator) -> None:
+    node.get_logger().info('Beginning client, shut down with CTRL-C')
     await node.setup()
     stop_event = asyncio.Event()
     await stop_event.wait()
 
 
-async def main_async(args=None):
+async def main_async(args: list[str] | None = None) -> None:
     del args
     rclpy.init()
     loop = asyncio.get_running_loop()
@@ -41,9 +41,7 @@ async def main_async(args=None):
         import aiomonitor
 
         with aiomonitor.start_monitor(loop=loop, locals=locals()):
-            done, _ = await asyncio.wait(
-                [spin_future, app_task], return_when=asyncio.FIRST_COMPLETED
-            )
+            done, _ = await asyncio.wait([spin_future, app_task], return_when=asyncio.FIRST_COMPLETED)
 
         if spin_future in done:
             spin_future.result()
@@ -72,7 +70,7 @@ async def main_async(args=None):
         rclpy.try_shutdown()
 
 
-def main(args=None):
+def main(args: list[str] | None = None) -> None:
     try:
         asyncio.run(main_async(args=args))
     except KeyboardInterrupt:

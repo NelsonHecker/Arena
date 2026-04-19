@@ -9,7 +9,7 @@ if typing.TYPE_CHECKING:
 class TM_Module(TaskMode):
     _task: "Task"
 
-    def __init__(self, *args, task: "Task", **kwargs):
+    def __init__(self, *args: object, task: "Task", **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._task = task
 

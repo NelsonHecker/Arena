@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import dataclasses
 import os
@@ -14,11 +16,11 @@ import yaml
 
 
 class NoAliasDumper(yaml.Dumper):
-    def ignore_aliases(self, data):
+    def ignore_aliases(self, data: object) -> bool:
         return True
 
 
-def _yaml_iter(obj: list | dict):
+def _yaml_iter(obj: list | dict) -> range | typing.KeysView:
     if isinstance(obj, dict):
         return obj.keys()
     elif isinstance(obj, list):
@@ -28,37 +30,36 @@ def _yaml_iter(obj: list | dict):
 
 
 class LaunchArgument(launch.actions.DeclareLaunchArgument):
-
-    _auto_append: typing.ClassVar[typing.List | None] = None
+    _auto_append: typing.ClassVar[list | None] = None
 
     @classmethod
-    def auto_append(cls, target: typing.List | None = None):
+    def auto_append(cls, target: list | None = None):
         """
         auto append self to list after creation
         """
         cls._auto_append = target
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         if self._auto_append is not None:
             self._auto_append.append(self)
 
     @property
-    def substitution(self):
+    def substitution(self) -> launch.substitutions.LaunchConfiguration:
         return launch.substitutions.LaunchConfiguration(self.name)
 
     @property
-    def dict(self):
+    def dict(self) -> dict[str, launch.substitutions.LaunchConfiguration]:
         return {self.name: self.substitution}
 
-    def param_value(self, type_: typing.Type):
+    def param_value(self, type_: type) -> launch_ros.parameter_descriptions.ParameterValue:
         return launch_ros.parameter_descriptions.ParameterValue(self.substitution, value_type=type_)
 
-    def param(self, type_: typing.Type):
+    def param(self, type_: type) -> dict[str, launch_ros.parameter_descriptions.ParameterValue]:
         return {self.name: self.param_value(type_)}
 
     @property
-    def str_param(self):
+    def str_param(self) -> dict[str, launch_ros.parameter_descriptions.ParameterValue]:
         return self.param(str)
 
 
@@ -66,39 +67,33 @@ class SelectAction(launch.Action):
     _actions: dict[str, list[launch.Action]]
     _selector: list[launch.Substitution]
 
-    def __init__(
-        self,
-        selector: launch.SomeSubstitutionsType
-    ) -> None:
+    def __init__(self, selector: launch.SomeSubstitutionsType) -> None:
         launch.Action.__init__(self)
         self._actions = {}
         self._selector = launch.utilities.normalize_to_list_of_substitutions(selector)
 
     def add(self, value: str, action: launch.Action):
-        self._actions.setdefault(value, []).append(
-            action
-        )
+        self._actions.setdefault(value, []).append(action)
 
     @property
     def keys(self) -> list[str]:
         return list(self._actions.keys())
 
-    def execute(self, context: launch.LaunchContext):  # type: ignore
+    def execute(self, context: launch.LaunchContext) -> list[launch.Action]:  # type: ignore
         key = launch.utilities.perform_substitutions(context, self._selector)
         return self._actions.get(key, [])
 
 
 class YAMLFileSubstitution(launch.Substitution):
-
     _path: list[launch.Substitution]
-    _default: "typing.Optional[dict | YAMLFileSubstitution]"
+    _default: dict | YAMLFileSubstitution | None
     _substitute: bool
 
     def __init__(
         self,
         path: launch.SomeSubstitutionsType,
         *,
-        default: "typing.Optional[dict | YAMLFileSubstitution]" = None,
+        default: dict | YAMLFileSubstitution | None = None,
         substitute: bool = False,
     ):
         launch.Substitution.__init__(self)
@@ -109,7 +104,7 @@ class YAMLFileSubstitution(launch.Substitution):
     def perform(
         self,
         context: launch.LaunchContext,
-    ):
+    ) -> str:
         yaml_path = launch.utilities.perform_substitutions(context, self._path)
         try:
             with open(yaml_path) as f:
@@ -124,11 +119,12 @@ class YAMLFileSubstitution(launch.Substitution):
                 raise e
 
         if self._substitute:
-            def substitute(obj, k):
+
+            def substitute(obj: dict | list, k: int | str) -> None:
                 if isinstance(obj[k], launch.Substitution):
                     obj[k] = obj[k].perform(context)
 
-            def substitute_recursive(obj: dict | list):
+            def substitute_recursive(obj: dict | list) -> dict | list:
                 for k in _yaml_iter(obj):
                     substitute(obj, k)
                     v = obj[k]
@@ -136,6 +132,7 @@ class YAMLFileSubstitution(launch.Substitution):
                         obj[k] = substitute_recursive(v)
 
                 return obj
+
             assert isinstance(contents, (dict, list))
             contents = substitute_recursive(contents)
 
@@ -149,12 +146,11 @@ class YAMLFileSubstitution(launch.Substitution):
         with open(yaml_path := self.perform(context)) as f:
             content = yaml.safe_load(f)
         if not isinstance(content, dict):
-            raise yaml.YAMLError(
-                f"{yaml_path} does not contain a top-level dictionary")
+            raise yaml.YAMLError(f"{yaml_path} does not contain a top-level dictionary")
         return content
 
     @classmethod
-    def from_dict(cls, obj: dict, /, *, substitute: bool = True):
+    def from_dict(cls, obj: dict, /, *, substitute: bool = True) -> YAMLFileSubstitution:
         return cls(path=[], default=obj, substitute=substitute)
 
 
@@ -171,7 +167,7 @@ class YAMLRetrieveSubstitution(launch.Substitution):
         self._obj = obj
         self._key = launch.utilities.normalize_to_list_of_substitutions(key)
 
-    def perform(self, context: launch.LaunchContext):
+    def perform(self, context: launch.LaunchContext) -> str:
         obj = self._obj.perform_load(context)
         key = launch.utilities.perform_substitutions(context, self._key)
 
@@ -195,7 +191,6 @@ class YAMLRetrieveSubstitution(launch.Substitution):
 
 
 class YAMLMergeSubstitution(launch.Substitution):
-
     _base: YAMLFileSubstitution
     _yamls: typing.Iterable[YAMLFileSubstitution]
 
@@ -221,15 +216,12 @@ class YAMLMergeSubstitution(launch.Substitution):
         base = cls._recursive_merge(base, obj)
         return base
 
-    def perform(self, context: launch.LaunchContext):
+    def perform(self, context: launch.LaunchContext) -> str:
 
         combined = copy.deepcopy(self._base.perform_load(context))
 
         for yaml_path in self._yamls:
-            combined = self._append_yaml(
-                combined,
-                yaml_path.perform_load(context)
-            )
+            combined = self._append_yaml(combined, yaml_path.perform_load(context))
 
         return YAMLFileSubstitution.from_dict(combined).perform(context)
 
@@ -262,7 +254,7 @@ class _YAMLReplacer:
         replacements: list[tuple[int, int]] = []
         opening: int = 0
         for i, c in enumerate(v):
-            if v[i:i + 2] == '${':
+            if v[i : i + 2] == '${':
                 if counter == 0:
                     opening = i
                 counter += 1
@@ -274,7 +266,6 @@ class _YAMLReplacer:
                     replacements.append((opening, i + 1))
 
         if counter == 0 and replacements:
-
             # abandon inter-string substitution
             if replacements[0] == (0, len(v)):
                 return None
@@ -299,7 +290,7 @@ class _YAMLReplacer:
 
         return None
 
-    def _sub_match(self, v: str) -> "Replacement":
+    def _sub_match(self, v: str) -> Replacement:
 
         str_v: str | None = v
         replacement: None | _YAMLReplacer.Replacement = None
@@ -312,11 +303,11 @@ class _YAMLReplacer:
             default = defaults[0] if defaults else None
 
             if sub.startswith('**'):
-                if isinstance((substitution := self._substitutions.get(sub[len('**'):])), dict):
+                if isinstance((substitution := self._substitutions.get(sub[len('**') :])), dict):
                     return self.DictSpreadReplacement(value=substitution)
 
             if sub.startswith('*'):
-                if isinstance((substitution := self._substitutions.get(sub[len('*'):])), list):
+                if isinstance((substitution := self._substitutions.get(sub[len('*') :])), list):
                     return self.ListSpreadReplacement(value=substitution)
 
             if sub in self._substitutions:
@@ -352,7 +343,7 @@ class _YAMLReplacer:
         for i, insertions in to_insert:
             expanded = self._replace_list(insertions)
             obj.pop(i + offset)
-            obj[i + offset:i + offset] = expanded
+            obj[i + offset : i + offset] = expanded
             offset += len(expanded) - 1
 
         return obj
@@ -361,7 +352,6 @@ class _YAMLReplacer:
         to_insert: list[tuple[str, dict]] = []
 
         for k, v in obj.items():
-
             if isinstance(replacement := self._sub_match(k), self.DictSpreadReplacement):
                 to_insert.append((k, replacement.value))
                 continue
@@ -384,7 +374,7 @@ class _YAMLReplacer:
 
         return obj
 
-    def _replace_str(self, obj: str) -> typing.Any:
+    def _replace_str(self, obj: str) -> str | dict | list | object:
         if (inter_v := self._replace_inter_string(obj)) is not None:
             return self.replace(inter_v.value)
         replacement = self._sub_match(obj)
@@ -421,7 +411,6 @@ class _YAMLReplacer:
 
 
 class YAMLReplaceSubstitution(launch.Substitution):
-
     _substitutions: YAMLFileSubstitution
     _obj: YAMLFileSubstitution
 
@@ -435,7 +424,7 @@ class YAMLReplaceSubstitution(launch.Substitution):
         self._substitutions = substitutions
         self._obj = obj
 
-    def perform(self, context: launch.LaunchContext):
+    def perform(self, context: launch.LaunchContext) -> str:
 
         substitutions = self._substitutions.perform_load(context)
 
@@ -450,6 +439,6 @@ class YAMLReplaceSubstitution(launch.Substitution):
 
 
 class CurrentNamespaceSubstitution(launch.Substitution):
-    def perform(self, context: launch.LaunchContext) -> typing.Text:
+    def perform(self, context: launch.LaunchContext) -> str:
         """Perform the substitution."""
         return context.launch_configurations.get('ros_namespace', '/')

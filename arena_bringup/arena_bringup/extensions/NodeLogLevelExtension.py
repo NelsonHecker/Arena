@@ -1,12 +1,11 @@
 import logging
 from typing import Literal
 
+import launch
 import launch.utilities
 from launch_ros.actions import Node as NodeAction
 from launch_ros.actions.node import NodeActionExtension
 from launch_ros.utilities import plugin_support
-
-import launch
 
 
 class NodeLogLevelExtension(NodeActionExtension):
@@ -17,7 +16,7 @@ class NodeLogLevelExtension(NodeActionExtension):
         super(NodeActionExtension, self).__init__()
         plugin_support.satisfies_version(self.EXTENSION_POINT_VERSION, '^0.1')
 
-    def prepare_for_execute(self, context: launch.LaunchContext, ros_specific_arguments: dict, node_action: NodeAction):
+    def prepare_for_execute(self, context: launch.LaunchContext, ros_specific_arguments: dict, node_action: NodeAction) -> tuple[list, dict]:
         global_log_level = context.launch_configurations.get('NodeLogLevelExtension_log_level', None)
 
         args = []
@@ -33,7 +32,7 @@ class SetGlobalLogLevelAction(launch.Action):
     LOGLEVEL = Literal['debug', 'info', 'warn', 'error', 'fatal']
     _log_level: LOGLEVEL
 
-    def __init__(self, log_level: LOGLEVEL, **kwargs) -> None:
+    def __init__(self, log_level: LOGLEVEL, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self._log_level = log_level
 

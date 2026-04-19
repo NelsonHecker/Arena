@@ -1,0 +1,17 @@
+# Goal
+geometry_msgs/PoseStamped target
+float32 pose_tolerance    # 0.0 = adapter default
+float32 yaw_tolerance
+---
+# Result
+uint8 STATUS_SUCCEEDED = 0
+uint8 STATUS_CANCELED = 1
+uint8 STATUS_ABORTED = 2
+uint8 STATUS_TIMEOUT = 3
+uint8 status
+geometry_msgs/PoseStamped final_pose
+---
+# Feedback
+geometry_msgs/PoseStamped current_pose
+float32 distance_remaining
+float32 eta_seconds

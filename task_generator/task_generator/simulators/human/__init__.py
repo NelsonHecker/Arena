@@ -9,13 +9,10 @@ from collections.abc import Mapping, Sequence
 
 import rclpy
 import rclpy.publisher
-from arena_people_msgs.msg import Pedestrian, Pedestrians
+from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins.shared import Namespace
 from geometry_msgs.msg import PoseStamped, Vector3
 from std_msgs.msg import ColorRGBA
-from tf_transformations import quaternion_from_euler, quaternion_multiply
-from visualization_msgs.msg import Marker, MarkerArray
-
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
@@ -26,12 +23,12 @@ from task_generator.simulators.human.utils import (
 )
 from task_generator.simulators.sim import BaseSim
 from task_generator.utils.registry import Registry
+from tf_transformations import quaternion_from_euler, quaternion_multiply
+from visualization_msgs.msg import Marker, MarkerArray
 
 
 class BaseHumanSimulator(NodeInterface, abc.ABC):
-    MESH_RESOURCE = (
-        "package://pal_gazebo_worlds/models/citizen_extras_male_03/meshes/mesh.dae"
-    )
+    MESH_RESOURCE = "package://pal_gazebo_worlds/models/citizen_extras_male_03/meshes/mesh.dae"
     BODY_HEIGHT = 1.6
     ARROW_LENGTH = 0.6
 
@@ -51,7 +48,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         task modes specific to their simulator (e.g. TM_Prompt).
         """
 
-    def __init__(self, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
+    def __init__(self, *args: object, namespace: Namespace, simulator: BaseSim, **kwargs: object) -> None:
         """
         Initialize human simulator.
 
@@ -70,21 +67,13 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._wall_counter = itertools.count()
         self._known_regions: dict[str, Region] = {}
 
-        self._goal_pub = self.node.create_publisher(
-            PoseStamped, self._namespace("/goal"), 1
-        )
+        self._goal_pub = self.node.create_publisher(PoseStamped, self._namespace("/goal"), 1)
 
-        self._arena_peds_publisher = self.node.create_publisher(
-            Pedestrians, self._namespace("arena_peds"), 10
-        )
+        self._arena_peds_publisher = self.node.create_publisher(Pedestrians, self._namespace("arena_peds"), 10)
 
-        self._marker_publisher = self.node.create_publisher(
-            MarkerArray, self._namespace("pedestrian_markers"), 10
-        )
+        self._marker_publisher = self.node.create_publisher(MarkerArray, self._namespace("pedestrian_markers"), 10)
 
-        self._extra_marker_publisher = self.node.create_publisher(
-            MarkerArray, self._namespace("pedestrian_markers/extra"), 10
-        )
+        self._extra_marker_publisher = self.node.create_publisher(MarkerArray, self._namespace("pedestrian_markers/extra"), 10)
 
     def publish_arena_peds(self, msg: Pedestrians):
         """Publish pedestrian states and base visualization markers."""
@@ -125,9 +114,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             body.pose.orientation.y = q[1]
             body.pose.orientation.z = q[2]
             body.pose.orientation.w = q[3]
-            body.scale = Vector3(
-                x=self.BODY_HEIGHT, y=self.BODY_HEIGHT, z=self.BODY_HEIGHT
-            )
+            body.scale = Vector3(x=self.BODY_HEIGHT, y=self.BODY_HEIGHT, z=self.BODY_HEIGHT)
             body.lifetime.sec = 1
             markers.append(body)
 
@@ -189,9 +176,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         result.markers = markers
         return result
 
-    async def spawn_obstacles(
-        self, obstacles: Sequence[Obstacle], layer: ObstacleLayer = ObstacleLayer.INUSE
-    ):
+    async def spawn_obstacles(self, obstacles: Sequence[Obstacle], layer: ObstacleLayer = ObstacleLayer.INUSE):
         """Spawns static obstacles.
 
         Args:
@@ -223,6 +208,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         for known, obstacle in zip(
             to_register,
             await self._spawn_obstacles_impl([known.obstacle for known in to_register]),
+            strict=False,
         ):
             if not obstacle:
                 continue
@@ -237,9 +223,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             futures.append(self._simulator.obstacle_spawn(to_spawn))
         await asyncio.gather(*futures)
 
-    async def spawn_dynamic_obstacles(
-        self, obstacles: typing.Sequence[DynamicObstacle]
-    ):
+    async def spawn_dynamic_obstacles(self, obstacles: typing.Sequence[DynamicObstacle]):
         """Spawns dynamic obstacles.
 
         Args:
@@ -257,9 +241,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 to_move.append(known.obstacle)
                 known.layer = ObstacleLayer.INUSE
             else:
-                known = self._known_obstacles.create_or_get(
-                    name=obstacle.name, obstacle=obstacle
-                )
+                known = self._known_obstacles.create_or_get(name=obstacle.name, obstacle=obstacle)
             if not known.spawned:
                 to_register.append(known)
         if to_move:
@@ -268,9 +250,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         to_spawn: list[DynamicObstacle] = []
         for known, obstacle in zip(
             to_register,
-            await self._spawn_dynamic_obstacles_impl(
-                [known.obstacle for known in to_register]
-            ),
+            await self._spawn_dynamic_obstacles_impl([known.obstacle for known in to_register]),
+            strict=False,
         ):
             self._logger.info(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
@@ -373,12 +354,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         """
         self._logger.debug("unusing obstacles")
 
-        obstacle_names = [
-            name
-            for name, known in self._known_obstacles.items()
-            if not isinstance(known.obstacle, DynamicObstacle)
-            and known.layer == ObstacleLayer.UNUSED
-        ]
+        obstacle_names = [name for name, known in self._known_obstacles.items() if not isinstance(known.obstacle, DynamicObstacle) and known.layer == ObstacleLayer.UNUSED]
 
         await asyncio.gather(
             self._remove_pedestrians_impl(),
@@ -444,10 +420,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         matched: dict[str, None] = {}
         for wall in walls:
             for name, known in self._known_walls.items():
-                if (
-                    known.obstacle.start == wall.start
-                    and known.obstacle.end == wall.end
-                ):
+                if known.obstacle.start == wall.start and known.obstacle.end == wall.end:
                     matched[name] = None
                     break
 
@@ -503,12 +476,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f"removing obstacles (level {purge})")
         futures: list[typing.Awaitable] = []
 
-        stale_walls = [
-            name for name, known in self._known_walls.items() if purge >= known.layer
-        ]
-        stale_doors = [
-            name for name, known in self._known_doors.items() if purge >= known.layer
-        ]
+        stale_walls = [name for name, known in self._known_walls.items() if purge >= known.layer]
+        stale_doors = [name for name, known in self._known_doors.items() if purge >= known.layer]
 
         if purge >= ObstacleLayer.WORLD:
             futures.append(self._simulator.remove_world())
@@ -546,7 +515,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         robots: Sequence[Robot],
     ) -> tuple[bool, ...]:
         sim_success = await sim_call(robots)
-        succeeded = tuple(r for r, s in zip(robots, sim_success) if s)
+        succeeded = tuple(r for r, s in zip(robots, sim_success, strict=False) if s)
         human_success = await impl_call(succeeded)
         human_iter = iter(human_success)
         return tuple(s and next(human_iter) for s in sim_success)
@@ -692,28 +661,28 @@ HumanSimulatorRegistry = Registry[Constants.HumanSimulator, BaseHumanSimulator](
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.DUMMY)
-async def dummy(**kwargs):
+async def dummy(**kwargs: object) -> BaseHumanSimulator:
     from .dummy import DummyHumanSimulator
 
     return DummyHumanSimulator(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.HUNAV)
-async def lazy_hunavsim(**kwargs):
+async def lazy_hunavsim(**kwargs: object) -> BaseHumanSimulator:
     from .hunav.hunav import HunavHumanSimulator
 
     return await HunavHumanSimulator.create(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.ISAAC)
-async def isaacsim(**kwargs):
+async def isaacsim(**kwargs: object) -> BaseHumanSimulator:
     from .isaac import IsaacHumanSimulator
 
     return IsaacHumanSimulator(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.ARENA)
-async def arenasim(**kwargs):
+async def arenasim(**kwargs: object) -> BaseHumanSimulator:
     from .arena_humansim.arena_humansim import ArenaHumanSimulator
 
     return await ArenaHumanSimulator.create(**kwargs)

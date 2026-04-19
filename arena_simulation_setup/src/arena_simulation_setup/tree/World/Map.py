@@ -1,6 +1,6 @@
-import logging
 import io
 import itertools
+import logging
 import math
 import typing
 from collections.abc import Iterable
@@ -26,16 +26,7 @@ class Map(PathView):
 
     @classmethod
     def generate_png(
-        cls,
-        rooms: shapely.MultiPolygon,
-        doors: shapely.MultiPolygon,
-        walls: shapely.MultiLineString,
-        resolution: float = 0.01,
-        padding: int = 5,
-        *,
-        static_objects: Iterable[tuple[str, shapely.Polygon]] = (),
-        asset_color: str | None = "grey",
-        asset_name_color: str | None = "blue"
+        cls, rooms: shapely.MultiPolygon, doors: shapely.MultiPolygon, walls: shapely.MultiLineString, resolution: float = 0.01, padding: int = 5, *, static_objects: Iterable[tuple[str, shapely.Polygon]] = (), asset_color: str | None = "grey", asset_name_color: str | None = "blue"
     ) -> tuple[bytes, tuple[float, float]]:
         """
         Generate a PNG image of the map with the given elements.
@@ -62,12 +53,12 @@ class Map(PathView):
                 math.ceil(width / resolution) + 2 * padding,
                 math.ceil(height / resolution) + 2 * padding,
             ),
-            color='black'
+            color='black',
         )
 
         scaling_factor = 1 / resolution
 
-        def tf(shape):
+        def tf(shape: shapely.Geometry) -> shapely.Geometry:
             shape = shapely.affinity.translate(shape, -min_x, -min_y)
             shape = shapely.affinity.scale(shape, scaling_factor, -scaling_factor, origin=(0, 0))
             shape = shapely.affinity.translate(shape, 0, height * scaling_factor)
@@ -76,7 +67,7 @@ class Map(PathView):
             shape = shapely.remove_repeated_points(shape)
             return shape
 
-        def as_int(coords):
+        def as_int(coords: object) -> list[tuple[int, int]]:
             return [(int(math.trunc(x) + padding), int(math.trunc(y) + padding)) for (x, y, *_) in coords]
 
         draw = PIL.ImageDraw.Draw(img)
@@ -110,12 +101,14 @@ class Map(PathView):
     def generate_map_yaml(cls, resolution: float, filename: str, origin: tuple[float, float]) -> str:
         return typing.cast(
             str,
-            yaml.safe_dump({
-                'free_thresh': 0.1,
-                'image': filename,
-                'negate': 0,
-                'occupied_thresh': 0.9,
-                'origin': [*origin, 0],
-                'resolution': resolution,
-            })
+            yaml.safe_dump(
+                {
+                    'free_thresh': 0.1,
+                    'image': filename,
+                    'negate': 0,
+                    'occupied_thresh': 0.9,
+                    'origin': [*origin, 0],
+                    'resolution': resolution,
+                }
+            ),
         )

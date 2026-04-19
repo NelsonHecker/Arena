@@ -1,6 +1,6 @@
 import rclpy.node
 
-from .LifecycleClient import LifecycleClient, AsyncLifecycleClient
+from .LifecycleClient import AsyncLifecycleClient, LifecycleClient
 from .ROSParamServer import ROSParamServer
 from .ServiceNamespace import ServiceNamespace
 from .Time import TimeNode

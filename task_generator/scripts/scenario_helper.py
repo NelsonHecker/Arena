@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from rosros import rospify as rospy
 
 
-def on_click(event, map):
+def on_click(event: object, map: object) -> None:
     x = event.xdata
     y = event.ydata
 
@@ -33,10 +33,7 @@ if __name__ == "__main__":
 
     fig = plt.figure()
 
-    imgplot = plt.imshow(np.reshape(
-        map.data,
-        (map.info.height, map.info.width)
-    ))
+    imgplot = plt.imshow(np.reshape(map.data, (map.info.height, map.info.width)))
 
     fig.canvas.mpl_connect("button_press_event", lambda x: on_click(x, map))
 

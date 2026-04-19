@@ -40,7 +40,7 @@ class VelocityFieldVisualizer:
             self.qos_profile,
         )
 
-    def update_world_bounds(self, x_min, y_min, x_max, y_max):
+    def update_world_bounds(self, x_min: float, y_min: float, x_max: float, y_max: float) -> None:
         """Update bounds used for coordinate mapping."""
         self.map_min_x = x_min
         self.map_min_y = y_min
@@ -59,9 +59,7 @@ class VelocityFieldVisualizer:
         id_counter = 0
 
         for group_idx in range(g):
-            n_makers = self._add_markers(
-                field[group_idx], f"group_{group_idx}", marker_array, id_counter
-            )
+            n_makers = self._add_markers(field[group_idx], f"group_{group_idx}", marker_array, id_counter)
             id_counter += n_makers
 
         self._logger.info(f"Publishing {id_counter} markers")
@@ -73,7 +71,7 @@ class VelocityFieldVisualizer:
         namespace: str,
         marker_array: MarkerArray,
         start_id: int,
-    ):
+    ) -> int:
         """
         Converts normalized grid to RViz Markers.
         field: np.ndarray of shape (H, W, 2)
@@ -83,9 +81,7 @@ class VelocityFieldVisualizer:
         # Calculate cell sizes in world coordinates
         world_width = self.map_max_x - self.map_min_x
         world_height = self.map_max_y - self.map_min_y
-        assert world_width * world_height > 0, (
-            f"Invalid world size: {world_height}x{world_width}"
-        )
+        assert world_width * world_height > 0, f"Invalid world size: {world_height}x{world_width}"
         dx = world_width / w
         dy = world_height / h
 

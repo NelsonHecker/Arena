@@ -20,6 +20,9 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
+    extras_require={
+        'test': ['pytest>=7', 'hypothesis>=6'],
+    },
     zip_safe=True,
     maintainer='Name',
     maintainer_email='your@email.com',

@@ -1,0 +1,17 @@
+arm:
+  base_link: robot_top_cover
+  tip_link: robot_arm_tool0
+  chain:
+    - robot_arm_shoulder_pan_joint
+    - robot_arm_shoulder_lift_joint
+    - robot_arm_elbow_joint
+    - robot_arm_wrist_1_joint
+    - robot_arm_wrist_2_joint
+    - robot_arm_wrist_3_joint
+  controller: arm_controller
+  moveit:
+    package: ur_moveit_config
+    args:
+      ur_type: ur5e
+      prefix: robot_
+      safety_limits: true

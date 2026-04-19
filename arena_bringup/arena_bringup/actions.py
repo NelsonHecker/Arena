@@ -4,12 +4,7 @@ import launch
 
 
 class IsolatedGroupAction(launch.actions.GroupAction):
-    def __init__(
-        self,
-        actions: typing.Iterable[launch.Action],
-        *args,
-        **kwargs
-    ):
+    def __init__(self, actions: typing.Iterable[launch.Action], *args: object, **kwargs: object) -> None:
         return super().__init__(
             (
                 launch.actions.PushEnvironment(),

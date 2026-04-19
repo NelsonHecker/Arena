@@ -12,12 +12,13 @@ mkdir -p "$ARENA_WS_DIR/build"
 mkdir -p "$ARENA_WS_DIR/install"
 mkdir -p "$ARENA_WS_DIR/log"
 
-export ARENA_IMAGE="arena:dev"
 HOST_UID=$(id -u)
 export HOST_UID
 HOST_GID=$(id -g)
 export HOST_GID
 export ARENA_PROJECT_NAME="arena-$(basename "$ARENA_WS_DIR")"
+export ARENA_IMAGE_TAG="$ARENA_PROJECT_NAME"
+export ARENA_IMAGE="arena:${ARENA_IMAGE_TAG}"
 
 if [ ! -f "$ARENA_WS_DIR/.env" ] ; then
     touch "$ARENA_WS_DIR/.env"
@@ -28,6 +29,7 @@ xhost +local:docker
 docker_env=""
 docker_env="${docker_env} ARENA_PROJECT_NAME=$ARENA_PROJECT_NAME"
 docker_env="${docker_env} ARENA_IMAGE=$ARENA_IMAGE"
+docker_env="${docker_env} ARENA_IMAGE_TAG=$ARENA_IMAGE_TAG"
 docker_env="${docker_env} ARENA_WS_DIR=$ARENA_WS_DIR"
 docker_env="${docker_env} HOST_UID=$HOST_UID"
 docker_env="${docker_env} HOST_GID=$HOST_GID"
@@ -41,7 +43,7 @@ arena_docker_compose(){
         --project-name "$ARENA_PROJECT_NAME" \
         "$@"
 }
-export -f arena_docker_compose
+export -f arena_docker_compose 2>/dev/null || true
 
 arena_service="arena"
 

@@ -9,11 +9,9 @@ class TM_Prompt(TM_Obstacles):
     flow/region-based agent spawning.
     """
 
-    async def reset(self, **kwargs) -> Obstacles:
-        self._logger.warn(
-            "TM_Prompt for arena_humansim is not yet implemented. Returning empty obstacles."
-        )
+    async def reset(self, **kwargs: object) -> Obstacles:
+        self._logger.warn("TM_Prompt for arena_humansim is not yet implemented. Returning empty obstacles.")
         return [], []
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         TM_Obstacles.__init__(self, **kwargs)

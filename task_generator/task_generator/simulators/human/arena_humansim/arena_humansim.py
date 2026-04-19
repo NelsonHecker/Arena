@@ -4,7 +4,7 @@ import asyncio
 import math
 import os
 import traceback
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 import yaml
@@ -16,9 +16,6 @@ from arena_humansim_msgs.msg import (
 )
 from arena_humansim_msgs.msg import (
     AgentTemplate as AgentTemplateMsg,
-)
-from arena_humansim_msgs.msg import (
-    FlowConfig as FlowConfigMsg,
 )
 from arena_humansim_msgs.msg import (
     ObstacleConfig as ObstacleConfigMsg,
@@ -77,13 +74,12 @@ from rclpy.qos import (
     QoSProfile,
     QoSReliabilityPolicy,
 )
-from visualization_msgs.msg import MarkerArray
-
 from task_generator.constants import Constants
-from task_generator.shared import DynamicObstacle, Obstacle, Pose, Position, Robot
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle
 from task_generator.simulators.sim import BaseSim
+from visualization_msgs.msg import MarkerArray
 
 
 class ArenaHumanSimulator(BaseHumanSimulator):
@@ -92,7 +88,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         from task_generator.tasks.task import _TaskRegistry
 
         @_TaskRegistry.register_obstacles(Constants.TaskMode.TM_Obstacles.PROMPT)
-        def _prompt():
+        def _prompt() -> type:
             from task_generator.tasks.obstacles.prompt.arena import TM_Prompt
 
             return TM_Prompt
@@ -109,7 +105,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     SERVICE_ADD_OBSTACLES = "add_obstacles"
     SERVICE_REMOVE_OBSTACLES = "remove_obstacles"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
 
         self._spawn_client: ClientWrapper = self.node.create_client_wrapper(
@@ -291,7 +287,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         await self.unpause()
 
     @classmethod
-    async def create(cls, *args, namespace: Namespace, simulator: BaseSim, **kwargs):
+    async def create(cls, *args: object, namespace: Namespace, simulator: BaseSim, **kwargs: object) -> "ArenaHumanSimulator":
         self = cls(*args, namespace=namespace, simulator=simulator, **kwargs)
         await self.setup()
         return self
@@ -310,7 +306,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._feedback_loop_task = asyncio.create_task(self._feedback_loop())
 
     @property
-    def agent_states(self):
+    def agent_states(self) -> AgentStatesMsg | None:
         return self._curr_agent_states
 
     TICK_RATE = 50.0  # Hz — local interpolation rate
@@ -334,9 +330,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            self._logger.error(
-                f"Error in interpolation loop: {e}\n{traceback.format_exc()}"
-            )
+            self._logger.error(f"Error in interpolation loop: {e}\n{traceback.format_exc()}")
 
     def _make_flow_dynamic_obstacle(self, agent: AgentStateMsg) -> DynamicObstacle:
         """Create a DynamicObstacle for a source-spawned agent using a default model."""
@@ -381,16 +375,16 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                                 if self._pool_free:
                                     pool_name = self._pool_free.pop()
                                     self._pool_active[aid] = pool_name
-                                    to_move.append(DynamicObstacle(
-                                        name=pool_name,
-                                        pose=Pose(Position(agent.pose.x, agent.pose.y)),
-                                        model="default",
-                                    ))
+                                    to_move.append(
+                                        DynamicObstacle(
+                                            name=pool_name,
+                                            pose=Pose(Position(agent.pose.x, agent.pose.y)),
+                                            model="default",
+                                        )
+                                    )
                                 else:
                                     self._physim_agent_ids.add(aid)
-                                    to_spawn.append(
-                                        self._make_flow_dynamic_obstacle(agent)
-                                    )
+                                    to_spawn.append(self._make_flow_dynamic_obstacle(agent))
                             if to_move:
                                 await self._simulator.pedestrian_move(to_move)
                             if to_spawn:
@@ -399,25 +393,27 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                         if gone_ids:
                             to_park: list[DynamicObstacle] = []
                             to_delete: list[DynamicObstacle] = []
-                            parking = Pose(Position(
-                                self.POOL_PARKING_X, self.POOL_PARKING_Y
-                            ))
+                            parking = Pose(Position(self.POOL_PARKING_X, self.POOL_PARKING_Y))
                             for aid in gone_ids:
                                 if aid in self._pool_active:
                                     pool_name = self._pool_active.pop(aid)
                                     self._pool_free.append(pool_name)
-                                    to_park.append(DynamicObstacle(
-                                        name=pool_name,
-                                        pose=parking,
-                                        model="default",
-                                    ))
+                                    to_park.append(
+                                        DynamicObstacle(
+                                            name=pool_name,
+                                            pose=parking,
+                                            model="default",
+                                        )
+                                    )
                                 else:
                                     self._physim_agent_ids.discard(aid)
-                                    to_delete.append(DynamicObstacle(
-                                        name=str(aid),
-                                        pose=parking,
-                                        model="default",
-                                    ))
+                                    to_delete.append(
+                                        DynamicObstacle(
+                                            name=str(aid),
+                                            pose=parking,
+                                            model="default",
+                                        )
+                                    )
                             if to_park:
                                 await self._simulator.pedestrian_move(to_park)
                             if to_delete:
@@ -427,9 +423,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            self._logger.error(
-                f"Error in pedestrian update loop: {e}\n{traceback.format_exc()}"
-            )
+            self._logger.error(f"Error in pedestrian update loop: {e}\n{traceback.format_exc()}")
 
     async def _feedback_loop(self):
         """Publish dirty robot poses on world_state topic."""
@@ -494,9 +488,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             peds.pedestrians.append(ped)
         return peds
 
-    def _polygon_to_shape_msg(
-        self, polygon, centroid: tuple[float, float] | None = None
-    ) -> ShapeMsg:
+    def _polygon_to_shape_msg(self, polygon: Sequence[Position], centroid: tuple[float, float] | None = None) -> ShapeMsg:
         """Convert a polygon (list of Position) to a Shape msg with POLYGON type.
 
         Vertices are stored relative to *centroid* (the pose sent alongside
@@ -506,12 +498,10 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         cx, cy = centroid if centroid is not None else self._polygon_centroid(polygon)
         shape = ShapeMsg()
         shape.type = ShapeMsg.POLYGON  # = 2
-        shape.vertices = [
-            Point32(x=float(p.x - cx), y=float(p.y - cy), z=0.0) for p in polygon
-        ]
+        shape.vertices = [Point32(x=float(p.x - cx), y=float(p.y - cy), z=0.0) for p in polygon]
         return shape
 
-    def _polygon_centroid(self, polygon) -> tuple[float, float]:
+    def _polygon_centroid(self, polygon: Sequence[Position]) -> tuple[float, float]:
         """Compute centroid of a polygon."""
         if not polygon:
             return 0.0, 0.0
@@ -522,7 +512,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     POOL_PARKING_X = 9999.0
     POOL_PARKING_Y = 9999.0
 
-    async def _add_regions_impl(self, regions) -> bool:
+    async def _add_regions_impl(self, regions: Sequence[Region]) -> bool:
         results = await asyncio.gather(
             *(self._add_region_single(r) for r in regions),
         )
@@ -562,7 +552,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._pool_spawned = True
         self._logger.info(f"Pre-spawned {size} pool pedestrians")
 
-    async def _add_region_single(self, region) -> bool:
+    async def _add_region_single(self, region: Region) -> bool:
         if region.type == "source":
             return await self._add_source_region(region)
         elif region.type == "sink":
@@ -571,7 +561,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"Unknown region type: {region.type}")
             return False
 
-    async def _add_source_region(self, region) -> bool:
+    async def _add_source_region(self, region: Region) -> bool:
         request = AddSource.Request()
         src_msg = SourceConfigMsg()
         src_msg.name = region.name
@@ -581,30 +571,20 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
         cfg = region.config
         for kf in cfg.get("rate_profile", []):
-            src_msg.rate_profile.append(
-                RateKeyframeMsg(t=kf.get("t", 0.0), rate=kf.get("rate", 0.0))
-            )
+            src_msg.rate_profile.append(RateKeyframeMsg(t=kf.get("t", 0.0), rate=kf.get("rate", 0.0)))
         src_msg.max_concurrent = cfg.get("max_concurrent", -1)
         src_msg.max_total = cfg.get("max_total", -1)
 
         raw_tmpl = cfg.get("agent", {})
         tmpl = AgentTemplateMsg()
         vel = raw_tmpl.get("desired_velocity", {})
-        tmpl.desired_velocity_min = (
-            vel.get("min", 1.0) if isinstance(vel, dict) else float(vel)
-        )
-        tmpl.desired_velocity_max = (
-            vel.get("max", 1.5) if isinstance(vel, dict) else float(vel)
-        )
+        tmpl.desired_velocity_min = vel.get("min", 1.0) if isinstance(vel, dict) else float(vel)
+        tmpl.desired_velocity_max = vel.get("max", 1.5) if isinstance(vel, dict) else float(vel)
         tmpl.agent_radius = raw_tmpl.get("agent_radius", 0.35)
         tmpl.behavior_tree = raw_tmpl.get("behavior_tree", "default")
         tmpl.agent_type = raw_tmpl.get("agent_type", "adult")
         for sa in raw_tmpl.get("sink_affinity", []):
-            tmpl.sink_affinity.append(
-                SinkAffinityMsg(
-                    sink_name=sa.get("sink", ""), weight=sa.get("weight", 1.0)
-                )
-            )
+            tmpl.sink_affinity.append(SinkAffinityMsg(sink_name=sa.get("sink", ""), weight=sa.get("weight", 1.0)))
         src_msg.agent = tmpl
 
         request.source = src_msg
@@ -618,7 +598,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"AddSource call failed: {e}")
             return False
 
-    async def _add_sink_region(self, region) -> bool:
+    async def _add_sink_region(self, region: Region) -> bool:
         request = AddSink.Request()
         sink_msg = SinkConfigMsg()
         sink_msg.name = region.name
@@ -641,7 +621,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"AddSink call failed: {e}")
             return False
 
-    async def _remove_regions_impl(self, regions) -> bool:
+    async def _remove_regions_impl(self, regions: Sequence[Region]) -> bool:
         sources = [r.name for r in regions if r.type == "source"]
         sinks = [r.name for r in regions if r.type == "sink"]
         results = await asyncio.gather(
@@ -676,7 +656,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"RemoveSink call failed: {e}")
             return False
 
-    async def _spawn_obstacles_impl(self, obstacles) -> Sequence[Obstacle | None]:
+    async def _spawn_obstacles_impl(self, obstacles: Sequence[Obstacle]) -> Sequence[Obstacle | None]:
         """Send obstacle configs (pose + bounding box + metadata) to arena_humansim."""
         if not obstacles:
             return obstacles
@@ -688,17 +668,15 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         )
 
         request = AddObstacles.Request()
-        for obstacle, resolved in zip(obstacles, resolved_paths):
+        for obstacle, resolved in zip(obstacles, resolved_paths, strict=False):
             try:
                 if isinstance(resolved, BaseException):
                     raise resolved
                 annotation_path = resolved / "annotation.yaml"
-                with open(annotation_path, "r") as f:
+                with open(annotation_path) as f:
                     annotation: dict = yaml.safe_load(f.read())
 
-                (x_min, x_max), (y_min, y_max), (z_min, z_max) = annotation[
-                    "bounding_box"
-                ]
+                (x_min, x_max), (y_min, y_max), (z_min, z_max) = annotation["bounding_box"]
 
                 msg = ObstacleConfigMsg()
                 msg.name = obstacle.name
@@ -714,14 +692,10 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 msg.bb_z_min = float(z_min)
                 msg.bb_z_max = float(z_max)
                 msg.interaction_types = [str(h) for h in annotation.get("hoi", [])]
-                msg.obstacle_type = annotation.get("name", "") or annotation.get(
-                    "desc", ""
-                )
+                msg.obstacle_type = annotation.get("name", "") or annotation.get("desc", "")
                 request.obstacles.append(msg)
             except Exception as e:
-                self._logger.warning(
-                    f"Failed to build obstacle config for '{obstacle.name}': {e}"
-                )
+                self._logger.warning(f"Failed to build obstacle config for '{obstacle.name}': {e}")
 
         if request.obstacles:
             try:
@@ -735,9 +709,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
         return obstacles
 
-    async def _spawn_dynamic_obstacles_impl(
-        self, obstacles
-    ) -> Sequence[DynamicObstacle | None]:
+    async def _spawn_dynamic_obstacles_impl(self, obstacles: Sequence[DynamicObstacle]) -> Sequence[DynamicObstacle | None]:
         """Forward dynamic obstacles to arena_humansim AgentManager via SpawnAgents."""
         if not obstacles:
             return obstacles
@@ -765,9 +737,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 agent_msg.vision_range = params.perception.vision_range
                 agent_msg.vision_fov = params.perception.vision_fov
                 agent_msg.relaxation_time = params.local_planner_params.relaxation_time
-                agent_msg.repulsion_strength = (
-                    params.local_planner_params.repulsion_strength
-                )
+                agent_msg.repulsion_strength = params.local_planner_params.repulsion_strength
                 agent_msg.repulsion_range = params.local_planner_params.repulsion_range
                 agent_msg.agent_type = params.name
             else:
@@ -786,9 +756,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 wp_msg = WaypointsMsg()
                 wp_msg.mode = WaypointsMsg.MODE_REPEAT
                 for wp in obstacle.waypoints:
-                    wp_msg.points.append(
-                        WaypointMsg(pose=Pose2DMsg(x=wp.x, y=wp.y, theta=0.0))
-                    )
+                    wp_msg.points.append(WaypointMsg(pose=Pose2DMsg(x=wp.x, y=wp.y, theta=0.0)))
                 agent_msg.waypoints = wp_msg
             request.agents.append(agent_msg)
 
@@ -804,7 +772,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"SpawnAgents call failed: {e}")
             return [None] * len(obstacles)
 
-    async def _remove_obstacles_impl(self, names) -> bool:
+    async def _remove_obstacles_impl(self, names: Sequence[str]) -> bool:
         """Remove static obstacles from arena_humansim."""
         if not names:
             return True
@@ -843,19 +811,19 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"RemoveAgents call failed: {e}")
             return False
 
-    async def _spawn_walls_impl(self, walls) -> bool:
+    async def _spawn_walls_impl(self, walls: Mapping[str, Wall]) -> bool:
         return await self._add_walls(walls)
 
-    async def _spawn_doors_impl(self, doors) -> bool:
+    async def _spawn_doors_impl(self, doors: Mapping[str, Door]) -> bool:
         return await self._add_walls(doors)
 
-    async def _remove_walls_impl(self, names) -> bool:
+    async def _remove_walls_impl(self, names: Sequence[str]) -> bool:
         return await self._remove_walls(names)
 
-    async def _remove_doors_impl(self, names) -> bool:
+    async def _remove_doors_impl(self, names: Sequence[str]) -> bool:
         return await self._remove_walls(names)
 
-    async def _add_walls(self, walls) -> bool:
+    async def _add_walls(self, walls: Mapping[str, Wall]) -> bool:
         """Send wall/door segments to arena_humansim via AddWalls."""
         if not walls:
             return True
@@ -863,12 +831,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         request = AddWalls.Request()
         for name, wall in walls.items():
             request.names.append(name)
-            request.starts.append(
-                Point32(x=float(wall.start.x), y=float(wall.start.y), z=0.0)
-            )
-            request.ends.append(
-                Point32(x=float(wall.end.x), y=float(wall.end.y), z=0.0)
-            )
+            request.starts.append(Point32(x=float(wall.start.x), y=float(wall.start.y), z=0.0))
+            request.ends.append(Point32(x=float(wall.end.x), y=float(wall.end.y), z=0.0))
 
         try:
             response = await self._add_walls_client.call_timeout(request)
@@ -880,7 +844,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"AddWalls call failed: {e}")
             return False
 
-    async def _remove_walls(self, names) -> bool:
+    async def _remove_walls(self, names: Sequence[str]) -> bool:
         """Remove wall/door segments from arena_humansim via RemoveWalls."""
         if not names:
             return True
@@ -898,19 +862,19 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"RemoveWalls call failed: {e}")
             return False
 
-    async def _spawn_robot_impl(self, robots) -> Sequence[bool]:
+    async def _spawn_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Register robot poses — published to arena_humansim via world_state topic."""
         for robot in robots:
             self._dirty_robots[robot.name] = robot
         self._publish_world_state()
         return (True,) * len(robots)
 
-    async def _remove_robot_impl(self, robots) -> Sequence[bool]:
+    async def _remove_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
         for robot in robots:
             self._dirty_robots.pop(robot.name, None)
         return (True,) * len(robots)
 
-    async def _move_robot_impl(self, robots) -> Sequence[bool]:
+    async def _move_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Update tracked robot poses (sent to arena_humansim each tick)."""
         for robot in robots:
             self._dirty_robots[robot.name] = robot

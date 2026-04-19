@@ -1,0 +1,5 @@
+task_modes:
+  - kind: explore
+    produces: GOTO_POSE
+    assignments: []
+    config: {}

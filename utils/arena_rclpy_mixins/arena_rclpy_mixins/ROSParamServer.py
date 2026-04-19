@@ -12,21 +12,18 @@ T = typing.TypeVar('T')
 U = typing.TypeVar('U')
 
 
-class ROSParamT(abc.ABC, typing.Generic[T]):
-
+class ROSParamT[T](abc.ABC):
     @abc.abstractmethod
     def __init__(
         self,
         /,
         name: str,
-        value: typing.Any,
+        value: object,
         *,
-        type_: typing.Optional[rclpy.Parameter.Type] = None,
-        parse: typing.Optional[typing.Callable[[
-            typing.Any], T]] = None,
-        **kwargs,
-    ) -> None:
-        ...
+        type_: rclpy.Parameter.Type | None = None,
+        parse: typing.Callable[[object], T] | None = None,
+        **kwargs: object,
+    ) -> None: ...
 
     @property
     @abc.abstractmethod
@@ -44,19 +41,19 @@ class ROSParamT(abc.ABC, typing.Generic[T]):
 
     @value.setter
     @abc.abstractmethod
-    def value(self, value):
+    def value(self, value: object) -> None:
         """
         Set value and publish.
         """
 
     @abc.abstractmethod
-    def callback(self, value: typing.Any) -> bool:
+    def callback(self, value: object) -> bool:
         """
         Callback function for setting value.
         """
 
 
-class _ROSParam(ROSParamT[T], typing.Generic[T]):
+class _ROSParam[T](ROSParamT[T]):
     """
     Wrapper that handles callbacks.
     """
@@ -71,7 +68,7 @@ class _ROSParam(ROSParamT[T], typing.Generic[T]):
     _parameter_value: typing.Any
 
     @staticmethod
-    def identity(x, *args):
+    def identity(x: object, *args: object) -> object:
         """
         lambda x: x
         """
@@ -87,24 +84,19 @@ class _ROSParam(ROSParamT[T], typing.Generic[T]):
         return self._value
 
     @value.setter
-    def value(self, value: typing.Any):
-        self._node.set_parameters([
-            rclpy.Parameter(
-                name=self._name,
-                value=value
-            )
-        ])
+    def value(self, value: object) -> None:
+        self._node.set_parameters([rclpy.Parameter(name=self._name, value=value)])
 
     @property
-    def param(self) -> typing.Any:
+    def param(self) -> object:
         return self._parameter_value
 
     @param.setter
-    def param(self, value: typing.Any):
+    def param(self, value: object) -> None:
         self._parameter_value = value
         self._value = self._from_param(value)
 
-    def callback(self, value: typing.Any) -> bool:
+    def callback(self, value: object) -> bool:
         self.param = value
         return True
 
@@ -112,11 +104,11 @@ class _ROSParam(ROSParamT[T], typing.Generic[T]):
         self,
         /,
         name: str,
-        value: typing.Optional[typing.Any] = None,
+        value: object | None = None,
         *,
-        type_: typing.Optional[rclpy.Parameter.Type] = None,
-        parse: typing.Optional[typing.Callable[[typing.Any], T]] = None,
-        **kwargs,
+        type_: rclpy.Parameter.Type | None = None,
+        parse: typing.Callable[[object], T] | None = None,
+        **kwargs: object,
     ) -> None:
         self._name = name
 
@@ -136,7 +128,7 @@ class _ROSParam(ROSParamT[T], typing.Generic[T]):
 counter = 0
 
 
-class _rosparam(typing.Generic[T]):
+class _rosparam[T]:
     """
     Light-weight stateless interface for singular typed rosparam actions (short-lived).
     Runtime checks are not performed.
@@ -145,15 +137,10 @@ class _rosparam(typing.Generic[T]):
 
     _node: typing.ClassVar["ROSParamServer"]
 
-    class _UNSET(object):
-        ...
+    class _UNSET: ...
 
     @classmethod
-    def declare_safe(
-        cls, param_name: str,
-        value: typing.Any = None,
-        **kwargs
-    ) -> None:
+    def declare_safe(cls, param_name: str, value: object = None, **kwargs: object) -> None:
         if cls._node.has_parameter(param_name):
             return
 
@@ -163,11 +150,7 @@ class _rosparam(typing.Generic[T]):
             pass
 
     @classmethod
-    def get_unsafe(
-        cls,
-        param_name: str,
-        default: T | typing.Type[_UNSET] = _UNSET
-    ) -> T:
+    def get_unsafe(cls, param_name: str, default: T | type[_UNSET] = _UNSET) -> T:
         """
         Get value of parameter.
         """
@@ -185,9 +168,7 @@ class _rosparam(typing.Generic[T]):
         if result.type_ is rclpy.Parameter.Type.NOT_SET:
             if _default is not cls._UNSET:
                 return _default  # type: ignore
-            raise ValueError(
-                f'parameter {param_name} is unset and no default passed'
-            )
+            raise ValueError(f'parameter {param_name} is unset and no default passed')
 
         return typing.cast(T, result.value)
 
@@ -206,9 +187,7 @@ class _rosparam(typing.Generic[T]):
         Set value of parameter.
         """
 
-        return cls._node.set_parameters([
-            rclpy.Parameter(param_name, value=value)
-        ])[0].successful
+        return cls._node.set_parameters([rclpy.Parameter(param_name, value=value)])[0].successful
 
     @classmethod
     def set(cls, param_name: str, value: T) -> bool:
@@ -223,11 +202,7 @@ class _rosparam(typing.Generic[T]):
             return True
 
     @classmethod
-    def callback(
-        cls,
-        param_name: str,
-        callback: typing.Callable[[typing.Any], bool]
-    ):
+    def callback(cls, param_name: str, callback: typing.Callable[[object], bool]) -> None:
         try:
             value = cls.get_unsafe(param_name)
         except ValueError:
@@ -251,61 +226,41 @@ class ROSParamServer(rclpy.node.Node):
     # ROSParam: type[_ROSParam[typing.Any]]
     # rosparam: type[_rosparam[typing.Any]]
 
-    _callbacks: dict[
-        str,
-        typing.Set[typing.Callable[[typing.Any], bool]]
-    ]
+    _callbacks: dict[str, set[typing.Callable[[object], bool]]]
 
-    def add_param_callback(
-        self,
-        param_name: str,
-        callback: typing.Callable[[typing.Any], bool]
-    ):
+    def add_param_callback(self, param_name: str, callback: typing.Callable[[object], bool]) -> None:
         """
         Add callback for parameter changes.
         """
 
         self._callbacks.setdefault(param_name, set()).add(callback)
 
-    def register_param(self, param: ROSParamT[T], value: typing.Any, **kwargs):
+    def register_param(self, param: ROSParamT[T], value: object, **kwargs: object) -> None:
         del kwargs  # unused
 
-        current_value = self.rosparam[T].get(
-            param.name,
-            value
-        )
+        current_value = self.rosparam[T].get(param.name, value)
 
         self.add_param_callback(
             param.name,
             param.callback,
         )
 
-        result = self._callback([
-            rclpy.Parameter(
-                name=param.name,
-                value=current_value
-            )
-        ])
+        result = self._callback([rclpy.Parameter(name=param.name, value=current_value)])
 
         if not result.successful:
-            raise RuntimeError(
-                f'initial configuration of parameter {param.name} failed with {result.reason}')
+            raise RuntimeError(f'initial configuration of parameter {param.name} failed with {result.reason}')
 
-    def _callback(self, params: list[rclpy.Parameter]):
+    def _callback(self, params: list[rclpy.Parameter]) -> rcl_interfaces.msg.SetParametersResult:
         successful = True
         reason: list[str] = []
         for param in params:
             for callback in self._callbacks.get(param.name, set()):
-                self.get_logger().debug(
-                    f"setting param {param.name} with value {param.value} (callback {callback})")
+                self.get_logger().debug(f"setting param {param.name} with value {param.value} (callback {callback})")
                 try:
                     successful &= callback(param.value)
                 except BaseException as e:
-                    self.get_logger().warn(
-                        f'setting parameter {param.name} with value {param.value} failed: {e}')
-                    reason.append(
-                        ''.join(
-                            traceback.TracebackException.from_exception(e).format()))
+                    self.get_logger().warn(f'setting parameter {param.name} with value {param.value} failed: {e}')
+                    reason.append(''.join(traceback.TracebackException.from_exception(e).format()))
                     successful = False
 
         if not successful:
@@ -313,12 +268,9 @@ class ROSParamServer(rclpy.node.Node):
             # succeed, some fail. revert back to old value here.
             ...
 
-        return rcl_interfaces.msg.SetParametersResult(
-            successful=successful,
-            reason="\n".join(reason)
-        )
+        return rcl_interfaces.msg.SetParametersResult(successful=successful, reason="\n".join(reason))
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._callbacks = {}
         self.add_on_set_parameters_callback(self._callback)
@@ -327,8 +279,10 @@ class ROSParamServer(rclpy.node.Node):
     def _setup_rosparam(self):
         class ROSParam_impl(_ROSParam[T], typing.Generic[T]):
             _node = self
+
         self.ROSParam = ROSParam_impl
 
         class rosparam_impl(_rosparam[T], typing.Generic[T]):
             _node = self
+
         self.rosparam = rosparam_impl

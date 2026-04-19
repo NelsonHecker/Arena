@@ -49,6 +49,14 @@ def generate_launch_description():
     global_planner = LaunchArgument(
         name="global_planner",
     )
+    navigator = LaunchArgument(
+        name="navigator",
+        default_value="nav2",
+        description=(
+            "Default navstack adapter kind. Per-robot ``navigator:`` in "
+            "robot_setup YAML wins; this value is the fallback."
+        ),
+    )
     record_data_dir = LaunchArgument(
         name="record_data_dir",
         default_value="",
@@ -124,6 +132,7 @@ def generate_launch_description():
                 **inter_planner.str_param,
                 **local_planner.str_param,
                 **global_planner.str_param,
+                **navigator.str_param,
                 **record_data_dir.str_param,
                 **reference.param(typing.List[float]),
                 **prefix.str_param,

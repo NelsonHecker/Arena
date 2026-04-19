@@ -1,6 +1,5 @@
 import enum
 import typing
-from typing import Optional
 
 import attrs
 
@@ -15,13 +14,13 @@ ObstacleT = typing.TypeVar('ObstacleT')
 
 
 @attrs.define()
-class KnownObstacle(typing.Generic[ObstacleT]):
+class KnownObstacle[ObstacleT]:
     obstacle: ObstacleT
     spawned: bool = False
     layer: ObstacleLayer = ObstacleLayer.UNUSED
 
 
-class KnownObstacles(typing.Generic[ObstacleT]):
+class KnownObstacles[ObstacleT]:
     """
     Helper interface to store known obstacles
     """
@@ -40,7 +39,7 @@ class KnownObstacles(typing.Generic[ObstacleT]):
         if name in self._known_obstacles:
             del self._known_obstacles[name]
 
-    def create_or_get(self, name: str, obstacle: ObstacleT, **kwargs) -> KnownObstacle[ObstacleT]:
+    def create_or_get(self, name: str, obstacle: ObstacleT, **kwargs: object) -> KnownObstacle[ObstacleT]:
         """
         Get an existing obstacle or create it if it doesn't exist. To overwrite an existing obstacle, first remove it using forget().
         @name: name of obstacle
@@ -51,32 +50,32 @@ class KnownObstacles(typing.Generic[ObstacleT]):
 
         return self._known_obstacles[name]
 
-    def get(self, name: str) -> Optional[KnownObstacle[ObstacleT]]:
+    def get(self, name: str) -> KnownObstacle[ObstacleT] | None:
         """
         Get an existing obstacle or return None if it doesn't exist.
         @name: name of obstacle
         """
         return self._known_obstacles.get(name, None)
 
-    def keys(self):
+    def keys(self) -> typing.KeysView[str]:
         """
         Get internal dict_keys.
         """
         return self._known_obstacles.keys()
 
-    def values(self):
+    def values(self) -> typing.ValuesView[KnownObstacle[ObstacleT]]:
         """
         Get internal dict_values.
         """
         return self._known_obstacles.values()
 
-    def items(self):
+    def items(self) -> typing.ItemsView[str, KnownObstacle[ObstacleT]]:
         """
         Get internal dict_items.
         """
         return self._known_obstacles.items()
 
-    def clear(self):
+    def clear(self) -> None:
         """
         Clear internal dict.
         """

@@ -1,6 +1,6 @@
 import heapq
 import itertools
-from typing import Callable, Iterator
+from collections.abc import Callable, Iterator
 
 
 class NamespaceIndexer:

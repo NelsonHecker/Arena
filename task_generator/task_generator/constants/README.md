@@ -1,0 +1,83 @@
+# task_generator constants
+
+`Constants` enum definitions and the `Configuration(server)` factory that
+maps them to live ROS parameters.
+
+## `Constants`
+
+[`__init__.py:7`](__init__.py#L7)
+
+| Name | Type | Values |
+| --- | --- | --- |
+| `DEFAULT_PEDESTRIAN_MODEL` | `str` | `"actor1"` |
+| `TASK_GENERATOR_SERVER_NODE` | `Namespace` | `"task_generator_server"` |
+| `SimSimulator` | `Enum` | `dummy`, `flatland`, `gazebo`, `unity`, `isaac` |
+| `ArenaType` | `Enum` | `training`, `deployment` |
+| `HumanSimulator` | `Enum` | `dummy`, `hunav`, `isaac` |
+| `TaskMode.TM_Obstacles` | `Enum` | `parametrized`, `random`, `scenario`, `environment`, `prompt` |
+| `TaskMode.TM_Robots` | `Enum` | `guided`, `explore`, `random`, `scenario` |
+| `TaskMode.TM_Module` | `Enum` | `staged`, `dynamic_map`, `clear_forbidden_zones`, `rviz_ui`, `benchmark` |
+
+`TM_Obstacles.default()` returns `RANDOM`. `TM_Robots.default()` returns
+`RANDOM`. `TM_Module.default()` returns an empty `set`.
+
+## `Configuration(server)`
+
+[`runtime.py:10`](runtime.py#L10)
+
+Factory function: takes a `ROSParamServer` and returns a `Config` class (not
+an instance) whose nested class attributes are live `ROSParamT` descriptors.
+Called once during node init; the returned class is stored as `node.conf`.
+
+```python
+Config = Configuration(server)
+# access via:
+Config.Arena.SIM.value        # reads/writes the ROS param
+Config.General.RNG.value      # numpy Generator
+```
+
+### `Config.Arena`
+
+| Attribute | ROS param | Default | Type |
+| --- | --- | --- | --- |
+| `SIM` | `sim` | `dummy` | `Constants.SimSimulator` |
+| `HUMAN` | `human` | `dummy` | `Constants.HumanSimulator` |
+| `WORLD` | `world` | *(required)* | `str` |
+
+### `Config.General`
+
+| Attribute | ROS param | Default | Notes |
+| --- | --- | --- | --- |
+| `WAIT_FOR_SERVICE_TIMEOUT` | `timeout_wait_for_service` | `30` | seconds |
+| `MAX_RESET_FAIL_TIMES` | `max_reset_fail_times` | `10` | |
+| `RNG` | `rng` | `-1` | parsed to `np.random.default_rng(seed)`; `-1` means unseeded |
+| `DESIRED_EPISODES` | `episodes` | `-1` | parsed to `inf` when negative |
+
+### `Config.Obstacles`
+
+| Attribute | ROS param | Default | Notes |
+| --- | --- | --- | --- |
+| `OBSTACLE_MAX_RADIUS` | `obstacle_max_radius` | `15` | metres; `inf` when negative |
+
+### `Config.Robot`
+
+| Attribute | ROS param | Default | Notes |
+| --- | --- | --- | --- |
+| `GOAL_TOLERANCE_RADIUS` | `goal_tolerance_radius` | `1.0` | metres |
+| `GOAL_TOLERANCE_ANGLE` | `goal_tolerance_angle` | `30°` (in radians) | |
+| `SPAWN_ROBOT_SAFE_DIST` | `robot_safe_dist` | `0.25` | metres |
+| `TIMEOUT` | `timeout` | `-1` | parsed to `inf` when negative |
+| `RECORD_DATA_DIR` | `record_data_dir` | `''` | `None` when empty |
+| `AGENT` | `agent_name` | `''` | RL agent name |
+| `PLANNER` | `global_planner` | `''` | |
+| `CONTROLLER` | `local_planner` | `''` | |
+| `BEHAVIOR` | `inter_planner` | `''` | |
+| `NAVIGATOR` | `navigator` | `'nav2'` | adapter kind |
+
+### `Config.TaskMode`
+
+| Attribute | ROS param | Default | Type |
+| --- | --- | --- | --- |
+| `TM_ROBOTS` | `tm_robots` | `random` | `Constants.TaskMode.TM_Robots` |
+| `TM_OBSTACLES` | `tm_obstacles` | `random` | `Constants.TaskMode.TM_Obstacles` |
+| `TM_MODULES` | `tm_modules` | `''` | `set[Constants.TaskMode.TM_Module]`; comma-separated string |

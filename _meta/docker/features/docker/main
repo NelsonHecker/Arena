@@ -34,7 +34,8 @@ case "$1" in
         exit 0
     ;;
     uninstall)
-        exit 0
+        # shellcheck disable=SC2317
+        return 0 2>/dev/null || exit 0
     ;;
     source)
         return 0

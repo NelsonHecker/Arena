@@ -6,6 +6,7 @@ import typing
 from pathlib import Path
 
 import arena_simulation_setup.tree.World as World
+import launch
 import launch.actions
 import launch.launch_description_sources
 import lifecycle_msgs.msg
@@ -19,7 +20,6 @@ from arena_rclpy_mixins.Time import Time
 from arena_simulation_setup.shared import Position
 from arena_simulation_setup.tree import DynamicPaths
 
-import launch
 from task_generator import NodeInterface
 from task_generator.manager.environment_manager import EnvironmentManager
 
@@ -41,11 +41,8 @@ _DUMMY_MAP = nav_msgs.msg.OccupancyGrid(
                 (_DUMMY_MAP_SHAPE[0], _DUMMY_MAP_SHAPE[1]),
                 dtype=int,
             ),
-            (
-                (_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING),
-                (_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING),
-            ),
-            mode="constant",
+            ((_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING), (_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING)),
+            mode='constant',
             constant_values=1,
         ).flat
     ),
@@ -61,38 +58,22 @@ class MapServerHandler(NodeInterface):
         wait_interval = 15.0
 
         while not await self.node.wait_for_lifecycle_state_async(
-            self.node.service_namespace("map_server"),
+            self.node.service_namespace('map_server'),
             lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE,
             timeout=wait_interval,
         ):
             wait_interval = min(wait_interval * 2, 60.0)
 
-            self._logger.warn("shutting down map server...")
+            self._logger.warn('shutting down map server...')
 
-            await self.node.change_lifecycle_state_async(
-                self.node.service_namespace("map_server"),
-                lifecycle_msgs.msg.Transition.TRANSITION_DESTROY,
-            )
+            await self.node.change_lifecycle_state_async(self.node.service_namespace('map_server'), lifecycle_msgs.msg.Transition.TRANSITION_DESTROY)
 
-            self._logger.warn("map server shut down.")
-            self._logger.warn("relaunching map server...")
+            self._logger.warn('map server shut down.')
+            self._logger.warn('relaunching map server...')
 
-            await self.node.do_launch(
-                launch.LaunchDescription(
-                    [
-                        launch.actions.IncludeLaunchDescription(
-                            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                                os.path.join(
-                                    get_package_share_directory("arena_bringup"),
-                                    "launch/utils/map_server.launch.py",
-                                )
-                            )
-                        )
-                    ]
-                )
-            )
+            await self.node.do_launch(launch.LaunchDescription([launch.actions.IncludeLaunchDescription(launch.launch_description_sources.PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('arena_bringup'), 'launch/utils/map_server.launch.py')))]))
 
-        self._logger.info("map server launched.")
+        self._logger.info('map server launched.')
 
 
 class WorldManagerROS(MapServerHandler, WorldManager):
@@ -123,11 +104,11 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         map_tmpdir = tempfile.TemporaryDirectory()
 
         # create shifted yaml
-        target = map_dir / "map.yaml"
-        with open(target, "r") as f:
+        target = map_dir / 'map.yaml'
+        with open(target) as f:
             map_yaml = yaml.safe_load(f)
             assert isinstance(map_yaml, dict), "map.yaml must be a dictionary"
-        origin = list(map_yaml.get("origin", [0, 0, 0]))
+        origin = list(map_yaml.get('origin', [0, 0, 0]))
         self._origin = Position(
             x=origin[0],
             y=origin[1],
@@ -140,8 +121,8 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         )
         origin[0] = shifted_origin.x
         origin[1] = shifted_origin.y
-        map_yaml["origin"] = origin
-        with open(Path(map_tmpdir.name) / "map.yaml", "w") as f:
+        map_yaml['origin'] = origin
+        with open(Path(map_tmpdir.name) / 'map.yaml', 'w') as f:
             yaml.safe_dump(map_yaml, f)
 
         # symlink all non-targets
@@ -153,7 +134,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         return map_tmpdir
 
-    def _world_callback(self, value: typing.Any) -> bool:
+    def _world_callback(self, value: object) -> bool:
         """Handle world change events.
 
         Args:
@@ -167,7 +148,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             bool: True if the world was changed successfully, False otherwise.
         """
         world_name = str(value)
-        self._logger.info(f"World change requested: {world_name}")
+        self._logger.info(f'World change requested: {world_name}')
 
         # if world_name != self._world_name and \
         #         (simulator := self.node.conf.Arena.SIM.value) in (Constants.Simulator.GAZEBO,):
@@ -177,31 +158,25 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if world_name == self._world_name:
             return True  # no change
 
-        self._logger.warn(f"Loading World {world_name}")
+        self._logger.warn(f'Loading World {world_name}')
         self._world_name = world_name
 
         world = World.WorldIdentifier(world_name).resolve_sync()
         tmp_map = self._shift_map(world.map.path)
         map_yaml = os.path.join(
             tmp_map.name,
-            "map.yaml",
+            'map.yaml',
         )
 
-        response = self._cli.call_timeout_sync(
-            nav2_msgs.srv.LoadMap.Request(map_url=f"{map_yaml}")
-        )
+        response = self._cli.call_timeout_sync(nav2_msgs.srv.LoadMap.Request(map_url=f'{map_yaml}'))
 
         tmp_map.cleanup()
 
         if response is None:
-            raise RuntimeError(
-                f"failed to load map for world {world_name}: service timed out"
-            )
+            raise RuntimeError(f'failed to load map for world {world_name}: service timed out')
 
         if response.result > 0:
-            raise RuntimeError(
-                f"failed to load map for world {world_name}: status code {response.result}"
-            )
+            raise RuntimeError(f'failed to load map for world {world_name}: status code {response.result}')
 
         return True
 
@@ -226,9 +201,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             try:
                 await asyncio.gather(*(callback() for callback in self._callbacks))
             except Exception as e:
-                self._logger.warning(
-                    f"encountered exception in world callback: {e}\n{traceback.format_exc()}"
-                )
+                self._logger.warning(f'encountered exception in world callback: {e}\n{traceback.format_exc()}')
 
     def on_world_change(self, callback: typing.Callable[[], typing.Awaitable[None]]):
         """Register a callback to be called when the world changes.
@@ -238,18 +211,13 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """
         self._callbacks.append(callback)
 
-    def __init__(
-        self, *args, environment_manager: EnvironmentManager, **kwargs
-    ) -> None:
+    def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager = environment_manager
 
         self._callbacks = []
-        self.update_world(
-            world_map=WorldMap.from_costmap(_DUMMY_MAP),
-            world_description=World.WorldDescription(),
-        )
-        self._world_name = ""
+        self.update_world(world_map=WorldMap.from_costmap(_DUMMY_MAP), world_description=World.WorldDescription())
+        self._world_name = ''
         self._origin = None
         self._map_name = None
 
@@ -260,7 +228,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         # retrieving map from map_server
         self.node.create_subscription(
             nav_msgs.msg.OccupancyGrid,
-            self.node.service_namespace("map"),
+            self.node.service_namespace('map'),
             self._map_callback,
             1,
         )
@@ -270,12 +238,12 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         # publishing map to map_server
         self._cli = self.node.create_client_wrapper(
             nav2_msgs.srv.LoadMap,
-            self.node.service_namespace("map_server", "load_map"),
+            self.node.service_namespace('map_server', 'load_map'),
         )
         await self._cli.ensure()
 
         self.node.rosparam.callback(
-            "world",
+            'world',
             self._world_callback,
         )
 
@@ -292,9 +260,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         while self._map_name != self._world_name:
             await asyncio.sleep(0.01)
             if timeout >= 0:
-                elapsed = (
-                    self.node.get_clock().now().seconds_nanoseconds()[0] - start_time
-                )
+                elapsed = self.node.get_clock().now().seconds_nanoseconds()[0] - start_time
                 if elapsed >= timeout:
                     return False
         return True

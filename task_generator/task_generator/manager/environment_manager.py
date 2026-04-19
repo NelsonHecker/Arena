@@ -25,11 +25,11 @@ class EnvironmentManager(NodeInterface):
 
     def __init__(
         self,
-        *args,
+        *args: object,
         simulator: BaseSim,
         human_simulator: BaseHumanSimulator,
         realizer: Realizer,
-        **kwargs,
+        **kwargs: object,
     ):
         super().__init__(*args, **kwargs)
 
@@ -37,7 +37,7 @@ class EnvironmentManager(NodeInterface):
         self._human_simulator = human_simulator
         self._realizer = realizer
 
-    def realize(self, target):
+    def realize(self, target: object) -> object:
         return self._realizer.realize(target)
 
     async def spawn_world_obstacles(self, world: WorldDescription):
@@ -53,9 +53,7 @@ class EnvironmentManager(NodeInterface):
         floors = tuple(world.all_floors)
         elevators = tuple(world.all_elevators)
         if floors:
-            futures.append(
-                self._simulator.spawn_floors(tuple(map(self.realize, floors)))
-            )
+            futures.append(self._simulator.spawn_floors(tuple(map(self.realize, floors))))
 
         if walls or doors:
             futures.append(
@@ -72,12 +70,8 @@ class EnvironmentManager(NodeInterface):
             )
         )
         if elevators:
-            self._logger.debug(
-                f"Realized elevators for world: {[e.name for e in elevators]}"
-            )
-            futures.append(
-                self._simulator.spawn_elevators(tuple(map(self.realize, elevators)))
-            )
+            self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
+            futures.append(self._simulator.spawn_elevators(tuple(map(self.realize, elevators))))
 
         await asyncio.gather(*futures)
 
@@ -86,9 +80,7 @@ class EnvironmentManager(NodeInterface):
         Loads given dynamic obstacles into the simulator.
         """
 
-        await self._human_simulator.spawn_dynamic_obstacles(
-            tuple(map(self.realize, setups))
-        )
+        await self._human_simulator.spawn_dynamic_obstacles(tuple(map(self.realize, setups)))
 
     async def spawn_obstacles(self, setups: Collection[Obstacle]):
         """
@@ -114,9 +106,7 @@ class EnvironmentManager(NodeInterface):
         """
         Deletes given robot
         """
-        return await self._human_simulator.remove_robot(
-            tuple(map(self.realize, robots))
-        )
+        return await self._human_simulator.remove_robot(tuple(map(self.realize, robots)))
 
     async def respawn(self, callback: Callable[[], typing.Awaitable[Any]]):
         """
@@ -155,3 +145,12 @@ class EnvironmentManager(NodeInterface):
         Unuse and remove all obstacles
         """
         await self._human_simulator.remove_obstacles(purge=purge)
+
+    async def step(self, n: int = 1) -> bool:
+        return await self._simulator.step(n)
+
+    async def before_reset_task(self) -> bool:
+        return await self._simulator.before_reset_task()
+
+    async def after_reset_task(self) -> bool:
+        return await self._simulator.after_reset_task()

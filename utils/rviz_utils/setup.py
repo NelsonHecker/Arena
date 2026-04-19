@@ -26,6 +26,9 @@ setup(
     ],
     # This is important as well
     install_requires=['setuptools'],
+    extras_require={
+        'test': ['pytest>=7', 'hypothesis>=6'],
+    },
     zip_safe=True,
     author='ROS 2 Developer',
     author_email='ros2@ros.com',

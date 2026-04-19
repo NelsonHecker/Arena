@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
+from typing import Self
 
 import attrs
 import cattrs
-from typing_extensions import Self
 
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
@@ -82,7 +82,7 @@ class CustomDynamicObstacle(DynamicObstacle):
     DynamicObstacles but with properties can be define in runtime
     """
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> object:
         """
         Allow access to dynamic attributes "attr_name" via self.attr_name
         """
@@ -91,7 +91,7 @@ class CustomDynamicObstacle(DynamicObstacle):
         raise AttributeError(f"{name} not found")
 
     @classmethod
-    def parse(cls, value) -> Self:
+    def parse(cls, value: object) -> Self:
         known_fields = set(f.name for f in attrs.fields(cls))
 
         if 'pos' in value:
@@ -101,12 +101,7 @@ class CustomDynamicObstacle(DynamicObstacle):
         known_values = {k: v for k, v in value.items() if k in known_fields}
         custom_fields = {k: v for k, v in value.items() if k not in known_fields}
 
-        warnings.warn(
-            "CustomDynamicObstacle.parse is deprecated and will be removed in a future release. "
-            "Call the constructor directly, e.g., CustomDynamicObstacle(**value).",
-            FutureWarning,
-            stacklevel=2
-        )
+        warnings.warn("CustomDynamicObstacle.parse is deprecated and will be removed in a future release. Call the constructor directly, e.g., CustomDynamicObstacle(**value).", FutureWarning, stacklevel=2)
 
         obj = cls(**known_values)
         obj.extra.update(custom_fields)

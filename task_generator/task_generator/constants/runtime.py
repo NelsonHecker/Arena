@@ -1,5 +1,3 @@
-import typing
-
 import numpy as np
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer
@@ -7,10 +5,10 @@ from arena_rclpy_mixins.ROSParamServer import ROSParamServer
 from . import Constants
 
 
-def Configuration(server: ROSParamServer):
+def Configuration(server: ROSParamServer) -> type:
 
-    def _positive_or_inf(v: typing.Any) -> float:
-        return v if v >= 0 else float("inf")
+    def _positive_or_inf(v: float) -> float:
+        return v if v >= 0 else float('inf')
 
     class Config:
         """
@@ -22,9 +20,7 @@ def Configuration(server: ROSParamServer):
             Formerly arena.py.
             """
 
-            SIM = server.ROSParam[Constants.SimSimulator](
-                "sim", Constants.SimSimulator.DUMMY.value, parse=Constants.SimSimulator
-            )
+            SIM = server.ROSParam[Constants.SimSimulator]("sim", Constants.SimSimulator.DUMMY.value, parse=Constants.SimSimulator)
 
             HUMAN = server.ROSParam[Constants.HumanSimulator](
                 "human",
@@ -55,9 +51,7 @@ def Configuration(server: ROSParamServer):
             RNG = server.ROSParam[np.random.Generator](
                 "rng",
                 -1,
-                parse=lambda x: (
-                    np.random.default_rng(x) if x >= 0 else np.random.default_rng()
-                ),
+                parse=lambda x: np.random.default_rng(x) if x >= 0 else np.random.default_rng(),
             )
             DESIRED_EPISODES = server.ROSParam[float](
                 "episodes",
@@ -73,15 +67,15 @@ def Configuration(server: ROSParamServer):
             )
 
         class Robot:
-            GOAL_TOLERANCE_RADIUS = server.ROSParam[float]("goal_tolerance_radius", 1.0)
+            GOAL_TOLERANCE_RADIUS = server.ROSParam[float]('goal_tolerance_radius', 1.0)
 
             GOAL_TOLERANCE_ANGLE = server.ROSParam[float](
-                "goal_tolerance_angle",
-                30.0 * np.pi / 360.0,
+                'goal_tolerance_angle',
+                30.0 * np.pi / 180.0,
             )
 
             SPAWN_ROBOT_SAFE_DIST = server.ROSParam[float](
-                "robot_safe_dist",
+                'robot_safe_dist',
                 0.25,
             )
 
@@ -117,6 +111,11 @@ def Configuration(server: ROSParamServer):
                 "",
             )
 
+            NAVIGATOR = server.ROSParam[str](
+                'navigator',
+                'nav2',
+            )
+
         class TaskMode:
             TM_ROBOTS = server.ROSParam[Constants.TaskMode.TM_Robots](
                 "tm_robots",
@@ -133,9 +132,7 @@ def Configuration(server: ROSParamServer):
             TM_MODULES = server.ROSParam[set[Constants.TaskMode.TM_Module]](
                 "tm_modules",
                 ",".join([m.value for m in Constants.TaskMode.TM_Module.default()]),
-                parse=lambda x: {
-                    Constants.TaskMode.TM_Module(m) for m in x.split(",") if m != ""
-                },
+                parse=lambda x: {Constants.TaskMode.TM_Module(m) for m in x.split(",") if m != ""},
             )
 
     return Config

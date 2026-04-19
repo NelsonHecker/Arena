@@ -60,10 +60,7 @@ class Realizer:
         return Orientation(*orientation)
 
     def _realize_pose(self, pose: Pose) -> Pose:
-        return Pose(
-            self._realize_position(pose.position),
-            self._realize_orientation(pose.orientation)
-        )
+        return Pose(self._realize_position(pose.position), self._realize_orientation(pose.orientation))
 
     @typing.overload
     def realize(self, target: EntityPropsT) -> EntityPropsT: ...
@@ -128,8 +125,8 @@ class Realizer:
 
     def realize(
         self,
-        target=None,
-    ):
+        target: object = None,
+    ) -> object:
         if target is None:
             return self._prefix()
 

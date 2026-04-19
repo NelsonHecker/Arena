@@ -3,9 +3,8 @@ from __future__ import annotations
 import abc
 import itertools
 import math
-from pathlib import Path
-import typing
 from collections.abc import Iterable
+from pathlib import Path
 
 import attrs
 import yaml
@@ -13,7 +12,6 @@ import yaml
 from arena_simulation_setup.shared.entities import Obstacle
 from arena_simulation_setup.tree import (
     DomainAssetIdentifier,
-    DynamicPathResolver,
     DynamicPaths,
     NetResolver,
 )
@@ -28,7 +26,7 @@ from arena_simulation_setup.utils.geometry import Orientation, Pose, Position
 
 
 class PositionalNumber(Parseable):
-    def __init__(self, *, absolute: typing.Optional[float] = None, relative: typing.Optional[float] = None):
+    def __init__(self, *, absolute: float | None = None, relative: float | None = None):
         if absolute is not None:
             self._absolute = absolute
             self._relative = None
@@ -51,7 +49,7 @@ class PositionalNumber(Parseable):
         return start + self.absolute(0.0, (end - start).norm()) * (end - start).normalized()
 
     @classmethod
-    def parse(cls, value: typing.Any) -> PositionalNumber:
+    def parse(cls, value: object) -> PositionalNumber:
         if isinstance(value, str) and value.endswith('%'):
             return cls(relative=float(value[:-1]) / 100.0)
         return cls(absolute=float(value))
@@ -78,6 +76,7 @@ class TilingAsset(SubWall):
     """
     Place repeating asset along the wall.
     """
+
     tile: list[SubWallT]
     every: float  # place every N meters
     width: float = attrs.field(converter=float, default=0.0)  # width of the tile [m]
@@ -108,6 +107,7 @@ class FillAsset(SubWall):
     """
     Place along slice of the wall.
     """
+
     fill: list[SubWallT]
     start: PositionalNumber = PositionalNumber.parse(0.0)  # start at N meters along the wall
     end: PositionalNumber = PositionalNumber.parse(-0.0)  # end at N meters along the wall
@@ -118,11 +118,7 @@ class FillAsset(SubWall):
         r_start = self.start.realize(start, end)
         r_end = self.end.realize(start, end)
 
-        return tuple(
-            itertools.chain.from_iterable(
-                zip(*(e.realize(r_start, r_end) for e in self.fill))
-            )
-        )
+        return tuple(itertools.chain.from_iterable(zip(*(e.realize(r_start, r_end) for e in self.fill), strict=False)))
 
 
 @attrs.define(kw_only=True)
@@ -130,6 +126,7 @@ class PlaceObstacleAsset(SubWall):
     """
     Place a single obstacle.
     """
+
     model: ObjectIdentifier = attrs.field(converter=ObjectIdentifier.converter)  # model
 
     at: PositionalNumber = PositionalNumber.parse('50%')  # place at position along the wall
@@ -159,6 +156,7 @@ class PlaceWallSegmentAsset(SubWall):
     """
     Place a single wall segment.
     """
+
     material: MaterialIdentifier = attrs.field(
         converter=MaterialIdentifier.converter,
         default=Material.default('wall'),
@@ -219,7 +217,7 @@ class WallDescription:
         return (r_walls, r_obstacles)
 
     @classmethod
-    def simple(cls, material: typing.Optional[MaterialIdentifier] = None) -> WallDescription:
+    def simple(cls, material: MaterialIdentifier | None = None) -> WallDescription:
         if material is None:
             return cls(main=[PlaceWallSegmentAsset()])
         return cls(
@@ -234,7 +232,7 @@ class WallDescription:
 class WallIdentifier(DomainAssetIdentifier[WallDescription]):
     _asset_type = 'Wall'
 
-    def load(self, path: Path, /, **kwargs) -> WallDescription:
+    def load(self, path: Path, /, **kwargs: object) -> WallDescription:
         del kwargs  # unused
         with open(path / f'{path.name}.yaml') as f:
             return converter.structure(yaml.safe_load(f), WallDescription)

@@ -4,7 +4,6 @@ import abc
 from collections.abc import Sequence
 
 from arena_people_msgs.msg import Pedestrians
-
 from task_generator.shared import (
     Door,
     DynamicObstacle,
@@ -39,23 +38,17 @@ class PedestrianITF(abc.ABC):
     """Abstract base class for pedestrian management in simulators."""
 
     @abc.abstractmethod
-    async def pedestrian_spawn(
-        self, pedestrians: Sequence[DynamicObstacle]
-    ) -> Sequence[bool]:
+    async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         """Spawn pedestrians."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def pedestrian_move(
-        self, pedestrians: Sequence[DynamicObstacle]
-    ) -> Sequence[bool]:
+    async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         """Teleport pedestrians."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def pedestrian_delete(
-        self, pedestrians: Sequence[DynamicObstacle]
-    ) -> Sequence[bool]:
+    async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         """Delete pedestrians."""
         raise NotImplementedError()
 

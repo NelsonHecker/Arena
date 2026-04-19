@@ -1,5 +1,4 @@
 import math
-from typing import Optional
 
 import shapely
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
@@ -18,7 +17,7 @@ class TM_Parametrized(TM_Obstacles):
     def _parse(self, config_name: str) -> ParametrizedConfig:
         return ParametrizedIdentifier(config_name).resolve_sync()
 
-    def _zone_polygon(self, zone: str) -> Optional[shapely.Polygon]:
+    def _zone_polygon(self, zone: str) -> shapely.Polygon | None:
         if not zone:
             return None
         vertices = self._ctx.world_manager.world.lookup_zone_polygon(zone)
@@ -26,33 +25,27 @@ class TM_Parametrized(TM_Obstacles):
             raise ValueError(f"zone '{zone}' not found in world")
         return shapely.Polygon([(v.x, v.y) for v in vertices])
 
-    def _get_pose(self, polygon=None):
+    def _get_pose(self, polygon: shapely.Polygon | None = None) -> Pose:
         return Pose(
             self._ctx.world_manager.get_position_on_map(1, polygon=polygon),
-            Orientation.from_yaw(
-                self.node.conf.General.RNG.value.random() * 2 * math.pi
-            ),
+            Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi),
         )
 
-    def _get_points(self, n, polygon=None):
+    def _get_points(self, n: int, polygon: shapely.Polygon | None = None) -> list[object]:
         return self._ctx.world_manager.get_positions_on_map(
             n=n,
             safe_dist=1.0,
             polygon=polygon,
         )
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> tuple[list[Obstacle], list[DynamicObstacle]]:
         dynamic_obstacles: list[DynamicObstacle] = []
         obstacles: list[Obstacle] = []
 
         # Create static obstacles
         for config in self._config.value.STATIC:
             poly = self._zone_polygon(config.zone)
-            for i in range(
-                self.node.conf.General.RNG.value.integers(
-                    config.min, config.max, endpoint=True
-                )
-            ):
+            for i in range(self.node.conf.General.RNG.value.integers(config.min, config.max, endpoint=True)):
                 obstacle = Obstacle(
                     name=f"S_{config.model}_{i + 1}",
                     model=config.model,
@@ -64,11 +57,7 @@ class TM_Parametrized(TM_Obstacles):
         # Create interactive obstacles
         for config in self._config.value.INTERACTIVE:
             poly = self._zone_polygon(config.zone)
-            for i in range(
-                self.node.conf.General.RNG.value.integers(
-                    config.min, config.max, endpoint=True
-                )
-            ):
+            for i in range(self.node.conf.General.RNG.value.integers(config.min, config.max, endpoint=True)):
                 obstacle = Obstacle(
                     name=f"S_{config.model}_{i + 1}",
                     model=config.model,
@@ -80,11 +69,7 @@ class TM_Parametrized(TM_Obstacles):
         # Create dynamic obstacles
         for config in self._config.value.DYNAMIC:
             poly = self._zone_polygon(config.zone)
-            for i in range(
-                self.node.conf.General.RNG.value.integers(
-                    config.min, config.max, endpoint=True
-                )
-            ):
+            for i in range(self.node.conf.General.RNG.value.integers(config.min, config.max, endpoint=True)):
                 obstacle = DynamicObstacle(
                     name=f"S_{config.model}_{i + 1}",
                     model=config.model,
@@ -96,9 +81,7 @@ class TM_Parametrized(TM_Obstacles):
 
         return obstacles, dynamic_obstacles
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         TM_Obstacles.__init__(self, **kwargs)
 
-        self._config = self.node.ROSParam[ParametrizedConfig](
-            self.namespace("file"), "", parse=self._parse
-        )
+        self._config = self.node.ROSParam[ParametrizedConfig](self.namespace('file'), '', parse=self._parse)

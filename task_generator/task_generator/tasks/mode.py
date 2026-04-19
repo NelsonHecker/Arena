@@ -14,7 +14,7 @@ class Namespaced:
 class TaskMode(NodeInterface, Namespaced):
     _ctx: TaskContext
 
-    def __init__(self, *args, ctx: TaskContext, namespace: Namespace, **kwargs):
+    def __init__(self, *args: object, ctx: TaskContext, namespace: Namespace, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._ctx = ctx
         self._namespace = namespace

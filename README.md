@@ -6,7 +6,7 @@ A modular ROS 2 (Humble) platform for researching and benchmarking autonomous ro
 
 ## Installation
 
-Preqeuisites: [Docker](https://docs.docker.com/engine/install/) installation with [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) for GPU support. Current user must be in group `docker`.
+Prerequisites: [Docker](https://docs.docker.com/engine/install/) installation with [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) for GPU support. Current user must be in group `docker`.
 Afterwards, run the following commands to install Arena:
 
 ### Basic Installation
@@ -25,9 +25,26 @@ source arena
 arena feature isaac install # optional
 arena feature gazebo install # optional
 arena feature training install # optional
+arena feature vllm install # optional: local LLM backend
 ```
 
 We recommend installing at least one simulator.
+
+#### vllm
+
+Runs a local vLLM server plus a LiteLLM proxy that speaks the Gemini API, so GPT consumers in `task_generator` transparently hit local inference instead of Google. Defaults target an 11 GB 2080 Ti (Qwen3-0.6B, 40% GPU util).
+
+Tune via [`_meta/docker/features/vllm/config.yaml`](_meta/docker/features/vllm/config.yaml):
+
+| key | default | purpose |
+| --- | --- | --- |
+| `model` | `Qwen/Qwen3-0.6B` | HF model id |
+| `gpu_memory_utilization` | `0.4` | fraction of VRAM vllm may claim |
+| `max_model_len` | `4096` | context window |
+| `port` / `proxy_port` | `8000` / `4000` | vllm / LiteLLM ports |
+
+After editing, re-run `arena feature vllm update` to recreate the container.
+The container will start automatically on source and continue running in the background. To free up GPU memory, stop it with `arena feature docker stop`.
 
 ## Usage
 
@@ -43,9 +60,36 @@ arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path t
 Place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `local_planner:=rosnav_rl agent_name:=<agent_name>`. Refer to the [arena_training](arena_training/README.md) for training instructions.
 
 
+## Development
+
+### Linting
+
+Linting is handled by [Ruff](https://docs.astral.sh/ruff/), driven by [pre-commit](https://pre-commit.com/). Config lives in root [`pyproject.toml`](pyproject.toml); the hook pin is in [`.pre-commit-config.yaml`](.pre-commit-config.yaml). Auto-formatting is intentionally not enforced.
+
+**One-time setup:**
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+**Everyday use:** hooks run automatically on `git commit` against staged files. To run manually:
+```bash
+pre-commit run            # staged files only
+pre-commit run -a         # entire repo
+ruff check .              # check without pre-commit
+```
+
+If the hook auto-fixes something, the commit is aborted and the fixes are left unstaged — `git add` and re-commit.
+
+### CI
+
+[`.github/workflows/lint.yml`](.github/workflows/lint.yml) runs the same pre-commit hooks on every push to `jazzy` and every pull request targeting it. The GH check uses the exact config and hook pins from `.pre-commit-config.yaml`, so local and CI never drift. Make the check required in branch protection to block merges on lint failures.
+
+Bump the Ruff version with `pre-commit autoupdate`.
+
 ## Troubleshooting
 
-### Unknown runtime speficied 'nvidia'
+### Unknown runtime specified 'nvidia'
 
 ```sh
 sudo nvidia-ctk runtime configure --runtime=docker
