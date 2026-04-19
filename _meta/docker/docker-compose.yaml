@@ -24,6 +24,7 @@ services:
       - DISPLAY
       - UV_LINK_MODE=copy
       - ARENA_IMAGE
+      - ARENA_IMAGE_TAG
       - ARENA_PROJECT_NAME
       - ARENA_ROS_DISTRO
       - HOST_UID
@@ -50,7 +51,7 @@ services:
       - 50102
 
   isaac:
-    image: "arena_isaac"
+    image: "arena_isaac:${ARENA_IMAGE_TAG}"
     pull_policy: "never"
     build:
       context: .
@@ -71,6 +72,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - UV_LINK_MODE=copy
       - ARENA_IMAGE
+      - ARENA_IMAGE_TAG
       - ARENA_PROJECT_NAME
       - ARENA_ROS_DISTRO
       - HOST_UID
