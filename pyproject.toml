@@ -81,6 +81,7 @@ extend-exclude = [
     ".venv",
     "**/launch",
     "**/*.launch.py",
+    "**/scripts",
     "**/setup.py",
     "**/tests",
     "**/test",
