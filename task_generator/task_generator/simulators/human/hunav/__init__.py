@@ -237,10 +237,9 @@ class HunavDynamicObstacle:
 
 
 def _load_config(filename: str = "default.yaml") -> "HunavDynamicObstacle":
-    """Load config from YAML file in arena_bringup configs."""
+    """Load config from YAML file in arena_simulation_setup configs."""
 
-    # second priority: Install space
-    config_path = os.path.join(get_package_share_directory("arena_bringup"), "configs", "hunav", filename)
+    config_path = os.path.join(get_package_share_directory("arena_simulation_setup"), "configs", "hunav", filename)
 
     try:
         with open(config_path) as f:
