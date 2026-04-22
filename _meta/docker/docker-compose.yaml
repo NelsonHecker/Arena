@@ -31,7 +31,9 @@ services:
       - HOST_GID
       - HOST_ARENA_WS_DIR
       - LLM_API_ENDPOINT
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - CYCLONEDDS_URI=file:///opt/arena_ws/src/Arena/_meta/docker/cyclonedds.xml
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/opt/arena_ws/src/Arena/_meta/docker/fastdds.xml
     env_file:
       - "$HOST_ARENA_WS_DIR/.env"
     user: "${HOST_UID}"
