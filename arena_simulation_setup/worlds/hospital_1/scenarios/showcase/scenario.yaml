@@ -48,21 +48,21 @@ dynamic:
     pose: {x: 9.5, y: 0.5}
     agent: {agent_type: ./queue_patient.yaml, desired_velocity: 1.1}
     waypoints:
-      - reception
+      - {x: 4.0, y: 1.0}
 
   - name: queue_patient_2
     model: female_adult_business_02
     pose: {x: 10.0, y: 0.8}
     agent: {agent_type: ./queue_patient.yaml, desired_velocity: 0.9}
     waypoints:
-      - reception
+      - {x: 4.0, y: 1.0}
 
   - name: queue_patient_3
     model: male_adult_construction_03
     pose: {x: 10.5, y: 0.5}
     agent: {agent_type: ./queue_patient.yaml, desired_velocity: 1.0}
     waypoints:
-      - reception
+      - {x: 4.0, y: 1.0}
 
   # --- Background flow ---
   - name: doctor_2
@@ -122,6 +122,10 @@ regions:
 
   pharmacy_sink:
     type: sink
-    ref: pharmacy
+    polygon:
+      - {x: 6.0, y: 26.8}
+      - {x: 6.8, y: 25.8}
+      - {x: 6.8, y: 26.7}
+      - {x: 6.0, y: 26.7}
     config:
       capacity: 4

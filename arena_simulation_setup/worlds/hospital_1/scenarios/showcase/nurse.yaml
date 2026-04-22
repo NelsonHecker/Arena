@@ -1,7 +1,7 @@
 name: nurse
 mode: behavior_tree
 extends: adult
-desired_velocity: {mean: 1.5, std: 0.1, clip_low: 1.0, clip_high: 2.0}
+desired_velocity: {mean: 1.2, std: 0.1, clip_low: 0.8, clip_high: 1.6}
 
 perception:
   vision_range: {mean: 6.0, std: 0.5, clip_low: 3.0, clip_high: 10.0}
@@ -19,9 +19,13 @@ utility_weights:
   duty: 1.0
 
 sequences:
-  default:
+  leg_bed:
     steps:
-      escort:
+      go:
+        kind: go_to
+        target: patient_bed_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      offer:
         interaction: SERVICE
         target: nurse_escort
         offer: true
@@ -29,12 +33,42 @@ sequences:
         max_participants: 2
         queueable: false
         formation_spec: {type: line, anchor_kind: provider, params: {base_step: 0.8}}
-        duration: {mean: 30.0, std: 5.0, clip_low: 15.0, clip_high: 60.0}
-        patience: {mean: 45.0, std: 10.0, clip_low: 20.0, clip_high: 90.0}
+        patience: {mean: 20.0, std: 5.0, clip_low: 10.0, clip_high: 45.0}
+      ride:
+        kind: go_to
+        target: exam_chair_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      drop:
+        cancel: true
         satisfies:
           duty: 40.0
-      rest:
-        duration: {mean: 20.0, std: 5.0, clip_low: 10.0, clip_high: 40.0}
-    then: default
+    then: leg_exam
+    on_failure: leg_exam
 
-initial_sequence: default
+  leg_exam:
+    steps:
+      go:
+        kind: go_to
+        target: exam_chair_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      offer:
+        interaction: SERVICE
+        target: nurse_escort
+        offer: true
+        min_participants: 2
+        max_participants: 2
+        queueable: false
+        formation_spec: {type: line, anchor_kind: provider, params: {base_step: 0.8}}
+        patience: {mean: 20.0, std: 5.0, clip_low: 10.0, clip_high: 45.0}
+      ride:
+        kind: go_to
+        target: patient_bed_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      drop:
+        cancel: true
+        satisfies:
+          duty: 40.0
+    then: leg_bed
+    on_failure: leg_bed
+
+initial_sequence: leg_bed

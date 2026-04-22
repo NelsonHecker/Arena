@@ -1,21 +1,27 @@
 name: escort_patient
 mode: behavior_tree
 extends: elder
-desired_velocity: {mean: 0.8, std: 0.1, clip_low: 0.4, clip_high: 1.2}
+desired_velocity: {mean: 0.9, std: 0.1, clip_low: 0.6, clip_high: 1.2}
 
 perception:
   vision_fov: {mean: 160.0, std: 15.0, clip_low: 90.0, clip_high: 270.0}
+  vision_range: {mean: 5.0, std: 0.5, clip_low: 3.0, clip_high: 10.0}
 
 sequences:
   default:
     steps:
+      go_to_bed:
+        kind: go_to
+        target: patient_bed_1
+        patience: {mean: 60.0, std: 15.0, clip_low: 30.0, clip_high: 120.0}
       wait_for_nurse:
         interaction: SERVICE
         target: nurse_escort
-        duration: {mean: 30.0, std: 5.0, clip_low: 15.0, clip_high: 60.0}
-        patience: {mean: 120.0, std: 30.0, clip_low: 60.0, clip_high: 300.0}
+        wait_for_outcome: true
+        patience: {mean: 180.0, std: 30.0, clip_low: 90.0, clip_high: 360.0}
       idle:
-        duration: {mean: 10.0, std: 3.0, clip_low: 5.0, clip_high: 30.0}
+        duration: {mean: 5.0, std: 2.0, clip_low: 2.0, clip_high: 15.0}
     then: default
+    on_failure: default
 
 initial_sequence: default
