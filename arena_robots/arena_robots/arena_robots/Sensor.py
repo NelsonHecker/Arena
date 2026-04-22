@@ -26,4 +26,4 @@ class SensorSpec:
     frame: str
 
 
-type SensorTypeOrStr = SensorType | str
+SensorTypeOrStr = SensorType | str
