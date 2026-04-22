@@ -140,3 +140,58 @@ def test_scenario_view_included_from_propagated(tmp_path):
     scenario = view.load()
     assert len(scenario.static) >= 1
     assert scenario.static[0].included_from == scenario_dir
+
+
+# ---------------------------------------------------------------------------
+# Zone-ref pose sampling via zone_converter
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_view_zone_ref_honours_is_valid(tmp_path):
+    """zone_converter's is_valid predicate constrains sampled points for zone-ref poses."""
+    import numpy as np
+    from arena_simulation_setup.tree.World.World import WorldDescription
+    from arena_simulation_setup.utils.geometry import Position
+
+    scenario_dir = tmp_path / "sc_zref_safe"
+    scenario_dir.mkdir()
+    data = {
+        "static": [{"name": "obs1", "model": "box", "pose": "reception"}],
+        "dynamic": [],
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    zone = WorldDescription.Zone(
+        name="reception",
+        corners=[Position(0.0, 0.0), Position(10.0, 0.0), Position(10.0, 10.0), Position(0.0, 10.0)],
+    )
+    world = WorldDescription(zones=[zone])
+
+    view = ScenarioView(scenario_dir)
+
+    # Predicate rejects the left half; sampled point must land on the right.
+    for seed in range(5):
+        conv = world.zone_converter(
+            np.random.default_rng(seed),
+            is_valid=lambda pt: pt.x >= 5.0,
+        )
+        scenario = view.load(converter=conv)
+        assert scenario.static[0].pose.position.x >= 5.0
+
+
+def test_sample_point_in_polygon_exhaustion_warns():
+    """When no sample satisfies is_valid, return last candidate with a warning."""
+    import numpy as np
+    from arena_simulation_setup.utils.geometry import Position, sample_point_in_polygon
+
+    vertices = [Position(0.0, 0.0), Position(1.0, 0.0), Position(1.0, 1.0), Position(0.0, 1.0)]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        pt = sample_point_in_polygon(
+            vertices,
+            np.random.default_rng(0),
+            is_valid=lambda _pt: False,
+            max_retries=3,
+        )
+    assert 0.0 <= pt.x <= 1.0 and 0.0 <= pt.y <= 1.0
+    assert any("no valid sample" in str(w.message) for w in caught)

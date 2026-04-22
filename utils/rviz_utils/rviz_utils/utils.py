@@ -278,7 +278,15 @@ class Utils:
 
         # Hunavsim-Pedestrian Display Methods
         @classmethod
-        def pedestrians(cls, topic: str, queue_size: int = 20, name: str = "Pedestrians", enabled: bool = True) -> dict[str, object]:
+        def pedestrians(
+            cls,
+            topic: str,
+            queue_size: int = 20,
+            name: str = "Pedestrians",
+            enabled: bool = True,
+            reliability: str = "Best Effort",
+            durability: str = "Volatile",
+        ) -> dict[str, object]:
             """
             Create a MarkerArray display specifically for pedestrians using people_msgs/msg/People topic.
             This will be used with a custom node that converts People messages to MarkerArray.
@@ -291,8 +299,8 @@ class Utils:
                     "Value": topic,
                     "Depth": queue_size,
                     "History Policy": "Keep Last",
-                    "Reliability Policy": "Best Effort",
-                    "Durability Policy": "Volatile",
+                    "Reliability Policy": reliability,
+                    "Durability Policy": durability,
                 },
                 "Namespaces": {
                     "pedestrian_meshes": True,

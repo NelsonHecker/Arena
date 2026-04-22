@@ -1,15 +1,15 @@
 dynamic:
 - model: female_adult_business_02
   name: ped_1
-  pose: [20.0, 1.0, -135.0]
+  pose: [20.0, 1.0, -2.3562]
   waypoints:
-  - [23.5, 8.5, -135.0]
+  - [23.5, 8.5, -2.3562]
 
 - model: male_adult_construction_01
   name: ped_2
-  pose: [22.5, 7.5, 45.0]
+  pose: [22.5, 7.5, 0.7854]
   waypoints:
-  - [22.5, 7.5, 45.0]
+  - [22.5, 7.5, 0.7854]
 
 - model: female_adult_medical_01
   name: ped_3
@@ -30,6 +30,8 @@ regions:
       agent:
         desired_velocity: {min: 1.0, max: 1.5}
         agent_type: adult
+        sink_affinity:
+          - {sink: reception_sink, weight: 1.0}
 
   reception_sink:
     type: sink
@@ -52,3 +54,5 @@ regions:
       max_total: 20
       agent:
         agent_type: elder
+        sink_affinity:
+          - {sink: reception_sink, weight: 1.0}

@@ -1,5 +1,5 @@
 name: nurse
-mode: behavior
+mode: behavior_tree
 extends: adult
 desired_velocity: {mean: 1.5, std: 0.1, clip_low: 1.0, clip_high: 2.0}
 
@@ -18,22 +18,23 @@ needs:
 utility_weights:
   duty: 1.0
 
-actions:
-  escort_patient:
-    when:
-      duty: {below: 60.0}
-    interaction: FOLLOW
-    duration: {mean: 30.0, std: 5.0, clip_low: 15.0, clip_high: 60.0}
-    patience: {mean: 45.0, std: 5.0, clip_low: 20.0, clip_high: 90.0}
-    satisfies:
-      duty: 40.0
-
 sequences:
   default:
     steps:
-      patrol:
-        autonomous: true
-        duration: {mean: 60.0, std: 10.0, clip_low: 30.0, clip_high: 120.0}
+      escort:
+        interaction: SERVICE
+        target: nurse_escort
+        offer: true
+        min_participants: 2
+        max_participants: 2
+        queueable: false
+        formation_spec: {type: line, anchor_kind: provider, params: {base_step: 0.8}}
+        duration: {mean: 30.0, std: 5.0, clip_low: 15.0, clip_high: 60.0}
+        patience: {mean: 45.0, std: 10.0, clip_low: 20.0, clip_high: 90.0}
+        satisfies:
+          duty: 40.0
+      rest:
+        duration: {mean: 20.0, std: 5.0, clip_low: 10.0, clip_high: 40.0}
     then: default
 
 initial_sequence: default

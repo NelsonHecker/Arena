@@ -15,6 +15,7 @@ import numpy as np
 import std_msgs.msg
 import std_srvs.srv
 from arena_rclpy_mixins.Async import ClientWrapper
+from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
@@ -46,7 +47,6 @@ from task_generator.shared import Door as DoorDefinition
 from task_generator.shared import (
     DynamicObstacle,
     ModelType,
-    Namespace,
     Obstacle,
     Pose,
     Robot,

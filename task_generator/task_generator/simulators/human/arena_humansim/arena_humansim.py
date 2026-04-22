@@ -41,16 +41,21 @@ from arena_humansim_msgs.msg import (
 from arena_humansim_msgs.msg import (
     Waypoints as WaypointsMsg,
 )
+from arena_humansim_msgs.msg import (
+    WorldObjectInfo as WorldObjectInfoMsg,
+)
 from arena_humansim_msgs.srv import (
     AddObstacles,
     AddSink,
     AddSource,
     AddWalls,
+    AddWorldObjects,
     RemoveAgents,
     RemoveObstacles,
     RemoveSink,
     RemoveSource,
     RemoveWalls,
+    RemoveWorldObjects,
     SetFlow,
     SpawnAgents,
 )
@@ -104,6 +109,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     SERVICE_REMOVE_WALLS = "remove_walls"
     SERVICE_ADD_OBSTACLES = "add_obstacles"
     SERVICE_REMOVE_OBSTACLES = "remove_obstacles"
+    SERVICE_ADD_WORLD_OBJECTS = "add_world_objects"
+    SERVICE_REMOVE_WORLD_OBJECTS = "remove_world_objects"
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
@@ -152,6 +159,14 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             RemoveObstacles,
             self.node.service_namespace(self.SERVICE_REMOVE_OBSTACLES),
         )
+        self._add_world_objects_client: ClientWrapper = self.node.create_client_wrapper(
+            AddWorldObjects,
+            self.node.service_namespace(self.SERVICE_ADD_WORLD_OBJECTS),
+        )
+        self._remove_world_objects_client: ClientWrapper = self.node.create_client_wrapper(
+            RemoveWorldObjects,
+            self.node.service_namespace(self.SERVICE_REMOVE_WORLD_OBJECTS),
+        )
 
         self._next_id: int = 1
         self._rng: np.random.Generator = np.random.default_rng(42)
@@ -167,6 +182,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._bridge_agent_ids: set[int] = set()
         # IDs of flow agents currently live in the physics sim (no pool slot)
         self._physim_agent_ids: set[int] = set()
+        # agent_id → human-readable name (scenario YAML name or flow source label)
+        self._agent_names: dict[int, str] = {}
 
         # Pre-spawned pedestrian pool for flow agents (source/sink)
         self._pool_free: list[str] = []  # pool pedestrian names, available
@@ -201,8 +218,23 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             ),
         )
 
+        self.node.create_subscription(
+            MarkerArray,
+            self.node.service_namespace("viz_static"),
+            self._forward_static_markers,
+            QoSProfile(
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                history=QoSHistoryPolicy.KEEP_LAST,
+                depth=1,
+            ),
+        )
+
     def _forward_debug_markers(self, msg: MarkerArray):
         self.publish_markers(msg)
+
+    def _forward_static_markers(self, msg: MarkerArray):
+        self.publish_static_markers(msg)
 
     def _agent_states_callback(self, msg: AgentStatesMsg):
         """Cache prev/curr snapshots from arena_humansim for local interpolation."""
@@ -279,6 +311,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     self._remove_walls_client,
                     self._add_obstacles_client,
                     self._remove_obstacles_client,
+                    self._add_world_objects_client,
+                    self._remove_world_objects_client,
                 )
             )
         )
@@ -375,6 +409,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                                 if self._pool_free:
                                     pool_name = self._pool_free.pop()
                                     self._pool_active[aid] = pool_name
+                                    self._agent_names[aid] = pool_name
                                     to_move.append(
                                         DynamicObstacle(
                                             name=pool_name,
@@ -384,6 +419,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                                     )
                                 else:
                                     self._physim_agent_ids.add(aid)
+                                    self._agent_names[aid] = f"flow_{aid}"
                                     to_spawn.append(self._make_flow_dynamic_obstacle(agent))
                             if to_move:
                                 await self._simulator.pedestrian_move(to_move)
@@ -395,6 +431,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                             to_delete: list[DynamicObstacle] = []
                             parking = Pose(Position(self.POOL_PARKING_X, self.POOL_PARKING_Y))
                             for aid in gone_ids:
+                                self._agent_names.pop(aid, None)
                                 if aid in self._pool_active:
                                     pool_name = self._pool_active.pop(aid)
                                     self._pool_free.append(pool_name)
@@ -458,14 +495,13 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._dirty_robots.clear()
         self._world_state_pub.publish(msg)
 
-    @classmethod
-    def _agent_states_to_pedestrians(cls, msg: AgentStatesMsg) -> Pedestrians:
+    def _agent_states_to_pedestrians(self, msg: AgentStatesMsg) -> Pedestrians:
         peds = Pedestrians()
         peds.header = msg.header
         for agent in msg.agents:
             ped = Pedestrian()
             ped.id = agent.agent_id
-            ped.name = str(agent.agent_id)
+            ped.name = self._agent_names.get(agent.agent_id, str(agent.agent_id))
 
             yaw = agent.pose.theta
             ped.pose = PoseMsg(
@@ -657,7 +693,12 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             return False
 
     async def _spawn_obstacles_impl(self, obstacles: Sequence[Obstacle]) -> Sequence[Obstacle | None]:
-        """Send obstacle configs (pose + bounding box + metadata) to arena_humansim."""
+        """Send obstacle configs (pose + bounding box + metadata) to arena_humansim.
+
+        Each obstacle is also registered as a WorldObject with optional overrides
+        (capacity / satisfies / interaction_radius / formation / type) read from
+        ``obstacle.extra``.
+        """
         if not obstacles:
             return obstacles
 
@@ -667,7 +708,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             return_exceptions=True,
         )
 
-        request = AddObstacles.Request()
+        obstacles_request = AddObstacles.Request()
+        world_objects_request = AddWorldObjects.Request()
         for obstacle, resolved in zip(obstacles, resolved_paths, strict=False):
             try:
                 if isinstance(resolved, BaseException):
@@ -677,6 +719,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     annotation: dict = yaml.safe_load(f.read())
 
                 (x_min, x_max), (y_min, y_max), (z_min, z_max) = annotation["bounding_box"]
+
+                obstacle_type = annotation.get("name", "") or annotation.get("desc", "")
 
                 msg = ObstacleConfigMsg()
                 msg.name = obstacle.name
@@ -692,20 +736,48 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 msg.bb_z_min = float(z_min)
                 msg.bb_z_max = float(z_max)
                 msg.interaction_types = [str(h) for h in annotation.get("hoi", [])]
-                msg.obstacle_type = annotation.get("name", "") or annotation.get("desc", "")
-                request.obstacles.append(msg)
+                msg.obstacle_type = obstacle_type
+                obstacles_request.obstacles.append(msg)
+
+                extra = obstacle.extra
+                info = WorldObjectInfoMsg()
+                info.object_id = obstacle.name
+                info.type = str(extra.get("type", obstacle_type))
+                info.pose = msg.pose
+                info.capacity = int(extra.get("capacity", 1))
+                satisfies: dict = extra.get("satisfies") or {}
+                info.satisfies_keys = list(satisfies.keys())
+                info.satisfies_values = [float(v) for v in satisfies.values()]
+                interaction_radius = extra.get("interaction_radius")
+                info.interaction_radius = float(interaction_radius) if interaction_radius is not None else 0.0
+                formation: dict = extra.get("formation") or {}
+                formation_type = formation.get("type", "")
+                if formation_type:
+                    formation_params: dict = formation.get("params") or {}
+                    info.formation_type = str(formation_type)
+                    info.formation_param_keys = list(formation_params.keys())
+                    info.formation_param_values = [float(v) for v in formation_params.values()]
+                world_objects_request.objects.append(info)
             except Exception as e:
                 self._logger.warning(f"Failed to build obstacle config for '{obstacle.name}': {e}")
 
-        if request.obstacles:
+        if obstacles_request.obstacles:
             try:
-                response = await self._add_obstacles_client.call_timeout(request)
+                response = await self._add_obstacles_client.call_timeout(obstacles_request)
                 if response.success:
                     self._logger.info(response.message)
                 else:
                     self._logger.error(f"AddObstacles failed: {response.message}")
             except Exception as e:
                 self._logger.error(f"AddObstacles call failed: {e}")
+
+        if world_objects_request.objects:
+            try:
+                response = await self._add_world_objects_client.call_timeout(world_objects_request)
+                if not response.success:
+                    self._logger.error(f"AddWorldObjects failed: {response.message}")
+            except Exception as e:
+                self._logger.error(f"AddWorldObjects call failed: {e}")
 
         return obstacles
 
@@ -719,6 +791,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             agent_msg = AgentStateMsg()
             agent_msg.agent_id = self._next_id
             self._bridge_agent_ids.add(self._next_id)
+            self._agent_names[self._next_id] = obstacle.name
             self._next_id += 1
 
             agent_msg.pose = Pose2DMsg(
@@ -739,7 +812,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 agent_msg.relaxation_time = params.local_planner_params.relaxation_time
                 agent_msg.repulsion_strength = params.local_planner_params.repulsion_strength
                 agent_msg.repulsion_range = params.local_planner_params.repulsion_range
-                agent_msg.agent_type = params.name
+                agent_msg.agent_type = parsed.agent_type
             else:
                 agent_msg.desired_velocity = float(obstacle.velocity)
                 agent_msg.radius = 0.35
@@ -773,20 +846,34 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             return [None] * len(obstacles)
 
     async def _remove_obstacles_impl(self, names: Sequence[str]) -> bool:
-        """Remove static obstacles from arena_humansim."""
+        """Remove static obstacles (and their matching world objects) from arena_humansim."""
         if not names:
             return True
+        names_list = list(names)
+        ok = True
         try:
             request = RemoveObstacles.Request()
-            request.names = list(names)
+            request.names = names_list
             response = await self._remove_obstacles_client.call_timeout(request)
-            if response.success:
-                return True
-            self._logger.error(f"RemoveObstacles failed: {response.message}")
-            return False
+            if not response.success:
+                self._logger.error(f"RemoveObstacles failed: {response.message}")
+                ok = False
         except Exception as e:
             self._logger.warning(f"RemoveObstacles call failed: {e}")
-            return False
+            ok = False
+
+        try:
+            wo_request = RemoveWorldObjects.Request()
+            wo_request.object_ids = names_list
+            wo_response = await self._remove_world_objects_client.call_timeout(wo_request)
+            if not wo_response.success:
+                self._logger.error(f"RemoveWorldObjects failed: {wo_response.message}")
+                ok = False
+        except Exception as e:
+            self._logger.warning(f"RemoveWorldObjects call failed: {e}")
+            ok = False
+
+        return ok
 
     async def _remove_pedestrians_impl(self) -> bool:
         """Remove all dynamic agents from arena_humansim."""
@@ -800,6 +887,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._physim_agent_ids.clear()
             self._pool_free.clear()
             self._pool_active.clear()
+            self._agent_names.clear()
             self._pool_spawned = False
             if response.success:
                 self._logger.info(response.message)

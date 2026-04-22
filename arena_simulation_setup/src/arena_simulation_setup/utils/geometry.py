@@ -392,6 +392,9 @@ class Scale(Parseable, Idempotent):
 def sample_point_in_polygon(
     vertices: list[Position],
     rng: np.random.Generator,
+    *,
+    is_valid: typing.Callable[[Position], bool] | None = None,
+    max_retries: int = 50,
 ) -> Position:
     n = len(vertices)
     if n < 3:
@@ -411,28 +414,46 @@ def sample_point_in_polygon(
     if total <= 0:
         return Position(v0.x, v0.y)
 
-    # Pick triangle weighted by area
-    r = float(rng.random()) * total
-    cumulative = 0.0
-    tri = triangles[0]
-    for _tri, area in zip(triangles, areas, strict=False):
-        cumulative += area
-        if cumulative >= r:
-            tri = _tri
-            break
+    def _sample_once() -> Position:
+        r = float(rng.random()) * total
+        cumulative = 0.0
+        tri = triangles[0]
+        for _tri, area in zip(triangles, areas, strict=False):
+            cumulative += area
+            if cumulative >= r:
+                tri = _tri
+                break
 
-    # Barycentric sample
-    u = float(rng.random())
-    v = float(rng.random())
-    if u + v > 1.0:
-        u, v = 1.0 - u, 1.0 - v
-    w = 1.0 - u - v
+        u = float(rng.random())
+        v = float(rng.random())
+        if u + v > 1.0:
+            u, v = 1.0 - u, 1.0 - v
+        w = 1.0 - u - v
 
-    a, b, c = tri
-    return Position(
-        w * a.x + u * b.x + v * c.x,
-        w * a.y + u * b.y + v * c.y,
+        a, b, c = tri
+        return Position(
+            w * a.x + u * b.x + v * c.x,
+            w * a.y + u * b.y + v * c.y,
+        )
+
+    if is_valid is None:
+        return _sample_once()
+
+    last = _sample_once()
+    for _ in range(max_retries):
+        if is_valid(last):
+            return last
+        last = _sample_once()
+    if is_valid(last):
+        return last
+
+    import warnings
+
+    warnings.warn(
+        f"sample_point_in_polygon: no valid sample after {max_retries} retries; returning last candidate",
+        stacklevel=2,
     )
+    return last
 
 
 def angle_diff(a: float, b: float) -> float:

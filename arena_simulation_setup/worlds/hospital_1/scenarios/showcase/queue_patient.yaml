@@ -1,4 +1,4 @@
-name: patient
+name: queue_patient
 mode: behavior_tree
 extends: elder
 desired_velocity: {mean: 0.9, std: 0.15, clip_low: 0.4, clip_high: 1.4}
@@ -10,13 +10,9 @@ needs:
   checkin:
     initial: {mean: 20.0, std: 5.0, clip_low: 5.0, clip_high: 40.0}
     decay_rate: {mean: 0.8, std: 0.1}
-  treatment:
-    initial: {mean: 60.0, std: 10.0, clip_low: 30.0, clip_high: 80.0}
-    decay_rate: {mean: 0.3, std: 0.05}
 
 utility_weights:
-  checkin: 1.5
-  treatment: 1.0
+  checkin: 1.0
 
 sequences:
   default:
@@ -28,15 +24,8 @@ sequences:
         patience: {mean: 60.0, std: 10.0, clip_low: 30.0, clip_high: 120.0}
         satisfies:
           checkin: 80.0
-      wait:
+      depart:
         duration: {mean: 30.0, std: 10.0, clip_low: 10.0, clip_high: 60.0}
-      walk_to_chair: {kind: go_to, target: chair}
-      consult:
-        interaction: TALK_TO
-        duration: {mean: 20.0, std: 5.0, clip_low: 10.0, clip_high: 40.0}
-        patience: {mean: 45.0, std: 10.0, clip_low: 20.0, clip_high: 90.0}
-        satisfies:
-          treatment: 60.0
     then: default
 
 initial_sequence: default

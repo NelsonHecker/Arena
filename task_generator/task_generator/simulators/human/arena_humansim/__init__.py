@@ -3,11 +3,16 @@ from pathlib import Path
 import attrs
 import numpy as np
 from arena_humansim.core.agents import BUILTIN_AGENTS, SampledParams, sample_agent_type
-from arena_humansim.core.agents.loader import is_path_agent_type, load_agent_type_from_file
+from arena_humansim.core.agents.loader import load_agent_type_from_file
 from arena_humansim_msgs.msg import Waypoint as WaypointMsg
 from arena_humansim_msgs.msg import Waypoints as WaypointsMsg
 from geometry_msgs.msg import Pose2D as Pose2DMsg
 from task_generator.shared import DynamicObstacle
+
+
+def _is_path_agent_type(name: str) -> bool:
+    return "/" in name or name.endswith(".yaml")
+
 
 _WAYPOINT_MODE_MAP = {
     "repeat": WaypointsMsg.MODE_REPEAT,
@@ -64,10 +69,10 @@ class ArenaHumanDynamicObstacle:
 
     @staticmethod
     def _resolve_agent_type_path(agent_type: str, obs: DynamicObstacle) -> str:
-        if is_path_agent_type(agent_type) and not Path(agent_type).is_absolute():
+        if _is_path_agent_type(agent_type) and not Path(agent_type).is_absolute():
             included_from = getattr(obs, "included_from", None)
             if included_from is not None:
-                return str((Path(included_from).parent / agent_type).resolve())
+                return str((Path(included_from) / agent_type).resolve())
         return agent_type
 
     @staticmethod
@@ -84,7 +89,7 @@ class ArenaHumanDynamicObstacle:
         return msg
 
     def sample_params(self, rng: np.random.Generator) -> SampledParams | None:
-        if is_path_agent_type(self.agent_type):
+        if _is_path_agent_type(self.agent_type):
             p = Path(self.agent_type)
             if p.is_file():
                 agent_type_def = load_agent_type_from_file(p)

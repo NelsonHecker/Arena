@@ -115,12 +115,22 @@ class WorldDescription:
                     return _elevator_polygon(elevator.position, elevator.size)
         return None
 
-    def zone_converter(self, rng: np.random.Generator) -> ArenaConverter:
+    def zone_converter(
+        self,
+        rng: np.random.Generator,
+        *,
+        is_valid: typing.Callable[[Position], bool] | None = None,
+    ) -> ArenaConverter:
         """Return a converter that resolves zone/door/elevator names to geometry.
 
         String values for Pose/Position fields are resolved by sampling a
         random point within the named zone polygon.  RegionAssignment dicts
         with a ``ref`` key get their polygon resolved from the world.
+
+        ``is_valid``: optional predicate applied during sampling to reject
+        points that are too close to obstacles. Scenario loads still succeed
+        if no valid sample is found (the last candidate is returned with a
+        warning) so borderline-misconfigured zones don't break episodes.
         """
         lookup = self.lookup_zone_polygon
 
@@ -133,7 +143,7 @@ class WorldDescription:
                 polygon = lookup(v)
                 if polygon is None:
                     raise ValueError(f"zone ref '{v}' not found in world")
-                pt = sample_point_in_polygon(polygon, rng)
+                pt = sample_point_in_polygon(polygon, rng, is_valid=is_valid)
                 return Pose(position=pt, orientation=Orientation.identity())
             return base_pose_hook(v, t)
 
@@ -142,7 +152,7 @@ class WorldDescription:
                 polygon = lookup(v)
                 if polygon is None:
                     raise ValueError(f"zone ref '{v}' not found in world")
-                return sample_point_in_polygon(polygon, rng)
+                return sample_point_in_polygon(polygon, rng, is_valid=is_valid)
             return base_position_hook(v, t)
 
         def region_hook(v: object, t: type) -> RegionAssignment:

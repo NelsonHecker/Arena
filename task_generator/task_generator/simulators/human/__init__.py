@@ -12,6 +12,7 @@ import rclpy.publisher
 from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins.shared import Namespace
 from geometry_msgs.msg import PoseStamped, Vector3
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import ColorRGBA
 from task_generator import NodeInterface
 from task_generator.constants import Constants
@@ -36,6 +37,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
     _arena_peds_publisher: rclpy.publisher.Publisher
     _marker_publisher: rclpy.publisher.Publisher
     _extra_marker_publisher: rclpy.publisher.Publisher
+    _static_marker_publisher: rclpy.publisher.Publisher
     _known_obstacles: KnownObstacles
     _known_walls: KnownObstacles[Wall]
     _known_doors: KnownObstacles[Door]
@@ -75,6 +77,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
         self._extra_marker_publisher = self.node.create_publisher(MarkerArray, self._namespace("pedestrian_markers/extra"), 10)
 
+        self._static_marker_publisher = self.node.create_publisher(
+            MarkerArray,
+            self._namespace("pedestrian_markers/static"),
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
+
     def publish_arena_peds(self, msg: Pedestrians):
         """Publish pedestrian states and base visualization markers."""
         self._arena_peds_publisher.publish(msg)
@@ -83,6 +91,9 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
     def publish_markers(self, markers: MarkerArray):
         """Publish additional visualization markers (debug overlays etc.)."""
         self._extra_marker_publisher.publish(markers)
+
+    def publish_static_markers(self, markers: MarkerArray):
+        self._static_marker_publisher.publish(markers)
 
     def _pedestrians_to_markers(self, msg: Pedestrians) -> MarkerArray:
         """Convert a Pedestrians message to base visualization markers."""
@@ -114,7 +125,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             body.pose.orientation.y = q[1]
             body.pose.orientation.z = q[2]
             body.pose.orientation.w = q[3]
-            body.scale = Vector3(x=self.BODY_HEIGHT, y=self.BODY_HEIGHT, z=self.BODY_HEIGHT)
+            mesh_scale = self.BODY_HEIGHT / 1.87
+            body.scale = Vector3(x=mesh_scale, y=mesh_scale, z=mesh_scale)
             body.lifetime.sec = 1
             markers.append(body)
 
@@ -148,7 +160,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             ori.action = Marker.ADD
             ori.pose.position.x = ped.pose.position.x
             ori.pose.position.y = ped.pose.position.y
-            ori.pose.position.z = self.BODY_HEIGHT + 0.3
+            ori.pose.position.z = self.BODY_HEIGHT / 2
             ori.pose.orientation = ped.pose.orientation
             ori.scale = Vector3(x=self.ARROW_LENGTH, y=0.15, z=0.15)
             ori.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.8)
@@ -162,12 +174,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             label.id = pid
             label.type = Marker.TEXT_VIEW_FACING
             label.action = Marker.ADD
+            label.scale.z = 0.3
             label.pose.position.x = ped.pose.position.x
             label.pose.position.y = ped.pose.position.y
-            label.pose.position.z = self.BODY_HEIGHT + 0.2
+            label.pose.position.z = self.BODY_HEIGHT + label.scale.z / 2
             label.pose.orientation.w = 1.0
-            label.text = f"Agent {ped.name}"
-            label.scale.z = 0.3
+            label.text = ped.name
             label.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
             label.lifetime.sec = 1
             markers.append(label)

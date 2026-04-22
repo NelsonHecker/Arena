@@ -83,12 +83,14 @@ class ConfigFileGenerator(Node):
         # Check if pedestrian topics exist
         pedestrian_topics = []
         for topic_name, topic_types in self.topics:
-            if topic_name.endswith('/arena_peds') and 'arena_people_msgs/msg/Pedestrians' in topic_types:
+            if os.path.basename(topic_name) == 'arena_peds' and 'arena_people_msgs/msg/Pedestrians' in topic_types:
                 pedestrian_topics.append((topic_name, 'arena_people_msgs/msg/Pedestrians'))
             # Check for converted pedestrian markers
             elif topic_name.endswith('/pedestrian_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
                 pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
             elif topic_name.endswith('/pedestrian_markers/extra') and 'visualization_msgs/msg/MarkerArray' in topic_types:
+                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
+            elif topic_name.endswith('/pedestrian_markers/static') and 'visualization_msgs/msg/MarkerArray' in topic_types:
                 pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
             elif topic_name.endswith('/wall_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
                 pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
@@ -111,8 +113,15 @@ class ConfigFileGenerator(Node):
 
             elif topic_type == 'visualization_msgs/msg/MarkerArray':
                 # Use MarkerArray display for converted pedestrian markers
-                enabled = not (topic_name.endswith('/wall_markers') or topic_name.endswith('/extra'))
-                display = Utils.Displays.pedestrians(topic_name, name=os.path.basename(topic_name), enabled=enabled)
+                is_static = topic_name.endswith('/pedestrian_markers/static')
+                enabled = not (topic_name.endswith('/wall_markers') or topic_name.endswith('/extra') or is_static)
+                display = Utils.Displays.pedestrians(
+                    topic_name,
+                    name=os.path.basename(topic_name),
+                    enabled=enabled,
+                    reliability='Reliable' if is_static else 'Best Effort',
+                    durability='Transient Local' if is_static else 'Volatile',
+                )
                 pedestrian_group['Displays'].append(display)
                 self.get_logger().info(f"Added MarkerArray display for pedestrians: {topic_name}")
 
@@ -176,7 +185,7 @@ class ConfigFileGenerator(Node):
             robot_group = self._create_robot_group(robot_name)
             displays.append(robot_group)
 
-        # HUNAVSIM: pedestrian group
+        # humans: pedestrian group
         pedestrian_group = self._create_pedestrian_group()
         displays.append(pedestrian_group)
 

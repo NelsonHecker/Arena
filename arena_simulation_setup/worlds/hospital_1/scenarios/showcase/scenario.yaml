@@ -20,10 +20,9 @@ dynamic:
   - name: escort_patient
     model: male_adult_construction_01
     pose: patient_ward
-    agent: {agent_type: ./patient.yaml, desired_velocity: 0.9}
+    agent: {agent_type: ./escort_patient.yaml, desired_velocity: 0.9}
     waypoints:
-      - central_hallway
-      - exam_room_1
+      - patient_ward
 
   # --- Use case 2: doctor consultation ---
   - name: doctor_1
@@ -47,21 +46,21 @@ dynamic:
   - name: queue_patient_1
     model: male_adult_construction_02
     pose: {x: 9.5, y: 0.5}
-    agent: {agent_type: ./patient.yaml, desired_velocity: 1.1}
+    agent: {agent_type: ./queue_patient.yaml, desired_velocity: 1.1}
     waypoints:
       - reception
 
   - name: queue_patient_2
     model: female_adult_business_02
     pose: {x: 10.0, y: 0.8}
-    agent: {agent_type: ./patient.yaml, desired_velocity: 0.9}
+    agent: {agent_type: ./queue_patient.yaml, desired_velocity: 0.9}
     waypoints:
       - reception
 
   - name: queue_patient_3
     model: male_adult_construction_03
     pose: {x: 10.5, y: 0.5}
-    agent: {agent_type: ./patient.yaml, desired_velocity: 1.0}
+    agent: {agent_type: ./queue_patient.yaml, desired_velocity: 1.0}
     waypoints:
       - reception
 
@@ -75,6 +74,31 @@ dynamic:
       - operating_room
       - central_hallway
       - laboratory
+
+static:
+  - name: reception_desk
+    model: desk
+    pose: reception
+    type: desk
+    capacity: 3
+    interaction_radius: 1.0
+    formation:
+      type: line
+      params: {base_step: 0.8, front_offset: 0.6}
+
+  - name: exam_chair_1
+    model: chair
+    pose: exam_room_1
+    type: chair
+    capacity: 1
+    interaction_radius: 0.8
+
+  - name: patient_bed_1
+    model: patient_bed
+    pose: patient_ward
+    type: patient_bed
+    capacity: 1
+    interaction_radius: 1.2
 
 regions:
   visitor_entrance:
@@ -94,14 +118,7 @@ regions:
         agent_type: adult
         desired_velocity: {min: 1.0, max: 1.5}
         sink_affinity:
-          - {sink: waiting_sink, weight: 2.0}
           - {sink: pharmacy_sink, weight: 1.0}
-
-  waiting_sink:
-    type: sink
-    ref: waiting_area
-    config:
-      capacity: 6
 
   pharmacy_sink:
     type: sink
