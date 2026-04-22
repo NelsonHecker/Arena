@@ -48,7 +48,8 @@ class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc
         try:
             return await identifier.resolve()
         except Exception as e:
-            self._logger.error(f"Failed to resolve {identifier}:\n{e}\n{traceback.format_exc()}")
+            self._logger.warning(f"Failed to resolve {identifier}")
+            self._logger.debug(traceback.format_exc())
             return None
 
 
