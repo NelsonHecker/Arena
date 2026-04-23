@@ -5,9 +5,9 @@ name="training"
 update(){
     set -e
     cd "$ARENA_DIR"
-    git submodule update --init --depth 1 arena_training
+    git submodule update --init --rebase --depth 1 arena_training
     pushd "$ARENA_DIR/arena_training" > /dev/null || return 1
-        git submodule update --init --depth 1 deps/rosnav_rl
+        git submodule update --init --rebase --depth 1 deps/rosnav_rl
         uv pip install --python "$ARENA_DIR/.venv/bin/python" \
             -e "." \
             -e "./deps/rosnav_rl/rosnav_rl"
