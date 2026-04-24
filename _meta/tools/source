@@ -187,11 +187,14 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     if [[ "$1" != --* ]]; then
                         set -- --packages-select "$@"
                     fi
-                    mapfile -t _REBUILD_PKGS < <(colcon list --names-only --base-paths "$ARENA_WS_DIR/src" "$@")
-                    if [ ${#_REBUILD_PKGS[@]} -eq 0 ]; then
+                    if ! _REBUILD_LIST=$(colcon list --names-only --base-paths "$ARENA_WS_DIR/src" "$@"); then
+                        echo "arena rebuild: colcon list rejected the arguments, aborting before clean" >&2
+                        result=1
+                    elif [ -z "$_REBUILD_LIST" ]; then
                         echo "arena rebuild: no packages matched" >&2
                         result=1
                     else
+                        mapfile -t _REBUILD_PKGS <<< "$_REBUILD_LIST"
                         echo "arena rebuild: resolved ${#_REBUILD_PKGS[@]} package(s): ${_REBUILD_PKGS[*]}"
                         for pkg in "${_REBUILD_PKGS[@]}"; do
                             [ -n "$pkg" ] || continue
@@ -204,7 +207,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                         arena build "$@"
                         result=$?
                     fi
-                    unset _REBUILD_PKGS
+                    unset _REBUILD_PKGS _REBUILD_LIST
                 fi
             ;;
             deps)
