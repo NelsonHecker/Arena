@@ -1,4 +1,4 @@
-"""Tests for arena_robots.task_server_handlers — HandlerRegistry and _executor_sleep."""
+"""Tests for arena_robots.task_server_handlers HANDLERS registry and _executor_sleep."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ import pytest
 
 class TestHandlerRegistry:
     def _make_registry(self):
-        from arena_robots.task_server_handlers import HandlerRegistry
+        from arena_rclpy_mixins.registry import ClassRegistry
 
-        return HandlerRegistry()
+        return ClassRegistry()
 
     def test_register_and_get(self):
         reg = self._make_registry()

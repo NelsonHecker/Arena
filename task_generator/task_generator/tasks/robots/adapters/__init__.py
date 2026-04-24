@@ -126,27 +126,37 @@ class Adapter(ABC):
         return None
 
 
-_ADAPTERS: dict[str, type[Adapter]] = {}
+from arena_rclpy_mixins.registry import ClassRegistry
+
+ADAPTERS: ClassRegistry[str, type[Adapter]] = ClassRegistry()
 
 
-def register_adapter(cls: type[Adapter]) -> type[Adapter]:
-    """Register an :class:`Adapter` subclass under its :attr:`kind`."""
-    kind = getattr(cls, "kind", None)
-    if not isinstance(kind, str) or not kind:
-        raise TypeError(f"{cls.__name__} must declare a non-empty string 'kind' ClassVar before registration")
-    if kind in _ADAPTERS and _ADAPTERS[kind] is not cls:
-        raise ValueError(f"adapter kind {kind!r} already registered to {_ADAPTERS[kind].__name__}; cannot re-register to {cls.__name__}")
-    _ADAPTERS[kind] = cls
-    return cls
+@ADAPTERS.register("nav2")
+def _load_nav2() -> type[Adapter]:
+    from .nav2 import Nav2Adapter
+
+    return Nav2Adapter
 
 
-def get_adapter(kind: str) -> type[Adapter]:
-    """Look up an adapter class by its :attr:`kind` string."""
-    try:
-        return _ADAPTERS[kind]
-    except KeyError:
-        known = sorted(_ADAPTERS.keys())
-        raise KeyError(f"no adapter registered for kind {kind!r}; known: {known}") from None
+@ADAPTERS.register("test-collision")
+def _load_test_collision() -> type[Adapter]:
+    from .test_collision import TestCollisionAdapter
+
+    return TestCollisionAdapter
+
+
+@ADAPTERS.register("none")
+def _load_none() -> type[Adapter]:
+    from .none import NoneAdapter
+
+    return NoneAdapter
+
+
+@ADAPTERS.register("external")
+def _load_external() -> type[Adapter]:
+    from .external import ExternalAdapter
+
+    return ExternalAdapter
 
 
 __all__ = [
@@ -157,6 +167,5 @@ __all__ = [
     "SensorSpec",
     "AdapterCtx",
     "Adapter",
-    "register_adapter",
-    "get_adapter",
+    "ADAPTERS",
 ]

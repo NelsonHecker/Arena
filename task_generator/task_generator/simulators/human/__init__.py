@@ -5,6 +5,7 @@ from collections.abc import Sequence
 
 import rclpy
 import rclpy.publisher
+from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
 from geometry_msgs.msg import PoseStamped
 from task_generator import NodeInterface
@@ -12,7 +13,6 @@ from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Robot, Wall
 from task_generator.simulators.human.utils import KnownObstacle, KnownObstacles, ObstacleLayer
 from task_generator.simulators.sim import BaseSim
-from task_generator.utils.registry import Registry
 
 
 class BaseHumanSimulator(NodeInterface, abc.ABC):

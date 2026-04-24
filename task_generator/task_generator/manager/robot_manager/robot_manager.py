@@ -125,15 +125,10 @@ class RobotManager(NodeInterface):
         # TODO: multi-capability adapter composition.
         # Deferred to break the import cycle between this module and
         # task_generator.tasks (which eagerly loads context.py → RobotManager).
-        # The adapter submodules are side-effect imported here to register
-        # themselves so ``get_adapter`` can resolve any kind named in config.
-        from task_generator.tasks.robots.adapters import external as _external  # noqa: F401
-        from task_generator.tasks.robots.adapters import get_adapter
-        from task_generator.tasks.robots.adapters import nav2 as _nav2  # noqa: F401
-        from task_generator.tasks.robots.adapters import none as _none  # noqa: F401
+        from task_generator.tasks.robots.adapters import ADAPTERS
 
         navigator_kind = self._robot.navigator or self._config.model_params.navigator
-        adapter_cls = get_adapter(navigator_kind)
+        adapter_cls = ADAPTERS.get(navigator_kind)
 
         adapter_kwargs: dict[str, typing.Any] = {}
         caps_list = self._config.model_params.capabilities

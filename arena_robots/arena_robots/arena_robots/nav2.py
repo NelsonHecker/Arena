@@ -8,7 +8,7 @@ import launch
 import yaml
 from arena_bringup.substitutions import YAMLFileSubstitution
 
-from arena_robots.caps import MobileSpec
+from arena_robots.caps import MobileSpec, stringify_float_matrix
 from arena_robots.Robot import ModelParams
 from arena_robots.Sensor import SensorSpec, SensorType
 
@@ -91,5 +91,53 @@ class Nav2SubBlockYAML(YAMLFileSubstitution):
         raw = _load_mobile(path_str).sub('nav2')
         tmp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.yaml')
         yaml.dump(raw, tmp)
+        tmp.close()
+        return tmp.name
+
+
+class Nav2CollisionDerivedYAML(YAMLFileSubstitution):
+    """Compile top-level `footprint` and `polygons_dict` from caps/mobile.yaml
+    into the stringified form nav2's collision_monitor expects, overriding any
+    raw float lists emitted by the preceding YAMLFileSubstitution(mobile_path)."""
+
+    def __init__(self, mobile_path: launch.SomeSubstitutionsType):
+        super().__init__(path=[], default={}, substitute=False)
+        self._path = launch.utilities.normalize_to_list_of_substitutions(mobile_path)
+
+    def perform(self, context: launch.LaunchContext) -> str:
+        path_str = launch.utilities.perform_substitutions(context, self._path)
+        mobile = _load_mobile(path_str)
+        raw = mobile.raw
+
+        out: dict[str, typing.Any] = {}
+
+        footprint_raw = raw.get('footprint')
+        if isinstance(footprint_raw, list):
+            out['footprint'] = stringify_float_matrix([[float(c) for c in pt] for pt in footprint_raw])
+
+        polygons_raw = raw.get('polygons_dict')
+        if isinstance(polygons_raw, dict) and polygons_raw:
+            out['polygons'] = list(polygons_raw.keys())
+            compiled: dict[str, typing.Any] = {}
+            for name, entry in polygons_raw.items():
+                ptype = entry.get('type')
+                polygon_entry: dict[str, typing.Any] = {}
+                for field in ('type', 'action_type', 'polygon_pub_topic', 'min_points', 'visualize', 'enabled', 'slowdown_ratio'):
+                    if field in entry:
+                        polygon_entry[field] = entry[field]
+                if ptype == 'polygon':
+                    pts = entry.get('points')
+                    if isinstance(pts, list):
+                        polygon_entry['points'] = stringify_float_matrix([[float(c) for c in pt] for pt in pts])
+                    else:
+                        polygon_entry['points'] = pts
+                elif ptype == 'circle':
+                    if 'radius' in entry:
+                        polygon_entry['radius'] = entry['radius']
+                compiled[name] = polygon_entry
+            out['polygons_dict'] = compiled
+
+        tmp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.yaml')
+        yaml.dump(out if out else {}, tmp)
         tmp.close()
         return tmp.name

@@ -15,13 +15,88 @@ each entry / at top level — read only by their matching runtime-selected adapt
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import typing
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import Literal
 
 import attrs
 import yaml
+
+_POLYGON_TYPES: frozenset[str] = frozenset({'polygon', 'circle'})
+_ACTION_TYPES: frozenset[str] = frozenset({'stop', 'slowdown', 'approach', 'limit'})
+
+
+@attrs.define(slots=False)
+class PolygonSpec:
+    """One entry from the top-level `polygons_dict:` in caps/mobile.yaml."""
+
+    name: str
+    type: Literal['polygon', 'circle']
+    points: list[list[float]] | None
+    radius: float | None
+    action_type: str | None
+    polygon_pub_topic: str | None
+    min_points: int | None
+    visualize: bool | None
+    enabled: bool | None
+    slowdown_ratio: float | None
+
+    @classmethod
+    def from_dict(cls, name: str, d: dict[str, typing.Any]) -> PolygonSpec:
+        ptype = d.get('type')
+        if ptype not in _POLYGON_TYPES:
+            raise ValueError(f"polygon '{name}': type must be 'polygon' or 'circle'; got {ptype!r}")
+
+        points: list[list[float]] | None = None
+        radius: float | None = None
+
+        if ptype == 'polygon':
+            raw_pts = d.get('points')
+            if raw_pts is None or len(raw_pts) < 3:
+                raise ValueError(f"polygon '{name}': type=polygon requires points with at least 3 entries")
+            points = [[float(c) for c in pt] for pt in raw_pts]
+        else:
+            raw_r = d.get('radius')
+            if raw_r is None or float(raw_r) <= 0:
+                raise ValueError(f"polygon '{name}': type=circle requires radius > 0")
+            radius = float(raw_r)
+
+        action_type = d.get('action_type')
+        if action_type is not None and action_type not in _ACTION_TYPES:
+            raise ValueError(f"polygon '{name}': action_type must be one of {sorted(_ACTION_TYPES)}; got {action_type!r}")
+
+        enabled_raw = d.get('enabled')
+        enabled = bool(enabled_raw) if enabled_raw is not None else None
+
+        visualize_raw = d.get('visualize')
+        visualize = bool(visualize_raw) if visualize_raw is not None else None
+
+        min_points_raw = d.get('min_points')
+        min_points = int(min_points_raw) if min_points_raw is not None else None
+
+        slowdown_ratio_raw = d.get('slowdown_ratio')
+        slowdown_ratio = float(slowdown_ratio_raw) if slowdown_ratio_raw is not None else None
+
+        return cls(
+            name=name,
+            type=ptype,
+            points=points,
+            radius=radius,
+            action_type=action_type,
+            polygon_pub_topic=d.get('polygon_pub_topic'),
+            min_points=min_points,
+            visualize=visualize,
+            enabled=enabled,
+            slowdown_ratio=slowdown_ratio,
+        )
+
+
+def stringify_float_matrix(m: list[list[float]]) -> str:
+    """Return the nav2-expected string form ``[[x0,y0],[x1,y1],...]``."""
+    return '[' + ','.join('[' + ','.join(str(c) for c in pt) + ']' for pt in m) + ']'
 
 
 @attrs.define(slots=False)
@@ -62,6 +137,24 @@ class MobileSpec(CapConfig):
     @property
     def is_holonomic(self) -> bool:
         return bool(self.raw.get('is_holonomic', False))
+
+    @property
+    def polygons_dict(self) -> dict[str, PolygonSpec]:
+        raw = self.raw.get('polygons_dict')
+        if not raw:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError(f"{self.path}: 'polygons_dict' must be a mapping; got {type(raw).__name__}")
+        return {name: PolygonSpec.from_dict(name, entry) for name, entry in raw.items()}
+
+    @property
+    def footprint(self) -> list[list[float]] | None:
+        v = self.raw.get('footprint')
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = ast.literal_eval(v)
+        return [[float(c) for c in pt] for pt in v]
 
 
 @attrs.define(slots=False)

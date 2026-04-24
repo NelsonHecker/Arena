@@ -2,19 +2,19 @@ odom_frame: odom
 sensor_frame: robot_front_laser_link
 radius: 0.61
 
+footprint: [[0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35]]
+
+polygons_dict:
+  StopPolygon:
+    type: polygon
+    points: [[0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35]]
+    action_type: stop
+    min_points: 4
+    visualize: true
+    polygon_pub_topic: polygon_stop
+    enabled: true
+
 nav2:
-  footprint: "[ [0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35] ]"
-  polygons:
-    - StopPolygon
-  polygons_dict:
-    StopPolygon:
-      type: "polygon"
-      points: "[ [0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35] ]"
-      action_type: "stop"
-      min_points: 4
-      visualize: True
-      polygon_pub_topic: "polygon_stop"
-      enabled: True
   planner_plugins:
     - GridBased
   planner_plugins_dict:

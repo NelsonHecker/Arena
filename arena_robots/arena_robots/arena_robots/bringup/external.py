@@ -4,10 +4,9 @@ from launch import Action
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
-from arena_robots.bringup import Bringup, register_bringup
+from arena_robots.bringup import Bringup
 
 
-@register_bringup
 class ExternalBringup(Bringup):
     kind = "external"
 

@@ -9,7 +9,6 @@ import geometry_msgs.msg
 import numpy as np
 import rclpy.client
 import rclpy.node
-import yaml
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
@@ -258,24 +257,15 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug(f'Spawning walls for {len(obstacles)} obstacles')
 
         async def obstacle_to_walls(obstacle: Obstacle) -> list[Wall]:
-            model = obstacle.model
             try:
-                annotation_path = (await model.resolve_path()) / 'annotation.yaml'
-                with open(annotation_path) as f:
-                    annotation: dict = yaml.safe_load(f.read())
+                view = await obstacle.model.resolve()
+                bounds = view.bounds
+                if bounds is None:
+                    return []
 
-                (min_x, max_x), (min_y, max_y), (min_z, max_z) = annotation['bounding_box']
-
-                rotation_mat = np.array([[np.cos(obstacle.pose.orientation.to_yaw()), -np.sin(obstacle.pose.orientation.to_yaw())], [np.sin(obstacle.pose.orientation.to_yaw()), np.cos(obstacle.pose.orientation.to_yaw())]])
-                corners = np.array(
-                    [
-                        [min_x, min_y],
-                        [min_x, max_y],
-                        [max_x, max_y],
-                        [max_x, min_y],
-                    ]
-                )
-                corners = corners @ rotation_mat.T
+                yaw = obstacle.pose.orientation.to_yaw()
+                rotation_mat = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+                corners = np.array(bounds) @ rotation_mat.T
                 corners += np.array([[obstacle.pose.position.x, obstacle.pose.position.y]])
 
                 obstacle_walls: list[Wall] = []

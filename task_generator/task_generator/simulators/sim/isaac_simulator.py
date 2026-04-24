@@ -167,7 +167,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         async def impl(obstacle: Obstacle) -> Prim | None:
             try:
-                model = await (await obstacle.model.resolve()).get([ModelType.USD])
+                model = await (await obstacle.model.resolve()).model.get([ModelType.USD])
                 if model.type is ModelType.UNKNOWN:
                     raise ValueError(f"obstacle model {obstacle.model.name} has no USD representation")
             except Exception:
@@ -265,7 +265,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         async def create_obstacle(obstacle: ObstacleDefinition) -> Prim | None:
             try:
                 prim_name = self._realizer.realize(f"obstacle_{next(self.wall_counter)}")
-                model = await (await obstacle.model.resolve()).get(ModelType.USD)
+                model = await (await obstacle.model.resolve()).model.get(ModelType.USD)
                 if model.type is ModelType.UNKNOWN:
                     return None
                 assert model.path is not None, f"USD model {model.name} must have a valid file path"

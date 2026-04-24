@@ -3,27 +3,28 @@ sensor_frame: lidar
 radius: 0.267
 is_holonomic: false
 
+footprint: [[0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1]]
+
+polygons_dict:
+  StopPolygon:
+    type: polygon
+    points: [[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]
+    action_type: stop
+    min_points: 4
+    visualize: true
+    polygon_pub_topic: polygon_stop
+    enabled: true
+  SlowPolygon:
+    type: circle
+    radius: 1.0
+    action_type: slowdown
+    slowdown_ratio: 0.5
+    min_points: 4
+    visualize: true
+    polygon_pub_topic: polygon_slow
+    enabled: true
+
 nav2:
-  footprint: "[ [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1] ]"
-  polygons: [StopPolygon, SlowPolygon]
-  polygons_dict:
-    StopPolygon:
-      type: "polygon"
-      points: "[[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]"
-      action_type: "stop"
-      min_points: 4
-      visualize: True
-      polygon_pub_topic: "polygon_stop"
-      enabled: True
-    SlowPolygon:
-      type: "circle"
-      radius: 1.0
-      action_type: "slowdown"
-      slowdown_ratio: 0.5
-      min_points: 4
-      visualize: True
-      polygon_pub_topic: "polygon_slow"
-      enabled: True
   planner_plugins:
     - GridBased
   planner_plugins_dict:

@@ -9,10 +9,7 @@ from arena_robots.clients.goto_pose import GotoPoseClient
 from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import GotoPose
 
-from task_generator.tasks.robots.adapters import (
-    Adapter,
-    register_adapter,
-)
+from task_generator.tasks.robots.adapters import Adapter
 from task_generator.tasks.robots.request import GoToPhase, TaskPhase
 
 if TYPE_CHECKING:
@@ -21,7 +18,6 @@ if TYPE_CHECKING:
     from task_generator.manager.robot_manager.robot_manager import RobotManager
 
 
-@register_adapter
 class NoneAdapter(Adapter):
     kind = "none"
     accepts = frozenset({TaskKind.GOTO_POSE})

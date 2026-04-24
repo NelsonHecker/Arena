@@ -14,7 +14,7 @@ def _ros_gate():
 
 
 def _make_registry():
-    from task_generator.utils.registry import Registry
+    from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
     return Registry[str, object]()
 
 
@@ -36,7 +36,7 @@ def test_register_duplicate_raises():
     async def _first():
         return "first"
 
-    with pytest.raises(AssertionError, match="already exists"):
+    with pytest.raises(ValueError, match="already registered"):
         @reg.register("dup")
         async def _second():
             return "second"
@@ -44,7 +44,7 @@ def test_register_duplicate_raises():
 
 def test_get_nonexistent_raises():
     reg = _make_registry()
-    with pytest.raises(AssertionError, match="not registered"):
+    with pytest.raises(KeyError):
         asyncio.run(reg.get("nonexistent"))
 
 
@@ -74,16 +74,16 @@ def test_init_from_entries():
     async def _base():
         return "base"
 
-    from task_generator.utils.registry import Registry
+    from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
     reg = Registry[str, object](entries={"base_key": _base})
     result = asyncio.run(reg.get("base_key"))
     assert result == "base"
 
 
 def test_init_none_entries_empty():
-    from task_generator.utils.registry import Registry
+    from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
     reg = Registry[str, object](entries=None)
-    with pytest.raises(AssertionError):
+    with pytest.raises(KeyError):
         asyncio.run(reg.get("anything"))
 
 

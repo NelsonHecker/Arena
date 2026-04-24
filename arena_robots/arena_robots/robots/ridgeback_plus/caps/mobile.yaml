@@ -3,21 +3,21 @@ sensor_frame: lidar
 radius: 0.4
 is_holonomic: false
 
+footprint: [[0.48, -0.40], [0.48, 0.40], [-0.48, 0.40], [-0.48, -0.40]]
+
+polygons_dict:
+  StopPolygon:
+    type: polygon
+    points: [[0.48, 0.40], [0.48, -0.40], [-0.48, -0.40], [-0.48, 0.40]]
+    action_type: stop
+    min_points: 4
+    visualize: true
+    polygon_pub_topic: polygon_stop
+    enabled: true
+
 nav2:
-  footprint: "[ [0.48, -0.40], [0.48, 0.40], [-0.48, 0.40], [-0.48, -0.40] ]"
   footprint_padding: 0.1
   inflation_radius: 0.25
-  polygons:
-    - StopPolygon
-  polygons_dict:
-    StopPolygon:
-      type: "polygon"
-      points: "[ [0.48, 0.40], [0.48, -0.40], [-0.48, -0.40], [-0.48, 0.40] ]"
-      action_type: "stop"
-      min_points: 4
-      visualize: True
-      polygon_pub_topic: "polygon_stop"
-      enabled: True
   planner_plugins:
     - GridBased
   planner_plugins_dict:

@@ -3,19 +3,19 @@ sensor_frame: base_laser_link
 radius: 0.45
 is_holonomic: true
 
+footprint: [[0.38, 0.24], [0.38, -0.24], [-0.38, -0.24], [-0.38, 0.24]]
+
+polygons_dict:
+  StopPolygon:
+    type: polygon
+    points: [[0.3, 0.2], [0.3, -0.2], [-0.3, -0.2], [-0.3, 0.2]]
+    action_type: stop
+    min_points: 3
+    visualize: true
+    polygon_pub_topic: polygon_stop
+    enabled: true
+
 nav2:
-  footprint: "[ [0.38, 0.24], [0.38, -0.24], [-0.38, -0.24], [-0.38, 0.24] ]"
-  polygons:
-    - StopPolygon
-  polygons_dict:
-    StopPolygon:
-      type: "polygon"
-      points: "[ [0.3, 0.2], [0.3, -0.2], [-0.3, -0.2], [-0.3, 0.2] ]"
-      action_type: "stop"
-      min_points: 3
-      visualize: True
-      polygon_pub_topic: "polygon_stop"
-      enabled: True
   planner_plugins:
     - GridBased
   planner_plugins_dict:

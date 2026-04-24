@@ -3,12 +3,12 @@ from __future__ import annotations
 import abc
 import traceback
 
+from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.tree import IdentifierProtocol
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
-from task_generator.utils.registry import Registry
 
 from ._interface import ObstacleITF, PedestrianITF, RobotITF, WorldITF
 

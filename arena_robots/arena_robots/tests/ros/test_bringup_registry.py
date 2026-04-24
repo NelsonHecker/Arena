@@ -1,13 +1,12 @@
-"""Tests for arena_robots.bringup registry (register_bringup, get_bringup, check_caps)."""
+"""Tests for arena_robots.bringup registry (BRINGUPS, check_caps)."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-import yaml
+
+from arena_rclpy_mixins.registry import ClassRegistry
 
 
 def _make_mock_robot(caps_available: frozenset[str], name: str = "test_robot") -> object:
@@ -19,90 +18,70 @@ def _make_mock_robot(caps_available: frozenset[str], name: str = "test_robot") -
     return mock_robot
 
 
-class TestRegisterBringup:
+class TestBringupsRegistry:
     def test_duplicate_kind_raises(self):
-        from arena_robots.bringup import _BRINGUPS, register_bringup, Bringup
+        reg: ClassRegistry = ClassRegistry()
+        reg.register("dup")(lambda: object)
+        with pytest.raises((ValueError, AssertionError)):
+            reg.register("dup")(lambda: object)
 
-        class _TempBringup(Bringup):
-            kind = "__test_dup_kind__"
-            requires = frozenset()
+    def test_register_and_get(self):
+        reg: ClassRegistry = ClassRegistry()
 
-            def _launch_actions(self, **kwargs):
-                return []
+        class _Cls:
+            pass
 
-        old = _BRINGUPS.pop("__test_dup_kind__", None)
-        try:
-            register_bringup(_TempBringup)
-            with pytest.raises((ValueError, AssertionError, KeyError)):
-                register_bringup(_TempBringup)
-        finally:
-            _BRINGUPS.pop("__test_dup_kind__", None)
-            if old is not None:
-                _BRINGUPS["__test_dup_kind__"] = old
+        reg.register("mykey")(lambda: _Cls)
+        assert reg.get("mykey") is _Cls
 
-    def test_register_new_kind(self):
-        from arena_robots.bringup import _BRINGUPS, get_bringup, register_bringup, Bringup
+    def test_unknown_kind_raises_key_error(self):
+        reg: ClassRegistry = ClassRegistry()
+        with pytest.raises(KeyError):
+            reg.get("__no_such__")
 
-        class _NewBringup(Bringup):
-            kind = "__test_new_kind__"
-            requires = frozenset()
+    def test_lazy_loading(self):
+        reg: ClassRegistry = ClassRegistry()
 
-            def _launch_actions(self, **kwargs):
-                return []
+        @reg.register("bad")
+        def _bad():
+            raise RuntimeError("imported too eagerly")
 
-        old = _BRINGUPS.pop("__test_new_kind__", None)
-        try:
-            register_bringup(_NewBringup)
-            assert get_bringup("__test_new_kind__") is _NewBringup
-        finally:
-            _BRINGUPS.pop("__test_new_kind__", None)
-            if old is not None:
-                _BRINGUPS["__test_new_kind__"] = old
+        class _Good:
+            pass
 
-    def test_register_returns_cls(self):
-        from arena_robots.bringup import _BRINGUPS, register_bringup, Bringup
+        @reg.register("good")
+        def _good():
+            return _Good
 
-        class _RetBringup(Bringup):
-            kind = "__test_ret_kind__"
-            requires = frozenset()
-
-            def _launch_actions(self, **kwargs):
-                return []
-
-        old = _BRINGUPS.pop("__test_ret_kind__", None)
-        try:
-            result = register_bringup(_RetBringup)
-            assert result is _RetBringup
-        finally:
-            _BRINGUPS.pop("__test_ret_kind__", None)
-            if old is not None:
-                _BRINGUPS["__test_ret_kind__"] = old
-
-
-class TestGetBringup:
-    def test_not_found_raises_key_error(self):
-        from arena_robots.bringup import get_bringup
-
-        with pytest.raises(KeyError, match="__nonexistent_kind__"):
-            get_bringup("__nonexistent_kind__")
+        assert reg.get("good") is _Good
 
     def test_nav2_is_registered(self):
-        from arena_robots.bringup import get_bringup
+        from arena_robots.bringup import BRINGUPS
         from arena_robots.bringup.nav2 import Nav2Bringup
 
-        assert get_bringup("nav2") is Nav2Bringup
+        assert "nav2" in BRINGUPS
+        assert BRINGUPS.get("nav2") is Nav2Bringup
 
     def test_none_is_registered(self):
-        from arena_robots.bringup import get_bringup
+        from arena_robots.bringup import BRINGUPS
         from arena_robots.bringup.none import NoneBringup
 
-        assert get_bringup("none") is NoneBringup
+        assert "none" in BRINGUPS
+        assert BRINGUPS.get("none") is NoneBringup
 
     def test_external_is_registered(self):
-        from arena_robots.bringup import get_bringup
+        from arena_robots.bringup import BRINGUPS
         from arena_robots.bringup.external import ExternalBringup
 
-        assert get_bringup("external") is ExternalBringup
+        assert "external" in BRINGUPS
+        assert BRINGUPS.get("external") is ExternalBringup
+
+    def test_test_collision_is_registered(self):
+        from arena_robots.bringup import BRINGUPS
+        from arena_robots.bringup.test_collision import TestCollisionBringup
+
+        assert "test-collision" in BRINGUPS
+        assert BRINGUPS.get("test-collision") is TestCollisionBringup
 
 
 class TestCheckCaps:
@@ -156,8 +135,7 @@ class TestAcceptsTaskKinds:
 
         robot = _make_mock_robot(frozenset({"mobile"}))
         b = Nav2Bringup(robot=robot, namespace="/robot1")
-        accepted = b.accepts_task_kinds
-        assert TaskKind.GOTO_POSE in accepted
+        assert TaskKind.GOTO_POSE in b.accepts_task_kinds
 
     def test_none_bringup_accepts_goto_pose(self):
         from arena_robots.bringup.none import NoneBringup
@@ -165,5 +143,4 @@ class TestAcceptsTaskKinds:
 
         robot = _make_mock_robot(frozenset({"mobile"}))
         b = NoneBringup(robot=robot, namespace="/robot1")
-        accepted = b.accepts_task_kinds
-        assert TaskKind.GOTO_POSE in accepted
+        assert TaskKind.GOTO_POSE in b.accepts_task_kinds

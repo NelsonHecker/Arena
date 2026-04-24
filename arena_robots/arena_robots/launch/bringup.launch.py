@@ -1,7 +1,7 @@
 """Standalone robot bringup launch (no task_generator)."""
 
 from arena_bringup.substitutions import LaunchArgument
-from arena_robots.bringup import check_caps, get_bringup
+from arena_robots.bringup import check_caps, BRINGUPS
 from arena_robots.Robot import RobotIdentifier
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, OpaqueFunction
@@ -30,7 +30,7 @@ def generate_launch_description():
         use_sim_time = use_sim_time_str.lower() in ('true', '1', 'yes')
 
         view = RobotIdentifier(name).resolve_sync()
-        bringup = get_bringup(kind)(robot=view, namespace=ns)
+        bringup = BRINGUPS.get(kind)(robot=view, namespace=ns)
         check_caps(bringup)
 
         simulation_setup_root = FindPackageShare('arena_simulation_setup')

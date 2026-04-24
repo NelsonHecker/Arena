@@ -8,7 +8,7 @@ from rclpy.action import ActionServer
 from rclpy.action.server import ServerGoalHandle
 from rclpy.node import Node
 
-from arena_robots.bringup import check_caps, get_bringup
+from arena_robots.bringup import BRINGUPS, check_caps
 from arena_robots.Robot import RobotIdentifier
 from arena_robots.task_kinds import TaskKind, action_type, endpoint
 from arena_robots.task_server_handlers import HANDLERS
@@ -33,7 +33,7 @@ class TaskServerNode(Node):
         self._tf_buffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self._tf_buffer, self)
 
-        self._bringup = get_bringup(bringup_kind)(robot, namespace)
+        self._bringup = BRINGUPS.get(bringup_kind)(robot, namespace)
         check_caps(self._bringup)
 
         # Single-goal-per-TaskKind: a new accepted goal preempts the previous.

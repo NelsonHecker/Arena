@@ -3,6 +3,8 @@ import typing
 from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
+import shapely
+import shapely.affinity
 from arena_simulation_setup.tree.World import WorldDescription
 
 from task_generator import NodeInterface
@@ -22,6 +24,9 @@ class EnvironmentManager(NodeInterface):
     _simulator: BaseSim
     _realizer: Realizer
 
+    _walls_geometry: shapely.MultiLineString
+    _static_polygons: dict[str, shapely.Polygon]
+
     def __init__(
         self,
         *args: object,
@@ -36,8 +41,47 @@ class EnvironmentManager(NodeInterface):
         self._human_simulator = human_simulator
         self._realizer = realizer
 
+        self._walls_geometry = shapely.MultiLineString()
+        self._static_polygons = {}
+
     def realize(self, target: object) -> object:
         return self._realizer.realize(target)
+
+    @property
+    def walls_geometry(self) -> shapely.MultiLineString:
+        """Map-frame line geometry of all world walls and doors."""
+        return self._walls_geometry
+
+    @property
+    def static_polygons(self) -> dict[str, shapely.Polygon]:
+        """Map-frame footprint polygons of every static obstacle currently spawned,
+        keyed by obstacle name. Includes both WORLD-layer entities and INUSE
+        episode-spawned obstacles. Pedestrians are not included — consumers should
+        read those from the `arena_peds` topic."""
+        return self._static_polygons
+
+    async def _resolve_polygon(self, obstacle: Obstacle) -> shapely.Polygon | None:
+        try:
+            view = await obstacle.model.resolve()
+        except FileNotFoundError:
+            return None
+        bounds = view.bounds
+        if bounds is None:
+            return None
+        poly = shapely.Polygon(bounds)
+        poly = shapely.affinity.rotate(poly, obstacle.pose.orientation.to_yaw(), origin=(0, 0), use_radians=True)
+        return shapely.affinity.translate(poly, xoff=obstacle.pose.position.x, yoff=obstacle.pose.position.y)
+
+    async def _cache_polygons(self, obstacles: Sequence[Obstacle]) -> None:
+        polys = await asyncio.gather(*(self._resolve_polygon(o) for o in obstacles))
+        for obstacle, poly in zip(obstacles, polys, strict=True):
+            if poly is not None:
+                self._static_polygons[obstacle.name] = poly
+
+    def _sync_static_polygons(self) -> None:
+        """Drop polygons whose obstacle is no longer registered in the human simulator."""
+        alive = set(self._human_simulator._known_obstacles.keys())
+        self._static_polygons = {n: p for n, p in self._static_polygons.items() if n in alive}
 
     async def spawn_world_obstacles(self, world: WorldDescription):
         """
@@ -45,32 +89,30 @@ class EnvironmentManager(NodeInterface):
         the map file is retrieved from launch parameter "world"
         """
 
+        walls = tuple(map(self.realize, world.all_walls))
+        doors = tuple(map(self.realize, world.all_doors))
+        floors = tuple(map(self.realize, world.all_floors))
+        elevators = tuple(map(self.realize, world.all_elevators))
+        statics = tuple(map(self.realize, world.all_static_entities))
+
+        line_strings: list[shapely.LineString] = []
+        for w in walls:
+            line_strings.append(shapely.LineString([(w.start.x, w.start.y), (w.end.x, w.end.y)]))
+        for d in doors:
+            line_strings.append(shapely.LineString([(d.start.x, d.start.y), (d.end.x, d.end.y)]))
+        self._walls_geometry = shapely.MultiLineString(line_strings) if line_strings else shapely.MultiLineString()
+
+        await self._cache_polygons(statics)
+
         futures: list[typing.Awaitable] = []
-
-        walls = tuple(world.all_walls)
-        doors = tuple(world.all_doors)
-        floors = tuple(world.all_floors)
-        elevators = tuple(world.all_elevators)
         if floors:
-            futures.append(self._simulator.spawn_floors(tuple(map(self.realize, floors))))
-
+            futures.append(self._simulator.spawn_floors(floors))
         if walls or doors:
-            futures.append(
-                self._human_simulator.spawn_world(
-                    tuple(map(self.realize, walls)),
-                    tuple(map(self.realize, doors)),
-                )
-            )
-
-        futures.append(
-            self._human_simulator.spawn_obstacles(
-                tuple(map(self.realize, world.all_static_entities)),
-                layer=ObstacleLayer.WORLD,
-            )
-        )
+            futures.append(self._human_simulator.spawn_world(walls, doors))
+        futures.append(self._human_simulator.spawn_obstacles(statics, layer=ObstacleLayer.WORLD))
         if elevators:
             self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
-            futures.append(self._simulator.spawn_elevators(tuple(map(self.realize, elevators))))
+            futures.append(self._simulator.spawn_elevators(elevators))
 
         await asyncio.gather(*futures)
 
@@ -85,8 +127,9 @@ class EnvironmentManager(NodeInterface):
         """
         Loads given obstacles into the simulator.
         """
-
-        await self._human_simulator.spawn_obstacles(tuple(map(self.realize, setups)))
+        realized = tuple(map(self.realize, setups))
+        await self._cache_polygons(realized)
+        await self._human_simulator.spawn_obstacles(realized)
 
     async def spawn_robot(self, robots: Sequence[Robot]) -> Sequence[Robot]:
         """
@@ -115,12 +158,16 @@ class EnvironmentManager(NodeInterface):
         await self._human_simulator.unuse_obstacles()
         await callback()
         await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
+        self._sync_static_polygons()
 
     async def reset(self, purge: ObstacleLayer = ObstacleLayer.INUSE):
         """
         Unuse and remove all obstacles
         """
         await self._human_simulator.remove_obstacles(purge=purge)
+        self._sync_static_polygons()
+        if purge >= ObstacleLayer.WORLD:
+            self._walls_geometry = shapely.MultiLineString()
 
     async def step(self, n: int = 1) -> bool:
         return await self._simulator.step(n)

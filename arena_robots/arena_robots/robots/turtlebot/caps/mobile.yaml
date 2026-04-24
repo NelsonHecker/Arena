@@ -3,19 +3,19 @@ sensor_frame: rplidar_link
 radius: 0.10
 is_holonomic: false
 
-nav2:
-  footprint: "[ [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1] ]"
-  polygons:
-    - StopPolygon
-  polygons_dict:
-    StopPolygon:
-      type: polygon
-      points: "[ [0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1] ]"
-      action_type: stop
-      min_points: 4
-      visualize: true
-      polygon_pub_topic: polygon_stop
-      enabled: true
+footprint: [[0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1]]
+
+polygons_dict:
+  StopPolygon:
+    type: polygon
+    points: [[0.1, 0.1], [0.1, -0.1], [-0.1, -0.1], [-0.1, 0.1]]
+    action_type: stop
+    min_points: 4
+    visualize: true
+    polygon_pub_topic: polygon_stop
+    enabled: true
+
+nav2: {}
 
 rl:
   actions:

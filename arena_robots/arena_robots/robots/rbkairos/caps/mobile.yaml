@@ -3,15 +3,16 @@ sensor_frame: lidar
 radius: 0.4
 is_holonomic: true
 
-nav2:
-  polygons:
-    - StopPolygon
-  polygons_dict:
-    StopPolygon:
-      type: "polygon"
-      points: "[ [0.2, 0.3], [0.2, -0.3], [-0.2, -0.3], [-0.2, 0.3] ]"
-      action_type: "stop"
-      min_points: 4
+footprint: [[0.2, 0.3], [0.2, -0.3], [-0.2, -0.3], [-0.2, 0.3]]
+
+polygons_dict:
+  StopPolygon:
+    type: polygon
+    points: [[0.2, 0.3], [0.2, -0.3], [-0.2, -0.3], [-0.2, 0.3]]
+    action_type: stop
+    min_points: 4
+
+nav2: {}
 
 rl:
   actions:
