@@ -95,6 +95,51 @@ class Nav2SubBlockYAML(YAMLFileSubstitution):
         return tmp.name
 
 
+class Nav2KinematicsDerivedYAML(YAMLFileSubstitution):
+    """Emit controller-agnostic velocity/acceleration keys from the top-level
+    ``velocity_limits``/``acceleration_limits`` in caps/mobile.yaml.
+
+    Controller plugin configs reference these via ``${max_linear_vel}`` etc.,
+    letting each controller map the generic envelope onto its plugin-specific
+    field names. Controllers wanting a lower cap can drop the ``${...}`` ref
+    and hardcode the literal instead.
+    """
+
+    def __init__(self, mobile_path: launch.SomeSubstitutionsType):
+        super().__init__(path=[], default={}, substitute=False)
+        self._path = launch.utilities.normalize_to_list_of_substitutions(mobile_path)
+
+    def perform(self, context: launch.LaunchContext) -> str:
+        path_str = launch.utilities.perform_substitutions(context, self._path)
+        mobile = _load_mobile(path_str)
+
+        out: dict[str, typing.Any] = {}
+        vel = mobile.velocity_limits
+        if vel is not None:
+            out['min_linear_vel'] = vel.linear.min
+            out['max_linear_vel'] = vel.linear.max
+            out['min_angular_vel'] = vel.angular.min
+            out['max_angular_vel'] = vel.angular.max
+            if vel.lateral is not None:
+                out['min_lateral_vel'] = vel.lateral.min
+                out['max_lateral_vel'] = vel.lateral.max
+
+        acc = mobile.acceleration_limits
+        if acc is not None:
+            out['linear_acc'] = acc.linear
+            out['angular_acc'] = acc.angular
+            out['linear_decel'] = -acc.linear
+            out['angular_decel'] = -acc.angular
+            if acc.lateral is not None:
+                out['lateral_acc'] = acc.lateral
+                out['lateral_decel'] = -acc.lateral
+
+        tmp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.yaml')
+        yaml.dump(out if out else {}, tmp)
+        tmp.close()
+        return tmp.name
+
+
 class Nav2CollisionDerivedYAML(YAMLFileSubstitution):
     """Compile top-level `footprint` and `polygons_dict` from caps/mobile.yaml
     into the stringified form nav2's collision_monitor expects, overriding any

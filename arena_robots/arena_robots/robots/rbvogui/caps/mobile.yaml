@@ -15,6 +15,32 @@ polygons_dict:
     polygon_pub_topic: polygon_stop
     enabled: true
 
+actions:
+  continuous:
+    linear:
+      min: -0.3
+      max: 0.3
+    angular:
+      min: -0.3
+      max: 0.3
+  discrete:
+  - {name: move_forward,  linear: 0.3,  angular: 0.0}
+  - {name: move_backward, linear: -0.3, angular: 0.0}
+  - {name: turn_left,     linear: 0.0,  angular: 0.3}
+  - {name: turn_right,    linear: 0.0,  angular: -0.3}
+  - {name: strafe_left,   linear: 0.0,  lateral: 0.3,  angular: 0.0}
+  - {name: strafe_right,  linear: 0.0,  lateral: -0.3, angular: 0.0}
+  - {name: stop,          linear: 0.0,  angular: 0.0}
+
+laser:
+  angle:
+    min: -2.35619449019
+    max: 2.35619449019
+    increment: 0.00436332312
+  num_beams: 1081
+  range: 10.0
+  update_rate: 40
+
 nav2:
   planner_plugins:
     - GridBased
@@ -24,29 +50,3 @@ nav2:
       tolerance: 0.5
       use_astar: false
       allow_unknown: true
-
-rl:
-  actions:
-    continuous:
-      angular_range:
-      - -0.3
-      - 0.3
-      linear_range:
-      - -0.3
-      - 0.3
-    discrete:
-    - {name: move_forward,  linear: 0.3,  angular: 0.0}
-    - {name: move_backward, linear: -0.3, angular: 0.0}
-    - {name: turn_left,     linear: 0.0,  angular: 0.3}
-    - {name: turn_right,    linear: 0.0,  angular: -0.3}
-    - {name: strafe_left,   linear_x: 0.0, linear_y: 0.3,  angular: 0.0}
-    - {name: strafe_right,  linear_x: 0.0, linear_y: -0.3, angular: 0.0}
-    - {name: stop,          linear: 0.0,  angular: 0.0}
-  laser:
-    angle:
-      min: -2.35619449019
-      max: 2.35619449019
-      increment: 0.00436332312
-    num_beams: 1081
-    range: 10.0
-    update_rate: 40

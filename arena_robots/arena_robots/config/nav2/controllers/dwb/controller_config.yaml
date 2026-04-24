@@ -4,20 +4,20 @@ controller_plugins_dict:
   FollowPath:
     plugin: "dwb_core::DWBLocalPlanner"
     debug_trajectory_details: True
-    min_vel_x: 0.0
-    min_vel_y: 0.0
-    max_vel_x: 0.26
-    max_vel_y: 0.0
-    max_vel_theta: 1.0
+    min_vel_x: ${min_linear_vel:-0.0}
+    min_vel_y: ${min_lateral_vel:-0.0}
+    max_vel_x: ${max_linear_vel:-0.26}
+    max_vel_y: ${max_lateral_vel:-0.0}
+    max_vel_theta: ${max_angular_vel:-1.0}
     min_speed_xy: 0.0
-    max_speed_xy: 0.26
+    max_speed_xy: ${max_linear_vel:-0.26}
     min_speed_theta: 0.0
-    acc_lim_x: 2.5
-    acc_lim_y: 0.0
-    acc_lim_theta: 3.2
-    decel_lim_x: -2.5
-    decel_lim_y: 0.0
-    decel_lim_theta: -3.2
+    acc_lim_x: ${linear_acc:-2.5}
+    acc_lim_y: ${lateral_acc:-0.0}
+    acc_lim_theta: ${angular_acc:-3.2}
+    decel_lim_x: ${linear_decel:--2.5}
+    decel_lim_y: ${lateral_decel:-0.0}
+    decel_lim_theta: ${angular_decel:--3.2}
     vx_samples: 20
     vy_samples: 5
     vtheta_samples: 20

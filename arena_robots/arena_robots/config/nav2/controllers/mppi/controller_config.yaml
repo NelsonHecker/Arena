@@ -9,14 +9,14 @@ controller_plugins_dict:
    vx_std: 0.2
    vy_std: 0.2
    wz_std: 0.4
-   vx_max: 0.5
-   vx_min: -0.35
-   vy_max: 0.5
-   wz_max: 1.9
-   ax_max: 3.0
-   ax_min: -3.0
-   ay_max: 3.0
-   az_max: 3.5
+   vx_max: ${max_linear_vel:-0.5}
+   vx_min: ${min_linear_vel:--0.35}
+   vy_max: ${max_lateral_vel:-0.5}
+   wz_max: ${max_angular_vel:-1.9}
+   ax_max: ${linear_acc:-3.0}
+   ax_min: ${linear_decel:--3.0}
+   ay_max: ${lateral_acc:-3.0}
+   az_max: ${angular_acc:-3.5}
    iteration_count: 1
    prune_distance: 1.7
    transform_tolerance: 0.1

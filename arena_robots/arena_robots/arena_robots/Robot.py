@@ -12,7 +12,7 @@ from arena_simulation_setup.utils.models.model_loader import (
     ModelProvider_USD,
 )
 
-from arena_robots.caps import RobotCaps
+from arena_robots.caps import MobileSpec, RobotCaps
 from arena_robots.Sensor import SensorSpec
 
 
@@ -113,6 +113,17 @@ class RobotView(PathView):
         ``self.model_params.caps`` — exposed directly on ``RobotView`` for
         readability."""
         return self.model_params.caps
+
+    @property
+    def mobile(self) -> MobileSpec | None:
+        """The robot's mobile cap, or ``None`` if it doesn't advertise ``mobile``.
+
+        Shortcut for the common ``caps.mobile`` access that returns ``None``
+        honestly instead of raising ``FileNotFoundError`` when the cap is absent.
+        """
+        if 'mobile' not in self.caps.available:
+            return None
+        return self.caps.mobile
 
     @property
     def model_params(self) -> ModelParams:

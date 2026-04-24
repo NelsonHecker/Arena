@@ -15,44 +15,44 @@ polygons_dict:
     polygon_pub_topic: polygon_stop
     enabled: true
 
-nav2: {}
+actions:
+  continuous:
+    linear:
+      min: -0.4
+      max: 0.4
+    angular:
+      min: -1.9
+      max: 1.9
+  discrete:
+    - angular: 0.0
+      linear: 0.3
+      name: move_forward
+    - angular: 0.0
+      linear: -0.15
+      name: move_backward
+    - angular: 0.35
+      linear: 0.15
+      name: turn_left
+    - angular: -0.35
+      linear: 0.15
+      name: turn_right
+    - angular: 0.75
+      linear: 0.0
+      name: turn_strong_left
+    - angular: -0.75
+      linear: 0.0
+      name: turn_strong_right
+    - angular: 0.0
+      linear: 0.0
+      name: stop
 
-rl:
-  actions:
-    continuous:
-      angular_range:
-        - -1.9
-        - 1.9
-      linear_range:
-        - -0.4
-        - 0.4
-    discrete:
-      - angular: 0.0
-        linear: 0.3
-        name: move_forward
-      - angular: 0.0
-        linear: -0.15
-        name: move_backward
-      - angular: 0.35
-        linear: 0.15
-        name: turn_left
-      - angular: -0.35
-        linear: 0.15
-        name: turn_right
-      - angular: 0.75
-        linear: 0.0
-        name: turn_strong_left
-      - angular: -0.75
-        linear: 0.0
-        name: turn_strong_right
-      - angular: 0.0
-        linear: 0.0
-        name: stop
-  laser:
-    angle:
-      increment: 0.009817477
-      max: 3.14159
-      min: -3.14159
-    num_beams: 640
-    range: 12.0
-    update_rate: 10
+laser:
+  angle:
+    increment: 0.009817477
+    max: 3.14159
+    min: -3.14159
+  num_beams: 640
+  range: 12.0
+  update_rate: 10
+
+nav2: {}

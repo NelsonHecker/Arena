@@ -100,6 +100,168 @@ def stringify_float_matrix(m: list[list[float]]) -> str:
 
 
 @attrs.define(slots=False)
+class Range:
+    """[min, max] pair. Accepts either ``[lo, hi]`` list or ``{min, max}`` dict form."""
+
+    min: float
+    max: float
+
+    @classmethod
+    def from_value(cls, v: object, label: str = 'range') -> Range:
+        if isinstance(v, (list, tuple)):
+            if len(v) != 2:
+                raise ValueError(f"{label}: list form requires exactly 2 elements; got {list(v)!r}")
+            return cls(min=float(v[0]), max=float(v[1]))
+        if isinstance(v, dict):
+            missing = {'min', 'max'} - set(v)
+            if missing:
+                raise ValueError(f"{label}: dict form requires 'min' and 'max' keys; missing {sorted(missing)}")
+            return cls(min=float(v['min']), max=float(v['max']))
+        raise ValueError(f"{label}: expected list [min, max] or dict {{min, max}}; got {type(v).__name__}")
+
+
+@attrs.define(slots=False)
+class VelocityLimits:
+    """Robot-physical velocity envelope. Holonomic robots populate ``lateral``."""
+
+    linear: Range
+    angular: Range
+    lateral: Range | None
+
+    @classmethod
+    def from_dict(cls, d: dict[str, typing.Any]) -> VelocityLimits:
+        if 'linear' not in d or 'angular' not in d:
+            raise ValueError(f"velocity_limits: requires 'linear' and 'angular' keys; got {sorted(d)}")
+        lateral = Range.from_value(d['lateral'], 'velocity_limits.lateral') if 'lateral' in d else None
+        return cls(
+            linear=Range.from_value(d['linear'], 'velocity_limits.linear'),
+            angular=Range.from_value(d['angular'], 'velocity_limits.angular'),
+            lateral=lateral,
+        )
+
+
+@attrs.define(slots=False)
+class AccelerationLimits:
+    """Symmetric (magnitude) acceleration limits. Per-axis."""
+
+    linear: float
+    angular: float
+    lateral: float | None
+
+    @classmethod
+    def from_dict(cls, d: dict[str, typing.Any]) -> AccelerationLimits:
+        if 'linear' not in d or 'angular' not in d:
+            raise ValueError(f"acceleration_limits: requires 'linear' and 'angular' keys; got {sorted(d)}")
+        lateral = float(d['lateral']) if 'lateral' in d else None
+        return cls(
+            linear=float(d['linear']),
+            angular=float(d['angular']),
+            lateral=lateral,
+        )
+
+
+@attrs.define(slots=False)
+class DiscreteAction:
+    """One entry from ``actions.discrete``. ``lateral`` is 0 unless the robot is holonomic."""
+
+    name: str
+    linear: float
+    angular: float
+    lateral: float
+
+    @classmethod
+    def from_dict(cls, d: dict[str, typing.Any]) -> DiscreteAction:
+        if 'name' not in d:
+            raise ValueError(f"actions.discrete entry missing 'name': {d!r}")
+        return cls(
+            name=str(d['name']),
+            linear=float(d.get('linear', 0.0)),
+            angular=float(d.get('angular', 0.0)),
+            lateral=float(d.get('lateral', 0.0)),
+        )
+
+
+@attrs.define(slots=False)
+class ContinuousActionLimits:
+    """Continuous action envelope. Mirrors :class:`VelocityLimits` but may be
+    authored independently when the RL action space is narrower than the
+    physical velocity envelope."""
+
+    linear: Range
+    angular: Range
+    lateral: Range | None
+
+    @classmethod
+    def from_dict(cls, d: dict[str, typing.Any]) -> ContinuousActionLimits:
+        if 'linear' not in d or 'angular' not in d:
+            raise ValueError(f"actions.continuous: requires 'linear' and 'angular' keys; got {sorted(d)}")
+        lateral = Range.from_value(d['lateral'], 'actions.continuous.lateral') if 'lateral' in d else None
+        return cls(
+            linear=Range.from_value(d['linear'], 'actions.continuous.linear'),
+            angular=Range.from_value(d['angular'], 'actions.continuous.angular'),
+            lateral=lateral,
+        )
+
+
+@attrs.define(slots=False)
+class ActionsSpec:
+    """``actions.continuous`` envelope + ``actions.discrete`` enumeration."""
+
+    continuous: ContinuousActionLimits
+    discrete: list[DiscreteAction]
+
+    @classmethod
+    def from_dict(cls, d: dict[str, typing.Any]) -> ActionsSpec:
+        if 'continuous' not in d:
+            raise ValueError(f"actions: requires 'continuous' block; got {sorted(d)}")
+        raw_discrete = d.get('discrete', [])
+        if not isinstance(raw_discrete, list):
+            raise ValueError(f"actions.discrete: must be a list; got {type(raw_discrete).__name__}")
+        return cls(
+            continuous=ContinuousActionLimits.from_dict(d['continuous']),
+            discrete=[DiscreteAction.from_dict(entry) for entry in raw_discrete],
+        )
+
+
+@attrs.define(slots=False)
+class LaserAngle:
+    """Laser scanner angular extents."""
+
+    min: float
+    max: float
+    increment: float
+
+
+@attrs.define(slots=False)
+class LaserSpec:
+    """Laser scanner geometry — consumed by both nav2 AMCL and RL observation stacks."""
+
+    angle: LaserAngle
+    num_beams: int
+    range: float
+    update_rate: int
+
+    @classmethod
+    def from_dict(cls, d: dict[str, typing.Any]) -> LaserSpec:
+        angle_raw = d.get('angle')
+        if not isinstance(angle_raw, dict):
+            raise ValueError(f"laser.angle: must be a mapping; got {type(angle_raw).__name__}")
+        missing = {'min', 'max', 'increment'} - set(angle_raw)
+        if missing:
+            raise ValueError(f"laser.angle: missing required keys {sorted(missing)}")
+        return cls(
+            angle=LaserAngle(
+                min=float(angle_raw['min']),
+                max=float(angle_raw['max']),
+                increment=float(angle_raw['increment']),
+            ),
+            num_beams=int(d['num_beams']),
+            range=float(d['range']),
+            update_rate=int(d['update_rate']),
+        )
+
+
+@attrs.define(slots=False)
 class CapConfig:
     """Raw cap file content + the path it came from, for error messages and
     adapter-sub-block access. Typed subclasses front the fields adapters need
@@ -155,6 +317,52 @@ class MobileSpec(CapConfig):
         if isinstance(v, str):
             v = ast.literal_eval(v)
         return [[float(c) for c in pt] for pt in v]
+
+    @property
+    def footprint_padding(self) -> float | None:
+        v = self.raw.get('footprint_padding')
+        return None if v is None else float(v)
+
+    @property
+    def inflation_radius(self) -> float | None:
+        v = self.raw.get('inflation_radius')
+        return None if v is None else float(v)
+
+    @property
+    def velocity_limits(self) -> VelocityLimits | None:
+        v = self.raw.get('velocity_limits')
+        if v is None:
+            return None
+        if not isinstance(v, dict):
+            raise ValueError(f"{self.path}: 'velocity_limits' must be a mapping; got {type(v).__name__}")
+        return VelocityLimits.from_dict(v)
+
+    @property
+    def acceleration_limits(self) -> AccelerationLimits | None:
+        v = self.raw.get('acceleration_limits')
+        if v is None:
+            return None
+        if not isinstance(v, dict):
+            raise ValueError(f"{self.path}: 'acceleration_limits' must be a mapping; got {type(v).__name__}")
+        return AccelerationLimits.from_dict(v)
+
+    @property
+    def actions(self) -> ActionsSpec | None:
+        v = self.raw.get('actions')
+        if v is None:
+            return None
+        if not isinstance(v, dict):
+            raise ValueError(f"{self.path}: 'actions' must be a mapping; got {type(v).__name__}")
+        return ActionsSpec.from_dict(v)
+
+    @property
+    def laser(self) -> LaserSpec | None:
+        v = self.raw.get('laser')
+        if v is None:
+            return None
+        if not isinstance(v, dict):
+            raise ValueError(f"{self.path}: 'laser' must be a mapping; got {type(v).__name__}")
+        return LaserSpec.from_dict(v)
 
 
 @attrs.define(slots=False)
