@@ -1,0 +1,7 @@
+# Continuous per-tick state. Receivers treat as smooth motion —
+# no animation-phase reset, no trajectory re-seed.
+arena_people_msgs/Pedestrian[] pedestrians
+---
+uint8 SUCCESS=0
+uint8 NOT_FOUND=1
+uint8[] results

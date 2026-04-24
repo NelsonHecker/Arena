@@ -11,9 +11,15 @@ import arena_people_msgs.msg
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Material
 import isaacsim_msgs.msg
-import numpy as np
 import std_msgs.msg
 import std_srvs.srv
+from arena_people_msgs.msg import Pedestrian, SpawnPedestrian
+from arena_people_msgs.srv import (
+    DeletePedestrians,
+    MovePedestrians,
+    SpawnPedestrians,
+    UpdatePedestrians,
+)
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
@@ -23,8 +29,6 @@ from isaacsim_msgs.msg import (
     Elevator,
     Floor,
     Material,
-    Pedestrian,
-    PedestrianGoal,
     Prim,
     Scale,
     Wall,
@@ -32,11 +36,10 @@ from isaacsim_msgs.msg import (
 from isaacsim_msgs.srv import (
     DeletePrims,
     EditPrims,
-    NavigatePedestrians,
+    ResetWorld,
     SpawnDoors,
     SpawnElevators,
     SpawnFloors,
-    SpawnPedestrians,
     SpawnPrims,
     SpawnUrdf,
     SpawnUsd,
@@ -71,6 +74,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
     _NS_WALL = Namespace('Walls')
     _NS_FLOOR = Namespace('Floors')
     _NS_DOOR = Namespace('Doors')
+    _NS_ELEVATOR = Namespace('Elevators')
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         """Initialize IsaacSimulator"""
@@ -78,12 +82,13 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         self.wall_counter = itertools.count()
         self.floor_counter = itertools.count()
-        self._spawned_doors = []
         self._clients = types.SimpleNamespace(
-            DeletePedestrians=self.node.create_client_wrapper(DeletePrims, "/isaac/DeletePedestrians"),
+            DeletePedestrians=self.node.create_client_wrapper(DeletePedestrians, "/isaac/DeletePedestrians"),
             DeletePrims=self.node.create_client_wrapper(DeletePrims, "/isaac/DeletePrims"),
             EditPrims=self.node.create_client_wrapper(EditPrims, "/isaac/EditPrims"),
-            NavigatePedestrians=self.node.create_client_wrapper(NavigatePedestrians, "/isaac/NavigatePedestrians"),
+            MovePedestrians=self.node.create_client_wrapper(MovePedestrians, "/isaac/MovePedestrians"),
+            ResetWorld=self.node.create_client_wrapper(ResetWorld, "/isaac/ResetWorld"),
+            UpdatePedestrians=self.node.create_client_wrapper(UpdatePedestrians, "/isaac/UpdatePedestrians"),
             SpawnDoors=self.node.create_client_wrapper(SpawnDoors, "/isaac/SpawnDoors"),
             SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "/isaac/SpawnFloors"),
             SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "/isaac/SpawnPedestrians"),
@@ -165,8 +170,9 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 model = await (await obstacle.model.resolve()).get([ModelType.USD])
                 if model.type is ModelType.UNKNOWN:
                     raise ValueError(f"obstacle model {obstacle.model.name} has no USD representation")
-            except Exception as e:
-                self._logger.error(f"Failed to load model for obstacle {obstacle.name}: {e}\n{traceback.format_exc()}")
+            except Exception:
+                self._logger.warning(f"Failed to resolve model for obstacle {obstacle.name}")
+                self._logger.debug(traceback.format_exc())
                 return None
             assert model.path is not None, f"USD model {model.name} must have a valid file path"
             prim = Prim()
@@ -195,14 +201,19 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await self._move_entities([(self._NS_PRIM(o.sim_path), o.pose) for o in obstacles])
 
     async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        await self._clients.DeletePedestrians.call_timeout(DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.sim_path) for p in pedestrians]))
-        res = await self.pedestrian_spawn(pedestrians)
+        req = MovePedestrians.Request(
+            pedestrians=[
+                Pedestrian(
+                    name=self._NS_PEDESTRIAN(p.sim_path),
+                    pose=p.pose.to_msg(),
+                )
+                for p in pedestrians
+            ]
+        )
+        res = await self._clients.MovePedestrians.call_timeout(req)
         if res is None:
             return tuple(False for _ in pedestrians)
-        return tuple(res)
-
-        # # tmp: restore when pedestrian move works within isaac sim
-        # return await self._move_entities([(self._NS_PEDESTRIAN(p.name), p.pose) for p in pedestrians])
+        return tuple(r == MovePedestrians.Response.SUCCESS for r in res.results)
 
     async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def move_robot(robot: Robot) -> bool:
@@ -218,21 +229,17 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.sim_path)) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        res = await self._clients.DeletePedestrians.call_timeout(DeletePrims.Request(names=[self._NS_PEDESTRIAN(p.sim_path) for p in pedestrians]))
+        res = await self._clients.DeletePedestrians.call_timeout(DeletePedestrians.Request(names=[self._NS_PEDESTRIAN(p.sim_path) for p in pedestrians]))
         if res is None:
-            ret = tuple(False for _ in pedestrians)
-        else:
-            ret = tuple(res.ret)
-        return ret
+            return tuple(False for _ in pedestrians)
+        return tuple(r == DeletePedestrians.Response.SUCCESS for r in res.results)
 
     async def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
         return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.sim_path)) for r in robots))
 
     async def remove_world(self) -> bool:
-        await self._delete_entity(self._NS_WALL(self._realizer.realize()))
-        await self._delete_entity(self._NS_DOOR(self._realizer.realize()))
-        await self._delete_entity(self._NS_FLOOR(self._realizer.realize()))
-        return True
+        res = await self._clients.ResetWorld.call_timeout(ResetWorld.Request())
+        return bool(res) and res.ret
 
     async def spawn_walls(self, walls: Sequence[WallDefinition]) -> bool:
         # return True
@@ -357,7 +364,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 des = elevator.destination
                 material_resolved = await elevator.material.resolve()
                 result = Elevator(
-                    name=elevator.sim_path,
+                    name=self._NS_ELEVATOR(elevator.sim_path),
                     position=pos.to_msg(),
                     size=size,
                     height_min=elevator.height_min,
@@ -398,53 +405,54 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
 
-        on_success: list[tuple[str, str]] = []
-
         # TODO implement targeted pedestrian models
-        async def impl(pedestrian: DynamicObstacle) -> Pedestrian | None:
-            available_models: dict[str, str] = {
-                # "F_Business_02",
-                # "F_Medical_01",
-                # "M_Medical_01",
-                # "biped_demo",
-                # "female_adult_police_01_new",
-                # "female_adult_police_02",
-                # "female_adult_police_03_new",
-                # "male_adult_construction_01_new",
-                # "male_adult_construction_03",
-                # "male_adult_construction_05_new",
-                # "male_adult_police_04",
-                "female_adult_business_02": "original_female_adult_business_02",
-                "female_adult_medical_01": "original_female_adult_medical_01",
-                "female_adult_police_01": "original_female_adult_police_01",
-                "female_adult_police_02": "original_female_adult_police_02",
-                "female_adult_police_03": "original_female_adult_police_03",
-                "male_adult_construction_01": "original_male_adult_construction_01",
-                "male_adult_construction_02": "original_male_adult_construction_02",
-                "male_adult_construction_03": "original_male_adult_construction_03",
-                "male_adult_construction_05": "original_male_adult_construction_05",
-                "male_adult_medical_01": "original_male_adult_medical_01",
-                "male_adult_police_04": "original_male_adult_police_04",
-            }
+        available_models: dict[str, str] = {
+            # "F_Business_02",
+            # "F_Medical_01",
+            # "M_Medical_01",
+            # "biped_demo",
+            # "female_adult_police_01_new",
+            # "female_adult_police_02",
+            # "female_adult_police_03_new",
+            # "male_adult_construction_01_new",
+            # "male_adult_construction_03",
+            # "male_adult_construction_05_new",
+            # "male_adult_police_04",
+            "female_adult_business_02": "original_female_adult_business_02",
+            "female_adult_medical_01": "original_female_adult_medical_01",
+            "female_adult_police_01": "original_female_adult_police_01",
+            "female_adult_police_02": "original_female_adult_police_02",
+            "female_adult_police_03": "original_female_adult_police_03",
+            "male_adult_construction_01": "original_male_adult_construction_01",
+            "male_adult_construction_02": "original_male_adult_construction_02",
+            "male_adult_construction_03": "original_male_adult_construction_03",
+            "male_adult_construction_05": "original_male_adult_construction_05",
+            "male_adult_medical_01": "original_male_adult_medical_01",
+            "male_adult_police_04": "original_male_adult_police_04",
+        }
+
+        items = []
+        for pedestrian in pedestrians:
             if pedestrian.model.name in available_models:
                 model_name = pedestrian.model.name
             else:
                 model_name = random.choice(tuple(available_models.keys()))
+            items.append(
+                SpawnPedestrian(
+                    pedestrian=Pedestrian(
+                        name=self._NS_PEDESTRIAN(pedestrian.sim_path),
+                        pose=pedestrian.pose.to_msg(),
+                    ),
+                    model_ref=available_models[model_name],
+                )
+            )
 
-            ped = Pedestrian()
-            ped.name = self._NS_PEDESTRIAN(pedestrian.sim_path)
-            ped.character_name = available_models[model_name]
-            ped.pose = pedestrian.pose.to_msg()
-            ped.controller_stats = False
-
-            on_success.append((pedestrian.name, model_name))
-            return ped
-
-        req = SpawnPedestrians.Request()
-        req.pedestrians = list(filter(None, await asyncio.gather(*map(impl, pedestrians))))
+        req = SpawnPedestrians.Request(pedestrians=items)
         res = await self._clients.SpawnPedestrians.call_timeout(req)
         if res is None:
             return tuple(False for _ in pedestrians)
+
+        success = tuple(r == SpawnPedestrians.Response.SUCCESS for r in res.results)
 
         await self.pedestrian_update(
             arena_people_msgs.msg.Pedestrians(
@@ -453,43 +461,34 @@ class IsaacSimulator(BaseSim, NodeInterface):
                         name=ped.sim_path,
                         pose=ped.pose.to_msg(),
                     )
-                    for status, ped in zip(res.ret, pedestrians, strict=False)
+                    for status, ped in zip(success, pedestrians, strict=False)
                     if status
                 ]
             )
         )
 
-        return res.ret
+        return success
 
     async def pedestrian_update(self, pedestrians: arena_people_msgs.msg.Pedestrians) -> Sequence[bool]:
-
-        async def impl(ped: arena_people_msgs.msg.Pedestrian) -> PedestrianGoal | None:
-            goal = PedestrianGoal()
-            goal.name = self._NS_PEDESTRIAN(ped.name)
-            goal.position = ped.pose.position
-            goal.velocity = np.linalg.norm([ped.twist.linear.x, ped.twist.linear.y])
-            return goal
-
-        goals = list(filter(None, await asyncio.gather(*map(impl, pedestrians.pedestrians))))
-        req = NavigatePedestrians.Request()
-        req.goals = goals
-        res = await self._clients.NavigatePedestrians.call_timeout(req)
-
-        return tuple(a and b for a, b in zip(goals, res and res.ret or (), strict=False))
+        req = UpdatePedestrians.Request(
+            pedestrians=[
+                Pedestrian(
+                    name=self._NS_PEDESTRIAN(ped.name),
+                    pose=ped.pose,
+                    twist=ped.twist,
+                )
+                for ped in pedestrians.pedestrians
+            ]
+        )
+        res = await self._clients.UpdatePedestrians.call_timeout(req)
+        if res is None:
+            return tuple(False for _ in pedestrians.pedestrians)
+        return tuple(r == UpdatePedestrians.Response.SUCCESS for r in res.results)
 
     async def _delete_entity(self, name: str) -> bool:
         self._logger.debug(f"Attempting to delete prim {name}")
 
         res = await self._clients.DeletePrims.call_timeout(DeletePrims.Request(names=[name]))
-        if res is None:
-            return False
-
-        return res.ret[0]
-
-    async def _delete_pedestrians(self, prim_path: str) -> bool:
-        self._logger.info(f"Attempting to delete prim named {prim_path}")
-
-        res = await self._clients.DeletePedestrians.call_timeout(DeletePrims.Request(names=[prim_path]))
         if res is None:
             return False
 

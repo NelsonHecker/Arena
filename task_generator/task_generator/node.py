@@ -25,6 +25,7 @@ from task_generator.manager.world_manager.world_manager_ros import (
     WorldManagerROS as WorldManager,
 )
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
+from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim, SimulatorRegistry
 from task_generator.tasks import identifier_to_available
 from task_generator.tasks.task import Task
@@ -159,7 +160,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
         async def world_change_cb():
             async with self._reset_lock:
-                await self._environment_manager.respawn(lambda: self._environment_manager.spawn_world_obstacles(self._world_manager.world))
+                await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
+                await self._environment_manager.spawn_world_obstacles(self._world_manager.world)
 
         self._world_manager.on_world_change(world_change_cb)
         await self._world_manager.start()

@@ -1,6 +1,6 @@
 dynamic:
 - name: agent1
-  model: actor1
+  model: arenian
   pose: [5,5,0]
   waypoints:
     - [10,10,0]

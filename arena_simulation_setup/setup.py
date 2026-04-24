@@ -31,7 +31,7 @@ setup(
     data_files=[
         ('share/' + package_name, ['package.xml']),
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
-        *_walk_data_files('configs', 'launch', 'worlds'),
+        *_walk_data_files('configs', 'launch', 'worlds', 'assets'),
     ],
     install_requires=[
         'setuptools',

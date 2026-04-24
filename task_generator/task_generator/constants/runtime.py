@@ -1,4 +1,3 @@
-
 import numpy as np
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer

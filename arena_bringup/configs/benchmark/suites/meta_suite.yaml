@@ -185,7 +185,7 @@ stages:
         max: 5
         min: 5
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0
@@ -210,7 +210,7 @@ stages:
         max: 10
         min: 10
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0
@@ -235,7 +235,7 @@ stages:
         max: 5
         min: 5
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0
@@ -260,7 +260,7 @@ stages:
         max: 10
         min: 10
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0
@@ -285,7 +285,7 @@ stages:
         max: 5
         min: 5
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0
@@ -310,7 +310,7 @@ stages:
         max: 10
         min: 10
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0
@@ -335,7 +335,7 @@ stages:
         max: 5
         min: 5
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0
@@ -360,7 +360,7 @@ stages:
         max: 10
         min: 10
         models:
-        - actor1
+        - arenian
       interactive:
         max: 0
         min: 0

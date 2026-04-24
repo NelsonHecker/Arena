@@ -7,7 +7,7 @@
         dynamic:
           n: [0, 0]
           models:
-          - gazebo_actor
+          - arenian
         interactive:
           n: [0, 0]
           models:

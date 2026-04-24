@@ -9,7 +9,7 @@ maps them to live ROS parameters.
 
 | Name | Type | Values |
 | --- | --- | --- |
-| `DEFAULT_PEDESTRIAN_MODEL` | `str` | `"actor1"` |
+| `DEFAULT_PEDESTRIAN_MODEL` | `str` | `"arenian"` |
 | `TASK_GENERATOR_SERVER_NODE` | `Namespace` | `"task_generator_server"` |
 | `SimSimulator` | `Enum` | `dummy`, `flatland`, `gazebo`, `unity`, `isaac` |
 | `ArenaType` | `Enum` | `training`, `deployment` |

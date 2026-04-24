@@ -138,6 +138,8 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
                 pass
 
             for file in files:
+                if file.lower() == 'readme.md':
+                    continue
                 file_relpath = relpath / file
                 try:
                     yield self._IdentifierT.from_relpath(file_relpath)

@@ -3,7 +3,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -54,7 +54,9 @@ def generate_launch_description():
 
     GZ_SIM_RESOURCE_PATHS = [
         os.path.join(staging_path),
-        robots_root
+        robots_root,
+        os.path.join(ss_root, "assets", "Common", "Pedestrian", "arenian", "arenian.sdf"),
+        os.path.join(ss_root, "assets", "Common", "Pedestrian", "arenian"),
     ]
 
     deps_file = os.path.join(staging_path, 'deps')
@@ -104,28 +106,27 @@ def generate_launch_description():
         else_value=desired_world,
     )
 
-    gazebo = IncludeLaunchDescription(
-        PathJoinSubstitution([
-            FindPackageShare('ros_gz_sim'),
-            'launch',
-            'gz_sim.launch.py',
-        ]),
-        launch_arguments={
-            "gz_version": "8",
-            "gz_args": [
-                world_path,
-                # " -v 4",
-                " -r",
-                " --render-engine ogre",
-                IfElseSubstitution(
-                    headless.substitution,
-                    " -s",
-                    "",
-                ),
-            ],
-            "physics-engine": "gz-physics-dartsim",
-        }.items(),
-    )
+    def _launch_gazebo(context, *args, **kwargs):
+        resolved_world = context.perform_substitution(world_path)
+        headless_val = context.perform_substitution(headless.substitution)
+        gz_args = resolved_world + " -r --render-engine ogre"
+        if headless_val.lower() in ("true", "1"):
+            gz_args += " -s"
+        include = IncludeLaunchDescription(
+            PathJoinSubstitution([
+                FindPackageShare('ros_gz_sim'),
+                'launch',
+                'gz_sim.launch.py',
+            ]),
+            launch_arguments={
+                "gz_version": "8",
+                "gz_args": gz_args,
+                "physics-engine": "gz-physics-dartsim",
+            }.items(),
+        )
+        return [include]
+
+    gazebo = OpaqueFunction(function=_launch_gazebo)
 
     clock_bridge = Node(
         package='ros_gz_bridge',

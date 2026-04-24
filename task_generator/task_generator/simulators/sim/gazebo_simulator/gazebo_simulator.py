@@ -9,7 +9,7 @@ from collections.abc import Sequence
 import arena_robots.Robot
 import launch
 import launch_ros
-from arena_people_msgs.msg import Pedestrians
+from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
@@ -98,8 +98,7 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*map(self._move_entity, obstacles))
 
     async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        # Gazebo does not support modifying actors after spawning
-        return (True,) * len(pedestrians)
+        return await asyncio.gather(*map(self._move_entity, pedestrians))
 
     async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
@@ -111,15 +110,20 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*(self._delete_entity(o.name) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        # Gazebo does not support deleting actors after spawning
-        return (True,) * len(pedestrians)
+        return await asyncio.gather(*(self._delete_entity(p.sim_path) for p in pedestrians))
 
     async def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
         return await asyncio.gather(*(self._delete_entity(robot.name) for robot in robots))
 
     async def pedestrian_update(self, pedestrians: Pedestrians) -> Sequence[bool]:
-        # Gazebo does not support modifying actors after spawning
-        return (True,) * len(pedestrians.pedestrians)
+        async def impl(ped: Pedestrian) -> bool:
+            req = SetEntityPose.Request()
+            req.entity = EntityMsg(name=ped.name, type=EntityMsg.MODEL)
+            req.pose = ped.pose
+            res = await self._service_set_entity_pose.call_timeout(req)
+            return bool(res and res.success)
+
+        return await asyncio.gather(*(impl(p) for p in pedestrians.pedestrians))
 
     async def spawn_floors(self, floors: Sequence[Floor]) -> bool:
         # Gazebo does not support spawning floors
@@ -138,7 +142,7 @@ class GazeboSimulator(BaseSim):
 
     # IMPL
 
-    async def _move_entity(self, entity: Entity) -> bool:
+    async def _move_entity(self, entity: Entity, entity_type: int = EntityMsg.MODEL) -> bool:
         async with self._semaphore:
             name = entity.sim_path
             pose = entity.pose
@@ -148,7 +152,7 @@ class GazeboSimulator(BaseSim):
             request = SetEntityPose.Request()
             request.entity = EntityMsg(
                 name=name,
-                type=EntityMsg.MODEL,
+                type=entity_type,
             )
             request.pose = pose.to_msg()
 
@@ -179,12 +183,13 @@ class GazeboSimulator(BaseSim):
                         model = await (await entity.model.resolve()).model.get(ModelType.URDF, loader_args=_loader_args)
                     else:
                         model = await (await entity.model.resolve()).get(ModelType.SDF)
-                except Exception as e:
-                    self._logger.error(f"Error resolving model for entity {entity.name}: {e}\n{traceback.format_exc()}")
+                except Exception:
+                    self._logger.warning(f"Failed to resolve model for entity {entity.name}")
+                    self._logger.debug(traceback.format_exc())
                     return False
 
                 if model.type is ModelType.UNKNOWN:
-                    self._logger.error(f"Error resolving model for entity {entity.name}: unknown model type {model}")
+                    self._logger.warning(f"Failed to resolve model for entity {entity.name}: unknown model type {model}")
                     return False
 
                 if model.path and model.type not in (ModelType.URDF,):
@@ -246,20 +251,14 @@ class GazeboSimulator(BaseSim):
                 traceback.print_exc()
                 return False
 
-    async def _delete_entity(self, name: str) -> bool:
+    async def _delete_entity(self, name: str, entity_type: int = EntityMsg.MODEL) -> bool:
         async with self._semaphore:
-            name = name
-
             self._logger.debug(f"Attempting to delete entity: {name}")
 
-            if name not in self.entities:
-                return False
-
-            self._logger.debug(f"Attempting to delete entity: {name}")
             request = DeleteEntity.Request()
             request.entity = EntityMsg(
                 name=name,
-                type=EntityMsg.MODEL,
+                type=entity_type,
             )
 
             try:
@@ -271,7 +270,7 @@ class GazeboSimulator(BaseSim):
 
                 self._logger.debug(f"Delete result for {name}: {result.success}")
 
-                if result.success:
+                if result.success and name in self.entities:
                     del self.entities[name]
 
                 return result.success
@@ -584,7 +583,6 @@ class GazeboSimulator(BaseSim):
             ControlWorld,
             "/world/default/control",
         )
-
         self._logger.info("Waiting for gazebo services...")
         services = (
             (self._service_spawn_entity, "spawn entity"),

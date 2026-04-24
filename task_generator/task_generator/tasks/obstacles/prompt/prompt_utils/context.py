@@ -124,7 +124,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "20",
                 "id": 0,
                 "pos": [21.02, 16.89, 75.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [18.42, 7.99, 76.6],
                     [0.8, 10.4, -23.6],
@@ -136,7 +136,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "23",
                 "id": 0,
                 "pos": [1.44, 8.61, 60.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [1.51, 3.68, 0.0],
                     [7.09, -3.0, 120.0],
@@ -148,7 +148,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "24",
                 "id": 0,
                 "pos": [0.33, 6.78, 30.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [],
                 "waypoint_mode": 0
             },
@@ -156,7 +156,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "25",
                 "id": 0,
                 "pos": [18.15, 11.52, -60.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [],
                 "waypoint_mode": 0
             },
@@ -164,7 +164,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "26",
                 "id": 0,
                 "pos": [17.0, 9.9, -120.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [18.42, 7.99, 76.6],
                     [0.8, 10.4, -23.6],
@@ -175,7 +175,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "27",
                 "id": 0,
                 "pos": [11.32, 2.5, 90.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [],
                 "waypoint_mode": 0
             },
@@ -183,7 +183,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "28",
                 "id": 0,
                 "pos": [10.18, 0.88, 0.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [18.42, 15.03, 0.0],
                 ],

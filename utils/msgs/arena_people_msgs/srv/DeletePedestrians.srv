@@ -1,0 +1,5 @@
+string[] names
+---
+uint8 SUCCESS=0
+uint8 NOT_FOUND=1
+uint8[] results

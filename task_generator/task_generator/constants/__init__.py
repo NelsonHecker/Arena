@@ -5,7 +5,7 @@ from arena_rclpy_mixins.shared import Namespace
 
 
 class Constants:
-    DEFAULT_PEDESTRIAN_MODEL = "actor1"
+    DEFAULT_PEDESTRIAN_MODEL = "arenian"
     TASK_GENERATOR_SERVER_NODE = Namespace("task_generator_server")
 
     class SimSimulator(Enum):

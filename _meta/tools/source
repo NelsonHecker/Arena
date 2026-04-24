@@ -169,6 +169,9 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
         
         case "$verb" in
             build)
+                if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
+                    set -- --packages-select "$@"
+                fi
                 "${TOOLS_DIR}/colcon_build" "$@"
                 . "$SOURCE_FILE"
                 result=$?
@@ -191,10 +194,11 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     else
                         echo "arena rebuild: resolved ${#_REBUILD_PKGS[@]} package(s): ${_REBUILD_PKGS[*]}"
                         for pkg in "${_REBUILD_PKGS[@]}"; do
+                            [ -n "$pkg" ] || continue
                             if [ -d "build/${pkg}" ] || [ -d "install/${pkg}" ]; then
                                 echo "  rm -rf build/${pkg} install/${pkg}"
+                                rm -rf "build/${pkg}" "install/${pkg}"
                             fi
-                            rm -rf "build/${pkg}" "install/${pkg}"
                         done
                         echo "arena rebuild: clean done, invoking arena build"
                         arena build "$@"

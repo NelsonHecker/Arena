@@ -1,10 +1,8 @@
 import asyncio
-import os
 import time
 import traceback
 import typing
 from collections.abc import Sequence
-from pathlib import Path
 
 import attrs
 import geometry_msgs.msg
@@ -12,13 +10,9 @@ import numpy as np
 import rclpy.client
 import rclpy.node
 import yaml
-from ament_index_python.packages import get_package_share_directory
 from arena_people_msgs.msg import Pedestrian, Pedestrians
-from arena_people_msgs.srv import DeleteActors
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
-from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from geometry_msgs.msg import Point
 from hunav_msgs.msg import Agent, AgentBehavior, Agents, WallSegment
 from hunav_msgs.srv import ComputeAgent, ComputeAgents, GetAgents, GetWalls, MoveAgent
@@ -26,12 +20,8 @@ from std_srvs.srv import Trigger
 from task_generator.constants import Constants
 from task_generator.shared import (
     DynamicObstacle,
-    Model,
-    ModelType,
-    ModelWrapper,
     Obstacle,
     Orientation,
-    Pose,
     Position,
     Wall,
 )
@@ -41,181 +31,6 @@ from task_generator.simulators.sim import BaseSim
 from visualization_msgs.msg import Marker, MarkerArray
 
 from . import HunavDynamicObstacle
-
-
-class _PedestrianHelper:
-    _ANIMATION_MAP = {
-        AgentBehavior.BEH_REGULAR: "07_01-walk.bvh",
-        AgentBehavior.BEH_IMPASSIVE: "69_02_walk_forward.bvh",
-        AgentBehavior.BEH_SURPRISED: "137_28-normal_wait.bvh",
-        AgentBehavior.BEH_SCARED: "142_17-walk_scared.bvh",
-        AgentBehavior.BEH_CURIOUS: "07_04-slow_walk.bvh",
-        AgentBehavior.BEH_THREATENING: "17_01-walk_with_anger.bvh",
-    }
-
-    _SKIN_TYPES = {
-        0: "elegant_man.dae",
-        1: "casual_man.dae",
-        2: "elegant_woman.dae",
-        3: "regular_man.dae",
-        4: "worker_man.dae",
-        5: "walk.dae",
-    }
-
-    _HEIGHTS = {
-        0: 0.96,  # Elegant man
-        1: 0.97,  # Casual man
-        2: 0.93,  # Elegant woman
-        3: 0.93,  # Regular man
-        4: 0.97,  # Worker man
-        5: 1.05,  # Balds
-        6: 1.05,
-        7: 1.05,
-        8: 1.05,
-    }
-
-    @classmethod
-    def hunav_plugin_entity(cls, namespace: str) -> Obstacle:
-
-        sdf_content = f"""<?xml version="1.0" ?>
-            <sdf version="1.9">
-                <model name="hunav_plugin">
-                    <static>true</static>
-                    <link name="empty">
-                        <visual name="visual">
-                            <geometry>
-                                <box>
-                                    <size>0.01 0.01 0.01</size>
-                                </box>
-                            </geometry>
-                        </visual>
-                    </link>
-                    <plugin name="HuNavSystemPluginIGN" filename="libHuNavSystemPluginIGN.so">
-                        <update_rate>1000.0</update_rate>
-                        <namespace>{namespace}</namespace>
-                        <!-- <robot_name>jackal</robot_name> -->
-                        <use_gazebo_obs>true</use_gazebo_obs>
-                        <global_frame_to_publish>map</global_frame_to_publish>
-                        <use_navgoal_to_start>false</use_navgoal_to_start>
-                        <navgoal_topic>goal_pose</navgoal_topic>
-                        <ignore_models>
-                            <model>ground_plane</model>
-                            <model>sun</model>
-                        </ignore_models>
-                    </plugin>
-                </model>
-            </sdf>"""
-
-        return Obstacle(
-            name="hunav_plugin",
-            pose=Pose(Position(x=0.0, y=0.0, z=-1.0)),
-            model=ObjectIdentifier.inline(
-                ModelWrapper.from_model(
-                    Model(
-                        type=ModelType.SDF,
-                        name="hunav_plugin",
-                        description=sdf_content,
-                        path=Path(""),
-                    )
-                ),
-                name="hunav_plugin",
-            ),
-        )
-
-    @classmethod
-    def plugin_entity(cls, namespace: str) -> Obstacle:
-
-        sdf_content = f"""<?xml version="1.0" ?>
-            <sdf version="1.9">
-                <model name="human_plugin">
-                    <static>true</static>
-                    <link name="empty">
-                        <visual name="visual">
-                            <geometry>
-                                <box>
-                                    <size>0.01 0.01 0.01</size>
-                                </box>
-                            </geometry>
-                        </visual>
-                    </link>
-                    <plugin name="HumanSystemPlugin" filename="libHumanSystemPlugin.so">
-                        <update_rate>1000.0</update_rate>
-                        <namespace>{namespace}</namespace>
-                        <global_frame_to_publish>map</global_frame_to_publish>
-                        <pedestrians_topic>arena_peds</pedestrians_topic>
-                    </plugin>
-                </model>
-            </sdf>"""
-
-        return Obstacle(
-            name="human_plugin",
-            pose=Pose(Position(x=0.0, y=0.0, z=-1.0)),
-            model=ObjectIdentifier.inline(
-                ModelWrapper.from_model(
-                    Model(
-                        type=ModelType.SDF,
-                        name="human_plugin",
-                        description=sdf_content,
-                        path=Path(""),
-                    ),
-                ),
-                name="human_plugin",
-            ),
-        )
-
-    @classmethod
-    def create_sdf(cls, agent_config: HunavDynamicObstacle) -> str:
-        """Create SDF description for pedestrian using gz-sim actor format"""
-
-        # Get skin type
-        skin_type = cls._SKIN_TYPES.get(agent_config.skin, "casual_man.dae")
-
-        # Animation mapping based on behavior
-        animation_file = cls._ANIMATION_MAP.get(agent_config.behavior.type, "07_01-walk.bvh")
-        animation_file = "../models/walk.dae"  # temp
-
-        # Construct paths
-        mesh_path = os.path.join(get_package_share_directory("hunav_rviz2_panel"), "meshes/models", skin_type)
-
-        animation_path = os.path.join(
-            get_package_share_directory("hunav_rviz2_panel"),
-            "meshes/animations",
-            animation_file,
-        )
-
-        # # Temporärer Logger für Debug
-        # import rclpy
-        # if not rclpy.ok():
-        #     rclpy.init()
-        # temp_node = rclpy.create_node('temp_debug_node')
-        # logger = temp_node.get_logger()
-
-        #         # DEBUG
-        # logger.warn(f"DEBUG: Looking for animation at: {animation_path}")
-        # logger.warn(f"DEBUG: Animation exists: {os.path.exists(animation_path)}")
-
-        # # Cleanup
-        # temp_node.destroy_node()
-
-        # Create the SDF
-        sdf = f"""<?xml version="1.0" ?>
-        <sdf version="1.9">
-            <actor name="{agent_config.name}">
-                <pose>{agent_config.init_pose.x} {agent_config.init_pose.y} {cls._HEIGHTS.get(agent_config.skin, 1.0)} 0 0 {agent_config.yaw}</pose>
-
-                <skin>
-                    <filename>{mesh_path}</filename>
-                    <scale>1.0</scale>
-                </skin>
-
-                <animation name="walking">
-                    <filename>{animation_path}</filename>
-                    <scale>1.0</scale>
-                    <interpolate_x>true</interpolate_x>
-                </animation>
-            </actor>
-        </sdf>"""
-        return sdf
 
 
 class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyHumanSimulator):
@@ -228,14 +43,12 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     SERVICE_CLEAR_AGENTS = "clear_agents"
     SERVICE_GET_AGENTS = "get_agents"
     SERVICE_GET_WALLS = "get_walls"
-    SERVICE_DELETE_ACTORS = "delete_actors"
 
     # Service Clients
     _compute_agent_client: ClientWrapper
     _compute_agents_client: ClientWrapper
     _move_agent_client: ClientWrapper
     _clear_agents_client: ClientWrapper
-    _delete_actors_client: ClientWrapper
 
     # Service Servers
     _get_agents_service: rclpy.node.Service
@@ -288,28 +101,18 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._update_loop_task: asyncio.Task
         self._publish_loop_task: asyncio.Task
 
-        self._gz_plugin_spawned: bool = False
         self._last_updated_agents = None
         self._last_smooth_yaws = {}
-        self._latest_obstacles = {}
 
         self._agent_previous_orientations = {}
         self._orientation_smoothing_factor = 0.15  # 0.05-0.3 range
 
         self._logger.debug("Collections initialized")
 
-        self._obstacle_subscriber = self.node.create_subscription(
-            Agents,
-            "/task_generator_node/hunav_closest_obstacles",
-            self._obstacle_callback,  # type: ignore
-            10,
-        )
-
         self._compute_agent_client = self.node.create_client_wrapper(ComputeAgent, self.node.service_namespace(self.SERVICE_COMPUTE_AGENT))
         self._compute_agents_client = self.node.create_client_wrapper(ComputeAgents, self.node.service_namespace(self.SERVICE_COMPUTE_AGENTS))
         self._move_agent_client = self.node.create_client_wrapper(MoveAgent, self.node.service_namespace(self.SERVICE_MOVE_AGENT))
         self._clear_agents_client = self.node.create_client_wrapper(Trigger, self.node.service_namespace(self.SERVICE_CLEAR_AGENTS))
-        self._delete_actors_client = self.node.create_client_wrapper(DeleteActors, self.node.service_namespace(self.SERVICE_DELETE_ACTORS))
 
     @property
     def _simulator_type(self) -> Constants.SimSimulator:
@@ -329,10 +132,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._logger.info("Arena peds publisher setup complete")
         else:
             self._logger.error("Arena peds publisher setup failed!")
-
-            # Setup obstacle subscriber
-        if not self._setup_obstacle_subscriber():
-            self._logger.error("Failed to setup obstacle subscriber")
 
         self._logger.debug("Waiting for services to be ready...")
         await asyncio.sleep(2.0)
@@ -379,7 +178,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._compute_agents_client,
             self._move_agent_client,
             self._clear_agents_client,
-            # self._delete_actors_client,
         ):
             futures.append(typing.cast(ClientWrapper, client).ensure())
         await asyncio.gather(*futures)
@@ -405,57 +203,9 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._logger.error(f"Arena peds publisher setup failed: {e}")
             return False
 
-    def _setup_obstacle_subscriber(self) -> bool:
-        """Setup obstacle subscriber for closest_obs from HuNavSystemPlugin"""
-        try:
-            self._logger.info("=== OBSTACLE SUBSCRIBER SETUP START ===")
-
-            # Create subscriber
-            obstacle_topic = self._namespace("hunav_closest_obstacles")
-            self._obstacle_subscriber = self.node.create_subscription(
-                Agents,
-                obstacle_topic,
-                self._obstacle_callback,
-                10,  # type: ignore
-            )
-
-            # Store latest obstacle data
-            self._latest_obstacles = {}
-
-            self._logger.info(f"Subscribed to {obstacle_topic}")
-            self._logger.info("=== OBSTACLE SUBSCRIBER SETUP COMPLETE ===")
-            return True
-
-        except Exception as e:
-            self._logger.error(f"Obstacle subscriber setup failed: {e}")
-            return False
-
-    async def _obstacle_callback(self, msg: Agents) -> None:
-        """Store latest obstacle data from HuNavSystemPlugin"""
-        try:
-            self._latest_obstacles.clear()
-
-            for obs_agent in msg.agents:
-                self._latest_obstacles[obs_agent.name] = obs_agent.closest_obs
-
-            self._logger.debug(f"Updated obstacle data for {len(self._latest_obstacles)} agents")
-
-        except Exception as e:
-            self._logger.error(f"Error in obstacle callback: {e}")
-
     def _update_agent_obstacles(self, current_agents: Agents) -> Agents:
-        """Update agent closest_obs with latest obstacle data before HuNav call"""
-        # if not self._latest_obstacles:
-        #     return current_agents
-
         for agent in current_agents.agents:
-            # if agent.name in self._latest_obstacles:
-            # agent.closest_obs = self._latest_obstacles[agent.name]
             agent.closest_obs.extend(self._wall_points)
-            self._logger.debug(f"Updated agent {agent.name} with {len(agent.closest_obs)} obstacles")
-            self._logger.debug(f"Wall Points: {self._wall_points}")
-
-        # self._logger.info(f"current_agents after obstacle update: {current_agents}")
         return current_agents
 
     async def _get_agents_callback(self, request: GetAgents.Request, response: GetAgents.Response) -> GetAgents.Response:
@@ -583,38 +333,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
                     self._logger.debug(f"Added agent {agent_msg.name} to container. Total agents: {len(self._agents_container.agents)}")
 
-                    if self._simulator_type == Constants.SimSimulator.GAZEBO:
-                        # spawn plugin if not already spawned
-                        if not self._gz_plugin_spawned:
-                            await self._simulator.obstacle_spawn(
-                                (
-                                    _PedestrianHelper.plugin_entity(self.node.service_namespace()),
-                                    _PedestrianHelper.hunav_plugin_entity(self.node.service_namespace()),
-                                )
-                            )
-                            self._gz_plugin_spawned = True
-
-                        # Create SDF with plugin for Gazebo
-                        async def update_model(obs: HunavDynamicObstacle, ref: PedestrianIdentifier) -> PedestrianIdentifier:
-                            model = await ref.resolve()
-                            model.override(
-                                ModelType.SDF,
-                                lambda m: attrs.evolve(
-                                    m,
-                                    type=ModelType.SDF,
-                                    description=_PedestrianHelper.create_sdf(obs),
-                                ),
-                                noload=True,
-                            )
-                            return PedestrianIdentifier.inline(model, name=ref.name)
-                            return PedestrianIdentifier.inline(model, name=ref.name)
-
-                        obstacle.model = await update_model(hunav_obstacle, obstacle.model)
-                        obstacle.pose.orientation = Orientation.from_yaw(hunav_obstacle.yaw)
-                        self._logger.info(f"Created SDF and loaded System Plugin for: {agent_msg.name}")
-                    else:
-                        # For other simulators: use simple model without plugin
-                        self._logger.info(f"Using simple spawning for simulator: {self._simulator_type}")
                     results.append(obstacle)
 
                 except Exception as e:
@@ -699,21 +417,15 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug(f"=== REMOVING {len(self._pedestrians)} PEDESTRIANS ===")
 
         async with self._agents_lock:
-            # Phase 1: Delete Actors from ECM first
-            success = await self._call_delete_actors_service()
-
-            # Phase 2: Clear local agents container
             self._agents_container = Agents()
             self._get_agents_container = Agents()
             self._last_updated_agents: Agents | None = None
             self._logger.debug("Cleared local agents container")
 
-            # Phase 3: Reset HunavSim
             success = await self._reset_hunav()
             if not success:
                 self._logger.error("Failed to reset HuNav agents - continuing anyway")
 
-            # Phase 4: Clean up local data
             self._clear_local_data()
 
         self._logger.debug(f"Complete reset completed: {success}")
@@ -740,30 +452,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
         except Exception as e:
             self._logger.error(f"Error calling ClearAgents: {e}")
-            return False
-
-    async def _call_delete_actors_service(self) -> bool:
-        """Call the plugin's delete actors service"""
-        try:
-            if not await self._delete_actors_client.ensure(timeout_sec=2.0):
-                self._logger.debug("Delete  service currently not available")
-                return False
-
-            request = DeleteActors.Request()
-
-            self._logger.debug("Calling delete_actors service...")
-
-            response = await self._delete_actors_client.call_timeout(request)
-
-            if response and response.success:
-                self._logger.debug(f"Successfully deleted {response.deleted_count} actors")
-                return True
-            else:
-                self._logger.error("Delete actors service failed")
-                return False
-
-        except Exception as e:
-            self._logger.error(f"Error calling delete_actors service: {e}")
             return False
 
     def _clear_local_data(self):

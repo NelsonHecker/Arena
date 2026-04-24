@@ -251,7 +251,7 @@ class World(PathView):
 class WorldIdentifier(Identifier[World]):
     @classmethod
     def listall(cls, **kwargs: object) -> Iterator[Self]:
-        yield from (WorldIdentifier(name) for name in os.listdir(ASS_DIR / 'worlds'))
+        yield from (WorldIdentifier(name) for name in os.listdir(ASS_DIR / 'worlds') if name.lower() != 'readme.md')
 
     def load(self, path: Path, /, **kwargs: object) -> World:
         del kwargs
