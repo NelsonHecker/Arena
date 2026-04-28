@@ -24,6 +24,14 @@ polygons_dict:
     polygon_pub_topic: polygon_slow
     enabled: true
 
+velocity_limits:
+  linear: [-0.5, 0.5]
+  angular: [-1.5, 1.5]
+
+acceleration_limits:
+  linear: 2.5
+  angular: 3.2
+
 actions:
   continuous:
     linear:

@@ -99,6 +99,9 @@ class Nav2KinematicsDerivedYAML(YAMLFileSubstitution):
     """Emit controller-agnostic velocity/acceleration keys from the top-level
     ``velocity_limits``/``acceleration_limits`` in caps/mobile.yaml.
 
+    These are the planner envelope (what nav2 may sample), not the hardware
+    envelope (motor firmware / ``diff_drive_controller`` clip downstream).
+
     Controller plugin configs reference these via ``${max_linear_vel}`` etc.,
     letting each controller map the generic envelope onto its plugin-specific
     field names. Controllers wanting a lower cap can drop the ``${...}`` ref

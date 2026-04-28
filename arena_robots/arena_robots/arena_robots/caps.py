@@ -122,7 +122,7 @@ class Range:
 
 @attrs.define(slots=False)
 class VelocityLimits:
-    """Robot-physical velocity envelope. Holonomic robots populate ``lateral``."""
+    """Operational velocity envelope (planner-facing, not the hardware envelope). Holonomic robots populate ``lateral``."""
 
     linear: Range
     angular: Range
@@ -142,7 +142,7 @@ class VelocityLimits:
 
 @attrs.define(slots=False)
 class AccelerationLimits:
-    """Symmetric (magnitude) acceleration limits. Per-axis."""
+    """Operational acceleration envelope, per-axis (symmetric magnitude). Not the hardware envelope."""
 
     linear: float
     angular: float
