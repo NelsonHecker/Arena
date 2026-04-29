@@ -119,19 +119,30 @@ IfElseSubstitution(headless.substitution, " -s", "")
 
 ### `NodeLogLevelExtension`
 
-A `NodeActionExtension` plugin that reads `NodeLogLevelExtension_log_level`
-from the launch context and prepends `--log-level <level>` to every `Node`'s
-command-line arguments. Registered as a `launch_ros` plugin via the
+A `NodeActionExtension` plugin that reads a JSON-encoded list of
+`(pattern, level)` rules from `context.launch_configurations
+['NodeLogLevelExtension_log_level']`, matches each `Node`'s FQN against the
+rules in first-match-wins order, and prepends `--log-level <level>` to that
+node's command-line arguments. Registered as a `launch_ros` plugin via the
 `NodeActionExtension` extension point.
 
 ### `SetGlobalLogLevelAction`
 
-A `launch.Action` that writes the given log-level string into
-`context.launch_configurations['NodeLogLevelExtension_log_level']`, activating
-`NodeLogLevelExtension` for all subsequent nodes.
+A `launch.Action` that parses a `log_level` spec (bare scalar, inline `{...}`
+rule set, inline `+[...]` / `[...]+` merge form, or YAML file path), merges or
+replaces the rules currently in the launch context, and writes them back as
+JSON. See the [launch README](../launch/README.md#log-level) for the full
+input grammar.
 
 Typical use in `arena.launch.py`:
 
 ```python
 SetGlobalLogLevelAction(log_level.substitution)
+```
+
+Layering example (used by the task_generator robot launcher):
+
+```python
+SetGlobalLogLevelAction(current_log_level)                    # base
+SetGlobalLogLevelAction('+[**/controller_server:error, ...]') # prepend overrides
 ```

@@ -78,7 +78,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         # Detect Simulator Type to decide between Plugin or move_entity callback
         self._logger.info(f"Detected simulator type: {self._simulator_type}")
 
-        self._logger.info("=== HUNAVMANAGER INIT START ===")
+        self._logger.debug("=== HUNAVMANAGER INIT START ===")
         self._logger.debug("Parent class initialized")
 
         self._robot_msg = Agent()
@@ -124,12 +124,12 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         # Setup services
         self._logger.debug("Setting up services...")
         if await self._setup_services():
-            self._logger.info("Services setup complete")
+            self._logger.debug("Services setup complete")
         else:
             self._logger.error("Service setup failed!")
 
         if self._setup_arena_peds_publisher():
-            self._logger.info("Arena peds publisher setup complete")
+            self._logger.debug("Arena peds publisher setup complete")
         else:
             self._logger.error("Arena peds publisher setup failed!")
 
@@ -137,7 +137,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         await asyncio.sleep(2.0)
         self._logger.debug("Service wait complete")
 
-        self._logger.info("=== HUNAVMANAGER INIT COMPLETE ===")
+        self._logger.debug("=== HUNAVMANAGER INIT COMPLETE ===")
 
         self._update_loop_task = asyncio.create_task(self._move_entity_loop())
         self._publish_loop_task = asyncio.create_task(self._publish_arena_peds_loop())
@@ -150,7 +150,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
     async def _setup_services(self) -> bool:
         """Initialize all required services with debug logging"""
-        self._logger.info("=== SETUP_SERVICES START ===")
+        self._logger.debug("=== SETUP_SERVICES START ===")
 
         # Debug namespace information
         self._logger.debug(f"Node namespace: {self.node.get_namespace()}")
@@ -182,21 +182,21 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             futures.append(typing.cast(ClientWrapper, client).ensure())
         await asyncio.gather(*futures)
 
-        self._logger.info("All required services are available")
-        self._logger.info("=== SETUP_SERVICES COMPLETE ===")
+        self._logger.debug("All required services are available")
+        self._logger.debug("=== SETUP_SERVICES COMPLETE ===")
         return True
 
     def _setup_arena_peds_publisher(self) -> bool:
         """Setup arena_peds publisher and loops - separate from services"""
         try:
-            self._logger.info("=== ARENA PEDS PUBLISHER SETUP START ===")
+            self._logger.debug("=== ARENA PEDS PUBLISHER SETUP START ===")
 
             # Create publisher
             self._arena_peds_publisher = self.node.create_publisher(Pedestrians, self._namespace("arena_peds"), 10)
 
             self._wall_markers_publisher = self.node.create_publisher(MarkerArray, self._namespace('wall_markers'), 10)
 
-            self._logger.info("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
+            self._logger.debug("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
             return True
 
         except Exception as e:

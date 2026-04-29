@@ -31,6 +31,21 @@ if typing.TYPE_CHECKING:
     from task_generator.tasks.robots.request import TaskKind, TaskRequest
 
 
+_NAV2_QUIET_NODES = (
+    'behavior_server',
+    'bt_navigator',
+    'collision_monitor',
+    'controller_server',
+    'lifecycle_manager_navigation',
+    'nav2_container',
+    'planner_server',
+    'smoother_server',
+    'velocity_smoother',
+    'waypoint_follower',
+)
+_NAV2_QUIET_RULES = '+[' + ', '.join(f'**/{n}:error' for n in _NAV2_QUIET_NODES) + ']'
+
+
 class RobotManager(NodeInterface):
     """Manages the goal and start position of a robot for all task modes."""
 
@@ -329,7 +344,7 @@ class RobotManager(NodeInterface):
                     break
 
                 goal = self._goal_pos
-                self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
+                self._logger.debug(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
 
                 if self._goal_timer is not None:
                     self._goal_timer.cancel()
@@ -350,7 +365,8 @@ class RobotManager(NodeInterface):
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
             launch_description = launch.LaunchDescription()
             current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
-            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))  # type: ignore
+            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))
+            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_NAV2_QUIET_RULES))
 
             # Adapter dispatch happens inside robot.launch.py via the
             # ``navigator`` launch arg; Adapter.launch_description is

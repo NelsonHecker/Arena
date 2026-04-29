@@ -457,12 +457,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             log = self.get_logger()
             log.warn("=============")
             log.warn(f"EPISODE STARTED #{record.episode_id}")
-            log.warn(f"  world:        {record.world}")
-            log.warn(f"  seed:         {record.seed}")
-            log.warn(f"  tm_robots:    {record.tm_robots}")
-            log.warn(f"  tm_obstacles: {record.tm_obstacles}")
-            log.warn(f"  tm_modules:   {record.tm_modules}")
-            log.warn(f"  robots:       {record.robots}")
+            log.info(f"  world:        {record.world}")
+            log.info(f"  seed:         {record.seed}")
+            log.info(f"  tm_robots:    {record.tm_robots}")
+            log.info(f"  tm_obstacles: {record.tm_obstacles}")
+            log.info(f"  tm_modules:   {record.tm_modules}")
+            log.info(f"  robots:       {record.robots}")
 
             def _fmt(v: object) -> object:
                 # rclpy returns int/float-array params as array.array, which renders as "array('q', [...])".
@@ -471,13 +471,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             obstacles_params = self._params_for_mode(record.tm_obstacles)
             robots_params = self._params_for_mode(record.tm_robots)
             if obstacles_params:
-                log.warn(f"  {record.tm_obstacles} params:")
+                log.info(f"  {record.tm_obstacles} params:")
                 for p in obstacles_params:
-                    log.warn(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
+                    log.info(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
             if robots_params:
-                log.warn(f"  {record.tm_robots} params:")
+                log.info(f"  {record.tm_robots} params:")
                 for p in robots_params:
-                    log.warn(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
+                    log.info(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
 
     async def _termination_watcher(self) -> None:
         try:
@@ -900,10 +900,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
                 }.get(outcome_state, str(outcome_state))
                 duration = self.sim_time.to_seconds() - self._start_time.to_seconds()
                 log = self.get_logger()
-                log.warn(f"  state:    {state_label}")
+                log.info(f"  state:    {state_label}")
                 if outcome_reason:
-                    log.warn(f"  reason:   {outcome_reason}")
-                log.warn(f"  duration: {duration:.2f}s")
+                    log.info(f"  reason:   {outcome_reason}")
+                log.info(f"  duration: {duration:.2f}s")
                 log.warn(f"EPISODE FINISHED #{episode_id}")
                 log.warn("=============")
 
@@ -924,10 +924,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         finally:
             self._episodes.action_in_flight = False
             self._episodes.pending_outcomes.pop(episode_id, None)
-            service_driven = (
-                outcome_state == task_generator_msgs.action.RunEpisode.Result.SKIPPED
-                and outcome_reason == "reset"
-            )
+            service_driven = outcome_state == task_generator_msgs.action.RunEpisode.Result.SKIPPED and outcome_reason == "reset"
             if respawn and rclpy.ok() and (service_driven or self.rosparam[bool].get_unsafe("auto_reset")):
                 self._spawn_episode()
 

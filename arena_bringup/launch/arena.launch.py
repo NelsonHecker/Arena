@@ -23,8 +23,7 @@ def generate_launch_description():
     log_level = LaunchArgument(
         name='log_level',
         default_value='warn',
-        choices=['debug', 'info', 'warn', 'error', 'fatal'],
-        description='Set the log level for all nodes'
+        description='Per-node log level. See launch README.',
     )
 
     robot = LaunchArgument(

@@ -163,7 +163,7 @@ class GazeboSimulator(BaseSim):
                     self._logger.error(f"Move service call failed for {name}")
                     return False
 
-                self._logger.info(f"Move result for {name}: {result.success}")
+                self._logger.debug(f"Move result for {name}: {result.success}")
 
                 return result.success
 
@@ -230,7 +230,7 @@ class GazeboSimulator(BaseSim):
                     # Set pose
                     request.entity_factory.pose = entity.pose.to_msg()
 
-                    self._logger.info(f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}")
+                    self._logger.debug(f"Spawn position for {entity.name}: x={entity.pose.position.x}, y={entity.pose.position.y}")
 
                     self._logger.debug(f"Sending spawn request for {entity.name}")
                     result = await self._service_spawn_entity.call_timeout(request)
@@ -239,7 +239,7 @@ class GazeboSimulator(BaseSim):
                         self._logger.error(f"Spawn service call failed for {entity.name}")
                         return False
 
-                    self._logger.info(f"Spawn result for {entity.name}: {result.success}")
+                    self._logger.debug(f"Spawn result for {entity.name}: {result.success}")
 
                     self.entities[entity.name] = entity
 
@@ -509,16 +509,16 @@ class GazeboSimulator(BaseSim):
             initial_pose_triggered = False
 
             while attempt <= max_attempts and not initial_pose_triggered:
-                self._logger.info(f"Attempt {attempt}/{max_attempts}: Triggering initial pose update for robot {name}")
+                self._logger.debug(f"Attempt {attempt}/{max_attempts}: Triggering initial pose update for robot {name}")
                 try:
                     self._robot_initialpose(robot)
                     initial_pose_triggered = True
-                    self._logger.info(f"Initial pose update for {name} succeeded on attempt {attempt}")
+                    self._logger.debug(f"Initial pose update for {name} succeeded on attempt {attempt}")
                 except Exception as e:
                     self._logger.error(f"Attempt {attempt}/{max_attempts} failed for {name}: {str(e)}")
                     traceback.print_exc()
                     if attempt < max_attempts:
-                        self._logger.info("Waiting 1 second before retrying...")
+                        self._logger.debug("Waiting 1 second before retrying...")
                         time.sleep(1)
                     attempt += 1
 
@@ -582,7 +582,7 @@ class GazeboSimulator(BaseSim):
         )
 
         for service, name in services:
-            self._logger.info(f"Waiting for {name} service...")
+            self._logger.debug(f"Waiting for {name} service...")
             futures.append(service.ensure())
 
         await asyncio.gather(*futures)

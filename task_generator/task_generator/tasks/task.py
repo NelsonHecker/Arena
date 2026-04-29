@@ -117,7 +117,7 @@ class Task(_TaskRegistry, NodeInterface):
 
         self.__param_tm_obstacles = None  # type: ignore
         self.__param_tm_robots = None  # type: ignore
-        self._logger.info('initing modules')
+        self._logger.debug('initing modules')
         self.__modules = []
         for module in modules:
             loader, ns, _schema = self.registry_module[module]

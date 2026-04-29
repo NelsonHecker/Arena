@@ -27,8 +27,8 @@ class IsaacHumanSimulator(DummyHumanSimulator):
         self._logger.debug(f'spawning {len(obstacles)} dynamic obstacles')
         futures: list[typing.Awaitable] = []
         for obstacle in obstacles:
-            self._logger.info(f"Attempting to spawn model: {obstacle.name}")
-            self._logger.info(f"waypoints:{obstacle.waypoints}")
+            self._logger.debug(f"Attempting to spawn model: {obstacle.name}")
+            self._logger.debug(f"waypoints:{obstacle.waypoints}")
             known = self._known_obstacles.get(obstacle.name)
             if known is None:
                 known = self._known_obstacles.create_or_get(name=obstacle.name, obstacle=obstacle)

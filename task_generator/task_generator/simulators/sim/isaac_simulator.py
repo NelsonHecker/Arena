@@ -295,11 +295,11 @@ class IsaacSimulator(BaseSim, NodeInterface):
         prims_res = await self._clients.SpawnPrims.call_timeout(prims_req)
         res = bool(walls_res) and all(walls_res.ret) and bool(prims_res) and all(prims_res.ret)
 
-        self._logger.info("All walls spawned.")
+        self._logger.debug("All walls spawned.")
         return res
 
     async def spawn_floors(self, floors: Sequence[FloorDefinition]) -> bool:
-        self._logger.info("Attempting to spawn floors")
+        self._logger.debug("Attempting to spawn floors")
 
         async def impl(floor: FloorDefinition) -> Floor | None:
             try:
@@ -320,7 +320,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         floors_res = await self._clients.SpawnFloors.call_timeout(floors_req)
 
         res = bool(floors_res) and all(floors_res.ret)
-        self._logger.info("All floors spawned successfully.")
+        self._logger.debug("All floors spawned successfully.")
         return res
 
     async def spawn_doors(self, doors: Sequence[DoorDefinition]) -> bool:
@@ -345,7 +345,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         doors_res = await self._clients.SpawnDoors.call_timeout(doors_req)
 
         res = bool(doors_res) and all(doors_res.ret)
-        self._logger.info("All doors spawned successfully.")
+        self._logger.debug("All doors spawned successfully.")
         return res
 
     async def spawn_elevators(self, elevators: Sequence[ElevatorDefinition]) -> bool:
@@ -524,7 +524,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         # Define services with their corresponding client attributes
         for client in self._clients.__dict__.values():
             client = typing.cast(ClientWrapper, client)
-            self._logger.info(f"Initializing service client: {client.client.srv_name}")
+            self._logger.debug(f"Initializing service client: {client.client.srv_name}")
             futures.append(client.ensure())
         await asyncio.gather(*futures)
 

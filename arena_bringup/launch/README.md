@@ -34,6 +34,30 @@ exposes `.substitution` / `.dict` / `.param`).
 | `train_config` | string | `` (empty) | Path to RL training config YAML; non-empty forces `auto_reset=false` and starts `train_agent.py` |
 | `auto_reset` | bool expression | `true` (or `false` when `train_config` set) | `true` = standalone: node auto-advances episodes; `false` = managed: external controller drives resets via `lifecycle/reset_episode` |
 
+## Log level
+
+The `log_level` arg drives `NodeLogLevelExtension`, which injects `--log-level`
+into each `Node` action based on the node's fully-qualified name. Four input
+forms are accepted:
+
+| Form | Example | Meaning |
+|---|---|---|
+| bare scalar | `log_level:=info` | Same level for every node (back-compat). |
+| inline rule set | `log_level:='{**/nav2*/**:fatal, /dummy/node:warn, info}'` | Comma-separated `<glob>:<level>` entries inside `{...}`. A bare last entry is the default and expands to `**/*:<level>`. **Replaces** any prior rule set. |
+| inline merge | `log_level:='+[/foo:debug, /bar/**:warn]'` (prepend) or `'[<rules>]+'` (append) | Comma-separated `<glob>:<level>` entries inside `[...]`. **Merges** into the current rule set; if the rule set is empty (e.g. when the merge form is used directly from the CLI), the action seeds it with the `base` default first (`warn` unless overridden) so a catch-all is always present. |
+| YAML file | `log_level:=/path/to/rules.yaml` with `default: warn` and ordered `rules: [{match, level}, ...]` | Same semantics as the inline rule set. |
+
+Rules match against the node's FQN (`<namespace>/<name>`) with **first-match-wins**
+order. Globs are gitignore-style: `**` matches zero or more `/`-separated path
+segments, `*` matches within one segment, leading `/` in patterns is stripped so
+ROS-style FQNs (`/dummy/node`) match the same as bare paths. Levels are the ROS
+canonical set: `debug | info | warn | error | fatal` (no aliases).
+
+`SetGlobalLogLevelAction` is also invoked further down the launch tree (e.g. by
+`task_generator`'s robot launcher to silence nav2 nodes by default) — those
+later calls can use the merge form to layer rules on top of the user's spec
+without clobbering it.
+
 ## Simulator dispatch
 
 - [simulator/sim/README.md](simulator/sim/README.md) — physics simulator backends (`dummy`, `gazebo`, `isaac`).
