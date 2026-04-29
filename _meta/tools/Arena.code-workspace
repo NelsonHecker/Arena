@@ -42,6 +42,9 @@
     {
       "name": "hunav",
       "path": "src/deps/hunav"
+    },
+    {
+      "path": "src/Arena/arena_training"
     }
   ],
   "settings": {

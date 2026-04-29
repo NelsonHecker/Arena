@@ -35,15 +35,8 @@ docker_env="${docker_env} HOST_UID=$HOST_UID"
 docker_env="${docker_env} HOST_GID=$HOST_GID"
 export docker_env
 
-arena_docker_compose(){
-    env $docker_env \
-        docker compose \
-        -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
-        --project-directory "$ARENA_WS_DIR" \
-        --project-name "$ARENA_PROJECT_NAME" \
-        "$@"
-}
-export -f arena_docker_compose 2>/dev/null || true
+export arena_compose_sudo=""
+source "$ARENA_DIR/_meta/docker/lib"
 
 arena_service="arena"
 

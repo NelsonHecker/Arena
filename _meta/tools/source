@@ -283,11 +283,12 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                                 result=0
                             else
                                 _feature_registry pull "$fname"
+                                _feature_registry add "$fname"
                                 if ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' update"); then
-                                    _feature_registry add "$fname"
                                     echo "Installed $fname successfully."
                                     result=0
                                 else
+                                    _feature_registry remove "$fname"
                                     echo "Install of $fname failed during update." >&2
                                     result=1
                                 fi
