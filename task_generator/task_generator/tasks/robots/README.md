@@ -15,6 +15,17 @@ intent into goals sent at a specific robot through its bound adapter.
 - [Fleet manager](#fleet-manager) (below) — `TaskModeSpec` schema,
   allocation rules, the `null` sink and `composite` fan-out.
 
+## Package structure
+
+Each `TM_Robots` subclass is a package:
+
+- `__init__.py` (eager): registers the mode via `_TaskRegistry.register_robots` and calls `declare_schema(node, ns)` to forward-declare all parameters at node startup.
+- `impl.py` (lazy): contains the class body, imported only on first activation.
+
+Parameters live under `task.<mode>.<leaf>`. Mode names are shared across the
+three axes; e.g. `task.scenario.file` is read by both `TM_Robots.scenario` and
+`TM_Obstacles.scenario`, which intentionally load the same scenario file.
+
 ## Task modes (`TM_Robots` subclasses)
 
 `TM_Robots` ([`__init__.py`](__init__.py)) is the base: one instance drives
@@ -96,7 +107,7 @@ allocation and:
    whose `set_position` / `set_goal` fan out.
 
 The parent `TaskMode` enum slot is set to `None` after composite bind, so
-the "new_tm != current" check in `_reset_task` does not retrigger a rebind.
+the "new_tm != current" check in `_reset_episode` does not retrigger a rebind.
 
 ## Integration points
 

@@ -49,10 +49,10 @@ dependencies are not imported until the mode is first selected.
 
 `Task.__init__` reads `tm_robots`, `tm_obstacles`, and `tm_modules` from the
 ROS parameter server (via `node.conf.TaskMode.*`) and calls the matching
-loaders. On each reset `Task._reset_task` re-reads the parameters, swapping
+loaders. On each reset `Task._reset_episode` re-reads the parameters, swapping
 the active mode if it changed.
 
 ### Episode loop
 
 See [task_generator/tasks/README.md](task_generator/tasks/README.md#reset-semantics)
-for the full `Task._reset_task` ordering and the WORLD-layer invariant.
+for the full `Task._reset_episode` ordering and the WORLD-layer invariant.

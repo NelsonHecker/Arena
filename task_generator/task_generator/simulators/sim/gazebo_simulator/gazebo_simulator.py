@@ -12,7 +12,7 @@ import launch_ros
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
-from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from ros_gz_interfaces.msg import Entity as EntityMsg
 from ros_gz_interfaces.msg import EntityFactory, WorldControl
 from ros_gz_interfaces.srv import ControlWorld, DeleteEntity, SetEntityPose, SpawnEntity
@@ -47,29 +47,20 @@ class GazeboSimulator(BaseSim):
 
         self._logger.info(f"Initializing GazeboSimulator with namespace: {namespace}")
 
-        self._goal_pub = self.node.create_publisher(
-            PoseStamped,
-            self._namespace("goal"),
-            10,
-        )
         self.entities: dict[str, Entity] = {}
         self._walls_entities: list[str] = []
         self._wall_counter = itertools.count()
+        self._reset_in_flight = False
 
-    async def before_reset_task(self) -> bool:
-        self._logger.warn("Pausing simulation before reset")
-        return bool(await self.pause_simulation())
+    async def before_reset_episode(self) -> bool:
+        # Defer pause to end of robot_move, set_entity_pose stalls under pause.
+        self._reset_in_flight = True
+        return True
 
-    async def after_reset_task(self) -> bool:
-        unpause_result = await self.unpause_simulation()
-
-        if not unpause_result:
-            self._logger.warning("Failed to unpause simulation after reset")
-
-        # Small delay for sensors and physics to stabilize after reset
-        await asyncio.sleep(0.3)
-
-        return unpause_result
+    async def after_reset_episode(self) -> bool:
+        self._reset_in_flight = False
+        await self.unpause_simulation()
+        return True
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return await asyncio.gather(*map(self._spawn_entity, obstacles))
@@ -101,10 +92,18 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*map(self._move_entity, pedestrians))
 
     async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
+        # Teleport must run unpaused: Gazebo's set_entity_pose stalls under pause.
+        # Re-pause at the end so robot physics is frozen for the remainder of the reset.
+        if self._reset_in_flight:
+            await self.unpause_simulation()
+
         async def impl(robot: Robot) -> bool:
             return (await self._move_entity(robot)) and (await self._robot_move(robot))
 
-        return await asyncio.gather(*map(impl, robots))
+        result = await asyncio.gather(*map(impl, robots))
+        if self._reset_in_flight:
+            await self.pause_simulation()
+        return result
 
     async def obstacle_delete(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return await asyncio.gather(*(self._delete_entity(o.name) for o in obstacles))
@@ -339,15 +338,6 @@ class GazeboSimulator(BaseSim):
                 self._logger.error(f"Error stepping simulation: {str(e)}")
                 traceback.print_exc()
                 return False
-
-    def _publish_goal(self, goal: Pose):
-        self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation}")
-        goal_msg = PoseStamped()
-        goal_msg.header.stamp = self.node.sim_time.to_msg()
-        goal_msg.header.frame_id = "map"
-        goal_msg.pose = goal.to_msg()
-        self._goal_pub.publish(goal_msg)
-        self._logger.info("Goal published")
 
     async def spawn_walls(self, walls: Sequence[Wall]) -> bool:
         await self.remove_world()  # Clear existing walls

@@ -56,7 +56,7 @@ def _make_robot_goal(start_x=0.0, start_y=0.0, goal_x=5.0, goal_y=5.0):
 
 
 def _make_scenario_tm(node, robots_dict, scenario_robots, world_name="test_world"):
-    from task_generator.tasks.robots.scenario import TM_Scenario
+    from task_generator.tasks.robots.scenario.impl import TM_Scenario
     from arena_rclpy_mixins.shared import Namespace
 
     logger = _FakeLogger()
@@ -74,7 +74,7 @@ def _make_scenario_tm(node, robots_dict, scenario_robots, world_name="test_world
 
     fake_param = SimpleNamespace(value=scenario_robots)
 
-    with patch("task_generator.tasks.robots.scenario.WorldIdentifier") as mock_wi:
+    with patch("task_generator.tasks.robots.scenario.impl.WorldIdentifier") as mock_wi:
         tm = TM_Scenario.__new__(TM_Scenario)
         tm._NodeInterface__node = node
         tm._ctx = ctx
@@ -203,10 +203,10 @@ def test_parse_scenario_calls_world_identifier():
     fake_scenario = Scenario(static=[], dynamic=[], robots=fake_robots)
     fake_load = SimpleNamespace(robots=fake_robots)
 
-    with patch("task_generator.tasks.robots.scenario.WorldIdentifier") as mock_wi:
+    with patch("task_generator.tasks.robots.scenario.impl.WorldIdentifier") as mock_wi:
         mock_wi.return_value.resolve_sync.return_value.scenario.return_value.resolve_sync.return_value.load.return_value = fake_load
 
-        from task_generator.tasks.robots.scenario import TM_Scenario
+        from task_generator.tasks.robots.scenario.impl import TM_Scenario
         from arena_rclpy_mixins.shared import Namespace
 
         ctx = SimpleNamespace(

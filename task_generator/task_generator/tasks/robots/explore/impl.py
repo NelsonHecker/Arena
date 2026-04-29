@@ -3,7 +3,7 @@ import math
 from arena_rclpy_mixins.Time import Time
 
 from task_generator.shared import Orientation, Pose
-from task_generator.tasks.robots.random import TM_Random
+from task_generator.tasks.robots.random.impl import TM_Random
 from task_generator.tasks.robots.request import GoToPhase, TaskRequest
 
 

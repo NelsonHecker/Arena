@@ -3,11 +3,8 @@ import asyncio
 import typing
 from collections.abc import Sequence
 
-import rclpy
-import rclpy.publisher
 from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
-from geometry_msgs.msg import PoseStamped
 from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Robot, Wall
@@ -16,7 +13,6 @@ from task_generator.simulators.sim import BaseSim
 
 
 class BaseHumanSimulator(NodeInterface, abc.ABC):
-    _goal_pub: rclpy.publisher.Publisher
     _known_obstacles: KnownObstacles
 
     def __init__(self, *args: object, namespace: Namespace, simulator: BaseSim, **kwargs: object) -> None:
@@ -32,8 +28,6 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._namespace = namespace
 
         self._known_obstacles = KnownObstacles[Obstacle]()
-
-        self._goal_pub = self.node.create_publisher(PoseStamped, self._namespace("/goal"), 1)
 
     async def spawn_obstacles(self, obstacles: Sequence[Obstacle], layer: ObstacleLayer = ObstacleLayer.INUSE):
         """Spawns static obstacles.

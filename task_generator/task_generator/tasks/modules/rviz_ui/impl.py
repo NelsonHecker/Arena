@@ -6,9 +6,9 @@ from task_generator.tasks.modules import TM_Module
 
 
 class Mod_OverrideRobot(TM_Module):
-    TOPIC_SET_POSITION = "/initialpose"
-    TOPIC_SET_GOAL = "/goal_pose"
-    TOPIC_NEW_SCENARIO = "/clicked_point"
+    TOPIC_SET_POSITION = "initialpose"
+    TOPIC_SET_GOAL = "goal_pose"
+    TOPIC_NEW_SCENARIO = "clicked_point"
     PARAM_WAYPOINTS = "guided_waypoints"
 
     _timeouts: dict[int, Time]
@@ -18,11 +18,11 @@ class Mod_OverrideRobot(TM_Module):
 
         self._timeouts = {}
 
-        self.node.create_subscription(geometry_msgs.PoseWithCovarianceStamped, self.TOPIC_SET_POSITION, self._cb_set_position, 1)
+        self.node.create_subscription(geometry_msgs.PoseWithCovarianceStamped, self.node.service_namespace(self.TOPIC_SET_POSITION), self._cb_set_position, 1)
 
-        self.node.create_subscription(geometry_msgs.PoseStamped, self.TOPIC_SET_GOAL, self._cb_set_goal, 1)
+        self.node.create_subscription(geometry_msgs.PoseStamped, self.node.service_namespace(self.TOPIC_SET_GOAL), self._cb_set_goal, 1)
 
-        self.node.create_subscription(geometry_msgs.PointStamped, self.TOPIC_NEW_SCENARIO, self._cb_new_scenario, 1)
+        self.node.create_subscription(geometry_msgs.PointStamped, self.node.service_namespace(self.TOPIC_NEW_SCENARIO), self._cb_new_scenario, 1)
 
     def _reset_timeout(self, index: int):
         self._timeouts[index] = self.node.sim_time

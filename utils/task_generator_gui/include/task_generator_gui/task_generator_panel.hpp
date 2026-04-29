@@ -8,16 +8,30 @@
 #include <rviz_common/panel.hpp>
 #include <rviz_common/ros_integration/ros_node_abstraction_iface.hpp>
 #include <rviz_common/properties/property_tree_model.hpp>
-#include "task_generator_msgs/srv/get_environments.hpp"
-#include "task_generator_msgs/srv/get_parametrizeds.hpp"
-#include "task_generator_msgs/srv/get_obstacles.hpp"
-#include "task_generator_msgs/srv/get_scenarios.hpp"
-#include "task_generator_msgs/srv/get_worlds.hpp"
-#include "task_generator_msgs/srv/get_robots.hpp"
 
+#include "task_generator_msgs/srv/query_environments.hpp"
+#include "task_generator_msgs/srv/query_parametrizeds.hpp"
+#include "task_generator_msgs/srv/query_static_obstacles.hpp"
+#include "task_generator_msgs/srv/query_dynamic_obstacles.hpp"
+#include "task_generator_msgs/srv/query_scenarios.hpp"
+#include "task_generator_msgs/srv/query_task_modes.hpp"
+#include "task_generator_msgs/srv/query_worlds.hpp"
+#include "task_generator_msgs/srv/query_robots.hpp"
+#include "task_generator_msgs/srv/pause.hpp"
+#include "task_generator_msgs/srv/reset_episode.hpp"
+#include "task_generator_msgs/srv/queue_episode.hpp"
+
+#include "task_generator_msgs/msg/episode_record.hpp"
+
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/empty.hpp>
 #include <std_srvs/srv/trigger.hpp>
+
+#include <rcl_interfaces/srv/set_parameters.hpp>
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
+#include <rcl_interfaces/msg/parameter_event.hpp>
+#include <rcl_interfaces/msg/parameter_type.hpp>
 
 #include <QLabel>
 #include <QPushButton>
@@ -38,11 +52,49 @@
 #include <QGroupBox>
 #include <QFontMetrics>
 #include <QTextEdit>
+#include <QTableWidget>
+#include <QTableWidgetItem>
+#include <QScrollArea>
+#include <QLineEdit>
+#include <QSignalBlocker>
 #include "Qt-MultiSelectComboBox/MultiSelectComboBox.h"
+
+#include <atomic>
+#include <deque>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace task_generator_gui
 {
     using rviz_common::properties::PropertyTreeModel;
+
+    // Per-rebuild shared state for the async callback chain.
+    struct RebuildState
+    {
+        uint64_t generation{0};
+        std::string mode;
+        bool is_obstacles{true};
+
+        std::vector<std::string>                         param_names;
+        std::vector<rcl_interfaces::msg::ParameterDescriptor> descriptors;
+        std::vector<rclcpp::Parameter>                   values;
+
+        // catalog results deposited by callbacks
+        std::mutex                                        mtx;
+        std::set<std::string>                            needed_catalogs;
+        std::unordered_map<std::string, std::vector<std::string>> catalog_cache;
+        std::atomic<int>                                 pending_catalogs{0};
+
+        // set once describe + get both arrive
+        std::atomic<bool>                                have_descriptors{false};
+        std::atomic<bool>                                have_values{false};
+    };
 
     class TaskGeneratorPanel
         : public rviz_common::Panel
@@ -55,25 +107,55 @@ namespace task_generator_gui
         void onInitialize() override;
         void load(const rviz_common::Config &config) override;
 
-        // Get available robot models
         void getRobots();
-        // Get available worlds
         void getWorlds();
-
-        void getCurrentTaskGeneratorNodeParams(bool init = false);
 
         void getTMObstaclesParams();
         void getScenarios(const std::string &world_name);
-        void getTMRobotsParams();
 
-        void setTMObstaclesParamsRequest();
-        void setTMRobotsParamsRequest();
+        void setTMObstaclesParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req);
+        void setTMRobotsParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req);
         bool generateWorld();
         void getParams();
-        void setParams();
         void setRobot();
-        void checkRobotModel();
-        bool hasNestedParameter(std::string parameter_name);
+
+        // Build a QueueEpisode request from current widget state.
+        task_generator_msgs::srv::QueueEpisode::Request::SharedPtr buildQueueEpisodeRequest();
+
+        // Send a QueueEpisode request; calls on_done(success) when the response arrives.
+        void pushQueueEpisode(std::function<void(bool)> on_done);
+
+        // Populate all widgets from a queued EpisodeRecord; suppresses dirty bumps.
+        void populateFromQueue(const task_generator_msgs::msg::EpisodeRecord &rec);
+
+        // Clear all dirty flags.
+        void clearDirtyFlags();
+
+        // Update enabled state of discard/queue buttons.
+        void updateDirtyButtons();
+
+        // Render history_buffer_ + current + queued rows into playlist_table.
+        void refreshHistory();
+
+        // Send reset_episode (world field intentionally empty; node resolves from pending overrides).
+        void sendResetEpisode();
+
+        void rebuildParamTree(QTreeWidget *tree, const std::string &mode,
+                              std::unordered_map<std::string, QWidget *> &widget_map);
+
+        std::vector<rcl_interfaces::msg::Parameter> collectParamsFor(
+            const std::unordered_map<std::string, QWidget *> &widget_map,
+            const std::unordered_map<std::string, uint8_t> &type_map);
+
+        // Set a single widget's value from a rcl_interfaces Parameter (signal-blocked).
+        void setWidgetValueFromParam(QWidget *w, const rcl_interfaces::msg::Parameter &p);
+
+        // When obstacles and robots task modes match, the leaf maps to the same
+        // ROS param. Copy the source widget's current value to its twin in the
+        // other tree so the two stay in lockstep as the user edits.
+        void mirrorSharedParam(const std::string &leaf, bool from_obstacles);
+
+        // Kept for any remaining genuinely-sync callers (none on the load path).
         template <typename ServiceT>
         typename ServiceT::Response::SharedPtr sendRequest(
             const typename rclcpp::Client<ServiceT>::SharedPtr &client,
@@ -81,84 +163,108 @@ namespace task_generator_gui
             const std::string &service_name,
             std::chrono::milliseconds cooldown = std::chrono::milliseconds(200));
 
+        // Non-blocking readiness gate: polls `ready_check` on the rviz executor
+        // until true, then runs `action` once.
+        void whenReady(std::function<bool()> ready_check,
+                       std::function<void()> action,
+                       std::chrono::milliseconds period = std::chrono::milliseconds(200));
+
         void setupUi();
         QComboBox *setupComboBoxWithLabel(QLayout *parent, const QStringList &combobox_values, const QString &label);
         QTabWidget *setupTabs(QLayout *Parent);
         void updateTabs();
         QTreeWidget *setupTree(QLayout *parent);
-        void setupObstaclesTreeItem();
-        void setupRobotsTreeItem();
         QWidget *setupMinMaxSpinBox(std::vector<std::int64_t, std::allocator<std::int64_t>> *connected_values);
         MultiSelectComboBox *setupGroupCheckBox(std::vector<std::string> check_box_texts, std::vector<int> *connected_hash_map);
 
-        // Convert QStringList to std::vector<std::string>
         std::vector<std::string> convert(const QStringList &qList);
+
+        void fetchCatalog(const std::string &catalog_name,
+                          std::function<void(std::vector<std::string>)> callback);
+
+        void buildTreeWidgets(QTreeWidget *tree,
+                              std::unordered_map<std::string, QWidget *> &widget_map,
+                              const std::shared_ptr<RebuildState> &state);
 
     protected:
         std::shared_ptr<rviz_common::ros_integration::RosNodeAbstractionIface> node_ptr;
         rclcpp::Node::SharedPtr node;
 
-        // Node to get configs
-        std::shared_ptr<rclcpp::Node> service_node;
-        // service_node = std::make_shared<rclcpp::Node>("task_generator_gui_service_node");
-        // namespace of taskgen node
         std::string task_generator_node;
-        // Client to get list of all available environments
-        rclcpp::Client<task_generator_msgs::srv::GetEnvironments>::SharedPtr get_environments_client;
-        // Client to get list of all available parametrizeds
-        rclcpp::Client<task_generator_msgs::srv::GetParametrizeds>::SharedPtr get_parametrizeds_client;
-        // Client to get all available obstacle models
-        rclcpp::Client<task_generator_msgs::srv::GetObstacles>::SharedPtr get_obstacles_client;
-        // Client to get list of all available scenarios for given world
-        rclcpp::Client<task_generator_msgs::srv::GetScenarios>::SharedPtr get_scenarios_client;
-        // Client to get list of all available worlds
-        rclcpp::Client<task_generator_msgs::srv::GetWorlds>::SharedPtr get_worlds_client;
-        // Client to get list of all available robots models
-        rclcpp::Client<task_generator_msgs::srv::GetRobots>::SharedPtr get_robots_client;
-        // Client to get ROS parameters from Node "/task_generator_node"
-        std::shared_ptr<rclcpp::SyncParametersClient> parameters_client;
-        // Client to wait for world to be loaded
-        rclcpp::Client<std_srvs::srv::Empty>::SharedPtr wait_for_world_client;
-        // Client to set ROS parameters for Node "/task_generator_node"
-        rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr set_param_client;
-        // Client to reset task
+
+        // --- Query service clients (on `node`, spun by rviz executor) ---
+        rclcpp::Client<task_generator_msgs::srv::QueryEnvironments>::SharedPtr query_environments_client;
+        rclcpp::Client<task_generator_msgs::srv::QueryParametrizeds>::SharedPtr query_parametrizeds_client;
+        rclcpp::Client<task_generator_msgs::srv::QueryStaticObstacles>::SharedPtr query_static_obstacles_client;
+        rclcpp::Client<task_generator_msgs::srv::QueryDynamicObstacles>::SharedPtr query_dynamic_obstacles_client;
+        rclcpp::Client<task_generator_msgs::srv::QueryScenarios>::SharedPtr query_scenarios_client;
+        rclcpp::Client<task_generator_msgs::srv::QueryWorlds>::SharedPtr query_worlds_client;
+        rclcpp::Client<task_generator_msgs::srv::QueryRobots>::SharedPtr query_robots_client;
+        rclcpp::Client<task_generator_msgs::srv::QueryTaskModes>::SharedPtr query_task_modes_client;
+
+        // --- Lifecycle service clients ---
+        rclcpp::Client<task_generator_msgs::srv::ResetEpisode>::SharedPtr reset_episode_client;
+        rclcpp::Client<task_generator_msgs::srv::Pause>::SharedPtr pause_client;
+
+        // --- Config service clients ---
+        rclcpp::Client<task_generator_msgs::srv::QueueEpisode>::SharedPtr queue_episode_client;
+
+        std::shared_ptr<rclcpp::AsyncParametersClient> parameters_client;
+
         rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr generate_world_client;
-        rclcpp::Client<std_srvs::srv::Empty>::SharedPtr reset_task_client;
 
-        // Selected robot model
+        // --- state/episode subscription (current, deduped into history_buffer_) ---
+        rclcpp::Subscription<task_generator_msgs::msg::EpisodeRecord>::SharedPtr episode_sub;
+        task_generator_msgs::msg::EpisodeRecord::SharedPtr last_current_episode_;
+
+        // --- state/queue subscription (latched, next-to-run slot) ---
+        rclcpp::Subscription<task_generator_msgs::msg::EpisodeRecord>::SharedPtr queue_sub;
+        task_generator_msgs::msg::EpisodeRecord::SharedPtr last_queued_episode_;
+
+        // Ordered ring of completed/current records, deduped by episode_id, max 50 entries.
+        static constexpr size_t kHistoryBufferSize = 50;
+        std::deque<task_generator_msgs::msg::EpisodeRecord> history_buffer_;
+
+        // --- parameter_events subscription ---
+        rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr param_events_sub;
+
+        // --- state/paused subscription (latched) ---
+        rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr paused_state_sub;
+
         std::string selected_robot_model;
-        // Selected world
-        std::string selected_world;
+        std::string staged_world;
 
-        // All available robot models
         std::vector<std::string> robot_models;
-        // All available robot worlds
         std::vector<std::string> worlds;
+        std::vector<std::string> obstacles_modes_;
+        std::vector<std::string> robots_modes_;
 
-        // Parameters for Obstacles Task Mode = "Random"
-        std::vector<std::int64_t, std::allocator<std::int64_t>> n_static_obstacles_range, n_dynamic_obstacles_range;
-        // Parameters for Obstacles Task Mode = "Random"
-        std::vector<std::string> static_obstacles_all_models, dynamic_obstacles_all_models;
-        // Selected obstacles models
-        std::vector<std::string> static_obstacles_models, dynamic_obstacles_models;
-        // Hash map for seletected obstacles models
-        std::vector<int> static_obstacles_models_selected, dynamic_obstacles_models_selected;
+        std::unordered_map<std::string, QWidget *> param_widgets_obstacles_;
+        std::unordered_map<std::string, QWidget *> param_widgets_robots_;
+        std::unordered_map<std::string, uint8_t> param_types_obstacles_;
+        std::unordered_map<std::string, uint8_t> param_types_robots_;
 
-        // Parameters for Obstacles Task Mode = "Environment" or "Parametrized" or "Scenario" or "Prompt"
-        std::vector<std::string> environment_config_files;
-        QStringList environment_config_files_qstringlist;
-        std::vector<std::string> parametrized_config_files;
-        QStringList parametrized_config_files_qstringlist;
-        std::vector<std::string> scenario_config_files;
-        QStringList scenario_config_files_qstringlist;
+        // Per-family rebuild generation counters (incremented on each rebuildParamTree call).
+        uint64_t rebuild_gen_obstacles_{0};
+        uint64_t rebuild_gen_robots_{0};
 
-        std::string selected_environment_config_file;
-        std::string selected_parametrized_config_file;
-        std::string selected_scenario_config_file;
-        std::string typed_prompt;
-        bool use_behavior_tree;
-        std::string generation_mode; // Enum from ["arena", "behavior_tree", "crowded_behavior_tree"]
-        double top_p;
+        // Dirty-tracking flags: set when the user edits a widget.
+        // The robot combobox is a picker for the Spawn Robot button, not a queued-state
+        // mirror, so changing it does not mark the panel dirty.
+        bool obstacles_params_dirty_{false};
+        bool robots_params_dirty_{false};
+        bool world_dirty_{false};
+        bool tm_obstacles_dirty_{false};
+        bool tm_robots_dirty_{false};
+
+        inline bool isDirty() const
+        {
+            return obstacles_params_dirty_ || robots_params_dirty_ || world_dirty_
+                || tm_obstacles_dirty_ || tm_robots_dirty_;
+        }
+
+        // True while populateFromQueue is running; suppresses dirty bumps from programmatic edits.
+        bool loading_from_queue_{false};
 
         // UI Components
         QVBoxLayout *root_layout;
@@ -172,14 +278,20 @@ namespace task_generator_gui
         QComboBox *robot_combobox;
         QComboBox *world_combobox;
         QPushButton *generate_world_button;
-        QPushButton *reset_scenario_button;
         QPushButton *spawn_robot_button;
-        MultiSelectComboBox *static_obstacles_models_groupbox;
-        MultiSelectComboBox *dynamic_obstacles_models_groupbox;
+
+        QPushButton *discard_button;
+        QPushButton *queue_button;
+        QPushButton *next_button;
+
+        QPushButton *pause_button;
+        bool paused_state{false};
+
+        QTableWidget *playlist_table;
 
     private Q_SLOTS:
         void generateWorldButtonActivated();
-        void resetScenarioButtonActivated();
+        void onQueueClicked();
         void spawnRobotButtonActivated();
 
         void onRobotChanged(const QString &text);
@@ -187,6 +299,44 @@ namespace task_generator_gui
 
         void onObstaclesTaskModeChanged(const QString &text);
         void onRobotsTaskModeChanged(const QString &text);
+
+        void onNextClicked();
+        void onDiscardClicked();
+
+        void onPauseClicked();
     };
-} // namespace arena_rosnav
-#endif // ARENA_ROSNAV_TASK_GENERATOR_PANEL_HPP
+
+    template <typename ServiceT>
+    typename ServiceT::Response::SharedPtr TaskGeneratorPanel::sendRequest(
+        const typename rclcpp::Client<ServiceT>::SharedPtr &client,
+        const typename ServiceT::Request::SharedPtr &request,
+        const std::string &service_name,
+        std::chrono::milliseconds cooldown)
+    {
+        if (!client->wait_for_service(std::chrono::seconds(10)))
+        {
+            RCLCPP_ERROR(node->get_logger(),
+                         "Service [%s] not available.", service_name.c_str());
+            return nullptr;
+        }
+
+        auto promise = std::make_shared<std::promise<typename ServiceT::Response::SharedPtr>>();
+        auto future_result = promise->get_future();
+
+        std::function<void(typename rclcpp::Client<ServiceT>::SharedFuture)> cb =
+            [promise, service_name, cooldown, logger = node->get_logger()]
+            (typename rclcpp::Client<ServiceT>::SharedFuture f) mutable
+            {
+                rclcpp::sleep_for(cooldown);
+                try { promise->set_value(f.get()); }
+                catch (...) {
+                    RCLCPP_ERROR(logger, "Failed to call service [%s]!", service_name.c_str());
+                    promise->set_value(nullptr);
+                }
+            };
+        client->async_send_request(request, std::move(cb));
+
+        return future_result.get();
+    }
+} // namespace task_generator_gui
+#endif // TASK_GENERATOR_GUI_TASK_GENERATOR_PANEL_HPP

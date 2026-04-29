@@ -1,6 +1,8 @@
 import typing
 
-from task_generator.tasks import TaskMode
+from task_generator.tasks.mode import TaskMode
+
+from . import benchmark, clear_forbidden_zones, rviz_ui, staged
 
 if typing.TYPE_CHECKING:
     from task_generator.tasks.task import Task
@@ -16,3 +18,6 @@ class TM_Module(TaskMode):
     def before_reset(self): ...
 
     def after_reset(self): ...
+
+
+__all__ = ["TM_Module", "benchmark", "clear_forbidden_zones", "rviz_ui", "staged"]

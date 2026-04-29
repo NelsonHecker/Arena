@@ -73,6 +73,65 @@ Loaders are zero-argument callables that import and return the concrete class
 (lazy import pattern). All registrations fire at import time from the
 `declare_*()` calls at the bottom of [`registry.py`](registry.py).
 
+`_TaskRegistry.walk_schemas(node)` is called once at node init to fire every
+registered schema, forward-declaring all TM parameters regardless of which
+modes will be activated.
+
+## TM package structure
+
+Each TM is a package with two files:
+
+- `__init__.py` (eager): calls `_TaskRegistry.register_robots` /
+  `register_obstacles` / `register_module` and `declare_schema(node, ns)`.
+  Imported at node startup.
+- `impl.py` (lazy): contains the class body. Imported only when the mode is
+  first activated.
+
+`declare_schema(node, ns)` calls one typed helper from
+[`task_generator.tasks.declarations`](declarations.py) per parameter:
+
+```python
+from task_generator.tasks.declarations import declare_catalog, declare_int_pair
+
+def declare_schema(node, ns):
+    declare_int_pair(node, ns("static", "n"), [5, 15],
+                     label="Static count", description="[min, max] count.")
+    declare_catalog(node, ns("file"), "default", catalog="scenarios",
+                    label="Scenario file", description="Scenario file name.")
+```
+
+Each helper builds the `ParameterDescriptor` (type, `additional_constraints`
+mini-DSL, description) internally — schema authors don't touch
+`ParameterDescriptor` directly.
+
+## Parameter namespace
+
+Parameters live under `task.<mode>.<leaf>`. Example: `task.random.static.n`.
+The mode name is shared across families (e.g. `task.scenario.file` is read by
+both `TM_Robots.scenario` and `TM_Obstacles.scenario`, which intentionally
+load the same scenario file and project different sections out of it).
+
+## Available declare helpers
+
+| Helper | Underlying type | DSL token in `additional_constraints` | GUI widget |
+| --- | --- | --- | --- |
+| `declare_int_pair` | `INTEGER_ARRAY` | `range:int_pair` | min/max paired spinboxes |
+| `declare_float_pair` | `DOUBLE_ARRAY` | `range:float_pair` | min/max paired double spinboxes |
+| `declare_catalog` | `STRING` | `catalog:<name>` | combobox from `query/<name>` |
+| `declare_catalog_array` | `STRING_ARRAY` | `catalog:<name>` | multiselect from `query/<name>` |
+| `declare_enum` | `STRING` | `enum:a,b,c` | combobox of literal choices |
+| `declare_string` | `STRING` | — | line edit (or text edit if "prompt"-flavoured) |
+| `declare_int` | `INTEGER` | — (uses `integer_range` if `lo`/`hi` given) | spinbox |
+| `declare_double` | `DOUBLE` | — (uses `floating_point_range`) | double spinbox |
+| `declare_bool` | `BOOL` | — | checkbox |
+
+Catalog names map 1:1 to query services on the task-generator node:
+`objects`, `pedestrians`, `scenarios`, `parametrizeds`, `environments`.
+
+All helpers accept `label="Friendly Name"` and `description="..."`. The label
+becomes the row title in the rviz panel; the description is the hover
+tooltip.
+
 ## The three axes
 
 | Axis | ABC | Enum | README |
@@ -83,10 +142,10 @@ Loaders are zero-argument callables that import and return the concrete class
 
 ## Reset semantics
 
-`Task._reset_task` runs in this order:
+`Task._reset_episode` runs in this order:
 
 1. `robots_manager.set_up()` — reconcile fleet (spawn/remove robots).
-2. `environment_manager.before_reset_task()` — pauses the simulator. The sim
+2. `environment_manager.before_reset_episode()` — pauses the simulator. The sim
    is paused for the entire body below; only node-discovery and lifecycle
    signals are observable here.
 3. `module.before_reset()` for every active module.
@@ -96,8 +155,31 @@ Loaders are zero-argument callables that import and return the concrete class
    obstacles as `UNUSED`, runs the callback (which spawns the new lists), then
    removes everything still `UNUSED`.
 7. `module.after_reset()` for every active module.
-8. `environment_manager.after_reset_task()` — unpauses the simulator.
+8. `environment_manager.after_reset_episode()` — unpauses the simulator.
 
 **WORLD layer invariant:** entities spawned with `ObstacleLayer.WORLD` (walls,
 doors, floors, world static entities) are never touched during `respawn`. They
 survive all episode resets for the lifetime of the world.
+
+## `extend()` — runtime obstacle/robot injection
+
+Both `TM_Obstacles` and `TM_Robots` base classes expose an async `extend()`
+method for spawning additional entities into a running episode:
+
+- `TM_Obstacles.extend(kind, model, pose=None) -> str` — spawn one static or
+  dynamic obstacle. When `pose` is `None`, `_placement.random_placement()` picks
+  a free position. Returns the server-assigned entity name.
+- `TM_Robots.extend(model, name=None, pose=None) -> str` — spawn an additional
+  robot. Same placement semantics. Returns the assigned robot name.
+
+Calling `extend()` via the `runtime/spawn_*` services flips
+`EpisodeRecord.integrity = False` for the current episode.
+
+## `EpisodeRecord`
+
+Episode state is tracked in `EpisodeRecord` (an `attrs.define` dataclass on the
+node). Key fields: `episode_id`, `world`, `seed` (derived via blake2b from
+`run_seed|world|episode_id`), snapshot task-mode strings, `outcome_state`,
+`outcome_reason`, `goal_uuid`, and `integrity`. A new record is created at every
+NEXT reset; integrity starts `True` and flips `False` on any manual mutation
+(`extend()`, `set_robot_position`, `set_robot_goal`).

@@ -1,8 +1,15 @@
 import asyncio
+import uuid
+
+from arena_robots.Robot import RobotIdentifier
 
 from task_generator.shared import Pose
-from task_generator.tasks import TaskMode
+from task_generator.shared import Robot as RobotEntity
+from task_generator.tasks.mode import TaskMode
+from task_generator.tasks.robots._placement import random_placement
 from task_generator.tasks.robots.request import GoToPhase, TaskRequest
+
+from . import explore, guided, random, scenario
 
 
 class TM_Robots(TaskMode):
@@ -33,6 +40,22 @@ class TM_Robots(TaskMode):
             realized = robot_manager._environment_manager.realize(pose)  # noqa: SLF001
             await robot_manager.submit_task(TaskRequest(phases=[GoToPhase(pose=realized)]))
 
+    async def extend(self, model: str, name: str | None = None, pose: Pose | None = None) -> str:
+        resolved_pose = pose if pose is not None else await random_placement(self._ctx)
+        assigned_name = name or f"{model}_{uuid.uuid4().hex[:6]}"
+        await self._ctx.environment_manager.spawn_robot([
+            RobotEntity(
+                name=assigned_name,
+                model=RobotIdentifier(model),
+                pose=resolved_pose,
+                inter_planner="",
+                local_planner="",
+                global_planner="",
+                agent="",
+            )
+        ])
+        return assigned_name
+
     @property
     async def done(self) -> bool:
         """
@@ -50,3 +73,6 @@ class TM_Robots(TaskMode):
         if not all(await asyncio.gather(*(robot_manager.is_done for robot_manager in self._ctx.robots.values()))):
             return False
         return True
+
+
+__all__ = ["TM_Robots", "explore", "guided", "random", "scenario"]

@@ -159,8 +159,8 @@ ros2 launch arena_bringup arena.launch.py \
 ```
 
 When `train_config` is non-empty:
-- `train_mode` is implicitly `true` — the RL env publishes `cmd_vel` directly;
-  nav2 controller output is silenced.
+- `auto_reset` is forced `false` — managed mode; the RL training loop drives
+  resets via `lifecycle/reset_episode`.
 - `train_agent.py` is started automatically with `--config <train_config>`.
 
 ---

@@ -383,11 +383,11 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._logger.debug("All elevators spawned successfully.")
         return res
 
-    async def before_reset_task(self) -> bool:
+    async def before_reset_episode(self) -> bool:
         await self._pause()
         return True
 
-    async def after_reset_task(self) -> bool:
+    async def after_reset_episode(self) -> bool:
         await self._unpause()
         return True
 

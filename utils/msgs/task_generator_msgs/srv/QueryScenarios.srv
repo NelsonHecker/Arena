@@ -1,0 +1,4 @@
+# Empty = current world.
+string world
+---
+string[] ids

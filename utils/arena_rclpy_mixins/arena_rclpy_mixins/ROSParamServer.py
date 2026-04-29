@@ -52,6 +52,12 @@ class ROSParamT[T](abc.ABC):
         Callback function for setting value.
         """
 
+    @abc.abstractmethod
+    def destroy(self) -> None:
+        """
+        Undeclare the parameter from the node. Idempotent.
+        """
+
 
 class _ROSParam[T](ROSParamT[T]):
     """
@@ -100,6 +106,12 @@ class _ROSParam[T](ROSParamT[T]):
         self.param = value
         return True
 
+    def destroy(self) -> None:
+        try:
+            self._node.undeclare_parameter(self._name)
+        except rclpy.exceptions.ParameterNotDeclaredException:
+            pass
+
     def __init__(
         self,
         /,
@@ -140,14 +152,33 @@ class _rosparam[T]:
     class _UNSET: ...
 
     @classmethod
-    def declare_safe(cls, param_name: str, value: object = None, **kwargs: object) -> None:
+    def declare_safe(cls, param_name: str, value: object = None, *, descriptor: rcl_interfaces.msg.ParameterDescriptor | None = None, **kwargs: object) -> None:
         if cls._node.has_parameter(param_name):
             return
 
         try:
-            cls._node.declare_parameter(param_name, value, **kwargs)
+            if (
+                descriptor is not None
+                and descriptor.type != rclpy.Parameter.Type.NOT_SET.value
+                and not isinstance(value, rclpy.Parameter.Type)
+            ):
+                type_enum = rclpy.Parameter.Type(descriptor.type)
+                cls._node.declare_parameter(param_name, type_enum, descriptor=descriptor, **kwargs)
+                if value is not None:
+                    try:
+                        already_set = cls._node.get_parameter(param_name).type_ != rclpy.Parameter.Type.NOT_SET
+                    except rclpy.exceptions.ParameterUninitializedException:
+                        already_set = False
+                    if not already_set:
+                        cls._node.set_parameters([rclpy.Parameter(name=param_name, type_=type_enum, value=value)])
+            else:
+                cls._node.declare_parameter(param_name, value, **({"descriptor": descriptor} if descriptor is not None else {}), **kwargs)
         except rclpy.exceptions.ParameterAlreadyDeclaredException:
             pass
+
+    @classmethod
+    def declare_forward(cls, name: str, value: object, *, descriptor: rcl_interfaces.msg.ParameterDescriptor) -> None:
+        cls.declare_safe(name, value, descriptor=descriptor)
 
     @classmethod
     def get_unsafe(cls, param_name: str, default: T | type[_UNSET] = _UNSET) -> T:

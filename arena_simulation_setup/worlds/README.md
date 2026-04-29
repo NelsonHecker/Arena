@@ -105,8 +105,7 @@ robots:
     goal:  [x, y, yaw]
 ```
 
-Legacy format (deprecated) uses `obstacles.static`, `obstacles.dynamic`, and
-`obstacles.interactive` keys instead.
+Legacy format (deprecated) uses `obstacles.static` and `obstacles.dynamic` keys instead.
 
 Per-agent BT files `hunav_<N>_behavior_tree.xml` are per-instance BTCPP v4 XML
 files referenced by the `behavior_tree` field. They are authored or

@@ -19,7 +19,7 @@ T = typing.TypeVar('T')
 
 class AsyncLaunchManager:
     def __init__(self):
-        self.active_tasks = set()
+        self.active: dict[asyncio.Task[int], launch.LaunchService] = {}
 
     async def launch_description(self, description: launch.LaunchDescription) -> asyncio.Task[int]:
         """Launch a launch description asynchronously
@@ -30,18 +30,17 @@ class AsyncLaunchManager:
         ls = launch.LaunchService()
         ls.include_launch_description(description)
         task = asyncio.create_task(ls.run_async())
-        self.active_tasks.add(task)
-        task.add_done_callback(self.active_tasks.discard)
+        self.active[task] = ls
+        task.add_done_callback(lambda t: self.active.pop(t, None))
         return task
 
     async def kill_all(self):
-        """Kill all active launch description tasks asynchronously"""
-        if not self.active_tasks:
+        """Gracefully shut down all active launch services so subprocess transports close before the loop does."""
+        if not self.active:
             return
-        for task in self.active_tasks:
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(*self.active_tasks, return_exceptions=True)
+        shutdowns = [ls.shutdown() for ls in list(self.active.values())]
+        await asyncio.gather(*shutdowns, return_exceptions=True)
+        await asyncio.gather(*list(self.active), return_exceptions=True)
 
 
 class AsyncNode(TimeNode, rclpy.node.Node):

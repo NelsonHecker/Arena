@@ -16,7 +16,7 @@ def _ros_gate():
 # ---------------------------------------------------------------------------
 
 def test_config_parse_happy_path():
-    from task_generator.tasks.modules.benchmark import _Config
+    from task_generator.tasks.modules.benchmark.impl import _Config
 
     obj = {
         "suite": {"config": "my_suite.yaml", "scale_episodes": 2.5},
@@ -36,7 +36,7 @@ def test_config_parse_happy_path():
 
 
 def test_config_parse_missing_suite_raises():
-    from task_generator.tasks.modules.benchmark import _Config
+    from task_generator.tasks.modules.benchmark.impl import _Config
 
     obj = {
         "contest": {"config": "my_contest.yaml"},
@@ -47,7 +47,7 @@ def test_config_parse_missing_suite_raises():
 
 
 def test_config_parse_missing_contest_raises():
-    from task_generator.tasks.modules.benchmark import _Config
+    from task_generator.tasks.modules.benchmark.impl import _Config
 
     obj = {
         "suite": {"config": "my_suite.yaml"},
@@ -58,7 +58,7 @@ def test_config_parse_missing_contest_raises():
 
 
 def test_config_parse_missing_general_raises():
-    from task_generator.tasks.modules.benchmark import _Config
+    from task_generator.tasks.modules.benchmark.impl import _Config
 
     obj = {
         "suite": {"config": "my_suite.yaml"},
@@ -69,7 +69,7 @@ def test_config_parse_missing_general_raises():
 
 
 def test_config_parse_suite_scale_episodes_defaults_to_one():
-    from task_generator.tasks.modules.benchmark import _Config
+    from task_generator.tasks.modules.benchmark.impl import _Config
 
     obj = {
         "suite": {"config": "s.yaml"},
@@ -110,7 +110,7 @@ def _make_stage_dict(**overrides):
 
 
 def test_suite_parse_happy_path():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     obj = {"stages": [_make_stage_dict()]}
@@ -123,7 +123,7 @@ def test_suite_parse_happy_path():
 
 
 def test_suite_parse_multiple_stages():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     obj = {"stages": [_make_stage_dict(name="s1"), _make_stage_dict(name="s2")]}
@@ -135,7 +135,7 @@ def test_suite_parse_multiple_stages():
 
 
 def test_suite_parse_missing_stages_raises():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     with pytest.raises(KeyError):
@@ -147,8 +147,8 @@ def test_suite_parse_missing_stages_raises():
 # ---------------------------------------------------------------------------
 
 def test_stage_parse_happy_path():
-    from task_generator.tasks.modules.benchmark import Suite
     from task_generator.constants import Constants
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     obj = _make_stage_dict(seed=42, timeout="60")
@@ -166,7 +166,7 @@ def test_stage_parse_happy_path():
 
 
 def test_stage_parse_none_config_class_raises():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     obj = _make_stage_dict()
     with pytest.raises(ValueError):
@@ -174,7 +174,7 @@ def test_stage_parse_none_config_class_raises():
 
 
 def test_stage_parse_timeout_defaults_from_config_class():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     obj = _make_stage_dict()
@@ -185,7 +185,7 @@ def test_stage_parse_timeout_defaults_from_config_class():
 
 
 def test_stage_parse_seed_defaults_to_hash():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     obj = _make_stage_dict()
@@ -196,8 +196,8 @@ def test_stage_parse_seed_defaults_to_hash():
 
 
 def test_stage_parse_tm_robots_enum_conversion():
-    from task_generator.tasks.modules.benchmark import Suite
     from task_generator.constants import Constants
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     for name, member in Constants.TaskMode.TM_Robots.__members__.items():
@@ -207,8 +207,8 @@ def test_stage_parse_tm_robots_enum_conversion():
 
 
 def test_stage_parse_tm_obstacles_enum_conversion():
-    from task_generator.tasks.modules.benchmark import Suite
     from task_generator.constants import Constants
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     for name, member in Constants.TaskMode.TM_Obstacles.__members__.items():
@@ -218,7 +218,7 @@ def test_stage_parse_tm_obstacles_enum_conversion():
 
 
 def test_stage_parse_invalid_tm_robots_raises():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     obj = _make_stage_dict(tm_robots="NOT_A_VALID_MODE")
@@ -227,7 +227,7 @@ def test_stage_parse_invalid_tm_robots_raises():
 
 
 def test_stage_parse_invalid_tm_obstacles_raises():
-    from task_generator.tasks.modules.benchmark import Suite
+    from task_generator.tasks.modules.benchmark.impl import Suite
 
     config_class = _make_config_class_stub()
     obj = _make_stage_dict(tm_obstacles="NOT_A_VALID_MODE")
@@ -246,7 +246,7 @@ def _make_contestant_dict(**overrides):
 
 
 def test_contest_parse_happy_path():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     obj = {"contestants": [_make_contestant_dict()]}
     result = Contest.parse("my_contest", obj)
@@ -258,7 +258,7 @@ def test_contest_parse_happy_path():
 
 
 def test_contest_parse_multiple_contestants():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     obj = {
         "contestants": [
@@ -274,7 +274,7 @@ def test_contest_parse_multiple_contestants():
 
 
 def test_contest_parse_missing_contestants_raises():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     with pytest.raises(KeyError):
         Contest.parse("c", {})
@@ -285,7 +285,7 @@ def test_contest_parse_missing_contestants_raises():
 # ---------------------------------------------------------------------------
 
 def test_contestant_parse_happy_path():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     obj = {
         "name": "agent_one",
@@ -303,7 +303,7 @@ def test_contestant_parse_happy_path():
 
 
 def test_contestant_parse_inter_planner_defaults():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     obj = {"name": "agent_two", "local_planner": "dwa"}
     result = Contest.Contestant.parse(obj)
@@ -312,7 +312,7 @@ def test_contestant_parse_inter_planner_defaults():
 
 
 def test_contestant_parse_agent_name_defaults_to_empty_string():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     obj = {"name": "agent_three", "local_planner": "dwa"}
     result = Contest.Contestant.parse(obj)
@@ -324,7 +324,7 @@ def test_contestant_parse_agent_name_defaults_to_empty_string():
 # required NamedTuple field (name or local_planner) raises TypeError, not
 # KeyError.  There is no explicit obj[...] access, so no KeyError test applies.
 def test_contestant_parse_missing_name_raises():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     obj = {"local_planner": "dwa"}
     with pytest.raises(TypeError):
@@ -332,7 +332,7 @@ def test_contestant_parse_missing_name_raises():
 
 
 def test_contestant_parse_missing_local_planner_raises():
-    from task_generator.tasks.modules.benchmark import Contest
+    from task_generator.tasks.modules.benchmark.impl import Contest
 
     obj = {"name": "agent_four"}
     with pytest.raises(TypeError):

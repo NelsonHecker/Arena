@@ -64,7 +64,7 @@ def _make_scenario(static_list=None, dynamic_list=None):
 
 
 def _build_tm_scenario(fake_scenario, world_name="test_world"):
-    from task_generator.tasks.obstacles.scenario import TM_Scenario
+    from task_generator.tasks.obstacles.scenario.impl import TM_Scenario
     from arena_rclpy_mixins.shared import Namespace
 
     node = SimpleNamespace(
@@ -111,10 +111,10 @@ def test_parse_scenario_calls_world_identifier():
 
     fake_scenario = _make_scenario([_make_static()], [_make_dynamic()])
 
-    with patch("task_generator.tasks.obstacles.scenario.WorldIdentifier") as mock_wi:
+    with patch("task_generator.tasks.obstacles.scenario.impl.WorldIdentifier") as mock_wi:
         mock_wi.return_value.resolve_sync.return_value.scenario.return_value.resolve_sync.return_value.load.return_value = fake_scenario
 
-        from task_generator.tasks.obstacles.scenario import TM_Scenario
+        from task_generator.tasks.obstacles.scenario.impl import TM_Scenario
         from arena_rclpy_mixins.shared import Namespace
 
         node = SimpleNamespace(
@@ -137,16 +137,16 @@ def test_parse_scenario_calls_world_identifier():
 
 
 def test_init_default_scenario_exists():
-    with patch("task_generator.tasks.obstacles.scenario.WorldIdentifier") as mock_wi:
+    with patch("task_generator.tasks.obstacles.scenario.impl.WorldIdentifier") as mock_wi:
         mock_wi.return_value.resolve_sync.return_value.scenario.listall.return_value = [
             SimpleNamespace(shortname="default"),
             SimpleNamespace(shortname="scenario2"),
         ]
 
-        with patch("task_generator.tasks.obstacles.scenario.identifier_to_available") as mock_ita:
+        with patch("task_generator.tasks.obstacles.scenario.impl.identifier_to_available") as mock_ita:
             mock_ita.return_value = ["default", "scenario2"]
 
-            from task_generator.tasks.obstacles.scenario import TM_Scenario
+            from task_generator.tasks.obstacles.scenario.impl import TM_Scenario
             from arena_rclpy_mixins.shared import Namespace
 
             fake_scenario = _make_scenario()
@@ -180,11 +180,11 @@ def test_init_default_scenario_exists():
 
 
 def test_init_no_scenarios_raises():
-    with patch("task_generator.tasks.obstacles.scenario.WorldIdentifier") as mock_wi:
-        with patch("task_generator.tasks.obstacles.scenario.identifier_to_available") as mock_ita:
+    with patch("task_generator.tasks.obstacles.scenario.impl.WorldIdentifier") as mock_wi:
+        with patch("task_generator.tasks.obstacles.scenario.impl.identifier_to_available") as mock_ita:
             mock_ita.return_value = []
 
-            from task_generator.tasks.obstacles.scenario import TM_Scenario
+            from task_generator.tasks.obstacles.scenario.impl import TM_Scenario
             from arena_rclpy_mixins.shared import Namespace
 
             node = SimpleNamespace(

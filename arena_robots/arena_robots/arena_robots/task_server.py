@@ -4,6 +4,7 @@ import threading
 
 import rclpy
 import tf2_ros
+from arena_rclpy_mixins.spin import spin_node
 from rclpy.action import ActionServer
 from rclpy.action.server import ServerGoalHandle
 from rclpy.node import Node
@@ -69,12 +70,7 @@ class TaskServerNode(Node):
 
 def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
-    node = TaskServerNode()
-    try:
-        rclpy.spin(node)
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+    spin_node(TaskServerNode())
 
 
 if __name__ == "__main__":

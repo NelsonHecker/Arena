@@ -18,16 +18,9 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::onInitialize()
     {
-        // Access the abstract ROS Node and
-        // in the process lock it for exclusive use until the method is done.
         node_ptr = getDisplayContext()->getRosNodeAbstraction().lock();
         node = node_ptr->get_raw_node();
-
-        // Create a new node for the service clients
-        service_node = std::make_shared<rclcpp::Node>("tm_service_node");
-        // Set the log level to WARN
         node->get_logger().set_level(rclcpp::Logger::Level::Warn);
-        service_node->get_logger().set_level(rclcpp::Logger::Level::Warn);
     }
 
     void TaskGeneratorPanel::load(const rviz_common::Config &config)
@@ -35,81 +28,333 @@ namespace task_generator_gui
         rviz_common::Panel::load(config);
 
         QString result;
-
         if (config.mapGetString("Target", &result))
-        {
             task_generator_node = result.toStdString();
-        }
         else
-        {
             task_generator_node = "/task_generator_node";
+
+        // All clients go on `node` — rviz spins it continuously.
+        query_environments_client = node->create_client<task_generator_msgs::srv::QueryEnvironments>(
+            task_generator_node + "/query/environments");
+        query_parametrizeds_client = node->create_client<task_generator_msgs::srv::QueryParametrizeds>(
+            task_generator_node + "/query/parametrizeds");
+        query_static_obstacles_client = node->create_client<task_generator_msgs::srv::QueryStaticObstacles>(
+            task_generator_node + "/query/static_obstacles");
+        query_dynamic_obstacles_client = node->create_client<task_generator_msgs::srv::QueryDynamicObstacles>(
+            task_generator_node + "/query/dynamic_obstacles");
+        query_scenarios_client = node->create_client<task_generator_msgs::srv::QueryScenarios>(
+            task_generator_node + "/query/scenarios");
+        query_worlds_client = node->create_client<task_generator_msgs::srv::QueryWorlds>(
+            task_generator_node + "/query/worlds");
+        query_robots_client = node->create_client<task_generator_msgs::srv::QueryRobots>(
+            task_generator_node + "/query/robots");
+        query_task_modes_client = node->create_client<task_generator_msgs::srv::QueryTaskModes>(
+            task_generator_node + "/query/task_modes");
+
+        reset_episode_client = node->create_client<task_generator_msgs::srv::ResetEpisode>(
+            task_generator_node + "/lifecycle/reset_episode");
+        pause_client = node->create_client<task_generator_msgs::srv::Pause>(
+            task_generator_node + "/lifecycle/pause");
+
+        queue_episode_client = node->create_client<task_generator_msgs::srv::QueueEpisode>(
+            task_generator_node + "/config/queue_episode");
+
+        parameters_client = std::make_shared<rclcpp::AsyncParametersClient>(node, task_generator_node);
+
+        generate_world_client = node->create_client<std_srvs::srv::Trigger>("/world_generator/generate_world");
+
+        // Latched paused-state subscription.
+        {
+            rclcpp::QoS pqos(rclcpp::KeepLast(1));
+            pqos.transient_local();
+            paused_state_sub = node->create_subscription<std_msgs::msg::Bool>(
+                task_generator_node + "/state/paused",
+                pqos,
+                [this](const std_msgs::msg::Bool::SharedPtr msg)
+                {
+                    QMetaObject::invokeMethod(this, [this, paused = msg->data]()
+                    {
+                        paused_state = paused;
+                        if (pause_button)
+                            pause_button->setText(paused_state ? "Unpause" : "Pause");
+                    }, Qt::QueuedConnection);
+                });
         }
 
-        get_environments_client = service_node->create_client<task_generator_msgs::srv::GetEnvironments>(task_generator_node + "/get_environments");
+        // Latched state/episode subscription — deduped into history_buffer_.
+        {
+            rclcpp::QoS qos(rclcpp::KeepLast(1));
+            qos.transient_local();
+            episode_sub = node->create_subscription<task_generator_msgs::msg::EpisodeRecord>(
+                task_generator_node + "/state/episode",
+                qos,
+                [this](const task_generator_msgs::msg::EpisodeRecord::SharedPtr msg)
+                {
+                    QMetaObject::invokeMethod(this, [this, msg]()
+                    {
+                        last_current_episode_ = msg;
 
-        get_parametrizeds_client = service_node->create_client<task_generator_msgs::srv::GetParametrizeds>(task_generator_node + "/get_parametrizeds");
+                        // Dedup history by episode_id: replace existing entry or append.
+                        bool found = false;
+                        for (auto &entry : history_buffer_)
+                        {
+                            if (entry.episode_id == msg->episode_id)
+                            {
+                                entry = *msg;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found)
+                        {
+                            history_buffer_.push_back(*msg);
+                            if (history_buffer_.size() > kHistoryBufferSize)
+                                history_buffer_.pop_front();
+                        }
 
-        get_obstacles_client = service_node->create_client<task_generator_msgs::srv::GetObstacles>(task_generator_node + "/get_obstacles");
+                        refreshHistory();
+                    }, Qt::QueuedConnection);
+                });
+        }
 
-        get_scenarios_client = service_node->create_client<task_generator_msgs::srv::GetScenarios>(task_generator_node + "/get_scenarios");
+        // Latched state/queue subscription — populates widgets when a new queued record arrives.
+        {
+            rclcpp::QoS qos(rclcpp::KeepLast(1));
+            qos.transient_local();
+            queue_sub = node->create_subscription<task_generator_msgs::msg::EpisodeRecord>(
+                task_generator_node + "/state/queue",
+                qos,
+                [this](const task_generator_msgs::msg::EpisodeRecord::SharedPtr msg)
+                {
+                    QMetaObject::invokeMethod(this, [this, msg]()
+                    {
+                        last_queued_episode_ = msg;
+                        loading_from_queue_ = true;
+                        populateFromQueue(*msg);
+                        loading_from_queue_ = false;
+                        clearDirtyFlags();
+                        updateDirtyButtons();
+                        refreshHistory();
+                    }, Qt::QueuedConnection);
+                });
+        }
 
-        wait_for_world_client = service_node->create_client<std_srvs::srv::Empty>(task_generator_node + "/wait_for_world");
-
-        set_param_client = service_node->create_client<rcl_interfaces::srv::SetParameters>(task_generator_node + "/set_parameters");
-
-        get_worlds_client = service_node->create_client<task_generator_msgs::srv::GetWorlds>(task_generator_node + "/get_worlds");
-
-        get_robots_client = service_node->create_client<task_generator_msgs::srv::GetRobots>(task_generator_node + "/get_robots");
-
-        parameters_client = std::make_shared<rclcpp::SyncParametersClient>(service_node, task_generator_node);
-
-        generate_world_client = service_node->create_client<std_srvs::srv::Trigger>("/world_generator/generate_world");
-        reset_task_client = service_node->create_client<std_srvs::srv::Empty>(task_generator_node + "/reset_task");
-
-        getRobots();
-        getWorlds();
-        getTMObstaclesParams();
-        getTMRobotsParams();
-        getCurrentTaskGeneratorNodeParams(true);
+        // Build empty UI shell immediately — dropdowns populated as responses arrive.
         setupUi();
-        onWorldChanged(QString::fromStdString(selected_world));
+
+        // Bootstrap queries are gated on service readiness so they survive the
+        // race where rviz loads before task_generator_node has advertised.
+        whenReady(
+            [c = query_robots_client]() { return c->service_is_ready(); },
+            [this]()
+            {
+                query_robots_client->async_send_request(
+                    std::make_shared<task_generator_msgs::srv::QueryRobots::Request>(),
+                    [this](rclcpp::Client<task_generator_msgs::srv::QueryRobots>::SharedFuture f)
+                    {
+                        auto resp = f.get();
+                        if (!resp) return;
+                        QMetaObject::invokeMethod(this, [this, ids = resp->ids]()
+                        {
+                            robot_models = ids;
+                            if (selected_robot_model.empty() && !robot_models.empty())
+                                selected_robot_model = robot_models[0];
+                            QSignalBlocker blocker(robot_combobox);
+                            robot_combobox->clear();
+                            for (const auto &r : robot_models)
+                                robot_combobox->addItem(QString::fromStdString(r));
+                            robot_combobox->setCurrentText(QString::fromStdString(selected_robot_model));
+                            robot_combobox->setEnabled(true);
+                        }, Qt::QueuedConnection);
+                    });
+            });
+
+        whenReady(
+            [c = query_worlds_client]() { return c->service_is_ready(); },
+            [this]()
+            {
+                query_worlds_client->async_send_request(
+                    std::make_shared<task_generator_msgs::srv::QueryWorlds::Request>(),
+                    [this](rclcpp::Client<task_generator_msgs::srv::QueryWorlds>::SharedFuture f)
+                    {
+                        auto resp = f.get();
+                        if (!resp) return;
+                        QMetaObject::invokeMethod(this, [this, ids = resp->ids]()
+                        {
+                            worlds = ids;
+                            if (staged_world.empty() && !worlds.empty())
+                                staged_world = worlds[0];
+                            QSignalBlocker blocker(world_combobox);
+                            world_combobox->clear();
+                            for (const auto &w : worlds)
+                                world_combobox->addItem(QString::fromStdString(w));
+                            world_combobox->setCurrentText(QString::fromStdString(staged_world));
+                            world_combobox->setEnabled(true);
+                        }, Qt::QueuedConnection);
+                    });
+            });
+
+        whenReady(
+            [c = query_task_modes_client]() { return c->service_is_ready(); },
+            [this]()
+            {
+                query_task_modes_client->async_send_request(
+                    std::make_shared<task_generator_msgs::srv::QueryTaskModes::Request>(),
+                    [this](rclcpp::Client<task_generator_msgs::srv::QueryTaskModes>::SharedFuture f)
+                    {
+                        auto resp = f.get();
+                        if (!resp) return;
+                        QMetaObject::invokeMethod(this, [this, obs = resp->obstacles, rob = resp->robots]()
+                        {
+                            auto title = [](std::string s) -> std::string {
+                                if (!s.empty())
+                                    s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
+                                return s;
+                            };
+
+                            obstacles_modes_ = obs;
+                            robots_modes_ = rob;
+
+                            {
+                                QSignalBlocker b1(obstacles_task_mode_combobox);
+                                obstacles_task_mode_combobox->clear();
+                                for (const auto &m : obs)
+                                    obstacles_task_mode_combobox->addItem(QString::fromStdString(title(m)));
+                                if (!obstacles_task_mode.isEmpty())
+                                    obstacles_task_mode_combobox->setCurrentText(obstacles_task_mode);
+                            }
+                            {
+                                QSignalBlocker b2(robot_task_mode_combobox);
+                                robot_task_mode_combobox->clear();
+                                for (const auto &m : rob)
+                                    robot_task_mode_combobox->addItem(QString::fromStdString(title(m)));
+                                if (!robots_task_mode.isEmpty())
+                                    robot_task_mode_combobox->setCurrentText(robots_task_mode);
+                            }
+
+                            obstacles_task_mode_combobox->setEnabled(true);
+                            robot_task_mode_combobox->setEnabled(true);
+                        }, Qt::QueuedConnection);
+                    });
+            });
+
+        // Parameter event subscription: re-fetch the active param tree when
+        // task.<active_mode>.* changes on the task_generator node.
+        param_events_sub = node->create_subscription<rcl_interfaces::msg::ParameterEvent>(
+            "/parameter_events",
+            rclcpp::QoS(10),
+            [this, expected_node = task_generator_node](const rcl_interfaces::msg::ParameterEvent::SharedPtr msg)
+            {
+                if (msg->node != expected_node) return;
+
+                bool obs_changed = false;
+                bool rob_changed = false;
+                auto check = [&](const std::string &name)
+                {
+                    auto obs = obstacles_task_mode.toStdString();
+                    for (char &c : obs) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                    auto rob = robots_task_mode.toStdString();
+                    for (char &c : rob) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                    if (!obs.empty() && name.rfind("task." + obs + ".", 0) == 0) obs_changed = true;
+                    if (!rob.empty() && name.rfind("task." + rob + ".", 0) == 0) rob_changed = true;
+                };
+                for (const auto &p : msg->changed_parameters) check(p.name);
+                for (const auto &p : msg->new_parameters)     check(p.name);
+                for (const auto &p : msg->deleted_parameters) check(p.name);
+
+                if (!obs_changed && !rob_changed) return;
+                QMetaObject::invokeMethod(this, [this, obs_changed, rob_changed]()
+                {
+                    if (obs_changed && obstacles_tree)
+                    {
+                        auto m = obstacles_task_mode.toStdString();
+                        for (char &c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                        rebuildParamTree(obstacles_tree, m, param_widgets_obstacles_);
+                    }
+                    if (rob_changed && robots_tree)
+                    {
+                        auto m = robots_task_mode.toStdString();
+                        for (char &c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                        rebuildParamTree(robots_tree, m, param_widgets_robots_);
+                    }
+                }, Qt::QueuedConnection);
+            });
+    }
+
+    void TaskGeneratorPanel::whenReady(std::function<bool()> ready_check,
+                                       std::function<void()> action,
+                                       std::chrono::milliseconds period)
+    {
+        if (ready_check()) { action(); return; }
+        auto holder = std::make_shared<rclcpp::TimerBase::SharedPtr>();
+        std::function<void()> tick =
+            [holder, check = std::move(ready_check), act = std::move(action)]() mutable
+            {
+                if (!check()) return;
+                if (*holder) (*holder)->cancel();
+                holder->reset();
+                act();
+            };
+        *holder = node->create_wall_timer(period, std::move(tick));
     }
 
     void TaskGeneratorPanel::setupUi()
     {
-        // Setup Combobox for choosing Robot model
-        auto robots_combobox_values = QStringList();
-        for (const auto &robot : robot_models)
-        {
-            robots_combobox_values << QString::fromStdString(robot);
-        }
-        robot_combobox = setupComboBoxWithLabel(this->root_layout, robots_combobox_values, QString("Robot"));
-        robot_combobox->setCurrentText(QString::fromStdString(selected_robot_model));
+        // Robot combobox — disabled until robots arrive.
+        robot_combobox = setupComboBoxWithLabel(this->root_layout, QStringList{"Loading..."}, QString("Robot"));
+        robot_combobox->setEnabled(false);
         connect(robot_combobox, &QComboBox::currentTextChanged, this, &TaskGeneratorPanel::onRobotChanged);
         spawn_robot_button = new QPushButton("Spawn Robot");
         connect(spawn_robot_button, &QPushButton::clicked, this, &TaskGeneratorPanel::spawnRobotButtonActivated);
         robot_combobox->parentWidget()->layout()->addWidget(spawn_robot_button);
 
-        // Button to generate world
         generate_world_button = new QPushButton("Generate World");
         connect(generate_world_button, &QPushButton::clicked, this, &TaskGeneratorPanel::generateWorldButtonActivated);
         this->root_layout->addWidget(generate_world_button);
 
-        // Setup Combobox for choosing World
-        auto worlds_combobox_values = QStringList();
-        for (const auto &world : worlds)
-        {
-            worlds_combobox_values << QString::fromStdString(world);
-        }
-        world_combobox = setupComboBoxWithLabel(this->root_layout, worlds_combobox_values, QString("World"));
-        world_combobox->setCurrentText(QString::fromStdString(selected_world));
+        // World combobox — disabled until worlds arrive.
+        world_combobox = setupComboBoxWithLabel(this->root_layout, QStringList{"Loading..."}, QString("World"));
+        world_combobox->setEnabled(false);
         connect(world_combobox, &QComboBox::currentTextChanged, this, &TaskGeneratorPanel::onWorldChanged);
 
         setupTabs(this->root_layout);
 
-        reset_scenario_button = new QPushButton("Reset Task");
-        connect(reset_scenario_button, &QPushButton::clicked, this, &TaskGeneratorPanel::resetScenarioButtonActivated);
-        root_layout->addWidget(reset_scenario_button);
+        auto episode_nav_widget = new QWidget();
+        auto episode_nav_layout = new QHBoxLayout();
+
+        pause_button   = new QPushButton("Pause");
+        discard_button = new QPushButton("Discard");
+        queue_button   = new QPushButton("Queue");
+        next_button    = new QPushButton("Next");
+
+        discard_button->setEnabled(false);
+        queue_button->setEnabled(false);
+
+        connect(pause_button,   &QPushButton::clicked, this, &TaskGeneratorPanel::onPauseClicked);
+        connect(discard_button, &QPushButton::clicked, this, &TaskGeneratorPanel::onDiscardClicked);
+        connect(queue_button,   &QPushButton::clicked, this, &TaskGeneratorPanel::onQueueClicked);
+        connect(next_button,    &QPushButton::clicked, this, &TaskGeneratorPanel::onNextClicked);
+
+        episode_nav_layout->addWidget(pause_button);
+        episode_nav_layout->addWidget(discard_button);
+        episode_nav_layout->addWidget(queue_button);
+        episode_nav_layout->addWidget(next_button);
+        episode_nav_widget->setLayout(episode_nav_layout);
+        root_layout->addWidget(episode_nav_widget);
+
+        auto playlist_group  = new QGroupBox("Episode History");
+        auto playlist_layout = new QVBoxLayout();
+
+        playlist_table = new QTableWidget(0, 3);
+        playlist_table->setHorizontalHeaderLabels(QStringList({"World", "State", "Reason"}));
+        playlist_table->horizontalHeader()->setStretchLastSection(true);
+        playlist_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        playlist_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        playlist_table->setMaximumHeight(200);
+
+        playlist_layout->addWidget(playlist_table);
+        playlist_group->setLayout(playlist_layout);
+        root_layout->addWidget(playlist_group);
     }
 
     QComboBox *TaskGeneratorPanel::setupComboBoxWithLabel(QLayout *parent, const QStringList &combobox_values, const QString &label)
@@ -133,18 +378,20 @@ namespace task_generator_gui
     {
         auto tabs = new QTabWidget();
         auto obstacles_tab_widget = new QWidget();
-        auto robot_tab_widget = new QWidget();
+        auto robot_tab_widget     = new QWidget();
 
         tabs->addTab(obstacles_tab_widget, "Obstacles");
         tabs->addTab(robot_tab_widget, "Robots");
 
         auto obstacles_tab_layout = new QVBoxLayout();
-        auto robot_tab_layout = new QVBoxLayout();
+        auto robot_tab_layout     = new QVBoxLayout();
 
+        // Mode comboboxes: disabled until task_modes response arrives.
         obstacles_task_mode_combobox = setupComboBoxWithLabel(
             obstacles_tab_layout,
-            QStringList({"Environment", "Parametrized", "Random", "Scenario", "Prompt"}),
+            QStringList{"Loading..."},
             QString("Obstacles Task Mode"));
+        obstacles_task_mode_combobox->setEnabled(false);
         connect(
             obstacles_task_mode_combobox,
             &QComboBox::currentTextChanged,
@@ -153,8 +400,9 @@ namespace task_generator_gui
 
         robot_task_mode_combobox = setupComboBoxWithLabel(
             robot_tab_layout,
-            QStringList({"Explore", "Guided", "Random", "Scenario"}),
+            QStringList{"Loading..."},
             QString("Robots Task Mode"));
+        robot_task_mode_combobox->setEnabled(false);
         connect(robot_task_mode_combobox,
                 &QComboBox::currentTextChanged,
                 this,
@@ -170,20 +418,19 @@ namespace task_generator_gui
         obstacles_tab_widget->setLayout(obstacles_tab_layout);
         robot_tab_widget->setLayout(robot_tab_layout);
 
-        setupObstaclesTreeItem();
-        setupRobotsTreeItem();
-
         parent->addWidget(tabs);
 
-        updateTabs();
         return tabs;
     }
 
     void TaskGeneratorPanel::updateTabs()
     {
-        obstacles_task_mode_combobox->setCurrentText(obstacles_task_mode);
-        robot_task_mode_combobox->setCurrentText(robots_task_mode);
-        world_combobox->setCurrentText(QString::fromStdString(selected_world));
+        if (obstacles_task_mode_combobox)
+            obstacles_task_mode_combobox->setCurrentText(obstacles_task_mode);
+        if (robot_task_mode_combobox)
+            robot_task_mode_combobox->setCurrentText(robots_task_mode);
+        if (world_combobox)
+            world_combobox->setCurrentText(QString::fromStdString(staged_world));
     }
 
     QTreeWidget *TaskGeneratorPanel::setupTree(QLayout *parent)
@@ -203,235 +450,318 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::onRobotChanged(const QString &text)
     {
-        Q_UNUSED(text);
+        selected_robot_model = text.toStdString();
     }
 
     void TaskGeneratorPanel::onWorldChanged(const QString &text)
     {
-        selected_world = text.toStdString();
+        staged_world = text.toStdString();
 
-        getScenarios(selected_world);
-        setupObstaclesTreeItem();
-        setupRobotsTreeItem();
-    }
+        getScenarios(staged_world);
+        auto obs_mode = obstacles_task_mode.toStdString();
+        for (char &c : obs_mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        rebuildParamTree(obstacles_tree, obs_mode, param_widgets_obstacles_);
 
-    void TaskGeneratorPanel::setupObstaclesTreeItem()
-    {
-        // Clear the widget tree
-        obstacles_tree->clear();
-        if (obstacles_task_mode == "Environment")
+        auto rob_mode = robots_task_mode.toStdString();
+        for (char &c : rob_mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        rebuildParamTree(robots_tree, rob_mode, param_widgets_robots_);
+
+        if (!loading_from_queue_)
         {
-            auto param_config_file_combobox = new QComboBox();
-            param_config_file_combobox->addItems(environment_config_files_qstringlist);
-            param_config_file_combobox->setCurrentText(QString::fromStdString(selected_environment_config_file));
-            auto item = new QTreeWidgetItem(obstacles_tree);
-            item->setText(0, "Configuration File");
-            obstacles_tree->setItemWidget(item, 1, param_config_file_combobox);
-            connect(param_config_file_combobox, &QComboBox::currentTextChanged, this, [this](const QString &text)
-                    { selected_environment_config_file = text.toStdString(); });
+            world_dirty_ = true;
+            updateDirtyButtons();
         }
-
-        else if (obstacles_task_mode == "Parametrized")
-        {
-            auto param_config_file_combobox = new QComboBox();
-
-            param_config_file_combobox->addItems(parametrized_config_files_qstringlist);
-            param_config_file_combobox->setCurrentText(QString::fromStdString(selected_parametrized_config_file));
-            auto item = new QTreeWidgetItem(obstacles_tree);
-            item->setText(0, "Configuration File");
-            obstacles_tree->setItemWidget(item, 1, param_config_file_combobox);
-            connect(param_config_file_combobox, &QComboBox::currentTextChanged, this, [this](const QString &text)
-                    { selected_parametrized_config_file = text.toStdString(); });
-        }
-
-        else if (obstacles_task_mode == "Random")
-        {
-            // Set up the spinbox for n_static_obstacles
-            auto n_static_obstacles_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            n_static_obstacles_widgetitem->setText(0, "Number of Static Obstacles");
-
-            RCLCPP_WARN(service_node->get_logger(), "setting up n_static_obstacles_range");
-            RCLCPP_WARN(service_node->get_logger(), "size %d", int(n_static_obstacles_range.size()));
-            RCLCPP_WARN(service_node->get_logger(), "size %d", int(static_obstacles_all_models.size()));
-            RCLCPP_WARN(service_node->get_logger(), "n_static_obstacles_range: [%d, %d]", int(n_static_obstacles_range[0]), int(n_static_obstacles_range[1]));
-
-            auto n_static_obstacles_widget = setupMinMaxSpinBox(&n_static_obstacles_range);
-            obstacles_tree->setItemWidget(n_static_obstacles_widgetitem, 1, n_static_obstacles_widget);
-
-            // Set up the spinbox for n_dynamic_obstacles
-            auto n_dynamic_obstacles_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            n_dynamic_obstacles_widgetitem->setText(0, "Number of Dynamic Obstacles");
-
-            auto n_dynamic_obstacles_widget = setupMinMaxSpinBox(&n_dynamic_obstacles_range);
-            obstacles_tree->setItemWidget(n_dynamic_obstacles_widgetitem, 1, n_dynamic_obstacles_widget);
-
-            // Set up check boxes to choose static obstacles models
-            auto static_obstacles_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            static_obstacles_widgetitem->setText(0, "Static Obstacles Models");
-
-            static_obstacles_models_groupbox = setupGroupCheckBox(static_obstacles_all_models, &static_obstacles_models_selected);
-            obstacles_tree->setItemWidget(static_obstacles_widgetitem, 1, static_obstacles_models_groupbox);
-
-            // Set up check boxes to choose dynamic obstacles models
-            auto dynamic_obstacles_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            dynamic_obstacles_widgetitem->setText(0, "Dynamic Obstacles Models");
-
-            dynamic_obstacles_models_groupbox = setupGroupCheckBox(dynamic_obstacles_all_models, &dynamic_obstacles_models_selected);
-            obstacles_tree->setItemWidget(dynamic_obstacles_widgetitem, 1, dynamic_obstacles_models_groupbox);
-        }
-
-        else if (obstacles_task_mode == "Scenario")
-        {
-            auto param_config_file_combobox = new QComboBox();
-            param_config_file_combobox->addItems(scenario_config_files_qstringlist);
-            param_config_file_combobox->setCurrentText(QString::fromStdString(selected_scenario_config_file));
-            auto item = new QTreeWidgetItem(obstacles_tree);
-            item->setText(0, "Configuration File");
-            obstacles_tree->setItemWidget(item, 1, param_config_file_combobox);
-            connect(param_config_file_combobox, &QComboBox::currentTextChanged, this, [this](const QString &text)
-                    { selected_scenario_config_file = text.toStdString(); });
-        }
-
-        else if (obstacles_task_mode == "Prompt")
-        {
-            auto generation_mode_combobox = new QComboBox();
-            generation_mode_combobox->addItems(QStringList({"ARENA", "BEHAVIOR_TREE", "CROWDED_BT"}));
-            generation_mode_combobox->setCurrentText(QString::fromStdString(selected_scenario_config_file));
-            auto item = new QTreeWidgetItem(obstacles_tree);
-            item->setText(0, "Generation Mode");
-            obstacles_tree->setItemWidget(item, 1, generation_mode_combobox);
-            connect(generation_mode_combobox, &QComboBox::currentTextChanged, this, [this](const QString &text)
-                    { generation_mode = text.toStdString(); });
-
-            auto top_p_spin_box = new QDoubleSpinBox();
-            top_p_spin_box->setMinimum(0.0);
-            top_p_spin_box->setMaximum(1.0);
-            top_p_spin_box->setSingleStep(0.1);
-            top_p_spin_box->setValue(top_p);
-            auto top_p_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            top_p_widgetitem->setText(0, "Nucleus sampling threshold (top_p)");
-            obstacles_tree->setItemWidget(top_p_widgetitem, 1, top_p_spin_box);
-            connect(top_p_spin_box, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](const double &value)
-                    { top_p = value; });
-
-            auto prompt_text_edit = new QTextEdit();
-            prompt_text_edit->setPlaceholderText("Type your prompt here");
-            prompt_text_edit->setMinimumHeight(50);
-            prompt_text_edit->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-            prompt_text_edit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
-            // prompt_text_edit->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-            prompt_text_edit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-            prompt_text_edit->setLineWrapColumnOrWidth(1);
-            prompt_text_edit->setLineWrapMode(QTextEdit::LineWrapMode::WidgetWidth);
-            prompt_text_edit->setText(QString::fromStdString(typed_prompt));
-            connect(prompt_text_edit, &QTextEdit::textChanged, this, [this, prompt_text_edit]()
-                    { typed_prompt = prompt_text_edit->toPlainText().toStdString(); });
-
-            auto prompt_widgetitem = new QTreeWidgetItem(obstacles_tree);
-            prompt_widgetitem->setText(0, "Prompt");
-            obstacles_tree->setItemWidget(prompt_widgetitem, 1, prompt_text_edit);
-        }
-    }
-
-    void TaskGeneratorPanel::setupRobotsTreeItem()
-    {
-        robots_tree->clear();
-        if (robots_task_mode == "Explore")
-        {
-        }
-
-        else if (robots_task_mode == "Guided")
-        {
-        }
-
-        else if (robots_task_mode == "Random")
-        {
-        }
-
-        else if (robots_task_mode == "Scenario")
-        {
-            auto param_config_file_combobox = new QComboBox();
-            param_config_file_combobox->addItems(scenario_config_files_qstringlist);
-            param_config_file_combobox->setCurrentText(QString::fromStdString(selected_scenario_config_file));
-            auto item = new QTreeWidgetItem(robots_tree);
-            item->setText(0, "Configuration File");
-            robots_tree->setItemWidget(item, 1, param_config_file_combobox);
-            connect(param_config_file_combobox, &QComboBox::currentTextChanged, this, [this](const QString &text)
-                    { selected_scenario_config_file = text.toStdString(); });
-        }
-    }
-
-    QWidget *TaskGeneratorPanel::setupMinMaxSpinBox(std::vector<std::int64_t, std::allocator<std::int64_t>> *connected_values)
-    {
-        auto placeholder_widget = new QWidget();
-        auto layout = new QHBoxLayout();
-
-        layout->addWidget(new QLabel("Min"));
-
-        auto min_spinbox = new QSpinBox();
-        min_spinbox->setRange(0, std::numeric_limits<int>::max());
-        min_spinbox->setValue(connected_values->at(0)); // Default value
-        connect(min_spinbox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, connected_values](int value)
-                { connected_values->at(0) = value; });
-        layout->addWidget(min_spinbox);
-
-        layout->addWidget(new QLabel("Max"));
-
-        auto n_max_static_obstacles_spinbox = new QSpinBox();
-        n_max_static_obstacles_spinbox->setRange(0, std::numeric_limits<int>::max());
-        n_max_static_obstacles_spinbox->setValue(connected_values->at(1)); // Default value
-        connect(n_max_static_obstacles_spinbox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, connected_values](int value)
-                { connected_values->at(1) = value; });
-        layout->addWidget(n_max_static_obstacles_spinbox);
-        layout->addStretch();
-        layout->setAlignment(Qt::AlignLeft);
-        layout->setSpacing(4);
-
-        placeholder_widget->setLayout(layout);
-
-        return placeholder_widget;
-    }
-
-    MultiSelectComboBox *TaskGeneratorPanel::setupGroupCheckBox(std::vector<std::string> check_box_texts, std::vector<int> *connected_hash_map)
-    {
-        auto group_check_box = new MultiSelectComboBox();
-
-        for (int i = 0; i < int(check_box_texts.size()); i++)
-        {
-            group_check_box->addItem(QString::fromStdString(check_box_texts[i]), connected_hash_map->at(i));
-        }
-
-        group_check_box->stateChanged(1);
-
-        return group_check_box;
     }
 
     void TaskGeneratorPanel::onObstaclesTaskModeChanged(const QString &text)
     {
         obstacles_task_mode = text;
-        getCurrentTaskGeneratorNodeParams();
-        setupObstaclesTreeItem();
+        auto mode = text.toStdString();
+        for (char &c : mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        rebuildParamTree(obstacles_tree, mode, param_widgets_obstacles_);
+
+        if (!loading_from_queue_)
+        {
+            tm_obstacles_dirty_ = true;
+            updateDirtyButtons();
+        }
     }
 
     void TaskGeneratorPanel::onRobotsTaskModeChanged(const QString &text)
     {
         robots_task_mode = text;
-        getCurrentTaskGeneratorNodeParams();
-        setupRobotsTreeItem();
+        auto mode = text.toStdString();
+        for (char &c : mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        rebuildParamTree(robots_tree, mode, param_widgets_robots_);
+
+        if (!loading_from_queue_)
+        {
+            tm_robots_dirty_ = true;
+            updateDirtyButtons();
+        }
+    }
+
+    // --- Discard / Queue / Next ---
+
+    void TaskGeneratorPanel::onDiscardClicked()
+    {
+        if (!last_queued_episode_)
+            return;
+        loading_from_queue_ = true;
+        populateFromQueue(*last_queued_episode_);
+        loading_from_queue_ = false;
+        clearDirtyFlags();
+        updateDirtyButtons();
+    }
+
+    void TaskGeneratorPanel::onQueueClicked()
+    {
+        pushQueueEpisode([](bool) {});
+    }
+
+    void TaskGeneratorPanel::onNextClicked()
+    {
+        if (isDirty())
+        {
+            pushQueueEpisode([this](bool ok)
+            {
+                if (ok)
+                    QMetaObject::invokeMethod(this, [this]() { sendResetEpisode(); }, Qt::QueuedConnection);
+            });
+        }
+        else
+        {
+            sendResetEpisode();
+        }
+    }
+
+    void TaskGeneratorPanel::sendResetEpisode()
+    {
+        auto request = std::make_shared<task_generator_msgs::srv::ResetEpisode::Request>();
+        request->seed = -1;
+        reset_episode_client->async_send_request(
+            request,
+            [this](rclcpp::Client<task_generator_msgs::srv::ResetEpisode>::SharedFuture f)
+            {
+                auto resp = f.get();
+                if (resp && !resp->success)
+                    RCLCPP_WARN(node->get_logger(),
+                                "reset_episode failed: %s", resp->error_msg.c_str());
+            });
+    }
+
+    // --- Pause toggle ---
+
+    void TaskGeneratorPanel::onPauseClicked()
+    {
+        auto request = std::make_shared<task_generator_msgs::srv::Pause::Request>();
+        request->action = task_generator_msgs::srv::Pause::Request::TOGGLE;
+        pause_client->async_send_request(request);
+    }
+
+    // --- Dirty flag management ---
+
+    void TaskGeneratorPanel::clearDirtyFlags()
+    {
+        obstacles_params_dirty_ = false;
+        robots_params_dirty_    = false;
+        world_dirty_            = false;
+        tm_obstacles_dirty_     = false;
+        tm_robots_dirty_        = false;
+    }
+
+    void TaskGeneratorPanel::updateDirtyButtons()
+    {
+        const bool dirty_and_queued = isDirty() && last_queued_episode_ != nullptr;
+        if (discard_button) discard_button->setEnabled(dirty_and_queued);
+        if (queue_button)   queue_button->setEnabled(dirty_and_queued);
+    }
+
+    // --- Populate widgets from queued record ---
+
+    void TaskGeneratorPanel::populateFromQueue(const task_generator_msgs::msg::EpisodeRecord &rec)
+    {
+        auto title = [](std::string s) -> std::string {
+            if (!s.empty())
+                s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
+            return s;
+        };
+
+        if (!rec.world.empty() && rec.world != staged_world)
+        {
+            staged_world = rec.world;
+            if (world_combobox)
+            {
+                QSignalBlocker b(world_combobox);
+                world_combobox->setCurrentText(QString::fromStdString(staged_world));
+            }
+        }
+
+        auto lower = [](std::string s) {
+            for (char &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            return s;
+        };
+
+        if (!rec.tm_obstacles.empty())
+        {
+            const auto new_mode = lower(rec.tm_obstacles);
+            const auto cur_mode = lower(obstacles_task_mode.toStdString());
+            obstacles_task_mode = QString::fromStdString(title(rec.tm_obstacles));
+            if (obstacles_task_mode_combobox)
+            {
+                QSignalBlocker b(obstacles_task_mode_combobox);
+                obstacles_task_mode_combobox->setCurrentText(obstacles_task_mode);
+            }
+            // Rebuild only on actual mode change. Rebuilds are async and read
+            // live param values, which would clobber the staged values carried
+            // in rec.<>_params (set below) since staging does not write the
+            // live param.
+            if (new_mode != cur_mode)
+                rebuildParamTree(obstacles_tree, new_mode, param_widgets_obstacles_);
+        }
+
+        if (!rec.tm_robots.empty())
+        {
+            const auto new_mode = lower(rec.tm_robots);
+            const auto cur_mode = lower(robots_task_mode.toStdString());
+            robots_task_mode = QString::fromStdString(title(rec.tm_robots));
+            if (robot_task_mode_combobox)
+            {
+                QSignalBlocker b(robot_task_mode_combobox);
+                robot_task_mode_combobox->setCurrentText(robots_task_mode);
+            }
+            if (new_mode != cur_mode)
+                rebuildParamTree(robots_tree, new_mode, param_widgets_robots_);
+        }
+
+        if (!rec.robots.empty())
+        {
+            selected_robot_model = rec.robots.back();
+            if (robot_combobox)
+            {
+                QSignalBlocker b(robot_combobox);
+                robot_combobox->setCurrentText(QString::fromStdString(selected_robot_model));
+            }
+        }
+
+        for (const auto &p : rec.obstacles_params)
+        {
+            auto it = param_widgets_obstacles_.find(p.name);
+            if (it != param_widgets_obstacles_.end())
+                setWidgetValueFromParam(it->second, p);
+        }
+        for (const auto &p : rec.robots_params)
+        {
+            auto it = param_widgets_robots_.find(p.name);
+            if (it != param_widgets_robots_.end())
+                setWidgetValueFromParam(it->second, p);
+        }
+    }
+
+    // --- History table ---
+
+    void TaskGeneratorPanel::refreshHistory()
+    {
+        if (!playlist_table)
+            return;
+
+        auto outcomeLabel = [](uint8_t s) -> QString
+        {
+            switch (s)
+            {
+            case task_generator_msgs::msg::EpisodeRecord::SUCCESS:  return "SUCCESS";
+            case task_generator_msgs::msg::EpisodeRecord::FAILED:   return "FAILED";
+            case task_generator_msgs::msg::EpisodeRecord::SKIPPED:  return "SKIPPED";
+            default:                                                 return "UNFINISHED";
+            }
+        };
+
+        // Count rows: history + optional current + optional queued preview.
+        bool show_queued = false;
+        if (last_current_episode_ && last_queued_episode_)
+        {
+            const auto &cur = *last_current_episode_;
+            const auto &que = *last_queued_episode_;
+            show_queued = (cur.world != que.world
+                || cur.tm_robots != que.tm_robots
+                || cur.tm_obstacles != que.tm_obstacles
+                || cur.robots != que.robots
+                || cur.obstacles_params.size() != que.obstacles_params.size()
+                || cur.robots_params.size() != que.robots_params.size());
+        }
+        else if (last_queued_episode_)
+        {
+            show_queued = true;
+        }
+
+        const uint32_t current_id = last_current_episode_ ? last_current_episode_->episode_id : 0;
+
+        int history_rows = 0;
+        for (const auto &rec : history_buffer_)
+        {
+            if (last_current_episode_ && rec.episode_id == current_id) continue;
+            ++history_rows;
+        }
+
+        int total_rows = history_rows;
+        if (last_current_episode_) ++total_rows;
+        if (show_queued)           ++total_rows;
+
+        playlist_table->setRowCount(total_rows);
+
+        int row = 0;
+        for (const auto &rec : history_buffer_)
+        {
+            if (last_current_episode_ && rec.episode_id == current_id) continue;
+            playlist_table->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(rec.world)));
+            playlist_table->setItem(row, 1, new QTableWidgetItem(outcomeLabel(rec.outcome_state)));
+            playlist_table->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(rec.outcome_reason)));
+            ++row;
+        }
+
+        if (last_current_episode_)
+        {
+            const auto &cur = *last_current_episode_;
+            auto makeBold = [](const QString &text)
+            {
+                auto item = new QTableWidgetItem(text);
+                QFont f   = item->font();
+                f.setBold(true);
+                item->setFont(f);
+                return item;
+            };
+            playlist_table->setItem(row, 0, makeBold(QString::fromStdString(cur.world)));
+            playlist_table->setItem(row, 1, makeBold(outcomeLabel(cur.outcome_state)));
+            playlist_table->setItem(row, 2, makeBold(QString::fromStdString(cur.outcome_reason)));
+            ++row;
+        }
+
+        if (show_queued)
+        {
+            const auto &que = *last_queued_episode_;
+            auto makeItalic = [](const QString &text)
+            {
+                auto item = new QTableWidgetItem(text);
+                QFont f   = item->font();
+                f.setItalic(true);
+                item->setFont(f);
+                return item;
+            };
+            playlist_table->setItem(row, 0, makeItalic(QString::fromStdString(que.world)));
+            playlist_table->setItem(row, 1, makeItalic(QString("(queued)")));
+            playlist_table->setItem(row, 2, makeItalic(QString::fromStdString(que.outcome_reason)));
+        }
     }
 
     void TaskGeneratorPanel::generateWorldButtonActivated()
     {
         if (generateWorld())
         {
-            selected_world = ".generated";
-            setParams();
+            staged_world = ".generated";
+            pushQueueEpisode([](bool) {});
         }
     }
-    void TaskGeneratorPanel::resetScenarioButtonActivated()
-    {
-        setParams();
-    }
+
     void TaskGeneratorPanel::spawnRobotButtonActivated()
     {
         setRobot();

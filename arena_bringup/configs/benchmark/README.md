@@ -59,7 +59,6 @@ stages:
       RANDOM:
         dynamic:  {min: 3, max: 5, models: [arenian]}
         static:   {min: 5, max: 10, models: [shelf]}
-        interactive: {min: 0, max: 0, models: [shelf]}
 ```
 
 ### Stage fields

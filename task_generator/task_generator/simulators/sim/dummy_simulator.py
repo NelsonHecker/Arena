@@ -50,12 +50,12 @@ class DummySimulator(BaseSim):
         except Exception as e:
             self._logger.exception("clock loop crashed: %s", repr(e))
 
-    async def before_reset_task(self) -> bool:
+    async def before_reset_episode(self) -> bool:
         self._logger.debug("pausing")
         self._paused = True
         return True
 
-    async def after_reset_task(self) -> bool:
+    async def after_reset_episode(self) -> bool:
         self._logger.debug("unpausing")
         self._paused = False
         return True

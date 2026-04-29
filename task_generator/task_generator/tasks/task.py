@@ -6,7 +6,6 @@ import rclpy
 import rclpy.publisher
 import std_msgs.msg as std_msgs
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer
-from arena_rclpy_mixins.shared import DefaultParameter
 
 from task_generator import NodeInterface
 from task_generator.constants import Constants
@@ -33,8 +32,6 @@ from .robots import TM_Robots
 class Task(_TaskRegistry, NodeInterface):
     """Task class that comibnes task modes."""
 
-    last_reset_time: int
-
     TOPIC_RESET_START = "reset_start"
     TOPIC_RESET_END = "reset_end"
     PARAM_RESETTING = "resetting"
@@ -42,10 +39,10 @@ class Task(_TaskRegistry, NodeInterface):
     @classmethod
     def declare_parameters(cls, node: ROSParamServer):
         node.ROSParam[bool](cls.PARAM_RESETTING, True)
+        _TaskRegistry.walk_schemas(node)
 
     __reset_start: rclpy.publisher.Publisher
     __reset_end: rclpy.publisher.Publisher
-    __reset_mutex: bool
 
     PARAM_TM_ROBOTS = "tm_robots"
     PARAM_TM_OBSTACLES = "tm_obstacles"
@@ -115,29 +112,20 @@ class Task(_TaskRegistry, NodeInterface):
             world_manager=world_manager,
         )
 
-        self._train_mode = self.node.get_parameter_or("/train_mode", DefaultParameter(False)).value
-
         self.__reset_start = self.node.create_publisher(std_msgs.Empty, 'reset_start', 1)
         self.__reset_end = self.node.create_publisher(std_msgs.Empty, 'reset_end', 1)
-        self.__reset_mutex = False
-
-        self.last_reset_time = 0
 
         self.__param_tm_obstacles = None  # type: ignore
         self.__param_tm_robots = None  # type: ignore
         self._logger.info('initing modules')
         self.__modules = []
         for module in modules:
-            loader, ns = self.registry_module[module]
+            loader, ns, _schema = self.registry_module[module]
             self.__modules.append(loader()(ctx=self._ctx, namespace=ns, task=self, node=self.node))
-
-        if self._train_mode:
-            self.set_tm_robots(Constants.TaskMode.TM_Robots(self.node.conf.TaskMode.TM_ROBOTS.value))
-            self.set_tm_obstacles(Constants.TaskMode.TM_Obstacles(self.node.conf.TaskMode.TM_OBSTACLES.value))
 
     def set_tm_robots(self, tm_robots: Constants.TaskMode.TM_Robots):
         assert tm_robots in self.registry_robots, f"TaskMode '{tm_robots}' for robots is not registered!"
-        loader, ns = self.registry_robots[tm_robots]
+        loader, ns, _schema = self.registry_robots[tm_robots]
         self.__tm_robots = loader()(ctx=self._ctx, namespace=ns, node=self.node)
         self.__param_tm_robots = tm_robots
 
@@ -165,7 +153,7 @@ class Task(_TaskRegistry, NodeInterface):
             except ValueError:
                 enum_key = None
             if enum_key is not None and enum_key in self.registry_robots:
-                loader, ns = self.registry_robots[enum_key]
+                loader, ns, _schema = self.registry_robots[enum_key]
             else:
                 extra = get_extra_tm_loader(spec.kind)
                 if extra is None:
@@ -183,31 +171,32 @@ class Task(_TaskRegistry, NodeInterface):
             sub_modes=sub_modes,
         )
         # No single enum value applies; sentinel prevents the
-        # new_tm_robots != __param_tm_robots comparison in _reset_task
+        # new_tm_robots != __param_tm_robots comparison in _reset_episode
         # from retriggering a rebind.
         self.__param_tm_robots = None  # type: ignore[assignment]
 
     def set_tm_obstacles(self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
         assert tm_obstacles in self.registry_obstacles, f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
-        loader, ns = self.registry_obstacles[tm_obstacles]
+        loader, ns, _schema = self.registry_obstacles[tm_obstacles]
         self.__tm_obstacles = loader()(ctx=self._ctx, namespace=ns, node=self.node)
         self.__param_tm_obstacles = tm_obstacles
 
-    async def _reset_task(self, **kwargs: object) -> None:
+    async def _reset_episode(self, **kwargs: object) -> None:
         try:
             self.__reset_start.publish(std_msgs.Empty())
 
             await self.robots_manager.set_up()
 
-            await self.environment_manager.before_reset_task()
+            await self.environment_manager.before_reset_episode()
 
             try:
-                if not self._train_mode:
-                    if (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
-                        self.set_tm_robots(new_tm_robots)
+                if (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
+                    self.set_tm_robots(new_tm_robots)
 
-                    if (new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value) != self.__param_tm_obstacles:
-                        self.set_tm_obstacles(new_tm_obstacles)
+                if (new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value) != self.__param_tm_obstacles:
+                    self.set_tm_obstacles(new_tm_obstacles)
+
+                self.node._apply_staged_params()
 
                 for module in self.__modules:
                     module.before_reset()
@@ -225,10 +214,8 @@ class Task(_TaskRegistry, NodeInterface):
 
                 for module in self.__modules:
                     module.after_reset()
-
-                self.last_reset_time = self.node.sim_time.sec
             finally:
-                await self.environment_manager.after_reset_task()
+                await self.environment_manager.after_reset_episode()
 
         except Exception as e:
             self.node.get_logger().error(repr(e))
@@ -239,19 +226,29 @@ class Task(_TaskRegistry, NodeInterface):
 
     async def reset(self, **kwargs: object) -> None:
         self._force_reset = False
-        await self._reset_task(**kwargs)
+        await self._reset_episode(**kwargs)
 
     @property
     async def is_done(self) -> bool:
         return self._force_reset or await self.__tm_robots.done
 
+    @property
+    def tm_obstacles(self) -> TM_Obstacles:
+        return self.__tm_obstacles
+
+    @property
+    def tm_robots(self) -> TM_Robots:
+        return self.__tm_robots
+
     async def set_robot_position(self, pose: Pose):
         """Broadcast a teleport to all robots (back-compat shim for RViz / training UI)."""
         await self.__tm_robots.set_position(pose)
+        self.node._flip_integrity()
 
     async def set_robot_goal(self, pose: Pose):
         """Broadcast a goal to all robots (back-compat shim for RViz / training UI)."""
         await self.__tm_robots.set_goal(pose)
+        self.node._flip_integrity()
 
     async def submit_task(self, request: TaskRequest, robot_name: str) -> None:
         """Submit a typed task request to a specific robot; bypasses TM_Robots."""

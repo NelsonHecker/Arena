@@ -23,7 +23,7 @@ class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc
         self._realizer = realizer
 
     @abc.abstractmethod
-    async def before_reset_task(self) -> bool:
+    async def before_reset_episode(self) -> bool:
         """
         Is executed each time before the task is reset. This is useful in
         order to pause the simulation.
@@ -31,7 +31,7 @@ class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, abc
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def after_reset_task(self) -> bool:
+    async def after_reset_episode(self) -> bool:
         """
         Is executed after the task is reset. This is useful to unpause the
         simulation.

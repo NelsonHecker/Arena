@@ -1,5 +1,5 @@
 from task_generator.shared import Pose
-from task_generator.tasks.robots.random import TM_Random
+from task_generator.tasks.robots.random.impl import TM_Random
 from task_generator.tasks.robots.request import GoToPhase, TaskPhase, TaskRequest
 
 

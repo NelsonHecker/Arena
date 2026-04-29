@@ -1,5 +1,7 @@
 #! /usr/bin/env python3
 import asyncio
+import errno
+import gc
 import traceback
 
 import rclpy
@@ -15,6 +17,19 @@ def spin_blocking(executor: rclpy.executors.Executor) -> None:
         pass
 
 
+def _suppress_shutdown_noise(loop: asyncio.AbstractEventLoop, context: dict) -> None:
+    """Drop launch-internal asyncio noise: in-process LaunchServices fight over signal handlers and double-fire process_exited."""
+    exc = context.get("exception")
+    if isinstance(exc, asyncio.InvalidStateError):
+        return
+    if not rclpy.ok():
+        if isinstance(exc, AssertionError):
+            return
+        if isinstance(exc, OSError) and exc.errno == errno.EBADF:
+            return
+    loop.default_exception_handler(context)
+
+
 async def app_logic(node: TaskGenerator) -> None:
     node.get_logger().info('Beginning client, shut down with CTRL-C')
     await node.setup()
@@ -26,6 +41,7 @@ async def main_async(args: list[str] | None = None) -> None:
     del args
     rclpy.init()
     loop = asyncio.get_running_loop()
+    loop.set_exception_handler(_suppress_shutdown_noise)
 
     executor = rclpy.executors.MultiThreadedExecutor()
 
@@ -58,6 +74,8 @@ async def main_async(args: list[str] | None = None) -> None:
         if not app_task.done():
             app_task.cancel()
 
+        await node._launch_manager.kill_all()
+
         executor.shutdown()
 
         try:
@@ -67,6 +85,9 @@ async def main_async(args: list[str] | None = None) -> None:
 
         executor.remove_node(node)
         node.destroy_node()
+        # Run lingering subprocess-transport finalizers while the loop is still alive
+        # so their loop.call_soon() inside __del__ doesn't hit a closed loop.
+        gc.collect()
         rclpy.try_shutdown()
 
 

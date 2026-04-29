@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import time
 import traceback
 import typing
@@ -291,11 +292,11 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles: Sequence[DynamicObstacle]) -> Sequence[DynamicObstacle | None]:
         async with self._agents_lock:
-            results = []
+            results: list[DynamicObstacle | None] = []
+            new_agent_msgs: list = []
 
             for obstacle in obstacles:
                 try:
-                    # Get unique ID
                     unique_id = len(self._agents_container.agents) + 1
                     self._logger.debug(f"Preparing to spawn dynamic obstacle '{obstacle.name}' with ID {unique_id}")
                     hunav_obstacle = HunavDynamicObstacle.from_dynamic_obstacle(obstacle)
@@ -303,25 +304,19 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
                     agent_msg = hunav_obstacle.to_msg()
 
-                    # Add to container - NO ComputeAgents call here!
                     self._get_agents_container.agents.append(agent_msg)  # type: ignore
                     self._agents_container.agents.append(agent_msg)  # type: ignore
-                    # self._logger.error(f"spawn_dynamic_obstacle_agents_container {self._agents_container}")
+                    new_agent_msgs.append(agent_msg)
 
-                    # Create separate arena pedestrian
                     arena_pedestrian = self._create_arena_pedestrian(hunav_obstacle, unique_id)
                     self._arena_pedestrians_container.pedestrians.append(arena_pedestrian)  # type: ignore
-                    self._logger.debug(f"Added arena pedestrian {arena_pedestrian.name} - Total: {len(self._arena_pedestrians_container.pedestrians)}")
 
-                    # Store in pedestrians dictionary
                     self._pedestrians[agent_msg.id] = {
                         "last_update": time.time(),
                         "current_state": agent_msg.behavior.state,
                         "agent": agent_msg,
                         "animation_time": 0.0,
                     }
-
-                    self._logger.debug(f"Added agent {agent_msg.name} to container. Total agents: {len(self._agents_container.agents)}")
 
                     results.append(obstacle)
 
@@ -330,41 +325,58 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                     self._logger.error(traceback.format_exc())
                     results.append(None)
 
-            # Now all obstacles have been prepared - register them with HuNav
+            if not new_agent_msgs:
+                return results
 
-            if self._agents_container.agents:
-                self._logger.debug(f"All spawns complete. Registering {len(self._agents_container.agents)} agents with HuNav")
+            # HuNav's BTnode initializes per-agent behavior trees only on the
+            # first ComputeAgents call (guarded by `initialized_`). Subsequent
+            # calls with new agent ids leave `trees_` unchanged, so the new
+            # agent is never ticked. Workaround: call `clear_agents` (which
+            # flips `initialized_` back to false) and then ComputeAgents with
+            # the full agent set so HuNav re-runs `initializeBehaviorTrees`.
+            #
+            # `_last_updated_agents` (HuNav's response) drops `behavior_tree`,
+            # `goals`, `cyclic_goals`, `goal_radius`, `desired_velocity`,
+            # `radius`, `linear_vel`, `angular_vel`, so we cannot use it as
+            # the resend payload directly — existing agents would come back
+            # with empty goals and stop. Instead, take the full original
+            # Agent msg cached in `_pedestrians[id]['agent']` and overlay the
+            # live pose/velocity from `_last_updated_agents`. Trade-off: BT
+            # internal node bookkeeping (timers, cyclic-goal index) resets on
+            # every incremental spawn; visible motion continues from the live
+            # pose toward the unchanged goals.
+            live_by_id = {}
+            if self._last_updated_agents is not None:
+                live_by_id = {a.id: a for a in self._last_updated_agents.agents}
 
-                # Update timestamp
-                self._agents_container.header.stamp = self.node.sim_time.to_msg()
+            merged = Agents()
+            merged.header.frame_id = "map"
+            merged.header.stamp = self.node.sim_time.to_msg()
+            for ped_id, info in self._pedestrians.items():
+                full = copy.deepcopy(info["agent"])
+                live = live_by_id.get(ped_id)
+                if live is not None:
+                    full.position = live.position
+                    full.yaw = live.yaw
+                    full.velocity = live.velocity
+                    full.linear_vel = live.linear_vel
+                    full.angular_vel = live.angular_vel
+                    full.behavior.state = live.behavior.state
+                merged.agents.append(full)  # type: ignore
 
-                # Create request
-                request = ComputeAgents.Request()
-                request.robot = self._refresh_robot_msg()
-                request.current_agents = self._agents_container
+            if not await self._reset_hunav():
+                self._logger.error("clear_agents failed; new pedestrian(s) will not move")
+                return results
 
-                # Call HuNav service
-                response = await self._compute_agents_client.call_timeout(request)
+            request = ComputeAgents.Request()
+            request.robot = self._refresh_robot_msg()
+            request.current_agents = merged
+            response = await self._compute_agents_client.call_timeout(request)
 
-                if response:
-                    self._logger.debug(f"Successfully registered {len(response.updated_agents.agents)} agents")
-
-                    # # Update local agents with response data
-                    # for updated_agent in response.updated_agents.agents:
-
-                    #     for i, agent in enumerate(self._agents_container.agents):
-                    #         if agent.id == updated_agent.id:
-                    #             self._agents_container.agents[i] = updated_agent
-                    #             break
-
-                    #     # Update pedestrians dictionary if exists
-                    #     if updated_agent.id in self._pedestrians:
-                    #         self._pedestrians[updated_agent.id]['agent'] = updated_agent
-
-                else:
-                    self._logger.error("Failed to register agents with HuNav")
+            if response and response.updated_agents:
+                self._last_updated_agents = response.updated_agents
             else:
-                self._logger.warning(f"No agents to register from {len(obstacles)} spawn requests")
+                self._logger.error("ComputeAgents after clear_agents returned no updated agents")
 
             return results
 

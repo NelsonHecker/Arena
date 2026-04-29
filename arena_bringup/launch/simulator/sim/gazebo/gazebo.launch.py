@@ -55,6 +55,7 @@ def generate_launch_description():
     GZ_SIM_RESOURCE_PATHS = [
         os.path.join(staging_path),
         robots_root,
+        os.path.dirname(robots_root),
         os.path.join(ss_root, "assets", "Common", "Pedestrian", "arenian", "arenian.sdf"),
         os.path.join(ss_root, "assets", "Common", "Pedestrian", "arenian"),
     ]

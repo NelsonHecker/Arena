@@ -395,7 +395,7 @@ class Mod_Benchmark(TM_Module):
         else:
             self.needs_reincarnation = True
 
-    def _reset_task(self):
+    def _reset_episode(self):
         self._task.reset()
 
     @property
@@ -480,5 +480,5 @@ class Mod_Benchmark(TM_Module):
 
         if not success:
             logger.error(f"Failed to set parameters for {suite_config.name} on any task_generator_node. Ensure tm_robots and tm_obstacles are declared in task_generator_node.py.")
-        self._reset_task()
+        self._reset_episode()
         self._episode = 0

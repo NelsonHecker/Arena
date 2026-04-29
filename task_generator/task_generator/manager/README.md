@@ -99,8 +99,8 @@ All obstacle/robot operations go through here.
 | `remove_robot(robots)` | remove robots from both layers |
 | `respawn(callback)` | `unuse_obstacles()` → `callback()` → `remove_obstacles(UNUSED)` |
 | `reset(purge)` | remove all obstacles at or below `purge` layer |
-| `before_reset_task()` | delegates to `BaseSim.before_reset_task()` (pauses sim) |
-| `after_reset_task()` | delegates to `BaseSim.after_reset_task()` (unpauses sim) |
+| `before_reset_episode()` | delegates to `BaseSim.before_reset_episode()` (pauses sim) |
+| `after_reset_episode()` | delegates to `BaseSim.after_reset_episode()` (unpauses sim) |
 
 **Obstacle/pedestrian removal is split:** `BaseHumanSimulator.unuse_obstacles`
 calls `_remove_obstacles_impl` (the human-sim-side pedestrian removal) and

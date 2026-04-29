@@ -1,0 +1,10 @@
+string model
+# Empty auto-generates.
+string name
+geometry_msgs/PoseStamped pose
+# False = task mode picks placement.
+bool use_pose
+---
+string name
+bool success
+string error_msg

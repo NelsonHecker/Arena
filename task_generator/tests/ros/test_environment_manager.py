@@ -48,19 +48,23 @@ def _make_env_manager(realizer=None, human_sim=None, sim=None):
             spawn_floors=AsyncMock(return_value=None),
             spawn_elevators=AsyncMock(return_value=None),
             step=AsyncMock(return_value=True),
-            before_reset_task=AsyncMock(return_value=True),
-            after_reset_task=AsyncMock(return_value=True),
+            before_reset_episode=AsyncMock(return_value=True),
+            after_reset_episode=AsyncMock(return_value=True),
         )
 
     node = SimpleNamespace(
         get_logger=lambda: _FakeLogger(),
     )
 
+    import shapely
+
     em = EnvironmentManager.__new__(EnvironmentManager)
     em._NodeInterface__node = node
     em._realizer = realizer
     em._human_simulator = human_sim
     em._simulator = sim
+    em._static_polygons = {}
+    em._walls_geometry = shapely.MultiLineString()
     return em
 
 
@@ -232,6 +236,7 @@ def test_respawn_calls_unuse_callback_remove():
         spawn_dynamic_obstacles=AsyncMock(return_value=None),
         unuse_obstacles=AsyncMock(return_value=None),
         remove_obstacles=AsyncMock(return_value=None),
+        _known_obstacles={},
     )
     sim = SimpleNamespace(
         spawn_floors=AsyncMock(return_value=None),
@@ -255,6 +260,7 @@ def test_reset_calls_remove_obstacles_with_purge():
     from task_generator.simulators.human.utils import ObstacleLayer
     human_sim = SimpleNamespace(
         remove_obstacles=AsyncMock(return_value=None),
+        _known_obstacles={},
     )
     sim = SimpleNamespace()
     em = _make_env_manager(human_sim=human_sim, sim=sim)
@@ -278,17 +284,17 @@ def test_step_zero():
     sim.step.assert_called_once_with(0)
 
 
-def test_before_reset_task_delegates():
-    sim = SimpleNamespace(before_reset_task=AsyncMock(return_value=True))
+def test_before_reset_episode_delegates():
+    sim = SimpleNamespace(before_reset_episode=AsyncMock(return_value=True))
     em = _make_env_manager(sim=sim)
-    result = asyncio.run(em.before_reset_task())
+    result = asyncio.run(em.before_reset_episode())
     assert result is True
 
 
-def test_after_reset_task_delegates():
-    sim = SimpleNamespace(after_reset_task=AsyncMock(return_value=True))
+def test_after_reset_episode_delegates():
+    sim = SimpleNamespace(after_reset_episode=AsyncMock(return_value=True))
     em = _make_env_manager(sim=sim)
-    result = asyncio.run(em.after_reset_task())
+    result = asyncio.run(em.after_reset_episode())
     assert result is True
 
 

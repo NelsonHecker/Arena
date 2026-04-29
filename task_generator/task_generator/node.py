@@ -1,5 +1,8 @@
+import array
 import asyncio
+import hashlib
 import traceback
+import uuid
 
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Object
@@ -7,13 +10,21 @@ import arena_simulation_setup.tree.assets.Pedestrian
 import arena_simulation_setup.tree.configs.environment
 import arena_simulation_setup.tree.configs.parametrized
 import arena_simulation_setup.tree.World as World
+import attrs
+import geometry_msgs.msg
 import rclpy
-import std_srvs.srv as std_srvs
+import task_generator_msgs.action
+import task_generator_msgs.msg
 import task_generator_msgs.srv
 import tf2_ros
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import Namespace
-from std_msgs.msg import Empty, Int16
+from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterValue
+from rcl_interfaces.msg import Parameter as RclParameter
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.parameter import Parameter
+from std_msgs.msg import Bool, Int16, String
 from std_srvs.srv import Empty as EmptySrv
 
 from task_generator.constants import Constants
@@ -24,13 +35,60 @@ from task_generator.manager.robot_manager import RobotsManager
 from task_generator.manager.world_manager.world_manager_ros import (
     WorldManagerROS as WorldManager,
 )
+from task_generator.shared import Orientation, Pose, Position
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
 from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.simulators.sim import BaseSim, SimulatorRegistry
 from task_generator.tasks import identifier_to_available
+from task_generator.tasks.obstacles import ObstacleKind
+from task_generator.tasks.registry import _TaskRegistry
 from task_generator.tasks.task import Task
 
 from . import SafeCallbackNode
+
+
+@attrs.define
+class EpisodeRecord:
+    episode_id: int = 0
+    world: str = ""
+    seed: int = -1
+    tm_robots: str = ""
+    tm_obstacles: str = ""
+    tm_modules: list[str] = attrs.Factory(list)
+    robots: list[str] = attrs.Factory(list)
+    outcome_state: int = 0
+    outcome_reason: str = ""
+    goal_uuid: str = ""
+    integrity: bool = True
+
+
+@attrs.define
+class TaskModeOverrides:
+    tm_robots: str = ""
+    tm_obstacles: str = ""
+    tm_modules: list[str] = attrs.Factory(list)
+    keep_modules: bool = False
+    world: str = ""
+    robots: list[str] = attrs.Factory(list)
+
+
+@attrs.define
+class EpisodeRuntime:
+    current: EpisodeRecord = attrs.Factory(EpisodeRecord)
+    run_seed: str = attrs.field(factory=lambda: uuid.uuid4().hex)
+    pending_outcomes: dict = attrs.Factory(dict)
+    pending_overrides: TaskModeOverrides | None = None
+    pending_world: str = ""
+    pending_seed: int = -1
+    action_in_flight: bool = False
+
+
+def _derive_seed(run_seed: str, world: str, episode_id: int) -> int:
+    digest = hashlib.blake2b(
+        f"{run_seed}|{world}|{episode_id}".encode(),
+        digest_size=8,
+    ).digest()
+    return int.from_bytes(digest, "big") & 0x7FFFFFFFFFFFFFFF
 
 
 class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
@@ -45,7 +103,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     _robots_manager: RobotsManager
     _simulator: BaseSim
 
-    _initialized: bool
+    _episodes: EpisodeRuntime
+    _paused: bool = False
 
     @property
     def robots_manager(self) -> RobotsManager:
@@ -67,28 +126,96 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
         self.rosparam[bool].set("initialized", False)
 
-        self._auto_reset = self.rosparam[bool].get("auto_reset", True)
-        self._train_mode = self.rosparam[bool].get("train_mode", False)
+        run_seed = self.rosparam[str].get("run_seed", "")
+        queue_depth = self.rosparam[int].get("episode_queue_depth", 10)
+
+        self._declare_mutable_param(
+            "auto_reset",
+            True,
+            ParameterDescriptor(
+                description=(
+                    "true = standalone: node auto-advances episodes. "
+                    "false = managed: external controller drives resets."
+                ),
+            ),
+        )
+        self._declare_mutable_param(
+            "run_seed",
+            run_seed,
+            ParameterDescriptor(
+                description=(
+                    "Hex string seeding per-episode blake2b derivation. "
+                    "Empty = random uuid at startup."
+                ),
+            ),
+        )
+        self._declare_mutable_param(
+            "episode_queue_depth",
+            queue_depth,
+            ParameterDescriptor(
+                description="Publisher depth for state/queue topic.",
+                integer_range=[IntegerRange(from_value=1, to_value=100, step=1)],
+            ),
+        )
+
+        self._episodes = EpisodeRuntime(
+            run_seed=run_seed or uuid.uuid4().hex,
+        )
 
         self._reset_lock: asyncio.Lock = asyncio.Lock()
         self._start_time = self.time
-        self._number_of_resets = 0
         self._task: Task
 
-        # Publishers
+        self._staged_obstacles_params: dict[str, ParameterValue] = {}
+        self._staged_robots_params: dict[str, ParameterValue] = {}
+
         self._pub_task_reset = self.create_publisher(
             Int16,
             self.service_namespace("task_reset"),
             1,
         )
 
-        self._pub_finished = self.create_publisher(
-            Empty,
-            self.service_namespace("finished"),
-            10,
+        self._pub_state_world = self.create_publisher(
+            String,
+            self.service_namespace("state", "world"),
+            rclpy.qos.QoSProfile(
+                depth=1,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
         )
 
+        self._pub_state_episode = self.create_publisher(
+            task_generator_msgs.msg.EpisodeRecord,
+            self.service_namespace("state", "episode"),
+            rclpy.qos.QoSProfile(
+                depth=1,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+
+        self._pub_state_queue = self.create_publisher(
+            task_generator_msgs.msg.EpisodeRecord,
+            self.service_namespace("state", "queue"),
+            rclpy.qos.QoSProfile(
+                depth=queue_depth,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+
+        self._pub_state_paused = self.create_publisher(
+            Bool,
+            self.service_namespace("state", "paused"),
+            rclpy.qos.QoSProfile(
+                depth=1,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+        self._pub_state_paused.publish(Bool(data=False))
+
         self._check_status_task: asyncio.Task
+
+    def _declare_mutable_param(self, name: str, default: object, descriptor: ParameterDescriptor) -> None:
+        self.rosparam[type(default)].declare_safe(name, default, descriptor=descriptor)
 
     async def setup(self):
         self._logger.info("Setting up Task Generator Node")
@@ -111,9 +238,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         )
 
         await self._world_manager.sync()
-        await self.reset_task(force=True, first_map=True)
 
-        self._check_status_task = asyncio.create_task(self._check_task_status())
+        self._check_status_task = asyncio.create_task(self._termination_watcher())
+        self._spawn_episode()
 
         self.rosparam[bool].set("initialized", True)
 
@@ -172,198 +299,776 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self._logger.info("Managers set up")
 
     # RUNTIME
-    async def reset_task(self, *, force: bool = False, **kwargs: object) -> None:
+
+    def _flip_integrity(self) -> None:
+        """Mark current episode as externally mutated and republish state."""
+        self._episodes.current.integrity = False
+        self._publish_episode_state()
+
+    def _params_for_mode(self, mode: str) -> list[RclParameter]:
+        if not mode:
+            return []
+        prefix = f"task.{mode}"
+        names = self.list_parameters(prefixes=[prefix], depth=10).names
+        if not names:
+            return []
+        params = self.get_parameters(names)
+        result: list[RclParameter] = []
+        for p in params:
+            leaf = p.name[len(prefix) + 1:]
+            result.append(RclParameter(name=leaf, value=p.get_parameter_value()))
+        return result
+
+    def _record_to_msg(self, record: EpisodeRecord) -> task_generator_msgs.msg.EpisodeRecord:
+        msg = task_generator_msgs.msg.EpisodeRecord()
+        msg.episode_id = record.episode_id
+        msg.world = record.world
+        msg.seed = record.seed
+        msg.tm_robots = record.tm_robots
+        msg.tm_obstacles = record.tm_obstacles
+        msg.tm_modules = list(record.tm_modules)
+        msg.robots = list(record.robots)
+        msg.outcome_state = record.outcome_state
+        msg.outcome_reason = record.outcome_reason
+        msg.goal_uuid = record.goal_uuid
+        msg.integrity = record.integrity
+        return msg
+
+    def _publish_episode_state(self) -> None:
+        msg = self._record_to_msg(self._episodes.current)
+        msg.obstacles_params = self._params_for_mode(self._episodes.current.tm_obstacles)
+        msg.robots_params = self._params_for_mode(self._episodes.current.tm_robots)
+        self._pub_state_episode.publish(msg)
+
+    def _publish_queue_state(self) -> None:
+        overrides = self._episodes.pending_overrides
+        current_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
+        current_obstacles = self.conf.TaskMode.TM_OBSTACLES.value.value if self.conf.TaskMode.TM_OBSTACLES.value else ""
+        current_modules = [m.value for m in self.conf.TaskMode.TM_MODULES.value]
+        live_world = self._world_manager.world_name
+        live_robots = [m.model_name for m in self._robots_manager.managers.values()]
+
+        if overrides is None:
+            queued_tm_robots = current_robots
+            queued_tm_obstacles = current_obstacles
+            queued_tm_modules = current_modules
+            queued_world = live_world
+            queued_robots = live_robots
+        else:
+            queued_tm_robots = overrides.tm_robots or current_robots
+            queued_tm_obstacles = overrides.tm_obstacles or current_obstacles
+            queued_tm_modules = current_modules if overrides.keep_modules else overrides.tm_modules
+            queued_world = overrides.world or live_world
+            queued_robots = overrides.robots or live_robots
+
+        obstacles_live = self._params_for_mode(queued_tm_obstacles)
+        robots_live = self._params_for_mode(queued_tm_robots)
+
+        obstacles_map = {p.name: p.value for p in obstacles_live}
+        for leaf, pv in self._staged_obstacles_params.items():
+            obstacles_map[leaf] = pv
+        robots_map = {p.name: p.value for p in robots_live}
+        for leaf, pv in self._staged_robots_params.items():
+            robots_map[leaf] = pv
+
+        # When the two pools share the same mode (e.g. both 'scenario'), they
+        # also share the underlying ROS param namespace. Mirror staged edits
+        # across pools so the UI shows a single coherent value instead of one
+        # side stuck on the live (unstaged) value.
+        if queued_tm_obstacles and queued_tm_obstacles == queued_tm_robots:
+            for leaf, pv in self._staged_obstacles_params.items():
+                if leaf not in self._staged_robots_params:
+                    robots_map[leaf] = pv
+            for leaf, pv in self._staged_robots_params.items():
+                if leaf not in self._staged_obstacles_params:
+                    obstacles_map[leaf] = pv
+
+        msg = task_generator_msgs.msg.EpisodeRecord()
+        msg.episode_id = self._episodes.current.episode_id
+        msg.world = queued_world
+        msg.seed = -1
+        msg.tm_robots = queued_tm_robots
+        msg.tm_obstacles = queued_tm_obstacles
+        msg.tm_modules = list(queued_tm_modules)
+        msg.robots = list(queued_robots)
+        msg.outcome_state = 0
+        msg.outcome_reason = ""
+        msg.goal_uuid = ""
+        msg.integrity = True
+        msg.obstacles_params = [RclParameter(name=k, value=v) for k, v in obstacles_map.items()]
+        msg.robots_params = [RclParameter(name=k, value=v) for k, v in robots_map.items()]
+        self._pub_state_queue.publish(msg)
+
+    def _build_next_record(self, world: str, seed: int) -> None:
+        new_id = self._episodes.current.episode_id + 1
+
+        overrides = self._episodes.pending_overrides
+        self._episodes.pending_overrides = None
+
+        if overrides is not None and overrides.world:
+            world = world or overrides.world
+            if overrides.world != self._world_manager.world_name:
+                self.rosparam[str].set("world", overrides.world)
+
+        if overrides is not None and overrides.robots:
+            self.rosparam[str].set("robot", ",".join(overrides.robots))
+
+        resolved_world = world or self._world_manager.world_name or self._episodes.current.world
+        resolved_seed = seed if seed >= 0 else _derive_seed(self._episodes.run_seed, resolved_world, new_id)
+
+        current_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
+        current_obstacles = self.conf.TaskMode.TM_OBSTACLES.value.value if self.conf.TaskMode.TM_OBSTACLES.value else ""
+        current_modules = [m.value for m in self.conf.TaskMode.TM_MODULES.value]
+
+        if overrides is None:
+            tm_robots, tm_obstacles, tm_modules = current_robots, current_obstacles, current_modules
+        else:
+            tm_robots = overrides.tm_robots or current_robots
+            tm_obstacles = overrides.tm_obstacles or current_obstacles
+            tm_modules = current_modules if overrides.keep_modules else overrides.tm_modules
+
+        if tm_robots and tm_robots != current_robots:
+            self.rosparam[str].set("tm_robots", tm_robots)
+        if tm_obstacles and tm_obstacles != current_obstacles:
+            self.rosparam[str].set("tm_obstacles", tm_obstacles)
+
+        self._episodes.current = EpisodeRecord(
+            episode_id=new_id,
+            world=resolved_world,
+            seed=resolved_seed,
+            tm_robots=tm_robots,
+            tm_obstacles=tm_obstacles,
+            tm_modules=tm_modules,
+            integrity=True,
+        )
+
+        self._publish_queue_state()
+
+    async def _run_reset_cycle(self) -> None:
         async with self._reset_lock:
-            if not force and not await self._task.is_done:
-                return
-
             self._start_time = self.sim_time
-
             self.get_logger().info("resetting")
 
-            await self._task.reset(**kwargs)
+            record = self._episodes.current
+            await self._task.reset(world=record.world, seed=record.seed)
+            record.robots = [m.model_name for m in self._robots_manager.managers.values()]
 
-            self._pub_task_reset.publish(Int16(data=self._number_of_resets))
-            self._number_of_resets += 1
+            self._pub_task_reset.publish(Int16(data=record.episode_id - 1))
             self._send_end_message_on_end()
 
-            self.get_logger().warn("=============")
-            self.get_logger().warn("Task Reset!")
-            self.get_logger().warn("=============")
+            self._pub_state_world.publish(String(data=record.world))
 
-    async def _check_task_status(self, *args: object, **kwargs: object) -> None:
-        del args, kwargs
-        if self._train_mode or not self._auto_reset:
-            self.get_logger().info(
-                "Auto-reset disabled (train_mode=%s, auto_reset=%s). Task resets are driven externally via the reset_task service.",
-                self._train_mode,
-                self._auto_reset,
-            )
-            return
+            self._publish_episode_state()
+
+            log = self.get_logger()
+            log.warn("=============")
+            log.warn(f"EPISODE STARTED #{record.episode_id}")
+            log.warn(f"  world:        {record.world}")
+            log.warn(f"  seed:         {record.seed}")
+            log.warn(f"  tm_robots:    {record.tm_robots}")
+            log.warn(f"  tm_obstacles: {record.tm_obstacles}")
+            log.warn(f"  tm_modules:   {record.tm_modules}")
+            log.warn(f"  robots:       {record.robots}")
+            def _fmt(v: object) -> object:
+                # rclpy returns int/float-array params as array.array, which renders as "array('q', [...])".
+                return list(v) if isinstance(v, array.array) else v
+
+            obstacles_params = self._params_for_mode(record.tm_obstacles)
+            robots_params = self._params_for_mode(record.tm_robots)
+            if obstacles_params:
+                log.warn(f"  {record.tm_obstacles} params:")
+                for p in obstacles_params:
+                    log.warn(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
+            if robots_params:
+                log.warn(f"  {record.tm_robots} params:")
+                for p in robots_params:
+                    log.warn(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
+
+    async def _termination_watcher(self) -> None:
         try:
             while True:
                 await asyncio.sleep(0.5)
-                await self.reset_task()
+                episode_id = self._episodes.current.episode_id
+                fut = self._episodes.pending_outcomes.get(episode_id)
+                if fut is None or fut.done():
+                    continue
+                if not await self._task.is_done:
+                    continue
+                fut.set_result((task_generator_msgs.action.RunEpisode.Result.SUCCESS, ""))
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            self.get_logger().error(f"Error in task status check: {e}\n{traceback.format_exc()}")
+            self.get_logger().error(f"Error in termination watcher: {e}\n{traceback.format_exc()}")
             raise
 
     def _send_end_message_on_end(self):
-        if self.conf.General.DESIRED_EPISODES.value < 0 or self._number_of_resets < self.conf.General.DESIRED_EPISODES.value:
+        desired = self.conf.General.DESIRED_EPISODES.value
+        if desired < 0 or self._episodes.current.episode_id < desired:
             return
 
-        self.get_logger().info(f"Shutting down. All {int(self.conf.General.DESIRED_EPISODES.value)} tasks completed")
+        self.get_logger().info(f"Shutting down. All {int(desired)} tasks completed")
         rclpy.shutdown()
 
-    # SERVICES
-    def _cb_reset_task(self, request: std_srvs.Empty.Request, response: std_srvs.Empty.Response) -> std_srvs.Empty.Response:
-        self.get_logger().debug("Task Generator received task-reset request!")
-        future = asyncio.run_coroutine_threadsafe(self.reset_task(force=True), self.event_loop)
-        future.result()
+    # SERVICE CALLBACKS
+
+    async def _cb_pause(
+        self,
+        request: task_generator_msgs.srv.Pause.Request,
+        response: task_generator_msgs.srv.Pause.Response,
+    ) -> task_generator_msgs.srv.Pause.Response:
+        Req = task_generator_msgs.srv.Pause.Request
+        if request.action == Req.PAUSE:
+            target = True
+        elif request.action == Req.UNPAUSE:
+            target = False
+        elif request.action == Req.TOGGLE:
+            target = not self._paused
+        else:
+            self._logger.warning(f"Pause: unknown action {request.action}")
+            response.paused = self._paused
+            return response
+
+        if target and not self._paused:
+            await self._simulator.pause_simulation()
+        elif not target and self._paused:
+            await self._simulator.unpause_simulation()
+        if self._paused != target:
+            self._paused = target
+            self._pub_state_paused.publish(Bool(data=self._paused))
+        response.paused = self._paused
         return response
 
-    def _cb_pause_simulation(
+    async def _cb_reset_episode(
         self,
-        request: std_srvs.SetBool.Request,
-        response: std_srvs.SetBool.Response,
-    ) -> std_srvs.SetBool.Response:
-        """Pause (request.data=True) or unpause (request.data=False) the simulator."""
-
-        async def _do():
-            if request.data:
-                result = await self._simulator.pause_simulation()
-                response.message = "paused"
+        request: task_generator_msgs.srv.ResetEpisode.Request,
+        response: task_generator_msgs.srv.ResetEpisode.Response,
+    ) -> task_generator_msgs.srv.ResetEpisode.Response:
+        self._episodes.pending_world = request.world
+        self._episodes.pending_seed = request.seed
+        if self._episodes.action_in_flight:
+            episode_id = self._episodes.current.episode_id
+            fut = self._episodes.pending_outcomes.get(episode_id)
+            if fut is not None and not fut.done():
+                fut.set_result((task_generator_msgs.action.RunEpisode.Result.SKIPPED, "reset"))
             else:
-                result = await self._simulator.unpause_simulation()
-                response.message = "unpaused"
-            response.success = bool(result)
-
-        future = asyncio.run_coroutine_threadsafe(_do(), self.event_loop)
-        future.result()
+                self._task.force_reset()
+        else:
+            self._spawn_episode()
+        response.success = True
         return response
 
-    async def _cb_get_configs_environments(
+    async def _cb_wait_for_world(
         self,
-        request: task_generator_msgs.srv.GetEnvironments.Request,
-        response: task_generator_msgs.srv.GetEnvironments.Response,
-    ) -> task_generator_msgs.srv.GetEnvironments.Response:
-        response.environments = list(identifier_to_available(arena_simulation_setup.tree.configs.environment.EnvironmentIdentifier))
+        request: EmptySrv.Request,
+        response: EmptySrv.Response,
+    ) -> EmptySrv.Response:
+        await self._world_manager.sync()
         return response
 
-    async def _cb_get_configs_parametrized(
+    async def _cb_query_worlds(
         self,
-        request: task_generator_msgs.srv.GetParametrizeds.Request,
-        response: task_generator_msgs.srv.GetParametrizeds.Response,
-    ) -> task_generator_msgs.srv.GetParametrizeds.Response:
-        response.parametrizeds = list(identifier_to_available(arena_simulation_setup.tree.configs.parametrized.ParametrizedIdentifier))
+        request: task_generator_msgs.srv.QueryWorlds.Request,
+        response: task_generator_msgs.srv.QueryWorlds.Response,
+    ) -> task_generator_msgs.srv.QueryWorlds.Response:
+        response.ids = list(identifier_to_available(World.WorldIdentifier))
         return response
 
-    async def _cb_get_obstacles(
+    async def _cb_query_scenarios(
         self,
-        request: task_generator_msgs.srv.GetObstacles.Request,
-        response: task_generator_msgs.srv.GetObstacles.Response,
-    ) -> task_generator_msgs.srv.GetObstacles.Response:
-        response.models_static_obstacles = list(identifier_to_available(arena_simulation_setup.tree.assets.Object.ObjectIdentifier, network=True))
-        response.models_dynamic_obstacles = list(
+        request: task_generator_msgs.srv.QueryScenarios.Request,
+        response: task_generator_msgs.srv.QueryScenarios.Response,
+    ) -> task_generator_msgs.srv.QueryScenarios.Response:
+        world_name = request.world or self._episodes.current.world
+        response.ids = list(identifier_to_available(World.WorldIdentifier(world_name).resolve_sync().scenario))
+        return response
+
+    async def _cb_query_robots(
+        self,
+        request: task_generator_msgs.srv.QueryRobots.Request,
+        response: task_generator_msgs.srv.QueryRobots.Response,
+    ) -> task_generator_msgs.srv.QueryRobots.Response:
+        response.ids = list(identifier_to_available(arena_robots.Robot.RobotIdentifier))
+        return response
+
+    async def _cb_query_static_obstacles(
+        self,
+        request: task_generator_msgs.srv.QueryStaticObstacles.Request,
+        response: task_generator_msgs.srv.QueryStaticObstacles.Response,
+    ) -> task_generator_msgs.srv.QueryStaticObstacles.Response:
+        response.ids = list(identifier_to_available(arena_simulation_setup.tree.assets.Object.ObjectIdentifier, network=True))
+        return response
+
+    async def _cb_query_dynamic_obstacles(
+        self,
+        request: task_generator_msgs.srv.QueryDynamicObstacles.Request,
+        response: task_generator_msgs.srv.QueryDynamicObstacles.Response,
+    ) -> task_generator_msgs.srv.QueryDynamicObstacles.Response:
+        response.ids = list(
             identifier_to_available(
                 arena_simulation_setup.tree.assets.Pedestrian.PedestrianIdentifier,
                 network=True,
             )
         )
-
         return response
 
-    async def _cb_get_scenarios(
+    async def _cb_query_environments(
         self,
-        request: task_generator_msgs.srv.GetScenarios.Request,
-        response: task_generator_msgs.srv.GetScenarios.Response,
-    ) -> task_generator_msgs.srv.GetScenarios.Response:
-        response.scenarios = list(identifier_to_available(World.WorldIdentifier(request.world or self._world_manager.world_name).resolve_sync().scenario))
+        request: task_generator_msgs.srv.QueryEnvironments.Request,
+        response: task_generator_msgs.srv.QueryEnvironments.Response,
+    ) -> task_generator_msgs.srv.QueryEnvironments.Response:
+        response.ids = list(identifier_to_available(arena_simulation_setup.tree.configs.environment.EnvironmentIdentifier))
         return response
 
-    async def _cb_get_worlds(
+    async def _cb_query_parametrizeds(
         self,
-        request: task_generator_msgs.srv.GetWorlds.Request,
-        response: task_generator_msgs.srv.GetWorlds.Response,
-    ) -> task_generator_msgs.srv.GetWorlds.Response:
-        response.worlds = list(identifier_to_available(World.WorldIdentifier))
+        request: task_generator_msgs.srv.QueryParametrizeds.Request,
+        response: task_generator_msgs.srv.QueryParametrizeds.Response,
+    ) -> task_generator_msgs.srv.QueryParametrizeds.Response:
+        response.ids = list(identifier_to_available(arena_simulation_setup.tree.configs.parametrized.ParametrizedIdentifier))
         return response
 
-    async def _cb_get_robots(
+    async def _cb_queue_episode(
         self,
-        request: task_generator_msgs.srv.GetRobots.Request,
-        response: task_generator_msgs.srv.GetRobots.Response,
-    ) -> task_generator_msgs.srv.GetRobots.Response:
-        response.robots = list(identifier_to_available(arena_robots.Robot.RobotIdentifier))
+        request: task_generator_msgs.srv.QueueEpisode.Request,
+        response: task_generator_msgs.srv.QueueEpisode.Response,
+    ) -> task_generator_msgs.srv.QueueEpisode.Response:
+        Req = task_generator_msgs.srv.QueueEpisode.Request
+        if request.action != Req.MERGE:
+            valid = ", ".join(
+                f"{name}={val}"
+                for name, val in (("MERGE", Req.MERGE),)
+            )
+            response.success = False
+            response.error_msg = f"action: unknown value {request.action!r}. Valid: {valid}"
+            return response
+
+        def reject(field: str, value: str, enum_cls: type) -> None:
+            allowed = ", ".join(m.value for m in enum_cls)
+            response.success = False
+            response.error_msg = f"{field}: unknown value {value!r}. Allowed: {allowed}"
+
+        for field, value, enum_cls in (
+            ("tm_robots", request.tm_robots, Constants.TaskMode.TM_Robots),
+            ("tm_obstacles", request.tm_obstacles, Constants.TaskMode.TM_Obstacles),
+        ):
+            if not value:
+                continue
+            try:
+                enum_cls(value)
+            except ValueError:
+                reject(field, value, enum_cls)
+                return response
+
+        validated_modules: list[str] = []
+        if not request.keep_modules:
+            for mod_str in request.tm_modules:
+                try:
+                    Constants.TaskMode.TM_Module(mod_str)
+                except ValueError:
+                    reject("tm_modules", mod_str, Constants.TaskMode.TM_Module)
+                    return response
+                validated_modules.append(mod_str)
+
+        existing = self._episodes.pending_overrides or TaskModeOverrides(keep_modules=True)
+        if request.tm_robots:
+            if request.tm_robots != existing.tm_robots:
+                # Mode switch: drop stale leaves from the prior mode's namespace.
+                self._staged_robots_params.clear()
+            existing.tm_robots = request.tm_robots
+        if request.tm_obstacles:
+            if request.tm_obstacles != existing.tm_obstacles:
+                self._staged_obstacles_params.clear()
+            existing.tm_obstacles = request.tm_obstacles
+        if not request.keep_modules:
+            existing.tm_modules = list(validated_modules)
+            existing.keep_modules = False
+        if request.world:
+            existing.world = request.world
+        if request.robots:
+            seen = dict.fromkeys(existing.robots)
+            for r in request.robots:
+                seen.setdefault(r, None)
+            existing.robots = list(seen)
+        self._episodes.pending_overrides = existing
+
+        for p in request.obstacles_params:
+            self._staged_obstacles_params[p.name] = p.value
+        for p in request.robots_params:
+            self._staged_robots_params[p.name] = p.value
+
+        mid_episode = (
+            self._episodes.action_in_flight
+            and self._episodes.current.episode_id > 0
+        )
+        if mid_episode:
+            self._episodes.current.integrity = False
+
+        self._publish_queue_state()
+
+        response.success = True
         return response
 
-    def _cb_wait_for_world(
+    def _apply_staged_params(self) -> None:
+        active_obstacles = self.conf.TaskMode.TM_OBSTACLES.value
+        active_robots = self.conf.TaskMode.TM_ROBOTS.value
+
+        pairs: list[tuple[dict[str, ParameterValue], str]] = [
+            (self._staged_obstacles_params, active_obstacles.value if active_obstacles else ""),
+            (self._staged_robots_params, active_robots.value if active_robots else ""),
+        ]
+
+        log = self.get_logger()
+
+        # Merge by full_name: TM_Robots and TM_Obstacles can share a mode name
+        # (e.g. both 'scenario') and therefore the same underlying ROS param.
+        # When both pools stage the same full_name, prefer whichever value
+        # differs from the live value, so a stale snapshot from the unedited
+        # side does not reset the user's actual edit.
+        merged: dict[str, tuple[ParameterValue, object]] = {}
+        for staged, mode_value in pairs:
+            if not staged or not mode_value:
+                staged.clear()
+                continue
+            for leaf, pv in staged.items():
+                full_name = f"task.{mode_value}.{leaf}"
+                # Staged dicts accumulate across mode switches; a leaf valid for a prior
+                # mode may not be declared under the current namespace.
+                if not self.has_parameter(full_name):
+                    log.warning(f"staged param {full_name!r} not declared under active mode; dropping")
+                    continue
+                new_value = Parameter.from_parameter_msg(RclParameter(name=full_name, value=pv)).value
+                if full_name in merged:
+                    _, prev_value = merged[full_name]
+                    if prev_value != self.get_parameter(full_name).value:
+                        continue
+                merged[full_name] = (pv, new_value)
+            staged.clear()
+
+        if merged:
+            batch = [Parameter.from_parameter_msg(RclParameter(name=n, value=pv)) for n, (pv, _) in merged.items()]
+            results = self.set_parameters(batch)
+            for name, result in zip(merged.keys(), results, strict=True):
+                if not result.successful:
+                    log.warning(f"staged param {name!r} rejected: {result.reason}")
+
+    async def _cb_get_task_modes(
         self,
-        request: EmptySrv.Request,
-        response: EmptySrv.Response,
-    ) -> EmptySrv.Response:
-        future = asyncio.run_coroutine_threadsafe(self._world_manager.sync(), self.event_loop)
-        future.result()
+        request: task_generator_msgs.srv.GetTaskModes.Request,
+        response: task_generator_msgs.srv.GetTaskModes.Response,
+    ) -> task_generator_msgs.srv.GetTaskModes.Response:
+        response.tm_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
+        response.tm_obstacles = self.conf.TaskMode.TM_OBSTACLES.value.value if self.conf.TaskMode.TM_OBSTACLES.value else ""
+        response.tm_modules = [m.value for m in self.conf.TaskMode.TM_MODULES.value]
         return response
+
+    async def _cb_query_task_modes(
+        self,
+        request: task_generator_msgs.srv.QueryTaskModes.Request,
+        response: task_generator_msgs.srv.QueryTaskModes.Response,
+    ) -> task_generator_msgs.srv.QueryTaskModes.Response:
+        response.obstacles = [k.value for k in _TaskRegistry.registry_obstacles]
+        response.robots = [k.value for k in _TaskRegistry.registry_robots]
+        response.modules = [k.value for k in _TaskRegistry.registry_module]
+        return response
+
+    def _pose_from_request(self, stamped: geometry_msgs.msg.PoseStamped) -> Pose:
+        p = stamped.pose.position
+        return Pose(Position(p.x, p.y), orientation=Orientation.from_msg(stamped.pose.orientation))
+
+    async def _cb_spawn_static(
+        self,
+        request: task_generator_msgs.srv.SpawnStatic.Request,
+        response: task_generator_msgs.srv.SpawnStatic.Response,
+    ) -> task_generator_msgs.srv.SpawnStatic.Response:
+        try:
+            pose = self._pose_from_request(request.pose) if request.use_pose else None
+            entity_id = await self._task.tm_obstacles.extend(
+                ObstacleKind.STATIC, request.model, pose
+            )
+            self._flip_integrity()
+            response.id = entity_id
+            response.success = True
+        except Exception as e:
+            response.success = False
+            response.error_msg = str(e)
+        return response
+
+    async def _cb_spawn_dynamic(
+        self,
+        request: task_generator_msgs.srv.SpawnDynamic.Request,
+        response: task_generator_msgs.srv.SpawnDynamic.Response,
+    ) -> task_generator_msgs.srv.SpawnDynamic.Response:
+        try:
+            pose = self._pose_from_request(request.pose) if request.use_pose else None
+            entity_id = await self._task.tm_obstacles.extend(
+                ObstacleKind.DYNAMIC, request.model, pose
+            )
+            self._flip_integrity()
+            response.id = entity_id
+            response.success = True
+        except Exception as e:
+            response.success = False
+            response.error_msg = str(e)
+        return response
+
+    async def _cb_spawn_robot(
+        self,
+        request: task_generator_msgs.srv.SpawnRobot.Request,
+        response: task_generator_msgs.srv.SpawnRobot.Response,
+    ) -> task_generator_msgs.srv.SpawnRobot.Response:
+        try:
+            pose = self._pose_from_request(request.pose) if request.use_pose else None
+            name_out = await self._task.tm_robots.extend(
+                request.model, request.name or None, pose
+            )
+            self._flip_integrity()
+            response.name = name_out
+            response.success = True
+        except Exception as e:
+            response.success = False
+            response.error_msg = str(e)
+        return response
+
+    # ACTION SERVER
+
+    def _goal_callback(self, goal_request: object) -> GoalResponse:
+        return GoalResponse.REJECT if self._episodes.action_in_flight else GoalResponse.ACCEPT
+
+    def _cancel_callback(self, goal_handle: object) -> CancelResponse:
+        episode_id = self._episodes.current.episode_id
+        fut = self._episodes.pending_outcomes.get(episode_id)
+        if fut is not None and not fut.done():
+            self.event_loop.call_soon_threadsafe(
+                fut.set_result,
+                (task_generator_msgs.action.RunEpisode.Result.SKIPPED, "cancelled"),
+            )
+        return CancelResponse.ACCEPT
+
+    def _execute_callback(self, goal_handle: object) -> task_generator_msgs.action.RunEpisode.Result:
+        return self.wait_for(self._run_episode(
+            world=goal_handle.request.world,
+            seed=goal_handle.request.seed,
+            goal_handle=goal_handle,
+        ))
+
+    async def _run_episode(
+        self,
+        *,
+        world: str = "",
+        seed: int = -1,
+        goal_handle: object | None = None,
+    ) -> task_generator_msgs.action.RunEpisode.Result:
+        if self._episodes.action_in_flight:
+            if goal_handle is not None:
+                goal_handle.abort()
+            return task_generator_msgs.action.RunEpisode.Result(
+                state=task_generator_msgs.action.RunEpisode.Result.SKIPPED,
+                reason="busy",
+            )
+
+        if not world:
+            world = self._episodes.pending_world
+        if seed < 0 <= self._episodes.pending_seed:
+            seed = self._episodes.pending_seed
+        self._episodes.pending_world = ""
+        self._episodes.pending_seed = -1
+
+        self._episodes.action_in_flight = True
+        episode_id = 0
+        respawn = True
+        try:
+            self._build_next_record(world, seed)
+            if goal_handle is not None:
+                self._episodes.current.goal_uuid = bytes(goal_handle.goal_id.uuid).hex()
+
+                feedback = task_generator_msgs.action.RunEpisode.Feedback()
+                feedback.state = task_generator_msgs.action.RunEpisode.Feedback.STARTED
+                goal_handle.publish_feedback(feedback)
+
+            try:
+                await self._run_reset_cycle()
+            except Exception as e:
+                self.get_logger().error(
+                    f"reset_cycle failed: {e!r}\n{traceback.format_exc()}"
+                )
+                outcome_state = task_generator_msgs.action.RunEpisode.Result.FAILED
+                outcome_reason = repr(e)
+                respawn = False
+            else:
+                episode_id = self._episodes.current.episode_id
+                fut = self.event_loop.create_future()
+                self._episodes.pending_outcomes[episode_id] = fut
+
+                try:
+                    outcome_state, outcome_reason = await fut
+                except asyncio.CancelledError:
+                    outcome_state = task_generator_msgs.action.RunEpisode.Result.SKIPPED
+                    outcome_reason = "cancelled"
+
+            self._episodes.current.outcome_state = outcome_state
+            self._episodes.current.outcome_reason = outcome_reason
+            self._publish_episode_state()
+
+            if episode_id > 0:
+                state_label = {
+                    task_generator_msgs.action.RunEpisode.Result.SUCCESS: "SUCCESS",
+                    task_generator_msgs.action.RunEpisode.Result.FAILED: "FAILED",
+                    task_generator_msgs.action.RunEpisode.Result.SKIPPED: "SKIPPED",
+                }.get(outcome_state, str(outcome_state))
+                duration = self.sim_time.to_seconds() - self._start_time.to_seconds()
+                log = self.get_logger()
+                log.warn(f"  state:    {state_label}")
+                if outcome_reason:
+                    log.warn(f"  reason:   {outcome_reason}")
+                log.warn(f"  duration: {duration:.2f}s")
+                log.warn(f"EPISODE FINISHED #{episode_id}")
+                log.warn("=============")
+
+            result = task_generator_msgs.action.RunEpisode.Result()
+            result.state = outcome_state
+            result.reason = outcome_reason
+            result.episode_id = episode_id
+
+            if goal_handle is not None:
+                if outcome_state == task_generator_msgs.action.RunEpisode.Result.SKIPPED:
+                    goal_handle.canceled()
+                elif outcome_state == task_generator_msgs.action.RunEpisode.Result.FAILED:
+                    goal_handle.abort()
+                else:
+                    goal_handle.succeed()
+
+            return result
+        finally:
+            self._episodes.action_in_flight = False
+            self._episodes.pending_outcomes.pop(episode_id, None)
+            if respawn and rclpy.ok() and self.rosparam[bool].get_unsafe("auto_reset"):
+                self._spawn_episode()
+
+    def _spawn_episode(self, **kwargs: object) -> None:
+        async def _wrap() -> None:
+            await self._run_episode(**kwargs)
+
+        task = asyncio.create_task(_wrap())
+
+        def _on_done(t: asyncio.Task) -> None:
+            if t.cancelled() or not rclpy.ok():
+                return
+            exc = t.exception()
+            if exc is not None:
+                self.get_logger().error(
+                    f"_run_episode task failed: {exc!r}\n"
+                    + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+                )
+
+        task.add_done_callback(_on_done)
 
     async def _set_up_services(self):
         self._logger.info("Setting up services")
 
-        # Services
         self.create_service(
-            EmptySrv,
-            self.service_namespace("reset_task"),
-            self._cb_reset_task,
+            task_generator_msgs.srv.ResetEpisode,
+            self.service_namespace("lifecycle", "reset_episode"),
+            self._cb_reset_episode,
+        )
+
+        self._run_episode_action_server = ActionServer(
+            self,
+            task_generator_msgs.action.RunEpisode,
+            self.service_namespace("lifecycle", "run_episode"),
+            execute_callback=self._execute_callback,
+            goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=ReentrantCallbackGroup(),
         )
 
         self.create_service(
-            std_srvs.SetBool,
-            self.service_namespace("pause_simulation"),
-            self._cb_pause_simulation,
-        )
-
-        self.create_service(
-            task_generator_msgs.srv.GetEnvironments,
-            self.service_namespace("get_environments"),
-            self._cb_get_configs_environments,
-        )
-
-        self.create_service(
-            task_generator_msgs.srv.GetParametrizeds,
-            self.service_namespace("get_parametrizeds"),
-            self._cb_get_configs_parametrized,
-        )
-
-        self.create_service(
-            task_generator_msgs.srv.GetObstacles,
-            self.service_namespace("get_obstacles"),
-            self._cb_get_obstacles,
-        )
-
-        self.create_service(
-            task_generator_msgs.srv.GetScenarios,
-            self.service_namespace("get_scenarios"),
-            self._cb_get_scenarios,
-        )
-
-        self.create_service(
-            task_generator_msgs.srv.GetRobots,
-            self.service_namespace("get_robots"),
-            self._cb_get_robots,
-        )
-
-        self.create_service(
-            task_generator_msgs.srv.GetWorlds,
-            self.service_namespace("get_worlds"),
-            self._cb_get_worlds,
+            task_generator_msgs.srv.Pause,
+            self.service_namespace("lifecycle", "pause"),
+            self._cb_pause,
         )
 
         self.create_service(
             EmptySrv,
-            self.service_namespace("wait_for_world"),
+            self.service_namespace("lifecycle", "wait_for_world"),
             self._cb_wait_for_world,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryWorlds,
+            self.service_namespace("query", "worlds"),
+            self._cb_query_worlds,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryScenarios,
+            self.service_namespace("query", "scenarios"),
+            self._cb_query_scenarios,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryRobots,
+            self.service_namespace("query", "robots"),
+            self._cb_query_robots,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryStaticObstacles,
+            self.service_namespace("query", "static_obstacles"),
+            self._cb_query_static_obstacles,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryDynamicObstacles,
+            self.service_namespace("query", "dynamic_obstacles"),
+            self._cb_query_dynamic_obstacles,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryEnvironments,
+            self.service_namespace("query", "environments"),
+            self._cb_query_environments,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryParametrizeds,
+            self.service_namespace("query", "parametrizeds"),
+            self._cb_query_parametrizeds,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueueEpisode,
+            self.service_namespace("config", "queue_episode"),
+            self._cb_queue_episode,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.GetTaskModes,
+            self.service_namespace("config", "get_task_modes"),
+            self._cb_get_task_modes,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.QueryTaskModes,
+            self.service_namespace("query", "task_modes"),
+            self._cb_query_task_modes,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.SpawnStatic,
+            self.service_namespace("runtime", "spawn_static"),
+            self._cb_spawn_static,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.SpawnDynamic,
+            self.service_namespace("runtime", "spawn_dynamic"),
+            self._cb_spawn_dynamic,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.SpawnRobot,
+            self.service_namespace("runtime", "spawn_robot"),
+            self._cb_spawn_robot,
         )
 
         self._logger.info("Services set up")

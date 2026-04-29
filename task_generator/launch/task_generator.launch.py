@@ -80,9 +80,13 @@ def generate_launch_description():
         name="debug",
         default_value="False",
     )
-    train_mode = LaunchArgument(
-        name="train_mode",
-        default_value="false",
+    auto_reset = LaunchArgument(
+        name="auto_reset",
+        default_value="true",
+        description=(
+            "true = standalone: node auto-advances episodes. "
+            "false = managed: external controller drives resets via lifecycle/reset_episode."
+        ),
     )
 
     map_server_node = launch.actions.IncludeLaunchDescription(
@@ -158,7 +162,7 @@ def generate_launch_description():
                 **reference.param(typing.List[float]),
                 **prefix.str_param,
                 **debug.param(bool),
-                **train_mode.param(bool),
+                **auto_reset.param(bool),
             },
             {"use_sim_time": False},
             parameter_file.substitution,

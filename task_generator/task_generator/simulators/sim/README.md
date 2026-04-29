@@ -64,13 +64,13 @@ Additional abstract methods:
 
 | Method | Purpose |
 | --- | --- |
-| `before_reset_task()` | called before every episode reset; implementations pause the sim |
-| `after_reset_task()` | called after every episode reset; implementations unpause the sim |
+| `before_reset_episode()` | called before every episode reset; implementations pause the sim |
+| `after_reset_episode()` | called after every episode reset; implementations unpause the sim |
 | `step(n=1)` | advance simulation by `n` ticks; default no-op returns `True` |
 
 ## Sim-paused invariant
 
-The sim is paused for the entire body of `Task._reset_task`. Only
+The sim is paused for the entire body of `Task._reset_episode`. Only
 node-discovery and lifecycle signals are observable while the sim is paused;
 tf, costmap, and sim-clock topics are not advancing.
 
@@ -92,7 +92,7 @@ instantiated via `SimulatorRegistry.get(key, **kwargs)`.
 ## Adding a new simulator
 
 1. Subclass `BaseSim`; implement all abstract methods from the four
-   sub-interfaces plus `before_reset_task` and `after_reset_task`.
+   sub-interfaces plus `before_reset_episode` and `after_reset_episode`.
 2. Register a lazy async factory:
 
 ```python

@@ -139,14 +139,10 @@ class VisualizeRobotModel(Node):
 
 
 def main(args: list[str] | None = None) -> None:
+    from arena_rclpy_mixins.spin import spin_node
+
     rclpy.init(args=args)
-
-    visualizer = VisualizeRobotModel()
-
-    rclpy.spin(visualizer)
-
-    visualizer.destroy_node()
-    rclpy.shutdown()
+    spin_node(VisualizeRobotModel())
 
 
 if __name__ == "__main__":

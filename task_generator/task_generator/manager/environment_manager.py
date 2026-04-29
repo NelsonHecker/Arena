@@ -172,8 +172,8 @@ class EnvironmentManager(NodeInterface):
     async def step(self, n: int = 1) -> bool:
         return await self._simulator.step(n)
 
-    async def before_reset_task(self) -> bool:
-        return await self._simulator.before_reset_task()
+    async def before_reset_episode(self) -> bool:
+        return await self._simulator.before_reset_episode()
 
-    async def after_reset_task(self) -> bool:
-        return await self._simulator.after_reset_task()
+    async def after_reset_episode(self) -> bool:
+        return await self._simulator.after_reset_episode()

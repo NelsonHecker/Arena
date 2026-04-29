@@ -12,19 +12,25 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rviz_common REQUIRED)
+find_package(rviz_default_plugins REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(task_generator_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(rcl_interfaces REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 set(CMAKE_AUTOMOC ON)
 qt5_wrap_cpp(MOC_FILES
   include/task_generator_gui/task_generator_panel.hpp
+  include/task_generator_gui/spawn_pedestrian_tool.hpp
   include/Qt-MultiSelectComboBox/MultiSelectComboBox.h
   )
-  
-  add_library(task_generator_panel 
-  src/task_generator_panel.cpp 
+
+  add_library(task_generator_panel
+  src/task_generator_panel.cpp
   src/task_generator_panel_getset_params.cpp
+  src/task_generator_panel_dynamic_params.cpp
+  src/spawn_pedestrian_tool.cpp
   src/Qt-MultiSelectComboBox/MultiSelectComboBox.cpp
   ${MOC_FILES})
 target_include_directories(task_generator_panel PUBLIC
@@ -34,8 +40,11 @@ target_include_directories(task_generator_panel PUBLIC
 ament_target_dependencies(task_generator_panel
   pluginlib
   rviz_common
+  rviz_default_plugins
+  geometry_msgs
   task_generator_msgs
   std_srvs
+  rcl_interfaces
 )
 target_link_libraries(task_generator_panel Qt5::Widgets)
 
