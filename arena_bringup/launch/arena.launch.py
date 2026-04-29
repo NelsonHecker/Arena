@@ -192,9 +192,13 @@ def generate_launch_description():
         else:
             for i in range(n):
                 prefix = base_prefix + str(i)
+                if i == 0:
+                    headlessness = PythonExpression([headless.substitution, '>1'])
+                else:
+                    headlessness = PythonExpression([headless.substitution, '>-1'])
                 task_generators.append(
                     create_task_generator(
-                        headlessness=PythonExpression([headless.substitution, '>-1']),
+                        headlessness=headlessness,
                         namespace=os.path.join(base_namespace, prefix),
                         prefix=prefix,
                         reference=list(next(references))

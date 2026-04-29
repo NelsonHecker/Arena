@@ -104,6 +104,24 @@ def test_realize_pose_orientation_preserved(realizer):
     assert math.isclose(result.orientation.to_yaw(), yaw, abs_tol=1e-6)
 
 
+def test_ezilear_translates_pose_by_negative_offset(realizer):
+    from arena_simulation_setup.utils.geometry import Pose, Position, Orientation
+    p = Pose(Position(5.0, 7.0), Orientation.from_yaw(0.5))
+    result = realizer.ezilear(p)
+    assert math.isclose(result.position.x, 4.0)
+    assert math.isclose(result.position.y, 5.0)
+    assert math.isclose(result.orientation.to_yaw(), 0.5, abs_tol=1e-6)
+
+
+def test_ezilear_round_trips_with_realize(realizer):
+    from arena_simulation_setup.utils.geometry import Pose, Position, Orientation
+    p = Pose(Position(3.0, -2.5), Orientation.from_yaw(1.2))
+    assert math.isclose(realizer.ezilear(realizer.realize(p)).position.x, p.position.x)
+    assert math.isclose(realizer.ezilear(realizer.realize(p)).position.y, p.position.y)
+    assert math.isclose(realizer.realize(realizer.ezilear(p)).position.x, p.position.x)
+    assert math.isclose(realizer.realize(realizer.ezilear(p)).position.y, p.position.y)
+
+
 def test_realize_wall_translates_start_end(realizer):
     from arena_simulation_setup.shared import Wall
     from arena_simulation_setup.utils.geometry import Position

@@ -62,6 +62,10 @@ class Realizer:
     def _realize_pose(self, pose: Pose) -> Pose:
         return Pose(self._realize_position(pose.position), self._realize_orientation(pose.orientation))
 
+    def ezilear(self, target: Pose) -> Pose:
+        """Inverse of realize: shift a map-frame pose back into abstract space."""
+        return Pose(self._realize_position_inv(target.position), self._realize_orientation(target.orientation))
+
     @typing.overload
     def realize(self, target: EntityPropsT) -> EntityPropsT: ...
 

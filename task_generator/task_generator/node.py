@@ -133,20 +133,14 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             "auto_reset",
             True,
             ParameterDescriptor(
-                description=(
-                    "true = standalone: node auto-advances episodes. "
-                    "false = managed: external controller drives resets."
-                ),
+                description=("true = standalone: node auto-advances episodes. false = managed: external controller drives resets."),
             ),
         )
         self._declare_mutable_param(
             "run_seed",
             run_seed,
             ParameterDescriptor(
-                description=(
-                    "Hex string seeding per-episode blake2b derivation. "
-                    "Empty = random uuid at startup."
-                ),
+                description=("Hex string seeding per-episode blake2b derivation. Empty = random uuid at startup."),
             ),
         )
         self._declare_mutable_param(
@@ -315,7 +309,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         params = self.get_parameters(names)
         result: list[RclParameter] = []
         for p in params:
-            leaf = p.name[len(prefix) + 1:]
+            leaf = p.name[len(prefix) + 1 :]
             result.append(RclParameter(name=leaf, value=p.get_parameter_value()))
         return result
 
@@ -469,6 +463,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             log.warn(f"  tm_obstacles: {record.tm_obstacles}")
             log.warn(f"  tm_modules:   {record.tm_modules}")
             log.warn(f"  robots:       {record.robots}")
+
             def _fmt(v: object) -> object:
                 # rclpy returns int/float-array params as array.array, which renders as "array('q', [...])".
                 return list(v) if isinstance(v, array.array) else v
@@ -634,10 +629,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     ) -> task_generator_msgs.srv.QueueEpisode.Response:
         Req = task_generator_msgs.srv.QueueEpisode.Request
         if request.action != Req.MERGE:
-            valid = ", ".join(
-                f"{name}={val}"
-                for name, val in (("MERGE", Req.MERGE),)
-            )
+            valid = ", ".join(f"{name}={val}" for name, val in (("MERGE", Req.MERGE),))
             response.success = False
             response.error_msg = f"action: unknown value {request.action!r}. Valid: {valid}"
             return response
@@ -696,10 +688,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         for p in request.robots_params:
             self._staged_robots_params[p.name] = p.value
 
-        mid_episode = (
-            self._episodes.action_in_flight
-            and self._episodes.current.episode_id > 0
-        )
+        mid_episode = self._episodes.action_in_flight and self._episodes.current.episode_id > 0
         if mid_episode:
             self._episodes.current.integrity = False
 
@@ -782,9 +771,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     ) -> task_generator_msgs.srv.SpawnStatic.Response:
         try:
             pose = self._pose_from_request(request.pose) if request.use_pose else None
-            entity_id = await self._task.tm_obstacles.extend(
-                ObstacleKind.STATIC, request.model, pose
-            )
+            entity_id = await self._task.tm_obstacles.extend(ObstacleKind.STATIC, request.model, pose)
             self._flip_integrity()
             response.id = entity_id
             response.success = True
@@ -800,9 +787,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     ) -> task_generator_msgs.srv.SpawnDynamic.Response:
         try:
             pose = self._pose_from_request(request.pose) if request.use_pose else None
-            entity_id = await self._task.tm_obstacles.extend(
-                ObstacleKind.DYNAMIC, request.model, pose
-            )
+            entity_id = await self._task.tm_obstacles.extend(ObstacleKind.DYNAMIC, request.model, pose)
             self._flip_integrity()
             response.id = entity_id
             response.success = True
@@ -818,9 +803,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     ) -> task_generator_msgs.srv.SpawnRobot.Response:
         try:
             pose = self._pose_from_request(request.pose) if request.use_pose else None
-            name_out = await self._task.tm_robots.extend(
-                request.model, request.name or None, pose
-            )
+            name_out = await self._task.tm_robots.extend(request.model, request.name or None, pose)
             self._flip_integrity()
             response.name = name_out
             response.success = True
@@ -845,11 +828,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         return CancelResponse.ACCEPT
 
     def _execute_callback(self, goal_handle: object) -> task_generator_msgs.action.RunEpisode.Result:
-        return self.wait_for(self._run_episode(
-            world=goal_handle.request.world,
-            seed=goal_handle.request.seed,
-            goal_handle=goal_handle,
-        ))
+        return self.wait_for(
+            self._run_episode(
+                world=goal_handle.request.world,
+                seed=goal_handle.request.seed,
+                goal_handle=goal_handle,
+            )
+        )
 
     async def _run_episode(
         self,
@@ -888,9 +873,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             try:
                 await self._run_reset_cycle()
             except Exception as e:
-                self.get_logger().error(
-                    f"reset_cycle failed: {e!r}\n{traceback.format_exc()}"
-                )
+                self.get_logger().error(f"reset_cycle failed: {e!r}\n{traceback.format_exc()}")
                 outcome_state = task_generator_msgs.action.RunEpisode.Result.FAILED
                 outcome_reason = repr(e)
                 respawn = False
@@ -941,7 +924,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         finally:
             self._episodes.action_in_flight = False
             self._episodes.pending_outcomes.pop(episode_id, None)
-            if respawn and rclpy.ok() and self.rosparam[bool].get_unsafe("auto_reset"):
+            service_driven = (
+                outcome_state == task_generator_msgs.action.RunEpisode.Result.SKIPPED
+                and outcome_reason == "reset"
+            )
+            if respawn and rclpy.ok() and (service_driven or self.rosparam[bool].get_unsafe("auto_reset")):
                 self._spawn_episode()
 
     def _spawn_episode(self, **kwargs: object) -> None:
@@ -955,10 +942,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
                 return
             exc = t.exception()
             if exc is not None:
-                self.get_logger().error(
-                    f"_run_episode task failed: {exc!r}\n"
-                    + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-                )
+                self.get_logger().error(f"_run_episode task failed: {exc!r}\n" + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
 
         task.add_done_callback(_on_done)
 

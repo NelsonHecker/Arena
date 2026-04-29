@@ -61,6 +61,10 @@ class Nav2Adapter(Adapter):
         robot: RobotManager,
         node_paths: set[str],
     ) -> None:
+        # TMP: remove once rosnavrl decoupled from nav
+        if robot.node.rosparam[bool].get("train_mode", False):
+            await super().wait_until_ready(robot, node_paths)
+            return
         bt_node_path = str(robot.namespace("bt_navigator"))
         robot.node.get_logger().info(f"waiting for {bt_node_path}")
         while bt_node_path not in node_paths:

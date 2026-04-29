@@ -31,7 +31,7 @@
     <sensor name="imu_sensor" type="imu">
       <plugin filename="libgz-sim-imu-system" name="gz::sim::systems::Imu">
         <topic>/imu/data</topic>
-        <frame_id>$(arg name)/imu_link</frame_id>
+        <frame_id>$(arg sim_path)/imu_link</frame_id>
       </plugin>
       <always_on>true</always_on>
       <update_rate>50</update_rate>
@@ -117,7 +117,7 @@
 
   <gazebo reference="lidar_link">
     <sensor name="gpu_lidar" type="gpu_lidar">
-      <gz_frame_id>$(arg name)/lidar_link</gz_frame_id>
+      <gz_frame_id>$(arg sim_path)/lidar_link</gz_frame_id>
       <pose>0 0 0.142 0 0 0</pose>
       <update_rate>10</update_rate>
       <lidar>
@@ -145,7 +145,7 @@
           <mean>0.0</mean>
           <stddev>0.01</stddev>
         </noise>
-        <gz_frame_id>$(arg name)/lidar_link</gz_frame_id>
+        <gz_frame_id>$(arg sim_path)/lidar_link</gz_frame_id>
       </lidar>
       <always_on>1</always_on>
       <visualize>true</visualize>
@@ -158,7 +158,7 @@
       <always_on>1</always_on>
       <update_rate>1</update_rate>
       <topic>navsat</topic>
-      <gz_frame_id>$(arg name)/navsat_link</gz_frame_id>
+      <gz_frame_id>$(arg sim_path)/navsat_link</gz_frame_id>
     </sensor>
     <turnGravityOff>false</turnGravityOff>
   </gazebo>

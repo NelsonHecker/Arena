@@ -6,6 +6,7 @@ import typing
 
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
+import attrs
 import geometry_msgs.msg
 import launch
 import launch.launch_description_sources
@@ -261,12 +262,17 @@ class RobotManager(NodeInterface):
         return False
 
     async def submit_task(self, request: TaskRequest) -> None:
-        """Validate and dispatch phase 0 of a typed TaskRequest."""
+        """Validate and dispatch phase 0 of a typed TaskRequest. Phase poses are abstract, realized to map here."""
+        from task_generator.tasks.robots.request import GoToPhase
+
         if not request.phases:
             raise ValueError(f"TaskRequest has no phases; nothing to dispatch (robot={self.name!r})")
         for i, phase in enumerate(request.phases):
             if phase.kind not in self._adapters:
                 raise AssertionError(f"robot {self.name!r} cannot dispatch phase[{i}] of kind {phase.kind!r}; accepts {sorted(k.name for k in self.accepts)}")
+
+        realized_phases = [attrs.evolve(phase, pose=self._environment_manager.realize(phase.pose)) if isinstance(phase, GoToPhase) else phase for phase in request.phases]
+        request = attrs.evolve(request, phases=realized_phases)
 
         self._current_request = request
         self._phase_index = 0
@@ -302,11 +308,12 @@ class RobotManager(NodeInterface):
 
     async def move(self, pose: Pose) -> None:
         """Teleport the robot to ``pose``. Positioning only — no task dispatch."""
-        self._start_pos = self._environment_manager.realize(pose)
+        self._start_pos = pose
         await self._apply_pose(pose)
 
         if self._robot.record_data_dir:
-            self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("start"), [self.start_pos.position.x, self.start_pos.position.y, self.start_pos.orientation.to_yaw()])
+            realized = self._environment_manager.realize(self._start_pos)
+            self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("start"), [realized.position.x, realized.position.y, realized.orientation.to_yaw()])
 
     async def _publish_goal_loop(self):
         # Keeps republishing _goal_pos against amcl jitter until a reset

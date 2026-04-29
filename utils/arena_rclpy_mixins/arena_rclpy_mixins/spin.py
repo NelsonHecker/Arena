@@ -13,7 +13,8 @@ from rclpy.executors import ExternalShutdownException
 
 @contextlib.contextmanager
 def spin_context(
-    *, executor: rclpy.executors.Executor | None = None,
+    *,
+    executor: rclpy.executors.Executor | None = None,
 ) -> Iterator[None]:
     """Wrap a custom mainloop with robust teardown.
 

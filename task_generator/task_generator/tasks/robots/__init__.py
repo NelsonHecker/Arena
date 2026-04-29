@@ -37,23 +37,24 @@ class TM_Robots(TaskMode):
     async def set_goal(self, pose: Pose):
         """Dispatch a single-phase GOTO request targeting ``pose`` on every robot."""
         for robot_manager in self._ctx.robots.values():
-            realized = robot_manager._environment_manager.realize(pose)  # noqa: SLF001
-            await robot_manager.submit_task(TaskRequest(phases=[GoToPhase(pose=realized)]))
+            await robot_manager.submit_task(TaskRequest(phases=[GoToPhase(pose=pose)]))
 
     async def extend(self, model: str, name: str | None = None, pose: Pose | None = None) -> str:
         resolved_pose = pose if pose is not None else await random_placement(self._ctx)
         assigned_name = name or f"{model}_{uuid.uuid4().hex[:6]}"
-        await self._ctx.environment_manager.spawn_robot([
-            RobotEntity(
-                name=assigned_name,
-                model=RobotIdentifier(model),
-                pose=resolved_pose,
-                inter_planner="",
-                local_planner="",
-                global_planner="",
-                agent="",
-            )
-        ])
+        await self._ctx.environment_manager.spawn_robot(
+            [
+                RobotEntity(
+                    name=assigned_name,
+                    model=RobotIdentifier(model),
+                    pose=resolved_pose,
+                    inter_planner="",
+                    local_planner="",
+                    global_planner="",
+                    agent="",
+                )
+            ]
+        )
         return assigned_name
 
     @property

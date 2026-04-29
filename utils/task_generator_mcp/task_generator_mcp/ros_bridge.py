@@ -54,76 +54,36 @@ class RosBridge(AsyncNode):
             return f"{node_name}/{relative}"
 
         # lifecycle
-        self.client_reset_episode: ClientWrapper[ResetEpisode] = self.create_client_wrapper(
-            ResetEpisode, _path("lifecycle/reset_episode")
-        )
-        self.client_pause: ClientWrapper[Pause] = self.create_client_wrapper(
-            Pause, _path("lifecycle/pause")
-        )
-        self.client_wait_for_world: ClientWrapper[Empty] = self.create_client_wrapper(
-            Empty, _path("lifecycle/wait_for_world")
-        )
+        self.client_reset_episode: ClientWrapper[ResetEpisode] = self.create_client_wrapper(ResetEpisode, _path("lifecycle/reset_episode"))
+        self.client_pause: ClientWrapper[Pause] = self.create_client_wrapper(Pause, _path("lifecycle/pause"))
+        self.client_wait_for_world: ClientWrapper[Empty] = self.create_client_wrapper(Empty, _path("lifecycle/wait_for_world"))
 
         # query
-        self.client_query_worlds: ClientWrapper[QueryWorlds] = self.create_client_wrapper(
-            QueryWorlds, _path("query/worlds")
-        )
-        self.client_query_scenarios: ClientWrapper[QueryScenarios] = self.create_client_wrapper(
-            QueryScenarios, _path("query/scenarios")
-        )
-        self.client_query_robots: ClientWrapper[QueryRobots] = self.create_client_wrapper(
-            QueryRobots, _path("query/robots")
-        )
-        self.client_query_static_obstacles: ClientWrapper[QueryStaticObstacles] = self.create_client_wrapper(
-            QueryStaticObstacles, _path("query/static_obstacles")
-        )
-        self.client_query_dynamic_obstacles: ClientWrapper[QueryDynamicObstacles] = self.create_client_wrapper(
-            QueryDynamicObstacles, _path("query/dynamic_obstacles")
-        )
-        self.client_query_environments: ClientWrapper[QueryEnvironments] = self.create_client_wrapper(
-            QueryEnvironments, _path("query/environments")
-        )
-        self.client_query_parametrizeds: ClientWrapper[QueryParametrizeds] = self.create_client_wrapper(
-            QueryParametrizeds, _path("query/parametrizeds")
-        )
+        self.client_query_worlds: ClientWrapper[QueryWorlds] = self.create_client_wrapper(QueryWorlds, _path("query/worlds"))
+        self.client_query_scenarios: ClientWrapper[QueryScenarios] = self.create_client_wrapper(QueryScenarios, _path("query/scenarios"))
+        self.client_query_robots: ClientWrapper[QueryRobots] = self.create_client_wrapper(QueryRobots, _path("query/robots"))
+        self.client_query_static_obstacles: ClientWrapper[QueryStaticObstacles] = self.create_client_wrapper(QueryStaticObstacles, _path("query/static_obstacles"))
+        self.client_query_dynamic_obstacles: ClientWrapper[QueryDynamicObstacles] = self.create_client_wrapper(QueryDynamicObstacles, _path("query/dynamic_obstacles"))
+        self.client_query_environments: ClientWrapper[QueryEnvironments] = self.create_client_wrapper(QueryEnvironments, _path("query/environments"))
+        self.client_query_parametrizeds: ClientWrapper[QueryParametrizeds] = self.create_client_wrapper(QueryParametrizeds, _path("query/parametrizeds"))
 
         # config
-        self.client_queue_episode: ClientWrapper[QueueEpisode] = self.create_client_wrapper(
-            QueueEpisode, _path("config/queue_episode")
-        )
-        self.client_get_task_modes: ClientWrapper[GetTaskModes] = self.create_client_wrapper(
-            GetTaskModes, _path("config/get_task_modes")
-        )
+        self.client_queue_episode: ClientWrapper[QueueEpisode] = self.create_client_wrapper(QueueEpisode, _path("config/queue_episode"))
+        self.client_get_task_modes: ClientWrapper[GetTaskModes] = self.create_client_wrapper(GetTaskModes, _path("config/get_task_modes"))
 
         # runtime spawn
-        self.client_spawn_static: ClientWrapper[SpawnStatic] = self.create_client_wrapper(
-            SpawnStatic, _path("runtime/spawn_static")
-        )
-        self.client_spawn_dynamic: ClientWrapper[SpawnDynamic] = self.create_client_wrapper(
-            SpawnDynamic, _path("runtime/spawn_dynamic")
-        )
-        self.client_spawn_robot: ClientWrapper[SpawnRobot] = self.create_client_wrapper(
-            SpawnRobot, _path("runtime/spawn_robot")
-        )
+        self.client_spawn_static: ClientWrapper[SpawnStatic] = self.create_client_wrapper(SpawnStatic, _path("runtime/spawn_static"))
+        self.client_spawn_dynamic: ClientWrapper[SpawnDynamic] = self.create_client_wrapper(SpawnDynamic, _path("runtime/spawn_dynamic"))
+        self.client_spawn_robot: ClientWrapper[SpawnRobot] = self.create_client_wrapper(SpawnRobot, _path("runtime/spawn_robot"))
 
         # action client for lifecycle/run_episode
-        self.action_run_episode: ActionClientWrapper[RunEpisode] = self.create_action_client_wrapper(
-            RunEpisode, _path("lifecycle/run_episode")
-        )
+        self.action_run_episode: ActionClientWrapper[RunEpisode] = self.create_action_client_wrapper(RunEpisode, _path("lifecycle/run_episode"))
 
         # parameter clients against the task_generator node
-        self.client_set_parameters: ClientWrapper[SetParameters] = self.create_client_wrapper(
-            SetParameters, f"{node_name}/set_parameters"
-        )
-        self.client_get_parameters: ClientWrapper[GetParameters] = self.create_client_wrapper(
-            GetParameters, f"{node_name}/get_parameters"
-        )
-        self.client_describe_parameters: ClientWrapper[DescribeParameters] = self.create_client_wrapper(
-            DescribeParameters, f"{node_name}/describe_parameters"
-        )
-        self.client_list_parameters: ClientWrapper[ListParameters] = self.create_client_wrapper(
-            ListParameters, f"{node_name}/list_parameters"
-        )
+        self.client_set_parameters: ClientWrapper[SetParameters] = self.create_client_wrapper(SetParameters, f"{node_name}/set_parameters")
+        self.client_get_parameters: ClientWrapper[GetParameters] = self.create_client_wrapper(GetParameters, f"{node_name}/get_parameters")
+        self.client_describe_parameters: ClientWrapper[DescribeParameters] = self.create_client_wrapper(DescribeParameters, f"{node_name}/describe_parameters")
+        self.client_list_parameters: ClientWrapper[ListParameters] = self.create_client_wrapper(ListParameters, f"{node_name}/list_parameters")
 
         # latched state cache
         self._state_world: str = ""

@@ -88,6 +88,13 @@ def generate_launch_description():
             "false = managed: external controller drives resets via lifecycle/reset_episode."
         ),
     )
+    train_mode = LaunchArgument(
+        name="train_mode",
+        default_value="false",
+        description=(
+            "Read by RobotManager to silence nav2 controller output and let the RL env drive cmd_vel."
+        ),
+    )
 
     map_server_node = launch.actions.IncludeLaunchDescription(
         launch.launch_description_sources.PythonLaunchDescriptionSource(
@@ -163,6 +170,7 @@ def generate_launch_description():
                 **prefix.str_param,
                 **debug.param(bool),
                 **auto_reset.param(bool),
+                **train_mode.param(bool),
             },
             {"use_sim_time": False},
             parameter_file.substitution,

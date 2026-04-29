@@ -82,5 +82,3 @@ class _TaskRegistry(Namespaced):
         for _key, (_loader, ns, schema) in cls.registry_robots.items():
             if schema is not None:
                 schema(node, ns)
-
-

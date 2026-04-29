@@ -157,11 +157,7 @@ class _rosparam[T]:
             return
 
         try:
-            if (
-                descriptor is not None
-                and descriptor.type != rclpy.Parameter.Type.NOT_SET.value
-                and not isinstance(value, rclpy.Parameter.Type)
-            ):
+            if descriptor is not None and descriptor.type != rclpy.Parameter.Type.NOT_SET.value and not isinstance(value, rclpy.Parameter.Type):
                 type_enum = rclpy.Parameter.Type(descriptor.type)
                 cls._node.declare_parameter(param_name, type_enum, descriptor=descriptor, **kwargs)
                 if value is not None:

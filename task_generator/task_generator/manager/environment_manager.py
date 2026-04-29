@@ -12,6 +12,7 @@ from task_generator.manager.realizer import Realizer
 from task_generator.shared import (
     DynamicObstacle,
     Obstacle,
+    Pose,
     Robot,
 )
 from task_generator.simulators.human import BaseHumanSimulator
@@ -46,6 +47,9 @@ class EnvironmentManager(NodeInterface):
 
     def realize(self, target: object) -> object:
         return self._realizer.realize(target)
+
+    def ezilear(self, target: Pose) -> Pose:
+        return self._realizer.ezilear(target)
 
     @property
     def walls_geometry(self) -> shapely.MultiLineString:
