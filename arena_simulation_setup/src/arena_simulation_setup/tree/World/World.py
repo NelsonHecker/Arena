@@ -1,15 +1,14 @@
+from collections.abc import Iterator
+from copy import deepcopy
 import io
 import os
+from pathlib import Path
 import tarfile
 import typing
-from copy import deepcopy
-from collections.abc import Iterator
-from pathlib import Path
 from typing import Self
 
 import attrs
 import yaml
-from shapely import Polygon, MultiPolygon
 
 from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.shared import (
@@ -89,7 +88,7 @@ class WorldDescription:
     @property
     def all_elevators(self) -> typing.Iterable[Elevator]:
         return (elevator for zone in self.zones for elevator in zone.elevators)
-    
+
     @property
     def all_elevator_names(self) -> typing.Iterable[str]:
         return (elevator.name for zone in self.zones for elevator in zone.elevators)
@@ -552,7 +551,7 @@ class MultiLevelWorld:
         raise RuntimeError('stack_floor method expects floor ids to be 0, 1, ... , floor_count-1')
 
     def normalize_level_origins_in_place(self):
-        """modify the coordinates so that the bottom-left corners of the bounding rectangles for levels are placed on origin (0,0) 
+        """modify the coordinates so that the bottom-left corners of the bounding rectangles for levels are placed on origin (0,0)
         warning: Shaft positions need to be recomputed as this operation possibly applies different shift to different levels
         """
         for level in self.levels.values():
@@ -562,7 +561,7 @@ class MultiLevelWorld:
             level.shift_all_positions(dx, dy)
 
     def normalize_level_origins(self) -> 'MultiLevelWorld':
-        """return the copy of the world where the bottom-left corners of the bounding rectangles for levels are placed on origin (0,0) 
+        """return the copy of the world where the bottom-left corners of the bounding rectangles for levels are placed on origin (0,0)
         warning: Shaft positions need to be recomputed as this operation possibly applies different shift to different levels
         """
 
@@ -598,9 +597,9 @@ class MultiLevelWorld:
     def render_whole(
             self,
             resolution: float = 0.05,
-            preferred_pixel_width = 500,
-            margin_width_in_meter = 5,
-            margin_height_in_meter = 5,
+            preferred_pixel_width: int = 500,
+            margin_width_in_meter: float = 5,
+            margin_height_in_meter: float = 5,
             *,
             default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
             asset_color: str | None = None,
@@ -619,7 +618,7 @@ class MultiLevelWorld:
         if not self.levels:
             raise RuntimeError('Cannot render an empty MultiLevelWorld')
 
-        def _regularize_world_origin_then_apply_shift(world: WorldDescription, dx, dy) -> WorldDescription:
+        def _regularize_world_origin_then_apply_shift(world: WorldDescription, dx: float, dy: float) -> WorldDescription:
             shifted_world = deepcopy(world)
 
             corners = [corner for zone in shifted_world.zones for corner in zone.corners]
@@ -713,8 +712,6 @@ class MultiLevelWorld:
             tar_stream.seek(0)
             return tarfile.open(fileobj=io.BytesIO(tar_stream.getvalue()))
 
-    
-
 
 class World(PathView):
     @property
@@ -779,8 +776,8 @@ class MultiLevelWorldView(PathView):
         return
 
     @property
-    def map(self):
-        return Map(self.path / 'map') # current Map is not compatible with MultiLevelWorld
+    def map(self) -> Map:
+        return Map(self.path / 'map')
 
     @property
     def world_path(self) -> Path:
@@ -860,11 +857,11 @@ WorldIdentifier.use(FallbackResolver(WorldIdentifier, ASS_DIR / 'worlds'))
 
 class MultiLevelWorldIdentifier(Identifier[MultiLevelWorldView]):
     @classmethod
-    def listall(cls, **kwargs):
+    def listall(cls, **kwargs: object):
         del kwargs
         yield from (MultiLevelWorldIdentifier(name) for name in os.listdir(ASS_DIR / 'worlds'))
 
-    def load(self, path: Path, /, **kwargs) -> MultiLevelWorldView:
+    def load(self, path: Path, /, **kwargs: object) -> MultiLevelWorldView:
         del kwargs
         return MultiLevelWorldView(path)
 

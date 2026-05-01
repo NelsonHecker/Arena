@@ -84,7 +84,7 @@ class Map(PathView):
         for cutout in itertools.chain(rooms.geoms, doors.geoms):
             poly = tf(shapely.Polygon(cutout))
             draw.polygon(as_int(poly.exterior.coords), fill='white')
-        
+ 
         elevator_fill = (0, int(0.8 * 255), int(0.8 * 255))
         for elevator in elevators.geoms:
             poly = tf(shapely.Polygon(elevator))
