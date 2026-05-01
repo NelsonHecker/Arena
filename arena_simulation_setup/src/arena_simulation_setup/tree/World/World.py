@@ -1,10 +1,10 @@
-from collections.abc import Iterator
-from copy import deepcopy
 import io
 import os
-from pathlib import Path
 import tarfile
 import typing
+from collections.abc import Iterator
+from copy import deepcopy
+from pathlib import Path
 from typing import Self
 
 import attrs
