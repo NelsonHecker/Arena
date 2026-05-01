@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: arena_simulation_setup
+Version: 0.1.0
+Summary: Non-ROS simulation setup headers for the arena project
+Author-email: voshch <dev@voshch.dev>
+License: MIT
+Project-URL: Homepage, https://github.com/voshch/Arena
+Project-URL: Repository, https://github.com/voshch/Arena
+Requires-Python: >=3.8
+Requires-Dist: shapely>=2.0.6
+Requires-Dist: numpy>=1.24
+Requires-Dist: attrs>=24.2.0
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: cattrs>=25.1.1
+Requires-Dist: pydantic>=2.11.5
+Requires-Dist: pillow>=11.2.1
+Requires-Dist: lxml>=4.9.1
+Requires-Dist: colourings>=0.4.1
+Requires-Dist: aiofiles>=25.1.0
