@@ -29,6 +29,7 @@ class Map(PathView):
         cls,
         rooms: shapely.MultiPolygon,
         doors: shapely.MultiPolygon,
+        elevators: shapely.MultiPolygon,
         walls: shapely.MultiLineString,
         resolution: float = 0.01,
         padding: int = 5,

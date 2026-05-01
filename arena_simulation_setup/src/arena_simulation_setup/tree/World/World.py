@@ -595,69 +595,6 @@ class MultiLevelWorld:
             max(height for _, height in bboxes),
         )
 
-    def render_whole_test(
-            self,
-            resolution: float = 0.05,
-            preferred_pixel_width = 500,
-            margin_width_in_meter = 5,
-            margin_height_in_meter = 5
-    ) -> tuple[bytes, WorldDescription]:
-        """Render all of the floors at once to a PNG image
-        In the rendered image, Floor coordinates are slided so that they are configured left-to-right, top-to-bottom
-
-        Args:
-            resolution (float): The resolution of the rendered image [m/px]
-
-        Returns:
-            bytes: The rendered image
-        """
-
-        if not self.levels:
-            raise RuntimeError('Cannot render an empty MultiLevelWorld')
-
-        def _regularize_world_origin_then_apply_shift(world: WorldDescription, dx, dy) -> WorldDescription:
-            shifted_world = deepcopy(world)
-
-            corners = [corner for zone in shifted_world.zones for corner in zone.corners]
-            if corners:
-                x_min = min(corner.x for corner in corners)
-                y_min = min(corner.y for corner in corners)
-            else:
-                x_min = 0.0
-                y_min = 0.0
-
-            offset_x = dx - x_min
-            offset_y = dy - y_min
-
-            shifted_world.shift_all_positions(offset_x, offset_y)
-
-            return shifted_world
-
-        max_bbox_width, max_bbox_height = self.max_floor_bbox_dim()
-
-        # determine how many floors should be placed in one row
-        max_pixel_width_per_floor = max((max_bbox_width + margin_width_in_meter) / resolution, 1)
-        max_floor_counts_per_row = max(1, int(preferred_pixel_width // max_pixel_width_per_floor))
-
-        floor_counts_per_row = 0
-        row_count = 0
-        flattened_world = WorldDescription()
-        for floor in self.levels.values():
-            shifted_floor = _regularize_world_origin_then_apply_shift(
-                floor,
-                floor_counts_per_row * (max_bbox_width + margin_width_in_meter),
-                -1 * row_count * (max_bbox_height + margin_height_in_meter)
-            )
-
-            flattened_world.zones.extend(shifted_floor.zones)
-
-            floor_counts_per_row += 1
-            if floor_counts_per_row >= max_floor_counts_per_row:
-                row_count += 1
-                floor_counts_per_row = 0
-
-        return (flattened_world.render(resolution)[0], flattened_world)
-
     def render_whole(
             self,
             resolution: float = 0.05,
