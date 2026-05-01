@@ -20,6 +20,17 @@ class Elevator(Named):
     material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('elevator'))
     destination: str = attrs.field(default="")
 
+    @property
+    def corners(self) -> list[Position]:
+        half_width = Position(self.size[0] / 2, 0)
+        half_length = Position(0, self.size[1] / 2)
+        return [
+            self.position - half_width - half_length,
+            self.position - half_width + half_length,
+            self.position + half_width + half_length,
+            self.position + half_width - half_length
+        ]
+
 
 @attrs.define
 class Door(Named):

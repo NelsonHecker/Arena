@@ -26,7 +26,16 @@ class Map(PathView):
 
     @classmethod
     def generate_png(
-        cls, rooms: shapely.MultiPolygon, doors: shapely.MultiPolygon, walls: shapely.MultiLineString, resolution: float = 0.01, padding: int = 5, *, static_objects: Iterable[tuple[str, shapely.Polygon]] = (), asset_color: str | None = "grey", asset_name_color: str | None = "blue"
+        cls,
+        rooms: shapely.MultiPolygon,
+        doors: shapely.MultiPolygon,
+        walls: shapely.MultiLineString,
+        resolution: float = 0.01,
+        padding: int = 5,
+        *,
+        static_objects: Iterable[tuple[str, shapely.Polygon]] = (),
+        asset_color: str | None = "grey",
+        asset_name_color: str | None = "blue"
     ) -> tuple[bytes, tuple[float, float]]:
         """
         Generate a PNG image of the map with the given elements.
@@ -74,6 +83,11 @@ class Map(PathView):
         for cutout in itertools.chain(rooms.geoms, doors.geoms):
             poly = tf(shapely.Polygon(cutout))
             draw.polygon(as_int(poly.exterior.coords), fill='white')
+        
+        elevator_fill = (0, int(0.8 * 255), int(0.8 * 255))
+        for elevator in elevators.geoms:
+            poly = tf(shapely.Polygon(elevator))
+            draw.polygon(as_int(poly.exterior.coords), fill=elevator_fill)
 
         for wall in walls.geoms:
             line = tf(shapely.LineString(wall))
