@@ -105,7 +105,6 @@ def test_tm_module_values_stable():
     assert TM.DYNAMIC_MAP.value == "dynamic_map"
     assert TM.CLEAR_FORBIDDEN_ZONES.value == "clear_forbidden_zones"
     assert TM.RVIZ_UI.value == "rviz_ui"
-    assert TM.BENCHMARK.value == "benchmark"
 
 
 def test_sim_simulator_values_stable():

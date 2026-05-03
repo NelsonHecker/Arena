@@ -37,7 +37,9 @@ Parameters live under `task.<mode>.<leaf>` (e.g. `task.random.static.n`).
 
 ## Setting per-mode params: staged contract
 
-All `task.*` writes go through `config/queue_episode`. The request carries the mode change and a leaf-keyed `obstacles_params` / `robots_params` payload (`rcl_interfaces/Parameter[]`, names relative to the mode, e.g. `static.n`). The server stages them and applies at the next `lifecycle/reset_episode` boundary. Failures warn, never abort. Last-write-wins on duplicate leaf keys within an axis between resets.
+All `task.*` writes go through `config/queue_episode`. The request carries the mode change and a leaf-keyed `obstacles_params` / `robots_params` payload (`rcl_interfaces/Parameter[]`, names **relative to the mode**, no `task.<mode>.` prefix). The server stages them and applies at the next `lifecycle/reset_episode` boundary. Failures warn, never abort. Last-write-wins on duplicate leaf keys within an axis between resets.
+
+A leaf is what's left after stripping `task.<mode>.`. For `task.random.static.n` the leaf is `static.n`; for `task.scenario.file` the leaf is `file`. The active mode is taken from the request's `tm_obstacles` / `tm_robots`; sending `task.scenario.file` as a param name (full path) results in the server constructing `task.<mode>.task.scenario.file` and dropping it as undeclared.
 
 Because all parameters are forward-declared at startup, raw `SetParameters` also works at any time for the full `task.<mode>.<leaf>` path; no activation ordering constraint.
 

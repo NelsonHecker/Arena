@@ -233,15 +233,22 @@ common entry points. Verbs relevant to bringup:
 
 ## Benchmark mode
 
-Benchmark runs use `tm_modules:=benchmark` and are configured through
-[configs/benchmark/](configs/benchmark/README.md):
+Benchmark runs are driven by the `arena benchmark` CLI verb, which launches
+`arena_evaluation/launch/benchmark.launch.py`. Configuration lives in
+[arena_evaluation/configs/benchmark/](../arena_evaluation/configs/benchmark/README.md).
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
-    sim:=gazebo \
-    tm_modules:=benchmark \
-    headless:=2
+arena benchmark sim:=gazebo headless:=2 suite:=basic contest:=basic
 ```
 
-`Mod_Benchmark` reads `config.yaml`, selects the active suite and contest,
-and drives the task-generator through stages automatically.
+The runner groups steps by `(contestant, robot, simulator)`. One env is
+spawned per group; stage transitions within the group are pushed via
+`QueueEpisode` rather than a respawn. The env is despawned only between
+groups (i.e. between contestants, or when the robot changes).
+
+Total run time scales as `bringup_time × num_contestants + episode_time ×
+total_episodes`, not `bringup_time × num_steps`.
+
+`env_n` caps the number of parallel groups (parallel contestants). Results
+land under `$ARENA_DATA_DIR/benchmarks/<run_id>/`. Resume an interrupted run
+with `arena benchmark --resume <run_id>`.

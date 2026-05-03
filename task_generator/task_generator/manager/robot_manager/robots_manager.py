@@ -249,9 +249,16 @@ class RobotsManager(NodeInterface):
         self._environment_manager: EnvironmentManager = environment_manager
         self._managers: dict[str, RobotManager] = {}
         self._initialpose = _initialpose_generator(0.0, 0.0, -5)
+        self._diff = _RobotDiff()
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](
             'robot',
             type_=rclpy.Parameter.Type.STRING,
             parse=self._parse_robot_configurations,
         )
+
+    def add_pending(self, name: str, robot: Robot) -> None:
+        """Queue a robot for full set_up_robot on the next reset_cycle."""
+        if name in self._managers or name in self._diff.to_add:
+            raise ValueError(f"robot {name!r} already exists")
+        self._diff.to_add[name] = robot

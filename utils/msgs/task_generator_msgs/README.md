@@ -13,13 +13,13 @@ Runtime types (env registry, holds, world confirm, cleanup, purge) live in [`are
 | `Pause.srv` | Toggle pause from external callers. |
 | `GetTaskModes.srv` | Return currently active task-mode strings. |
 | `QueryWorlds.srv` / `QueryScenarios.srv` / `QueryEnvironments.srv` / `QueryParametrizeds.srv` / `QueryRobots.srv` / `QueryStaticObstacles.srv` / `QueryDynamicObstacles.srv` / `QueryTaskModes.srv` | Listing of available shortnames for the corresponding asset class. |
-| `SpawnStatic.srv` / `SpawnDynamic.srv` / `SpawnRobot.srv` | Inject a static obstacle / dynamic pedestrian / additional robot into the running episode via `TM_Obstacles.extend` / `TM_Robots.extend`. |
+| `SpawnStatic.srv` / `SpawnDynamic.srv` / `SpawnRobot.srv` | Inject a static obstacle / dynamic pedestrian / additional robot into the running episode via `TM_Obstacles.extend` / `TM_Robots.extend`. `SpawnRobot` accepts an optional `args` (`diagnostic_msgs/KeyValue[]`) forwarded to `Robot.parse` (e.g. `local_planner`, `agent_name`). |
 
 ## Messages (`msg/`)
 
 | File | Purpose |
 |---|---|
-| `EpisodeRecord.msg` | One episode: id, world, seed, task modes, `robots[]`, outcome, integrity flag, plus `obstacles_params` / `robots_params` (effective per-mode params, with staged dict overlay for queued records). Published latched on `state/episode` and `state/queue`. |
+| `EpisodeRecord.msg` | One episode: id, world, seed, task modes, `robots[]`, `outcome_state` (`QUEUED` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `FATAL`), `outcome_reason`, integrity flag, plus `obstacles_params` / `robots_params` (effective per-mode params, with staged dict overlay for queued records). Published latched on `state/episode` and `state/queue`. |
 | `RobotDescriptor.msg` | Per-robot description (model, ns, frame, capabilities). |
 | `RobotFleet.msg` | All currently-active `RobotDescriptor`s in the env. Published latched on `state/robots`. |
 
@@ -27,4 +27,4 @@ Runtime types (env registry, holds, world confirm, cleanup, purge) live in [`are
 
 | File | Purpose |
 |---|---|
-| `RunEpisode.action` | Single-flight episode runner: goal carries optional world; result reports outcome (`SUCCESS` / `FAILED` / `SKIPPED`). A concurrent `ResetEpisode` resolves the in-flight goal with `SKIPPED`. |
+| `RunEpisode.action` | Single-flight episode runner: goal carries optional world; result `state` is one of `QUEUED` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `FATAL` (FATAL = env never reached a runnable state, do not retry). A concurrent `ResetEpisode` resolves the in-flight goal with `SKIPPED`. |

@@ -51,6 +51,13 @@ _feature_registry(){
             grep -qx -- "$name" "$INSTALLED" 2>/dev/null
             return $?
         ;;
+        require)
+            if ! _feature_registry has "$name"; then
+                echo "$name is not installed; run 'arena feature $name install' first." >&2
+                return 1
+            fi
+            return 0
+        ;;
         add)
             if ! _feature_registry has "$name"; then
                 echo "$name" >> "$INSTALLED"
@@ -87,7 +94,7 @@ _feature_registry(){
             return 0
         ;;
         *)
-            echo "Usage: _feature_registry <has|add|remove|list|pull|resolve> [name]" >&2
+            echo "Usage: _feature_registry <has|require|add|remove|list|pull|resolve> [name]" >&2
             return 1
         ;;
     esac
@@ -349,7 +356,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                                     result=$?
                                 fi
                             else
-                                ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $fverb $*")
+                                ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
                                 result=$?
                             fi
                         ;;
@@ -384,8 +391,16 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 arena feature training launch "$@"
                 result=$?
             ;;
+            benchmark)
+                arena feature evaluation launch "$@"
+                result=$?
+            ;;
+            evaluation)
+                arena feature evaluation "$@"
+                result=$?
+            ;;
             *)
-                echo 'Usage: arena <build|rebuild|deps|update|launch|runtime|env|cleanup|test|deactivate|feature|registry|resource|train> [args...]' >&2
+                echo 'Usage: arena <benchmark|build|rebuild|deps|update|launch|runtime|env|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
                 result=1
             ;;
         esac

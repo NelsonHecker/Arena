@@ -155,6 +155,9 @@ async def async_main(
         node.get_logger().error(traceback.format_exc())
         raise
     finally:
+        with contextlib.suppress(Exception):
+            await node.kill_launches()
+
         current = asyncio.current_task()
         pending = [t for t in asyncio.all_tasks(loop) if t is not current and not t.done()]
         for task in pending:
@@ -162,9 +165,6 @@ async def async_main(
         if pending:
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=2.0)
-
-        with contextlib.suppress(Exception):
-            await node.kill_launches()
 
         executor.shutdown()
         with contextlib.suppress(Exception):

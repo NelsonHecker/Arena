@@ -123,6 +123,21 @@ def generate_launch_description():
     robot = LaunchArgument(name="robot", default_value="jackal")
     tm_robots = LaunchArgument(name="tm_robots", default_value="explore")
     task_config = LaunchArgument(name="task_config", default_value="")
+    episodes = LaunchArgument(
+        name='episodes',
+        default_value='-1',
+        description='Stop the env after N episodes (-1 = run forever).',
+    )
+    scenario_file = LaunchArgument(
+        name='scenario_file',
+        default_value='',
+        description='Sets task.scenario.file ROS param (empty = use parameter_file default).',
+    )
+    agent_name = LaunchArgument(
+        name='agent_name',
+        default_value='',
+        description='RL agent name; sets agent_name ROS param.',
+    )
     tm_obstacles = LaunchArgument(name="tm_obstacles", default_value="random")
     tm_modules = LaunchArgument(name="tm_modules", default_value="rviz_ui")
     world = LaunchArgument(name="world", default_value="map_empty")
@@ -254,6 +269,11 @@ def generate_launch_description():
                     "prefix": prefix_val,
                 },
                 parameter_file.substitution,
+                {
+                    **episodes.param(int),
+                    'task.scenario.file': scenario_file.substitution,
+                    **agent_name.str_param,
+                },
             ],
         )
 

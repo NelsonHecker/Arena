@@ -56,7 +56,7 @@ A single Pause/Unpause button. The label is driven by the latched `state/paused`
 
 The panel maintains a local `history_buffer_` (`std::deque<EpisodeRecord>`, max 50) deduped by `episode_id`. On every `state/episode` arrival the record is upserted into the buffer and the table is rebuilt:
 
-- Each finalized record is shown oldest-first: `episode_id`, `world`, `seed`, `outcome_state` (UNFINISHED/SUCCESS/FAILED/SKIPPED), `outcome_reason`.
+- Each finalized record is shown oldest-first: `episode_id`, `world`, `seed`, `outcome_state` (QUEUED/RUNNING/SUCCESS/FAILED/SKIPPED/FATAL), `outcome_reason`.
 - The current episode (`last_current_episode_`) appears as the last (bottom) row in bold.
 - A "Next:" preview row is appended (italic) when `last_queued_episode_` differs meaningfully from current (world, modes, robots, or any param).
 

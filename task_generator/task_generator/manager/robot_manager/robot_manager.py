@@ -158,7 +158,7 @@ class RobotManager(NodeInterface):
             self._logger.info(f"robot {self._robot.name!r} has additional 'capabilities' entries ({other_kinds}) not bound to any adapter (TODO: multi-capability adapter composition)")
 
         # Nav2 reads its planner triplet + train_mode from the Robot runtime
-        # config (populated by CLI / benchmark YAML) unless the capabilities
+        # config (populated by CLI / benchmark CLI YAML) unless the capabilities
         # entry overrides it.
         if navigator_kind == 'nav2':
             adapter_kwargs.setdefault('global_planner', self._robot.global_planner)

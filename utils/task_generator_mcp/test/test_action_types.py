@@ -14,9 +14,12 @@ def test_goal_default_world_is_empty():
 
 
 def test_result_state_constants():
-    assert RunEpisode.Result.SUCCESS == 1
-    assert RunEpisode.Result.FAILED == 2
-    assert RunEpisode.Result.SKIPPED == 3
+    assert RunEpisode.Result.QUEUED == 0
+    assert RunEpisode.Result.RUNNING == 1
+    assert RunEpisode.Result.SUCCESS == 2
+    assert RunEpisode.Result.FAILED == 3
+    assert RunEpisode.Result.SKIPPED == 4
+    assert RunEpisode.Result.FATAL == 5
 
 
 def test_result_fields():
@@ -24,7 +27,7 @@ def test_result_fields():
     result.state = RunEpisode.Result.SUCCESS
     result.reason = "finished"
     result.episode_id = 42
-    assert result.state == 1
+    assert result.state == 2
     assert result.reason == "finished"
     assert result.episode_id == 42
 
@@ -42,6 +45,9 @@ def test_feedback_field():
 def test_state_name_mapping():
     from task_generator_mcp.tools import _RUN_EPISODE_STATE_NAMES
 
+    assert _RUN_EPISODE_STATE_NAMES[RunEpisode.Result.QUEUED] == "QUEUED"
+    assert _RUN_EPISODE_STATE_NAMES[RunEpisode.Result.RUNNING] == "RUNNING"
     assert _RUN_EPISODE_STATE_NAMES[RunEpisode.Result.SUCCESS] == "SUCCESS"
     assert _RUN_EPISODE_STATE_NAMES[RunEpisode.Result.FAILED] == "FAILED"
     assert _RUN_EPISODE_STATE_NAMES[RunEpisode.Result.SKIPPED] == "SKIPPED"
+    assert _RUN_EPISODE_STATE_NAMES[RunEpisode.Result.FATAL] == "FATAL"

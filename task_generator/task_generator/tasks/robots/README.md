@@ -63,7 +63,7 @@ them to `RobotManager.submit_task`:
 ## Fleet manager
 
 [`fleet_manager.py`](fleet_manager.py) resolves episode-level
-`task_modes:` entries (from benchmark / scenario config) to the live
+`task_modes:` entries (from scenario config) to the live
 `RobotManager` instances.
 
 ### `TaskModeSpec`

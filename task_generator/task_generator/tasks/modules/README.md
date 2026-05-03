@@ -37,22 +37,9 @@ Parameters live under `task.<mode>.<leaf>`.
 
 | Enum value | Class | File | `before_reset` | `after_reset` |
 | --- | --- | --- | --- | --- |
-| `benchmark` | `Mod_Benchmark` | [`benchmark.py`](benchmark.py) | advances suite/contest stage; sets `tm_robots`, `tm_obstacles`, world params for the next stage | counts episode; triggers stage advance when episode limit reached |
 | `clear_forbidden_zones` | `Mod_ClearForbiddenZones` | [`clear_forbidden_zones.py`](clear_forbidden_zones.py) | calls `world_manager.forbid_clear()` | — |
 | `rviz_ui` | `Mod_OverrideRobot` | [`rviz_ui.py`](rviz_ui.py) | — | — |
 | `staged` | `Mod_Staged` | [`staged.py`](staged.py) | loads new stage config when stage index changes; publishes `goal_radius` and obstacle counts | — |
-
-### `Mod_Benchmark`
-
-[`benchmark.py:185`](benchmark.py#L185)
-
-Drives a multi-stage benchmark: loads `arena_bringup/configs/benchmark/config.yaml`,
-parses a `Suite` (stages with `tm_robots`, `tm_obstacles`, map, seed, timeout)
-and a `Contest` (contestants with planner configs). `before_reset` calls
-`_reincarnate` when `needs_reincarnation` is set, which updates ROS params
-for the next stage via `node.conf.TaskMode.*` setters and triggers a task
-reset. `after_reset` increments the episode index and marks reincarnation
-when the episode limit is hit.
 
 ### `Mod_ClearForbiddenZones`
 

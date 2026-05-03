@@ -39,9 +39,12 @@ TM_OBSTACLES_VALUES: list[str] = [m.value for m in Constants.TaskMode.TM_Obstacl
 TM_MODULE_VALUES: list[str] = [m.value for m in Constants.TaskMode.TM_Module]
 
 _RUN_EPISODE_STATE_NAMES: dict[int, str] = {
+    RunEpisode.Result.QUEUED: "QUEUED",
+    RunEpisode.Result.RUNNING: "RUNNING",
     RunEpisode.Result.SUCCESS: "SUCCESS",
     RunEpisode.Result.FAILED: "FAILED",
     RunEpisode.Result.SKIPPED: "SKIPPED",
+    RunEpisode.Result.FATAL: "FATAL",
 }
 
 _POSE_SCHEMA: dict[str, Any] = {

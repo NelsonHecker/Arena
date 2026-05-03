@@ -1,8 +1,6 @@
 import asyncio
 import uuid
 
-from arena_robots.Robot import RobotIdentifier
-
 from task_generator.shared import Pose
 from task_generator.shared import Robot as RobotEntity
 from task_generator.tasks.mode import TaskMode
@@ -39,22 +37,21 @@ class TM_Robots(TaskMode):
         for robot_manager in self._ctx.robots.values():
             await robot_manager.submit_task(TaskRequest(phases=[GoToPhase(pose=pose)]))
 
-    async def extend(self, model: str, name: str | None = None, pose: Pose | None = None) -> str:
+    async def extend(
+        self,
+        model: str,
+        name: str | None = None,
+        pose: Pose | None = None,
+        args: dict[str, str] | None = None,
+    ) -> str:
         resolved_pose = pose if pose is not None else await random_placement(self._ctx)
         assigned_name = name or f"{model}_{uuid.uuid4().hex[:6]}"
-        await self._ctx.environment_manager.spawn_robot(
-            [
-                RobotEntity(
-                    name=assigned_name,
-                    model=RobotIdentifier(model),
-                    pose=resolved_pose,
-                    inter_planner="",
-                    local_planner="",
-                    global_planner="",
-                    agent="",
-                )
-            ]
-        )
+        value: dict[str, object] = dict(args or {})
+        value['model'] = model
+        value['name'] = assigned_name
+        value['pos'] = resolved_pose.to_2d()
+        robot = RobotEntity.parse(value, node=self.node)
+        self.node._robots_manager.add_pending(assigned_name, robot)
         return assigned_name
 
     @property

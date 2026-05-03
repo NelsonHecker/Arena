@@ -703,10 +703,13 @@ namespace task_generator_gui
         {
             switch (s)
             {
+            case task_generator_msgs::msg::EpisodeRecord::QUEUED:   return "QUEUED";
+            case task_generator_msgs::msg::EpisodeRecord::RUNNING:  return "RUNNING";
             case task_generator_msgs::msg::EpisodeRecord::SUCCESS:  return "SUCCESS";
             case task_generator_msgs::msg::EpisodeRecord::FAILED:   return "FAILED";
             case task_generator_msgs::msg::EpisodeRecord::SKIPPED:  return "SKIPPED";
-            default:                                                 return "UNFINISHED";
+            case task_generator_msgs::msg::EpisodeRecord::FATAL:    return "FATAL";
+            default:                                                 return "UNKNOWN";
             }
         };
 

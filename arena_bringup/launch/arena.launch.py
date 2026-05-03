@@ -103,6 +103,14 @@ def generate_launch_description():
         default_value='1',
         description='Number of environments to spawn within simulator'
     )
+    auto_reset = LaunchArgument(
+        name='auto_reset',
+        default_value='true',
+        description=(
+            'true = standalone: task_generator auto-advances episodes. '
+            'false = managed: external controller drives resets via lifecycle/reset_episode.'
+        ),
+    )
     debug = LaunchArgument(
         name='debug',
         default_value='False',
@@ -133,7 +141,7 @@ def generate_launch_description():
     _env_arg_sources: list[LaunchArgument] = [
         sim, human, tm_obstacles, tm_robots, task_config, tm_modules,
         robot, inter_planner, local_planner, global_planner, navigator,
-        world, record_data_dir, debug,
+        world, record_data_dir, debug, auto_reset,
     ]
 
     def _build_arena_node(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:
