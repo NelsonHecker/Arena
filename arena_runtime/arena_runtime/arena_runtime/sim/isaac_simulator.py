@@ -165,7 +165,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     assert model.path is not None, f"URDF model {model.name} must have a valid file path"
                     robot_params = (await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).model_params
 
-                    fq_name = self._NS_ROBOT(robot.sim_path)
+                    fq_name = self._NS_ROBOT(robot.name)
 
                     await self._clients.SpawnUrdf.call_timeout(
                         SpawnUrdf.Request(
@@ -173,7 +173,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                             urdf_path=str(model.path),
                             robot_model=robot.model.name,
                             localization=True,
-                            tf_prefix=robot.name,
+                            tf_prefix=robot.frame.raw(),
                             base_frame=robot_params.base_frame,
                             odom_frame=robot_params.odom_frame,
                             pose=robot.pose.to_msg(),
@@ -222,7 +222,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             assert model.path is not None, f"USD model {model.name} must have a valid file path"
             prim = Prim()
             prim.usd_path = str(model.path)
-            prim.name = self._NS_PRIM(obstacle.sim_path)
+            prim.name = self._NS_PRIM(obstacle.name)
             prim.pose = obstacle.pose.to_msg()
             if obstacle.scale is not None:
                 prim.scale.x = obstacle.scale.x
@@ -243,13 +243,13 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return tuple((a is not None) and next(response_iter) for a in prims)
 
     async def obstacle_move(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
-        return await self._move_entities([(self._NS_PRIM(o.sim_path), o.pose) for o in obstacles])
+        return await self._move_entities([(self._NS_PRIM(o.name), o.pose) for o in obstacles])
 
     async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         req = MovePedestrians.Request(
             pedestrians=[
                 Pedestrian(
-                    name=self._NS_PEDESTRIAN(p.sim_path),
+                    name=self._NS_PEDESTRIAN(p.name),
                     pose=p.pose.to_msg(),
                 )
                 for p in pedestrians
@@ -263,7 +263,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
     async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def move_robot(robot: Robot) -> bool:
             try:
-                return await self._move_entity(self._NS_ROBOT(robot.sim_path), robot.pose)
+                return await self._move_entity(self._NS_ROBOT(robot.name), robot.pose)
             except Exception as e:
                 self._logger.error(f"Failed to move robot {robot.name}: {e}\n{traceback.format_exc()}")
                 return False
@@ -271,16 +271,16 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await asyncio.gather(*map(move_robot, robots))
 
     async def obstacle_delete(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
-        return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.sim_path)) for o in obstacles))
+        return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        res = await self._clients.DeletePedestrians.call_timeout(DeletePedestrians.Request(names=[self._NS_PEDESTRIAN(p.sim_path) for p in pedestrians]))
+        res = await self._clients.DeletePedestrians.call_timeout(DeletePedestrians.Request(names=[self._NS_PEDESTRIAN(p.name) for p in pedestrians]))
         if res is None:
             return tuple(False for _ in pedestrians)
         return tuple(r == DeletePedestrians.Response.SUCCESS for r in res.results)
 
     async def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
-        return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.sim_path)) for r in robots))
+        return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots))
 
     async def remove_world(self) -> bool:
         res = await self._clients.ResetWorld.call_timeout(ResetWorld.Request())
@@ -349,7 +349,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         async def impl(floor: FloorDefinition) -> Floor | None:
             try:
                 return Floor(
-                    name=self._NS_FLOOR(floor.sim_path),
+                    name=self._NS_FLOOR(floor.name),
                     x_length=floor.x_length,
                     y_length=floor.y_length,
                     pos=floor.pos.to_msg(),
@@ -409,7 +409,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 des = elevator.destination
                 material_resolved = await elevator.material.resolve()
                 result = Elevator(
-                    name=self._NS_ELEVATOR(elevator.sim_path),
+                    name=self._NS_ELEVATOR(elevator.name),
                     position=pos.to_msg(),
                     size=size,
                     height_min=elevator.height_min,
@@ -476,7 +476,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             items.append(
                 SpawnPedestrian(
                     pedestrian=Pedestrian(
-                        name=self._NS_PEDESTRIAN(pedestrian.sim_path),
+                        name=self._NS_PEDESTRIAN(pedestrian.name),
                         pose=pedestrian.pose.to_msg(),
                     ),
                     model_ref=available_models[model_name],
@@ -494,7 +494,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             arena_people_msgs.msg.Pedestrians(
                 pedestrians=[
                     arena_people_msgs.msg.Pedestrian(
-                        name=ped.sim_path,
+                        name=ped.name,
                         pose=ped.pose.to_msg(),
                     )
                     for status, ped in zip(success, pedestrians, strict=False)
