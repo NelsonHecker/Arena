@@ -57,6 +57,7 @@
 #include <QScrollArea>
 #include <QLineEdit>
 #include <QSignalBlocker>
+#include <QTimer>
 #include "Qt-MultiSelectComboBox/MultiSelectComboBox.h"
 
 #include <atomic>
@@ -283,6 +284,16 @@ namespace task_generator_gui
         QPushButton *discard_button;
         QPushButton *queue_button;
         QPushButton *next_button;
+
+        // Next-button latch: disabled between click and the next state/episode update.
+        // baseline_id is the current episode_id at click time, so an arriving
+        // record with a different id is the signal that the episode changed.
+        bool next_pending_{false};
+        uint32_t next_pending_baseline_id_{0};
+        QTimer *next_pending_timeout_{nullptr};
+
+        // Re-enable the next button and clear pending state.
+        void clearNextPending();
 
         QPushButton *pause_button;
         bool paused_state{false};

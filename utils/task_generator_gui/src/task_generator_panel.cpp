@@ -94,6 +94,9 @@ namespace task_generator_gui
                     {
                         last_current_episode_ = msg;
 
+                        if (next_pending_ && msg->episode_id != next_pending_baseline_id_)
+                            clearNextPending();
+
                         // Dedup history by episode_id: replace existing entry or append.
                         bool found = false;
                         for (auto &entry : history_buffer_)
@@ -335,6 +338,12 @@ namespace task_generator_gui
         connect(queue_button,   &QPushButton::clicked, this, &TaskGeneratorPanel::onQueueClicked);
         connect(next_button,    &QPushButton::clicked, this, &TaskGeneratorPanel::onNextClicked);
 
+        // Fallback re-enable in case the reset is silently dropped or the episode
+        // topic stops publishing, so the button does not get stuck.
+        next_pending_timeout_ = new QTimer(this);
+        next_pending_timeout_->setSingleShot(true);
+        connect(next_pending_timeout_, &QTimer::timeout, this, [this]() { clearNextPending(); });
+
         episode_nav_layout->addWidget(pause_button);
         episode_nav_layout->addWidget(discard_button);
         episode_nav_layout->addWidget(queue_button);
@@ -521,12 +530,23 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::onNextClicked()
     {
+        if (next_pending_)
+            return;
+
+        next_pending_ = true;
+        next_pending_baseline_id_ = last_current_episode_ ? last_current_episode_->episode_id : 0;
+        next_button->setEnabled(false);
+        updateDirtyButtons();
+        next_pending_timeout_->start(std::chrono::seconds(30));
+
         if (isDirty())
         {
             pushQueueEpisode([this](bool ok)
             {
                 if (ok)
                     QMetaObject::invokeMethod(this, [this]() { sendResetEpisode(); }, Qt::QueuedConnection);
+                else
+                    QMetaObject::invokeMethod(this, [this]() { clearNextPending(); }, Qt::QueuedConnection);
             });
         }
         else
@@ -545,9 +565,23 @@ namespace task_generator_gui
             {
                 auto resp = f.get();
                 if (resp && !resp->success)
+                {
                     RCLCPP_WARN(node->get_logger(),
                                 "reset_episode failed: %s", resp->error_msg.c_str());
+                    QMetaObject::invokeMethod(this, [this]() { clearNextPending(); }, Qt::QueuedConnection);
+                }
             });
+    }
+
+    void TaskGeneratorPanel::clearNextPending()
+    {
+        next_pending_ = false;
+        next_pending_baseline_id_ = 0;
+        if (next_pending_timeout_)
+            next_pending_timeout_->stop();
+        if (next_button)
+            next_button->setEnabled(true);
+        updateDirtyButtons();
     }
 
     // --- Pause toggle ---
@@ -572,9 +606,9 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::updateDirtyButtons()
     {
-        const bool dirty_and_queued = isDirty() && last_queued_episode_ != nullptr;
-        if (discard_button) discard_button->setEnabled(dirty_and_queued);
-        if (queue_button)   queue_button->setEnabled(dirty_and_queued);
+        const bool enable = isDirty() && last_queued_episode_ != nullptr && !next_pending_;
+        if (discard_button) discard_button->setEnabled(enable);
+        if (queue_button)   queue_button->setEnabled(enable);
     }
 
     // --- Populate widgets from queued record ---
