@@ -1,7 +1,0 @@
-# Delete all sim entities whose name starts with the given prefix.
-string prefix        # e.g. "env_0/" (Isaac) or "env_0_" (Gazebo)
-string caller_id     # node FQN; prefix validation skipped only when caller is /arena
----
-bool success
-uint32 removed       # count of entities removed
-string error_msg

@@ -29,6 +29,10 @@ class SimLifecycle(abc.ABC):
         """Delete all entities under the given namespace prefix. Returns count removed."""
         ...
 
+    def env_prefix(self, env_id: int) -> str:
+        """Cleanup-namespace prefix for env_id. Default: slash-nested (USD-style)."""
+        return f"env_{env_id}/"
+
     @abc.abstractmethod
     async def ensure_ready(self) -> None:
         """Block until the underlying sim's services are reachable."""

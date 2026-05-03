@@ -1,5 +1,5 @@
 uint16 env_id           # registered env to place
-WorldExtent extent      # bbox of geometry the client wants placed; server pads with slot_buffer
+WorldExtent extent      # bbox of geometry the client wants placed, runtime pads with slot_buffer
 ---
 bool success
 float32[2] reference    # origin offset to apply (bbox center maps to slot center)

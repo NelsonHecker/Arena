@@ -10,12 +10,9 @@ import subprocess
 import sys
 
 import ament_index_python.packages
-import arena_runtime_msgs.action
 import arena_runtime_msgs.msg
 import arena_runtime_msgs.srv
 import rclpy
-import rclpy.action
-import rclpy.action.server
 import rclpy.lifecycle
 import rclpy.qos
 import rclpy.subscription
@@ -27,11 +24,9 @@ from lifecycle_msgs.msg import State as LcState
 from lifecycle_msgs.msg import Transition, TransitionEvent
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy import Parameter
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from std_msgs.msg import Bool
 
-from arena_runtime.cleanup import CleanupManager
 from arena_runtime.constants import SimSimulator
 from arena_runtime.holds import HoldRegistry
 from arena_runtime.registry import EnvRegistry, _extent_eq
@@ -68,12 +63,10 @@ class ManagedEnv:
 
 class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
     _lifecycle: SimLifecycle
-    _cleanup: CleanupManager
     _holds: HoldRegistry
     _env_registry: EnvRegistry
     _envs: dict[int, ManagedEnv]
     _heartbeat_timer: rclpy.timer.Timer | None
-    _purge_env_action_server: ActionServer
     _clock_task: asyncio.Task | None
     _window_holder: str | None
     _window_lock: asyncio.Lock
@@ -98,7 +91,6 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         sim_key = SimSimulator(sim_name)
 
         self._lifecycle = await LifecycleRegistry.get(sim_key, node=self)
-        self._cleanup = CleanupManager(self._lifecycle)
         self._holds = HoldRegistry()
 
         if isinstance(self._lifecycle, DummyHost):
@@ -151,9 +143,9 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             callback_group=srv_cb_group,
         )
         self._srv_cleanup = self.create_service(
-            arena_runtime_msgs.srv.CleanupNamespace,
-            self.service_namespace("cleanup_namespace"),
-            self._cb_cleanup_namespace,
+            arena_runtime_msgs.srv.CleanupEnv,
+            self.service_namespace("cleanup_env"),
+            self._cb_cleanup_env,
             callback_group=srv_cb_group,
         )
         self._srv_register_env = self.create_service(
@@ -179,16 +171,6 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             self.service_namespace("confirm_world"),
             self._cb_confirm_world,
             callback_group=srv_cb_group,
-        )
-
-        self._purge_env_action_server = ActionServer(
-            self,
-            arena_runtime_msgs.action.PurgeEnv,
-            self.service_namespace("purge_env"),
-            execute_callback=self._execute_purge_env,
-            goal_callback=lambda _goal: GoalResponse.ACCEPT,
-            cancel_callback=lambda _cancel: CancelResponse.ACCEPT,
-            callback_group=ReentrantCallbackGroup(),
         )
 
         self._publish_state()
@@ -368,8 +350,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             await self._lifecycle.unpause()
         self._publish_state()
 
-        await self._lifecycle.cleanup_namespace(f"env_{env_id}_")
-        await self._lifecycle.cleanup_namespace(f"env_{env_id}/")
+        await self._lifecycle.cleanup_namespace(self._lifecycle.env_prefix(env_id))
 
         env = self._envs.pop(env_id, None)
         self._env_registry.complete_eviction(env_id)
@@ -381,28 +362,6 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             asyncio.create_task(env.dispose(self, grace_seconds=15.0))
 
         self.get_logger().info(f"evicted env_{env_id} ({reason})")
-
-    async def _execute_purge_env(
-        self,
-        goal_handle: rclpy.action.server.ServerGoalHandle,
-    ) -> arena_runtime_msgs.action.PurgeEnv.Result:
-        goal: arena_runtime_msgs.action.PurgeEnv.Goal = goal_handle.request
-        prefix = goal.prefix
-
-        feedback = arena_runtime_msgs.action.PurgeEnv.Feedback(status="purging")
-        goal_handle.publish_feedback(feedback)
-
-        removed = await self._lifecycle.cleanup_namespace(prefix)
-
-        feedback = arena_runtime_msgs.action.PurgeEnv.Feedback(status="done")
-        goal_handle.publish_feedback(feedback)
-
-        goal_handle.succeed()
-        return arena_runtime_msgs.action.PurgeEnv.Result(
-            success=True,
-            removed=removed,
-            error_msg="",
-        )
 
     async def _cb_hold(
         self,
@@ -482,18 +441,17 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             if self._window_lock.locked():
                 self._window_lock.release()
 
-    async def _cb_cleanup_namespace(
+    async def _cb_cleanup_env(
         self,
-        request: arena_runtime_msgs.srv.CleanupNamespace.Request,
-        response: arena_runtime_msgs.srv.CleanupNamespace.Response,
-    ) -> arena_runtime_msgs.srv.CleanupNamespace.Response:
-        internal = request.caller_id == self.get_fully_qualified_name()
-        success, removed, error_msg = await self._cleanup.cleanup_namespace(request.prefix, internal=internal)
-        if success:
-            self.get_logger().info(f"cleanup '{request.prefix}' removed {removed}")
-        response.success = success
+        request: arena_runtime_msgs.srv.CleanupEnv.Request,
+        response: arena_runtime_msgs.srv.CleanupEnv.Response,
+    ) -> arena_runtime_msgs.srv.CleanupEnv.Response:
+        prefix = self._lifecycle.env_prefix(request.env_id)
+        removed = await self._lifecycle.cleanup_namespace(prefix)
+        self.get_logger().info(f"cleanup env_{request.env_id} ('{prefix}') removed {removed}")
+        response.success = True
         response.removed = removed
-        response.error_msg = error_msg
+        response.error_msg = ""
         return response
 
     async def _cb_register_env(

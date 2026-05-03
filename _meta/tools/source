@@ -249,16 +249,10 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                             result=1
                             ;;
                         *)
-                            ros2 service call /arena/cleanup_namespace \
-                                arena_runtime_msgs/srv/CleanupNamespace \
-                                "{prefix: 'env_${_arena_cleanup_id}_', caller_id: '/arena_cleanup_cli'}"
-                            _arena_cleanup_gazebo=$?
-                            ros2 service call /arena/cleanup_namespace \
-                                arena_runtime_msgs/srv/CleanupNamespace \
-                                "{prefix: 'env_${_arena_cleanup_id}/', caller_id: '/arena_cleanup_cli'}"
-                            _arena_cleanup_isaac=$?
-                            result=$(( _arena_cleanup_gazebo | _arena_cleanup_isaac ))
-                            unset _arena_cleanup_gazebo _arena_cleanup_isaac
+                            ros2 service call /arena/cleanup_env \
+                                arena_runtime_msgs/srv/CleanupEnv \
+                                "{env_id: ${_arena_cleanup_id}}"
+                            result=$?
                             ;;
                     esac
                     unset _arena_cleanup_id

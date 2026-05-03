@@ -1,9 +1,0 @@
-# entity name prefix (e.g. env_0_ or env_0/)
-string prefix
----
-bool success
-uint32 removed
-string error_msg
----
-# brief status update
-string status
