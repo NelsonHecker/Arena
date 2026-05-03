@@ -152,31 +152,17 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         t.transform.rotation.w = 1.0
         self.node._static_tf_broadcaster.sendTransform(t)
 
-    def _world_callback(self, value: object) -> bool:
-        """Handle world change events.
+    async def apply_world(self, world_name: str) -> bool:
+        """Load `world_name` if different from the current world.
 
-        Args:
-            value (typing.Any): The new world value.
-
-        Raises:
-            RuntimeError: If the world cannot be changed.
-            RuntimeError: If the world is not valid.
-
-        Returns:
-            bool: True if the world was changed successfully, False otherwise.
+        The change surface is async-only, callers must await this from the event loop. There is no rosparam callback for `world`; the param is a read-only mirror of state.
         """
-        world_name = str(value)
         self._logger.info(f'World change requested: {world_name}')
 
-        # if world_name != self._world_name and \
-        #         (simulator := self.node.conf.Arena.SIM.value) in (Constants.Simulator.GAZEBO,):
-        #     raise RuntimeError(
-        #         f'Simulator {simulator.value} does not support world reloading.')
-
         if world_name == self._world_name:
-            return True  # no change
+            return True
 
-        world = World.WorldIdentifier(world_name).resolve_sync()
+        world = await World.WorldIdentifier(world_name).resolve()
         description = world.load()
         floors = list(description.all_floors)
         extent = arena_runtime_msgs.msg.WorldExtent()
@@ -189,7 +175,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         req = arena_runtime_msgs.srv.ConfirmWorld.Request()
         req.env_id = self.node._env_id
         req.extent = extent
-        confirm = self._cli_confirm_world.call_timeout_sync(req)
+        confirm = await self._cli_confirm_world.call_timeout(req)
         if confirm is None:
             self._logger.error(f'confirm_world timed out for world {world_name!r}; aborting world change')
             return False
@@ -217,7 +203,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             'map.yaml',
         )
 
-        response = self._cli.call_timeout_sync(nav2_msgs.srv.LoadMap.Request(map_url=f'{map_yaml}'))
+        response = await self._cli.call_timeout(nav2_msgs.srv.LoadMap.Request(map_url=f'{map_yaml}'))
 
         tmp_map.cleanup()
 
@@ -226,6 +212,8 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         if response.result > 0:
             raise RuntimeError(f'failed to load map for world {world_name}: status code {response.result}')
+
+        self.node.rosparam[str].set('world', world_name)
 
         return True
 
@@ -297,10 +285,9 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         )
         await self._cli_confirm_world.ensure()
 
-        self.node.rosparam.callback(
-            'world',
-            self._world_callback,
-        )
+        initial_world = self.node.conf.Arena.WORLD.value
+        if initial_world:
+            await self.apply_world(initial_world)
 
     async def sync(self, timeout: float = -1) -> bool:
         """Synchronize the world and map names.

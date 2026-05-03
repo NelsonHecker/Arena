@@ -146,8 +146,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         run_seed = self.rosparam[str].get("run_seed", "")
         queue_depth = self.rosparam[int].get("episode_queue_depth", 10)
         self._env_id = self.rosparam[int].get("env_id", 0)
-        # Reference and prespawn anchor are unknown at boot; populated by the first
-        # confirm_world response handled in WorldManagerROS._world_callback.
+        # Reference and prespawn anchor are unknown at boot, populated by the first
+        # confirm_world response handled in WorldManagerROS.apply_world.
         self._reference = (0.0, 0.0)
         self._prespawn_offset = (0.0, 0.0)
 
@@ -520,7 +520,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.robots_params = [RclParameter(name=k, value=v) for k, v in robots_map.items()]
         self._pub_state_queue.publish(msg)
 
-    def _build_next_record(self, world: str, seed: int) -> None:
+    async def _build_next_record(self, world: str, seed: int) -> None:
         new_id = self._episodes.current.episode_id + 1
 
         overrides = self._episodes.pending_overrides
@@ -529,7 +529,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         if overrides is not None and overrides.world:
             world = world or overrides.world
             if overrides.world != self._world_manager.world_name:
-                self.rosparam[str].set("world", overrides.world)
+                await self._world_manager.apply_world(overrides.world)
 
         if overrides is not None and overrides.robots:
             self.rosparam[str].set("robot", ",".join(overrides.robots))
@@ -966,7 +966,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         episode_id = 0
         respawn = True
         try:
-            self._build_next_record(world, seed)
+            await self._build_next_record(world, seed)
             if goal_handle is not None:
                 self._episodes.current.goal_uuid = bytes(goal_handle.goal_id.uuid).hex()
 

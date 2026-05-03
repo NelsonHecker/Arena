@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import traceback
 import typing
 import warnings
 
@@ -89,6 +90,7 @@ class AsyncNode(TimeNode, rclpy.node.Node):
                 RuntimeWarning,
                 stacklevel=2,
             )
+            traceback.print_stack()
 
         async def coro() -> T:
             return await future
