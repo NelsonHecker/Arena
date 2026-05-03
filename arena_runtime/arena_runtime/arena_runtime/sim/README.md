@@ -52,6 +52,18 @@ Defined in [`_interface.py`](_interface.py):
 | `spawn_elevators` | `(Sequence[Elevator]) -> bool` |
 | `remove_world` | `() -> bool` (default raises `NotImplementedError`) |
 
+### `SimLifecycle`
+
+[`_interface.py:18`](_interface.py#L18) — process-singleton host counterpart to `BaseSim`. Owned by `arena_node` (one instance per process), drives sim-wide pause/unpause and namespace cleanup that cuts across env-scoped simulators.
+
+| Abstract method | Purpose |
+| --- | --- |
+| `pause` / `unpause` | toggle the underlying sim clock |
+| `cleanup_namespace(prefix)` | delete all entities under `prefix`, return count removed |
+| `ensure_ready` | block until the sim's services are reachable |
+
+Registered in `LifecycleRegistry` alongside `SimulatorRegistry` ([`__init__.py`](__init__.py)).
+
 ## `BaseSim`
 
 [`__init__.py:17`](__init__.py#L17)

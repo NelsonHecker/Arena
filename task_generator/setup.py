@@ -18,6 +18,10 @@ setup(
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'launch', 'human'),
+         glob('launch/human/*.launch.py') + glob('launch/human/*.md')),
+        (os.path.join('share', package_name, 'launch', 'human', 'hunav'),
+         glob('launch/human/hunav/*.launch.py')),
     ],
     install_requires=['setuptools'],
     extras_require={

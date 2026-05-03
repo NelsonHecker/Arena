@@ -19,9 +19,9 @@ import rclpy.timer
 import tf2_ros
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
+from arena_runtime._node import NodeInterface
 
 import task_generator.utils.arena as Utils
-from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import Orientation, Pose, Position, Robot

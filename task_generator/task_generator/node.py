@@ -1,10 +1,14 @@
 import array
 import asyncio
+import contextlib
 import hashlib
 import traceback
 import uuid
 
 import arena_robots.Robot
+import arena_runtime_msgs.action
+import arena_runtime_msgs.msg
+import arena_runtime_msgs.srv
 import arena_simulation_setup.tree.assets.Object
 import arena_simulation_setup.tree.assets.Pedestrian
 import arena_simulation_setup.tree.configs.environment
@@ -13,19 +17,22 @@ import arena_simulation_setup.tree.World as World
 import attrs
 import geometry_msgs.msg
 import rclpy
+import rclpy.lifecycle
 import task_generator_msgs.action
 import task_generator_msgs.msg
 import task_generator_msgs.srv
 import tf2_ros
 from arena_rclpy_mixins import ArenaMixinNode
+from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_runtime.sim import BaseSim, SimulatorRegistry
 from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterValue
 from rcl_interfaces.msg import Parameter as RclParameter
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.lifecycle import TransitionCallbackReturn
 from rclpy.parameter import Parameter
-from std_msgs.msg import Bool, Int16, String
-from std_srvs.srv import Empty as EmptySrv
+from std_msgs.msg import Int16, String
 
 from task_generator.constants import Constants
 from task_generator.constants.runtime import Configuration
@@ -38,13 +45,17 @@ from task_generator.manager.world_manager.world_manager_ros import (
 from task_generator.shared import Orientation, Pose, Position
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
 from task_generator.simulators.human.utils import ObstacleLayer
-from task_generator.simulators.sim import BaseSim, SimulatorRegistry
 from task_generator.tasks import identifier_to_available
 from task_generator.tasks.obstacles import ObstacleKind
 from task_generator.tasks.registry import _TaskRegistry
 from task_generator.tasks.task import Task
 
 from . import SafeCallbackNode
+
+_LATCHED = rclpy.qos.QoSProfile(
+    depth=1,
+    durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+)
 
 
 @attrs.define
@@ -91,7 +102,7 @@ def _derive_seed(run_seed: str, world: str, episode_id: int) -> int:
     return int.from_bytes(digest, "big") & 0x7FFFFFFFFFFFFFFF
 
 
-class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
+class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleNode):
     """
     Task Generator Node
     Will initialize and reset all tasks. The task to use is read from the `/task_mode` param.
@@ -102,9 +113,14 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
     _environment_manager: EnvironmentManager
     _robots_manager: RobotsManager
     _simulator: BaseSim
+    _realizer: Realizer
+    _arena_hold_client: ClientWrapper
+    _arena_unpause_window_client: ClientWrapper
 
     _episodes: EpisodeRuntime
-    _paused: bool = False
+    _env_id: int
+    _reference: tuple[float, float]
+    _prespawn_offset: tuple[float, float]
 
     @property
     def robots_manager(self) -> RobotsManager:
@@ -121,6 +137,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self._static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
 
         Task.declare_parameters(self)
 
@@ -128,6 +145,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
         run_seed = self.rosparam[str].get("run_seed", "")
         queue_depth = self.rosparam[int].get("episode_queue_depth", 10)
+        self._env_id = self.rosparam[int].get("env_id", 0)
+        # Reference and prespawn anchor are unknown at boot; populated by the first
+        # confirm_world response handled in WorldManagerROS._world_callback.
+        self._reference = (0.0, 0.0)
+        self._prespawn_offset = (0.0, 0.0)
 
         self._declare_mutable_param(
             "auto_reset",
@@ -172,19 +194,19 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
         self._pub_state_world = self.create_publisher(
             String,
             self.service_namespace("state", "world"),
-            rclpy.qos.QoSProfile(
-                depth=1,
-                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
-            ),
+            _LATCHED,
         )
 
         self._pub_state_episode = self.create_publisher(
             task_generator_msgs.msg.EpisodeRecord,
             self.service_namespace("state", "episode"),
-            rclpy.qos.QoSProfile(
-                depth=1,
-                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
-            ),
+            _LATCHED,
+        )
+
+        self._pub_state_robots = self.create_publisher(
+            task_generator_msgs.msg.RobotFleet,
+            self.service_namespace("state", "robots"),
+            _LATCHED,
         )
 
         self._pub_state_queue = self.create_publisher(
@@ -196,61 +218,166 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             ),
         )
 
-        self._pub_state_paused = self.create_publisher(
-            Bool,
-            self.service_namespace("state", "paused"),
-            rclpy.qos.QoSProfile(
-                depth=1,
-                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
-            ),
+        self._pub_heartbeat = self.create_publisher(
+            arena_runtime_msgs.msg.Heartbeat,
+            self.service_namespace("state", "heartbeat"),
+            10,
         )
-        self._pub_state_paused.publish(Bool(data=False))
 
-        self._check_status_task: asyncio.Task
+        self._heartbeat_timer = self.wall_timer(1.0, self._cb_heartbeat_tick)
+
+        self._arena_seen = False
+        self._arena_watchdog_timer = self.wall_timer(1.0, self._cb_arena_watchdog)
+
+        self._sub_shutdown_request = self.create_subscription(
+            arena_runtime_msgs.msg.ShutdownRequest,
+            "/arena/shutdown_request",
+            self._cb_shutdown_request,
+            _LATCHED,
+        )
+
+        self._check_status_task: asyncio.Task | None = None
+        self._episode_task: asyncio.Task | None = None
 
     def _declare_mutable_param(self, name: str, default: object, descriptor: ParameterDescriptor) -> None:
         self.rosparam[type(default)].declare_safe(name, default, descriptor=descriptor)
 
-    async def setup(self):
-        self._logger.info("Setting up Task Generator Node")
+    def aiomonitor_config(self) -> dict[str, object] | None:
+        # Skip when not in debug mode (no client attaches), and offset ports per
+        # env_id so concurrent envs don't collide on the default 20101/2/3.
+        if not self.rosparam[bool].get("debug", False):
+            return None
+        offset = max(self._env_id, 0) * 10
+        return {
+            "port": 20101 + offset,
+            "webui_port": 20102 + offset,
+            "console_port": 20103 + offset,
+        }
 
-        await self._set_up_managers()
-        await self._set_up_services()
+    def _cb_heartbeat_tick(self) -> None:
+        msg = arena_runtime_msgs.msg.Heartbeat()
+        msg.fqn = self.get_fully_qualified_name()
+        msg.stamp = self.wall_time.to_msg()
+        self._pub_heartbeat.publish(msg)
 
-        tm_modules = self.conf.TaskMode.TM_MODULES.value
-        tm_modules.add(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
-        tm_modules.add(Constants.TaskMode.TM_Module.RVIZ_UI)
+    def _cb_arena_watchdog(self) -> None:
+        info = self.get_publishers_info_by_topic("/arena/state/envs")
+        if info:
+            self._arena_seen = True
+            return
+        if not self._arena_seen:
+            return
+        self.get_logger().error("/arena/state/envs publisher gone, self-shutting down")
+        self._arena_watchdog_timer.cancel()
+        self._heartbeat_timer.cancel()
+        rclpy.try_shutdown()
 
-        self._logger.info("Creating task")
-        self._logger.debug(f"Modules: {list(tm_modules)}")
-        self._task = await Task.create(
-            node=self,
-            environment_manager=self._environment_manager,
-            robots_manager=self._robots_manager,
-            world_manager=self._world_manager,
-            modules=list(tm_modules),
-        )
+    def _cb_shutdown_request(self, msg: arena_runtime_msgs.msg.ShutdownRequest) -> None:
+        if msg.env_id != self._env_id:
+            return
+        self.get_logger().info(f"shutdown request received (reason={msg.reason!r}); shutting down")
+        self._heartbeat_timer.cancel()
+        rclpy.try_shutdown()
 
-        await self._world_manager.sync()
+    async def setup(self) -> None:
+        self._logger.info("Configuring Task Generator Node")
+        try:
+            await self._set_up_services()
+            await self._arena_hold_client.ensure()
+            await self._arena_unpause_window_client.ensure()
 
-        self._check_status_task = asyncio.create_task(self._termination_watcher())
-        self._spawn_episode()
+            await self._set_up_managers()
 
-        self.rosparam[bool].set("initialized", True)
+            tm_modules = self.conf.TaskMode.TM_MODULES.value
+            tm_modules.add(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
+            tm_modules.add(Constants.TaskMode.TM_Module.RVIZ_UI)
 
-    @classmethod
-    async def create(cls, *, namespace: str = "task_generator_node", **kwargs: object) -> "TaskGenerator":
-        self = cls(namespace=namespace, **kwargs)
-        await self.setup()
+            self._logger.info("Creating task")
+            self._logger.debug(f"Modules: {list(tm_modules)}")
+            self._task = await Task.create(
+                node=self,
+                environment_manager=self._environment_manager,
+                robots_manager=self._robots_manager,
+                world_manager=self._world_manager,
+                modules=list(tm_modules),
+            )
 
-        return self
+            await self._world_manager.sync()
+
+            self.rosparam[bool].set("initialized", True)
+            self._logger.info("Task Generator Node configured")
+        except Exception as e:
+            self._logger.error(f"configure failed: {e!r}\n{traceback.format_exc()}")
+            return
+        self.trigger_configure()
+
+    def on_configure(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_activate(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
+        super().on_activate(state)
+
+        def _start() -> None:
+            self._check_status_task = asyncio.create_task(self._termination_watcher())
+            self._spawn_episode()
+
+        self.event_loop.call_soon_threadsafe(_start)
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_deactivate(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
+        super().on_deactivate(state)
+        if self._episode_task is not None and not self._episode_task.done():
+            self._episode_task.cancel()
+        if self._check_status_task is not None and not self._check_status_task.done():
+            self._check_status_task.cancel()
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_cleanup(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
+        self._heartbeat_timer.cancel()
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_shutdown(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
+        self._heartbeat_timer.cancel()
+        return TransitionCallbackReturn.SUCCESS
+
+    async def teardown(self) -> None:
+        self._heartbeat_timer.cancel()
+
+    async def hold(self, reason: str) -> None:
+        req = arena_runtime_msgs.srv.LifecycleHold.Request()
+        req.action = arena_runtime_msgs.srv.LifecycleHold.Request.ACQUIRE
+        req.caller_id = self.get_fully_qualified_name()
+        req.reason = reason
+        await self._arena_hold_client.call_timeout(req)
+
+    async def release(self, reason: str) -> None:
+        req = arena_runtime_msgs.srv.LifecycleHold.Request()
+        req.action = arena_runtime_msgs.srv.LifecycleHold.Request.RELEASE
+        req.caller_id = self.get_fully_qualified_name()
+        req.reason = reason
+        await self._arena_hold_client.call_timeout(req)
+
+    @contextlib.asynccontextmanager
+    async def unpause_window(self):
+        req = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request()
+        req.action = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request.ACQUIRE
+        req.caller_id = self.get_fully_qualified_name()
+        await self._arena_unpause_window_client.call_timeout(req)
+        try:
+            yield
+        finally:
+            rel = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request()
+            rel.action = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request.RELEASE
+            rel.caller_id = self.get_fully_qualified_name()
+            await self._arena_unpause_window_client.call_timeout(rel)
 
     async def _set_up_managers(self):
         self._logger.info("Setting up managers")
 
-        ref_x, ref_y = self.rosparam[tuple[float, float]].get('reference', (0.0, 0.0))
+        ref_x, ref_y = self._reference
         prefix = self.rosparam[str].get('prefix', '')
         realizer = Realizer(Realizer._Configuration(x=ref_x, y=ref_y, prefix=prefix))
+        self._realizer = realizer
 
         self._logger.info("Setting up simulator")
         self._simulator = await SimulatorRegistry.get(
@@ -258,8 +385,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             node=self,
             namespace=self._namespace,
             realizer=realizer,
+            env_id=self._env_id,
         )
-
         self._logger.info("Setting up human simulator")
         self._human_simulator = await HumanSimulatorRegistry.get(
             self.conf.Arena.HUMAN.value,
@@ -444,7 +571,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             self.get_logger().info("resetting")
 
             record = self._episodes.current
-            await self._task.reset(world=record.world, seed=record.seed)
+            await self.hold("reset")
+            try:
+                await self._task.reset(world=record.world, seed=record.seed)
+            finally:
+                await self.release("reset")
             record.robots = [m.model_name for m in self._robots_manager.managers.values()]
 
             self._pub_task_reset.publish(Int16(data=record.episode_id - 1))
@@ -506,33 +637,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
     # SERVICE CALLBACKS
 
-    async def _cb_pause(
-        self,
-        request: task_generator_msgs.srv.Pause.Request,
-        response: task_generator_msgs.srv.Pause.Response,
-    ) -> task_generator_msgs.srv.Pause.Response:
-        Req = task_generator_msgs.srv.Pause.Request
-        if request.action == Req.PAUSE:
-            target = True
-        elif request.action == Req.UNPAUSE:
-            target = False
-        elif request.action == Req.TOGGLE:
-            target = not self._paused
-        else:
-            self._logger.warning(f"Pause: unknown action {request.action}")
-            response.paused = self._paused
-            return response
-
-        if target and not self._paused:
-            await self._simulator.pause_simulation()
-        elif not target and self._paused:
-            await self._simulator.unpause_simulation()
-        if self._paused != target:
-            self._paused = target
-            self._pub_state_paused.publish(Bool(data=self._paused))
-        response.paused = self._paused
-        return response
-
     async def _cb_reset_episode(
         self,
         request: task_generator_msgs.srv.ResetEpisode.Request,
@@ -554,9 +658,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
     async def _cb_wait_for_world(
         self,
-        request: EmptySrv.Request,
-        response: EmptySrv.Response,
-    ) -> EmptySrv.Response:
+        request: object,
+        response: object,
+    ) -> object:
         await self._world_manager.sync()
         return response
 
@@ -933,6 +1037,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             await self._run_episode(**kwargs)
 
         task = asyncio.create_task(_wrap())
+        self._episode_task = task
 
         def _on_done(t: asyncio.Task) -> None:
             if t.cancelled() or not rclpy.ok():
@@ -945,6 +1050,16 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
 
     async def _set_up_services(self):
         self._logger.info("Setting up services")
+
+        self._arena_hold_client = self.create_client_wrapper(
+            arena_runtime_msgs.srv.LifecycleHold,
+            "/arena/sim_lifecycle/hold",
+        )
+
+        self._arena_unpause_window_client = self.create_client_wrapper(
+            arena_runtime_msgs.srv.LifecycleUnpauseWindow,
+            "/arena/sim_lifecycle/unpause_window",
+        )
 
         self.create_service(
             task_generator_msgs.srv.ResetEpisode,
@@ -962,11 +1077,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode):
             callback_group=ReentrantCallbackGroup(),
         )
 
-        self.create_service(
-            task_generator_msgs.srv.Pause,
-            self.service_namespace("lifecycle", "pause"),
-            self._cb_pause,
-        )
+        from std_srvs.srv import Empty as EmptySrv
 
         self.create_service(
             EmptySrv,

@@ -253,14 +253,14 @@ class ROSParamServer(rclpy.node.Node):
     # ROSParam: type[_ROSParam[typing.Any]]
     # rosparam: type[_rosparam[typing.Any]]
 
-    _callbacks: dict[str, set[typing.Callable[[object], bool]]]
+    __callbacks: dict[str, set[typing.Callable[[object], bool]]]
 
     def add_param_callback(self, param_name: str, callback: typing.Callable[[object], bool]) -> None:
         """
         Add callback for parameter changes.
         """
 
-        self._callbacks.setdefault(param_name, set()).add(callback)
+        self.__callbacks.setdefault(param_name, set()).add(callback)
 
     def register_param(self, param: ROSParamT[T], value: object, **kwargs: object) -> None:
         del kwargs  # unused
@@ -281,7 +281,7 @@ class ROSParamServer(rclpy.node.Node):
         successful = True
         reason: list[str] = []
         for param in params:
-            for callback in self._callbacks.get(param.name, set()):
+            for callback in self.__callbacks.get(param.name, set()):
                 self.get_logger().debug(f"setting param {param.name} with value {param.value} (callback {callback})")
                 try:
                     successful &= callback(param.value)
@@ -299,7 +299,7 @@ class ROSParamServer(rclpy.node.Node):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self._callbacks = {}
+        self.__callbacks = {}
         self.add_on_set_parameters_callback(self._callback)
         self._setup_rosparam()
 

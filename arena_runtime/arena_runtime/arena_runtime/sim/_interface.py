@@ -1,4 +1,4 @@
-"""Interface definitions for simulator interactions with obstacles, pedestrians, and robots."""
+"""Interface definitions for simulator interactions with obstacles, pedestrians, robots, and lifecycle."""
 
 import abc
 from collections.abc import Sequence
@@ -13,6 +13,26 @@ from task_generator.shared import (
     Robot,
     Wall,
 )
+
+
+class SimLifecycle(abc.ABC):
+    """Process-singleton hooks for sim-wide pause/unpause and namespace cleanup."""
+
+    @abc.abstractmethod
+    async def pause(self) -> bool: ...
+
+    @abc.abstractmethod
+    async def unpause(self) -> bool: ...
+
+    @abc.abstractmethod
+    async def cleanup_namespace(self, prefix: str) -> int:
+        """Delete all entities under the given namespace prefix. Returns count removed."""
+        ...
+
+    @abc.abstractmethod
+    async def ensure_ready(self) -> None:
+        """Block until the underlying sim's services are reachable."""
+        ...
 
 
 class ObstacleITF(abc.ABC):

@@ -615,17 +615,17 @@ class TM_Prompt(TM_Obstacles):
             )
         )  # Temporary directory to store behavior tree XML files
 
-        # Velocity field generation
-        self.velocity_field_client = self.node.create_client(SetVelocityField, "/task_generator_node/set_velocity_field")
+        node_fqn = self.node.get_fully_qualified_name()
+        self.velocity_field_client = self.node.create_client(SetVelocityField, f"{node_fqn}/set_velocity_field")
         while not self.velocity_field_client.wait_for_service(timeout_sec=1.0):
-            self.node.get_logger().info("Waiting for service /task_generator_node/set_velocity_field")
+            self.node.get_logger().info(f"Waiting for service {node_fqn}/set_velocity_field")
         self.velocity_field_visualizer = VelocityFieldVisualizer(
             self.node,
-            topic_name="/task_generator_node/velocity_field_marker",
+            topic_name=f"{node_fqn}/velocity_field_marker",
         )
-        self.arena_world_bounds_client = self.node.create_client(SetArenaWorldBounds, "/task_generator_node/set_arena_world_bounds")
+        self.arena_world_bounds_client = self.node.create_client(SetArenaWorldBounds, f"{node_fqn}/set_arena_world_bounds")
         while not self.arena_world_bounds_client.wait_for_service(timeout_sec=1.0):
-            self.node.get_logger().info("Waiting for service /task_generator_node/set_arena_world_bounds")
+            self.node.get_logger().info(f"Waiting for service {node_fqn}/set_arena_world_bounds")
 
     def __del__(self):
         try:

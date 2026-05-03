@@ -5,8 +5,8 @@ from math import floor
 import arena_simulation_setup.tree.World as World
 import numpy as np
 import scipy.signal
+from arena_runtime._node import NodeInterface
 
-from task_generator import NodeInterface
 from task_generator.shared import Position, PositionRadius, Wall
 
 from .utils import WorldMap, WorldOccupancy

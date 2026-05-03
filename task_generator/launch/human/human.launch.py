@@ -31,8 +31,8 @@ def generate_launch_description():
         'hunav',
         launch.actions.IncludeLaunchDescription(
             PathJoinSubstitution([
-                FindPackageShare('arena_bringup'),
-                'launch', 'simulator', 'human', 'hunav', 'hunav.launch.py',
+                FindPackageShare('task_generator'),
+                'launch', 'human', 'hunav', 'hunav.launch.py',
             ]),
             launch_arguments={
                 'use_sim_time': 'true',

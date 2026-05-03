@@ -12,8 +12,8 @@ task-generator, and navigation stack lives here.
   top-level composition, and the `utils/` helpers.
 - [Simulator dispatch](launch/simulator/sim/README.md) — `SelectAction`
   convention, per-sim subdirs (`gazebo/`, `isaac/`), adding a new simulator.
-- [Human simulator dispatch](launch/simulator/human/README.md) — same
-  pattern for human-simulation backends (currently `hunav/`).
+- Human simulator dispatch: see `task_generator/launch/human/README.md`
+  (moved alongside its `BaseHumanSimulator` adapters).
 - [Task configs](configs/tasks/README.md) — `TaskModeSpec` schema,
   fleet-manager allocation, examples.
 - [Benchmark configs](configs/benchmark/README.md) — `config.yaml`, suites,

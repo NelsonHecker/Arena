@@ -1,19 +1,14 @@
-import os
-import typing
-
-import launch.conditions
+import launch
 import launch.utilities
 import launch.utilities.type_utils
 import launch_ros.actions
-from launch.actions import LogInfo
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
-from launch_ros.substitutions import FindPackageShare
-
-import launch
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
-from arena_bringup.future import IfElseSubstitution, PythonExpression
+from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import LaunchArgument
+from launch.actions import LogInfo, OpaqueFunction
+from launch.substitutions import PathJoinSubstitution, TextSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -48,7 +43,7 @@ def generate_launch_description():
     )
     sim = LaunchArgument(
         name='sim',
-        default_value='dummy',  # todo select first installed simulator
+        default_value='dummy',
     )
     navigator = LaunchArgument(
         name='navigator',
@@ -69,16 +64,6 @@ def generate_launch_description():
         description='human simulator to use',
         default_value=PythonExpression([str({"dummy": "dummy", "gazebo": "hunav", "isaac": "hunav"}), '.get("', sim.substitution, '", "dummy")']),
     )
-    complexity = LaunchArgument(
-        name='complexity',
-        default_value='1',
-        description='1 = Map known, Position known; 2 = Map known, Position unknown (AMCL); 3 = Map unknown, Position unknown (SLAM)'
-    )
-    agent_name = LaunchArgument(
-        name='agent_name',
-        default_value=robot.substitution,
-        description='DRL agent name to be deployed'
-    )
     record_data_dir = LaunchArgument(
         name='record_data_dir',
         default_value=''
@@ -87,15 +72,11 @@ def generate_launch_description():
         name='tm_robots',
         default_value='explore'
     )
-    # Structured task_modes config path; when empty, the legacy
-    # ``tm_robots:=<kind>`` arg is synthesized into a one-element list.
-    # If both are explicitly set, task_config wins.
     task_config = LaunchArgument(
         name='task_config',
         default_value='',
         description=(
-            'Path to a task_modes YAML config '
-            '(see arena_bringup/configs/tasks/SCHEMA.yaml). '
+            'Path to a task_modes YAML config. '
             'Empty = synthesize from legacy ``tm_robots`` arg.'
         ),
     )
@@ -105,7 +86,7 @@ def generate_launch_description():
     )
     tm_modules = LaunchArgument(
         name='tm_modules',
-        default_value='rviz_ui'  # TODO breaks launch if empty
+        default_value='rviz_ui'
     )
     world = LaunchArgument(
         name='world',
@@ -122,168 +103,19 @@ def generate_launch_description():
         default_value='1',
         description='Number of environments to spawn within simulator'
     )
-    env_d = LaunchArgument(
-        name='env_d',
-        default_value='50',
-        description='space between environments'
-    )
     debug = LaunchArgument(
         name='debug',
         default_value='False',
         description='Enable debug features'
     )
-    train_config = LaunchArgument(
-        name='train_config',
-        default_value='',
-        description='Path to training config YAML. When provided, train_mode is implied true and train_agent.py is started automatically.'
-    )
-    train_mode = LaunchArgument(
-        name='train_mode',
-        default_value=PythonExpression(['"', train_config.substitution, '" != ""']),
-        description='If true, RL env publishes cmd_vel directly; nav2 controller output is silenced. Implied when train_config is provided.'
-    )
-
-    def create_task_generators(
-        context: launch.LaunchContext,
-        *,
-        n_substitution: launch.SomeSubstitutionsType,
-        d_substitution: launch.SomeSubstitutionsType,
-    ) -> typing.Optional[typing.List[launch.LaunchDescriptionEntity]]:
-        n = launch.utilities.type_utils.perform_typed_substitution(
-            context,
-            launch.utilities.normalize_to_list_of_substitutions(n_substitution),
-            int,
-        )
-        n = typing.cast(int, n)
-        d = launch.utilities.type_utils.perform_typed_substitution(
-            context,
-            launch.utilities.normalize_to_list_of_substitutions(d_substitution),
-            float,
-        )
-        d = typing.cast(float, d)
-
-        # Log env_n value
-        launch.actions.LogInfo(
-            msg=[
-                TextSubstitution(text="env_n value: "),
-                TextSubstitution(text=str(n))
-            ]
-        ).execute(context)
-
-        if n < 1:
-            return None
-
-        task_generators = []
-        base_namespace = 'task_generator_node'
-        base_prefix = 'env'
-        references = snail_grid(d)
-
-        if n == 1:
-            task_generators.append(
-                create_task_generator(
-                    headlessness=PythonExpression([headless.substitution, '>1']),
-                    namespace=base_namespace,
-                    prefix='',
-                    reference=list(next(references))
-                )
-            )
-
-        else:
-            for i in range(n):
-                prefix = base_prefix + str(i)
-                if i == 0:
-                    headlessness = PythonExpression([headless.substitution, '>1'])
-                else:
-                    headlessness = PythonExpression([headless.substitution, '>-1'])
-                task_generators.append(
-                    create_task_generator(
-                        headlessness=headlessness,
-                        namespace=os.path.join(base_namespace, prefix),
-                        prefix=prefix,
-                        reference=list(next(references))
-                    )
-                )
-
-        # Log total task generators
-        launch.actions.LogInfo(
-            msg=[
-                TextSubstitution(text="Total task_generator nodes spawned: "),
-                TextSubstitution(text=str(len(task_generators)))
-            ]
-        ).execute(context)
-
-        return task_generators
-
-    def create_task_generator(
-        headlessness,
-        namespace: str,
-        prefix: str,
-        reference: typing.List[float]
-    ):
-        return IsolatedGroupAction([
-            LogInfo(msg=[
-                TextSubstitution(text="Spawning task_generator with namespace: "),
-                TextSubstitution(text=namespace)
-            ]),
-            launch.actions.IncludeLaunchDescription(
-                PathJoinSubstitution([
-                    FindPackageShare('arena_bringup'),
-                    'launch', 'simulator', 'human', 'human.launch.py',
-                ]),
-                launch_arguments={
-                    'simulator': human.substitution,
-                    'namespace': namespace,
-                }.items()
-            ),
-            launch.actions.IncludeLaunchDescription(
-                PathJoinSubstitution([
-                    FindPackageShare('task_generator'),
-                    'launch', 'task_generator.launch.py',
-                ]),
-                launch_arguments={
-                    **sim.dict,
-                    **human.dict,
-                    **tm_obstacles.dict,
-                    **tm_robots.dict,
-                    **task_config.dict,
-                    **tm_modules.dict,
-                    **robot.dict,
-                    **inter_planner.dict,
-                    **local_planner.dict,
-                    **global_planner.dict,
-                    **navigator.dict,
-                    **world.dict,
-                    **record_data_dir.dict,
-                    **debug.dict,
-                    'namespace': namespace,
-                    'headless': headlessness,
-                    'reference': str(reference),
-                    'prefix': prefix,
-                    'parameter_file': PathJoinSubstitution([
-                        FindPackageShare('arena_bringup'),
-                        'configs', 'task_generator.yaml',
-                    ]),
-                    **train_mode.dict,
-                }.items(),
-            )
-        ])
-
-    launch_task_generators = launch.actions.OpaqueFunction(
-        function=create_task_generators,
-        kwargs={
-            'n_substitution': env_n.substitution,
-            'd_substitution': env_d.substitution,
-        },
-    )
-
-    launch_simulator = launch.actions.IncludeLaunchDescription(
+    launch_sim = launch.actions.IncludeLaunchDescription(
         PathJoinSubstitution([
             FindPackageShare('arena_bringup'),
             'launch', 'simulator', 'sim', 'sim.launch.py',
         ]),
         launch_arguments={
             **use_sim_time.dict,
-            'simulator': sim.substitution,
+            **sim.dict,
             **world.dict,
             'headless': PythonExpression([headless.substitution, '>0']),
         }.items(),
@@ -296,60 +128,51 @@ def generate_launch_description():
         output='screen',
     )
 
-    ld = launch.LaunchDescription([
-        *ld_items,
-        LogInfo(
-            msg=[
-                TextSubstitution(text="Starting arena bringup with env_n="),
-                env_n.substitution,
-                TextSubstitution(text=" task_generator_node(s)")
-            ]
-        ),
-        SetGlobalLogLevelAction(log_level.substitution),
-        launch_task_generators,
-        IsolatedGroupAction([launch_simulator]),
-        world_generator_node,
-        launch.actions.ExecuteProcess(
-            cmd=['ros2', 'run', 'arena_training', 'train_agent.py',
-                 '--config', train_config.substitution],
+    # Forward to arena_node as launch-arg strings the node will pass through
+    # to its internal SpawnEnv calls. Kept in sync with task_generator.launch.py args.
+    _env_arg_sources: list[LaunchArgument] = [
+        sim, human, tm_obstacles, tm_robots, task_config, tm_modules,
+        robot, inter_planner, local_planner, global_planner, navigator,
+        world, record_data_dir, debug,
+    ]
+
+    def _build_arena_node(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:
+        def _resolve(la: LaunchArgument) -> str:
+            return launch.utilities.perform_substitutions(
+                context, launch.utilities.normalize_to_list_of_substitutions(la.substitution)
+            )
+
+        env_args = [f"{la.name}:={v}" for la in _env_arg_sources if (v := _resolve(la))]
+        n = launch.utilities.type_utils.perform_typed_substitution(
+            context,
+            launch.utilities.normalize_to_list_of_substitutions(env_n.substitution),
+            int,
+        )
+        h = int(_resolve(headless))
+
+        return [launch_ros.actions.Node(
+            package='arena_runtime',
+            executable='arena_node',
+            name='arena',
+            namespace='',
             output='screen',
-            condition=launch.conditions.IfCondition(
-                PythonExpression(['"', train_config.substitution, '" != ""'])
-            ),
-        ),
+            parameters=[{
+                'sim': _resolve(sim),
+                'env_n': n,
+                'env_headless': h,
+                'env_args': env_args,
+            }],
+            on_exit=launch.actions.Shutdown(reason='arena runtime exited'),
+        )]
+
+    return launch.LaunchDescription([
+        *ld_items,
+        LogInfo(msg=[
+            TextSubstitution(text="Starting arena bringup with env_n="),
+            env_n.substitution,
+        ]),
+        SetGlobalLogLevelAction(log_level.substitution),
+        IsolatedGroupAction([launch_sim]),
+        OpaqueFunction(function=_build_arena_node),
+        world_generator_node,
     ])
-    return ld
-
-
-def snail_grid(d: float, initial=None):
-    if initial is None:
-        initial = (0, 0)
-    x, y = map(float, initial)
-
-    step: int = 0
-    while True:
-        yield x, y
-
-        for _ in range(step):
-            y -= d
-            yield x, y
-
-        for _ in range(step):
-            x -= d
-            yield x, y
-
-        for _ in range(step):
-            y += d
-            yield x, y
-
-        for _ in range(step):
-            x += d
-            yield x, y
-
-        x += d
-        y += d
-        step += 2
-
-
-if __name__ == '__main__':
-    generate_launch_description()

@@ -20,6 +20,7 @@ from arena_people_msgs.srv import (
     SpawnPedestrians,
     UpdatePedestrians,
 )
+from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
@@ -57,7 +58,52 @@ from task_generator.shared import (
 from task_generator.shared import Elevator as ElevatorDefinition
 from task_generator.shared import Floor as FloorDefinition
 from task_generator.shared import Wall as WallDefinition
-from task_generator.simulators.sim import BaseSim, NodeInterface
+
+from arena_runtime._node import NodeInterface
+from arena_runtime.sim import BaseSim, SimLifecycle
+
+"""
+IsaacHost is constructed once by arena_node and owns process-singleton resources for Isaac: the lifecycle (pause/unpause/cleanup) and the pause/unpause/delete service clients.
+IsaacSimulator is per-env on task_generator_node and adapts env-namespace state (per-robot publishers, env-prefixed entity names) over those shared resources.
+"""
+
+
+class IsaacHost(SimLifecycle):
+    def __init__(self, node: ArenaMixinNode) -> None:
+        self._logger = node.get_logger().get_child(type(self).__name__)
+        self._pause_client: ClientWrapper = node.create_client_wrapper(
+            std_srvs.srv.Trigger,
+            "/isaac/PauseSimulation",
+        )
+        self._unpause_client: ClientWrapper = node.create_client_wrapper(
+            std_srvs.srv.Trigger,
+            "/isaac/UnpauseSimulation",
+        )
+        self._delete_prims_client: ClientWrapper = node.create_client_wrapper(
+            DeletePrims,
+            "/isaac/DeletePrims",
+        )
+
+    async def ensure_ready(self) -> None:
+        await asyncio.gather(
+            self._pause_client.ensure(),
+            self._unpause_client.ensure(),
+            self._delete_prims_client.ensure(),
+        )
+
+    async def pause(self) -> bool:
+        res = await self._pause_client.call_timeout(std_srvs.srv.Trigger.Request())
+        return bool(res) and res.success
+
+    async def unpause(self) -> bool:
+        res = await self._unpause_client.call_timeout(std_srvs.srv.Trigger.Request())
+        return bool(res) and res.success
+
+    async def cleanup_namespace(self, prefix: str) -> int:
+        res = await self._delete_prims_client.call_timeout(DeletePrims.Request(names=[prefix]))
+        if res is None or not res.ret:
+            return 0
+        return 1 if res.ret[0] else 0
 
 
 def material_to_msg(material: arena_simulation_setup.tree.assets.Material.Material) -> isaacsim_msgs.msg.Material:
@@ -68,17 +114,18 @@ def material_to_msg(material: arena_simulation_setup.tree.assets.Material.Materi
 
 
 class IsaacSimulator(BaseSim, NodeInterface):
-    _NS_PRIM = Namespace('Obstacles')
-    _NS_PEDESTRIAN = Namespace('Pedestrians')
-    _NS_ROBOT = Namespace('Robots')
-    _NS_WALL = Namespace('Walls')
-    _NS_FLOOR = Namespace('Floors')
-    _NS_DOOR = Namespace('Doors')
-    _NS_ELEVATOR = Namespace('Elevators')
-
     def __init__(self, *args: object, **kwargs: object) -> None:
         """Initialize IsaacSimulator"""
         super().__init__(*args, **kwargs)
+
+        env_prefix = f"env_{self._env_id}"
+        self._NS_PRIM = Namespace(env_prefix)('Obstacles')
+        self._NS_PEDESTRIAN = Namespace(env_prefix)('Pedestrians')
+        self._NS_ROBOT = Namespace(env_prefix)('Robots')
+        self._NS_WALL = Namespace(env_prefix)('Walls')
+        self._NS_FLOOR = Namespace(env_prefix)('Floors')
+        self._NS_DOOR = Namespace(env_prefix)('Doors')
+        self._NS_ELEVATOR = Namespace(env_prefix)('Elevators')
 
         self.wall_counter = itertools.count()
         self.floor_counter = itertools.count()
@@ -97,8 +144,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
             SpawnUsd=self.node.create_client_wrapper(SpawnUsd, "/isaac/SpawnUsd"),
             SpawnWalls=self.node.create_client_wrapper(SpawnWalls, "/isaac/SpawnWalls"),
             SpawnElevators=self.node.create_client_wrapper(SpawnElevators, "/isaac/SpawnElevators"),
-            PauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "/isaac/PauseSimulation"),
-            UnpauseSimulation=self.node.create_client_wrapper(std_srvs.srv.Trigger, "/isaac/UnpauseSimulation"),
         )
 
         # Publisher for external registration messages so IsaacSim's DoorManager
@@ -370,7 +415,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     height_min=elevator.height_min,
                     height_max=elevator.height_max,
                     material=material_to_msg(material_resolved),
-                    destination=des if hasattr(elevator, 'destination') else '',
+                    destination=des,
                 )
                 return result
             except Exception as e:
@@ -384,23 +429,14 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return res
 
     async def before_reset_episode(self) -> bool:
-        await self._pause()
         return True
 
     async def after_reset_episode(self) -> bool:
-        await self._unpause()
         return True
 
-    async def _pause(self):
-        await self._clients.PauseSimulation.call_timeout(std_srvs.srv.Trigger.Request())
-
-    async def _unpause(self):
-        await self._clients.UnpauseSimulation.call_timeout(std_srvs.srv.Trigger.Request())
-
     async def step(self, n: int = 1) -> bool:
-        await self._unpause()
-        await asyncio.sleep(0.01 * n)
-        await self._pause()
+        async with self.node.unpause_window():
+            await asyncio.sleep(0.01 * n)
         return True
 
     async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:

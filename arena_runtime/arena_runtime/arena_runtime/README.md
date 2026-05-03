@@ -1,0 +1,121 @@
+# arena — multi-env orchestration layer
+
+`arena_node` ([`arena_node.py`](arena_node.py)) is the single process-level lifecycle
+node that lets multiple simulation environments coexist in one ROS graph. It owns
+three primitives (`EnvRegistry`, `HoldRegistry`, `CleanupManager`), serves the
+services that envs and callers use to register and tear down, and publishes latched
+state topics that everyone reads instead of polling.
+
+Launched by `arena_runtime.launch.py` (namespace `/arena`, node name `arena`).
+
+## The three primitives
+
+### `EnvRegistry`
+
+[`registry.py`](registry.py)
+
+Allocates integer env IDs and translates world extents into non-overlapping
+simulator slots. State per record: `env_id`, `fqn`, `placed`, `reference`,
+`slot_extent`, `prespawn`, `ready`, `draining`, `bootstrapped`, `last_heartbeat`.
+
+Two-phase allocation:
+
+1. `reserve()` — assigns an ID and namespace without touching spatial layout.
+   Free IDs are recycled (lowest first), skipping any that are still draining.
+2. `place()` / `confirm_world` service — runs a first-fit shelf packer over the
+   requested `WorldExtent` padded by `slot_buffer` (default 5 m). Shelves grow
+   along +x, new rows stack along +y, and the row width budget stays roughly
+   square so the layout does not degenerate into a strip. Returns a `reference`
+   offset (applied to all entity coordinates), a `prespawn` anchor in the buffer
+   ring east of the bbox, and `slot_extent`. Idempotent on identical extent.
+
+Removing an env (eviction or free) triggers a `_reflow` that rebuilds all shelf
+positions for remaining placed records in `env_id` order, keeping the layout
+compact after gaps appear.
+
+Invariant: draining records are excluded from `snapshot()` and from ID recycling.
+
+### `HoldRegistry`
+
+[`holds.py`](holds.py)
+
+Ref-counted pause gate. Each caller acquires holds keyed by `(caller_id, reason)`;
+`total_count()` is the sum across all entries. When count transitions 0→1 the sim
+is paused; when it transitions 1→0 the sim is unpaused (unless an unpause window
+is active). Callers can also hold a one-at-a-time **unpause window** via
+`LifecycleUnpauseWindow`: acquiring it force-unpauses the sim for the window
+holder regardless of other holds, restoring pause state on release.
+
+Invariant: evicting an env calls `release_all(fqn)` so stale holds never block
+the sim permanently.
+
+### `CleanupManager`
+
+[`cleanup.py`](cleanup.py)
+
+Thin wrapper around `SimLifecycle.cleanup_namespace` with a prefix validator.
+External callers must supply a prefix matching `env_<digits>/` or `env_<digits>_`;
+the node itself bypasses validation (internal flag). Returns `(success, count,
+error_msg)`.
+
+## `ArenaNode` — services and topics
+
+Namespace prefix for all names below: `/arena/`.
+
+### Services
+
+| Service | Type | Purpose |
+| --- | --- | --- |
+| `register_env` | [`RegisterEnv.srv`](../../arena_runtime_msgs/srv/RegisterEnv.srv) | Reserve an ID+namespace; env calls this when it launches without managed mode |
+| `spawn_env` | [`SpawnEnv.srv`](../../arena_runtime_msgs/srv/SpawnEnv.srv) | Reserve + launch `task_generator.launch.py` as a child process; waits for ACTIVE |
+| `despawn_env` | [`DespawnEnv.srv`](../../arena_runtime_msgs/srv/DespawnEnv.srv) | Publish a `ShutdownRequest` asking an env to self-shutdown via lifecycle |
+| `confirm_world` | [`ConfirmWorld.srv`](../../arena_runtime_msgs/srv/ConfirmWorld.srv) | Run the shelf packer for an env's extent; returns reference/slot/prespawn |
+| `sim_lifecycle/hold` | [`LifecycleHold.srv`](../../arena_runtime_msgs/srv/LifecycleHold.srv) | Acquire or release a pause hold |
+| `sim_lifecycle/unpause_window` | [`LifecycleUnpauseWindow.srv`](../../arena_runtime_msgs/srv/LifecycleUnpauseWindow.srv) | Acquire or release the exclusive unpause window |
+| `cleanup_namespace` | [`CleanupNamespace.srv`](../../arena_runtime_msgs/srv/CleanupNamespace.srv) | Delete sim entities under a validated prefix |
+
+Action: `purge_env` ([`PurgeEnv.action`](../../arena_runtime_msgs/action/PurgeEnv.action)) — delete entities under an arbitrary prefix and stream status feedback.
+
+### Topics (all latched, `TRANSIENT_LOCAL`)
+
+| Topic | Type | Content |
+| --- | --- | --- |
+| `state/paused` | `std_msgs/Bool` | `true` when `hold_count > 0` |
+| `state/holders` | [`HoldRegistry.msg`](../../arena_runtime_msgs/msg/HoldRegistry.msg) | All active `(caller_id, reason, count)` entries |
+| `state/envs` | [`EnvRegistry.msg`](../../arena_runtime_msgs/msg/EnvRegistry.msg) | Snapshot of all non-draining env records |
+| `shutdown_request` | [`ShutdownRequest.msg`](../../arena_runtime_msgs/msg/ShutdownRequest.msg) | Broadcast asking `env_id` to shut down |
+
+`ArenaNode` also subscribes per env to `/<ns>/transition_event` (to track
+ACTIVE/INACTIVE/FINALIZED state) and `/<ns>/state/heartbeat` (to detect
+stale envs). A periodic timer evicts any bootstrapped env whose heartbeat exceeds
+`heartbeat_timeout_sec` (default 5 s).
+
+When `env_n > 0` at startup the node self-orchestrates an initial fleet via
+`_spawn_initial_envs`, applying the `headless_mode` convention from
+`arena.launch.py` (`-1` show all, `0` show env 0, `1` rviz only, `2` hide all).
+
+## Env lifecycle sequence
+
+1. **Register** — env calls `register_env` (or is pre-reserved by `spawn_env`).
+   Gets back `env_id`, `ns`, and the active `sim` name.
+2. **Launch** — env starts `task_generator_node` under the allocated `ns`;
+   `managed=true` skips re-registration.
+3. **Confirm world** — once the env knows its world extent, it calls
+   `confirm_world`; the shelf packer places the slot and returns `reference`.
+   `reallocated=true` in the response means the env must translate all entity
+   coordinates by the new `reference` offset.
+4. **Heartbeat** — env publishes [`Heartbeat.msg`](../../arena_runtime_msgs/msg/Heartbeat.msg)
+   on `<ns>/state/heartbeat`; `arena_node` marks the record `bootstrapped` on
+   first receipt and resets the timeout clock on each tick.
+5. **Despawn** — caller sends `despawn_env`; `arena_node` publishes a
+   `ShutdownRequest` the env observes and acts on via its own lifecycle.
+6. **Eviction** — on heartbeat timeout or lifecycle FINALIZED, `arena_node`
+   calls `start_eviction` (marks draining, releases holds, cleans up namespace
+   via `SimLifecycle`), then `complete_eviction` (frees the ID for reuse) and
+   publishes a final `ShutdownRequest`.
+
+## See also
+
+- [task_generator](../../README.md) — episode loop, task-mode registry, manager overview.
+- [Managers](../manager/README.md) — `RobotsManager`, `WorldManager`, `EnvironmentManager`, `Realizer`.
+- [arena_runtime_msgs](../../arena_runtime_msgs) — all message, service, and action definitions.

@@ -1,6 +1,6 @@
 # task_generator tasks
 
-Core abstractions for the episode loop: the `Task` orchestrator, `TaskMode`
+Core abstractions for the episode loop: the `Task` driver, `TaskMode`
 base, `TaskContext` dependency bundle, and the `_TaskRegistry` that wires
 everything together.
 
@@ -10,7 +10,7 @@ everything together.
 
 [`task.py:33`](task.py#L33)
 
-The top-level orchestrator. Combines one `TM_Robots`, one `TM_Obstacles`, and
+The top-level driver. Combines one `TM_Robots`, one `TM_Obstacles`, and
 zero-or-more `TM_Module` instances into a single episode loop. Entry points:
 
 | Method | Purpose |

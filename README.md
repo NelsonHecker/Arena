@@ -53,7 +53,7 @@ cd ~/arena_ws # replace with your actual workspace path
 source arena
 arena launch sim:=isaac                          # Isaac Sim
 arena launch local_planner:=rosnav_rl agent_name:=<your_agent>  # DRL planner
-arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path to config.yaml> # DRL training 
+arena train sim:=gazebo local_planner:=rosnav_rl train_config:=<config.yaml>  # DRL training
 ```
 
 ### DRL quick-start

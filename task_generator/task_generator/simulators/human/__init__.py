@@ -5,11 +5,11 @@ from collections.abc import Sequence
 
 from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
-from task_generator import NodeInterface
+from arena_runtime._node import NodeInterface
+from arena_runtime.sim import BaseSim
 from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Robot, Wall
 from task_generator.simulators.human.utils import KnownObstacle, KnownObstacles, ObstacleLayer
-from task_generator.simulators.sim import BaseSim
 
 
 class BaseHumanSimulator(NodeInterface, abc.ABC):

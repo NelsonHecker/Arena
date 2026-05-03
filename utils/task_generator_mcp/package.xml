@@ -12,6 +12,7 @@
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rclpy_action</exec_depend>
+  <exec_depend>arena_runtime_msgs</exec_depend>
   <exec_depend>task_generator_msgs</exec_depend>
   <exec_depend>task_generator</exec_depend>
   <exec_depend>arena_rclpy_mixins</exec_depend>

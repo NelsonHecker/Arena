@@ -2,9 +2,9 @@
 
 Entry point: [`human.launch.py`](human.launch.py).
 
-Called from `arena.launch.py` (once per environment) with `simulator` (the
-human-sim key) and `namespace`. Its job is to select and delegate to one
-human-simulation backend.
+Called from `task_generator.launch.py`'s OpaqueFunction (once per
+environment) with `simulator` (the human-sim key) and `namespace`. Its job
+is to select and delegate to one human-simulation backend.
 
 ## SelectAction dispatch
 
@@ -34,7 +34,7 @@ overridden explicitly with `human:=<key>`.
 ## Per-human-sim subdir layout
 
 ```
-launch/simulator/human/
+launch/human/
 ├── human.launch.py        — dispatcher
 └── hunav/
     └── hunav.launch.py    — hunav_agent_manager node
@@ -52,8 +52,9 @@ Starts `hunav_agent_manager/arena_hunav_agent_manager` in the given namespace.
 
 ## Adding a new human simulator
 
-1. Create `launch/simulator/human/<name>/<name>.launch.py`.
+1. Create `launch/human/<name>/<name>.launch.py`.
 2. In `human.launch.py`, call
    `launch_human_simulator.add("<name>", IncludeLaunchDescription(...))`.
-3. Update the `human` default expression in `arena.launch.py` to map the
-   appropriate `sim` values to the new key.
+3. Update the `human` default expression in `task_generator.launch.py` (and
+   `arena.launch.py` for multi-env) to map the appropriate `sim` values to
+   the new key.

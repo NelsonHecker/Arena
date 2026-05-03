@@ -6,8 +6,8 @@ import rclpy
 import rclpy.publisher
 import std_msgs.msg as std_msgs
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer
+from arena_runtime._node import NodeInterface
 
-from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.robot_manager import RobotsManager

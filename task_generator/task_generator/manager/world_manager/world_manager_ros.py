@@ -5,7 +5,10 @@ import traceback
 import typing
 from pathlib import Path
 
+import arena_runtime_msgs.msg
+import arena_runtime_msgs.srv
 import arena_simulation_setup.tree.World as World
+import geometry_msgs.msg
 import launch
 import launch.actions
 import launch.launch_description_sources
@@ -16,11 +19,12 @@ import numpy as np
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins.Async import ClientWrapper
+from arena_rclpy_mixins.shared import FrameNamespace
 from arena_rclpy_mixins.Time import Time
+from arena_runtime._node import NodeInterface
 from arena_simulation_setup.shared import Position
 from arena_simulation_setup.tree import DynamicPaths
 
-from task_generator import NodeInterface
 from task_generator.manager.environment_manager import EnvironmentManager
 
 from .utils import WorldMap
@@ -86,6 +90,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
     _environment_manager: EnvironmentManager
 
     _cli: ClientWrapper
+    _cli_confirm_world: ClientWrapper
     _world_name: str
     _origin: Position | None
     _map_name: str | None
@@ -134,6 +139,19 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         return map_tmpdir
 
+    def _publish_anchor_tf(self, ref_x: float, ref_y: float) -> None:
+        """Publish the global `map` -> `<prefix>/map` static transform that anchors the env's local frame."""
+        prefix = self.node.rosparam[str].get('prefix', '')
+        t = geometry_msgs.msg.TransformStamped()
+        t.header.stamp = self.node.get_clock().now().to_msg()
+        t.header.frame_id = 'map'
+        t.child_frame_id = FrameNamespace(prefix)('map').sanitize()
+        t.transform.translation.x = ref_x
+        t.transform.translation.y = ref_y
+        t.transform.translation.z = 0.0
+        t.transform.rotation.w = 1.0
+        self.node._static_tf_broadcaster.sendTransform(t)
+
     def _world_callback(self, value: object) -> bool:
         """Handle world change events.
 
@@ -158,10 +176,41 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if world_name == self._world_name:
             return True  # no change
 
+        world = World.WorldIdentifier(world_name).resolve_sync()
+        description = world.load()
+        floors = list(description.all_floors)
+        extent = arena_runtime_msgs.msg.WorldExtent()
+        if floors:
+            extent.x_min = float(min(f.pos.x - f.x_length / 2 for f in floors))
+            extent.y_min = float(min(f.pos.y - f.y_length / 2 for f in floors))
+            extent.x_max = float(max(f.pos.x + f.x_length / 2 for f in floors))
+            extent.y_max = float(max(f.pos.y + f.y_length / 2 for f in floors))
+
+        req = arena_runtime_msgs.srv.ConfirmWorld.Request()
+        req.env_id = self.node._env_id
+        req.extent = extent
+        confirm = self._cli_confirm_world.call_timeout_sync(req)
+        if confirm is None:
+            self._logger.error(f'confirm_world timed out for world {world_name!r}; aborting world change')
+            return False
+        if not confirm.success:
+            self._logger.error(f'confirm_world rejected world {world_name!r}: {confirm.error_msg}')
+            return False
+
+        if confirm.reallocated:
+            ref_x = float(confirm.reference[0])
+            ref_y = float(confirm.reference[1])
+            self.node._reference = (ref_x, ref_y)
+            self.node._prespawn_offset = (
+                float(confirm.prespawn[0]) - ref_x,
+                float(confirm.prespawn[1]) - ref_y,
+            )
+            self.node._realizer.set_origin(ref_x, ref_y)
+            self._publish_anchor_tf(ref_x, ref_y)
+
         self._logger.warn(f'Loading World {world_name}')
         self._world_name = world_name
 
-        world = World.WorldIdentifier(world_name).resolve_sync()
         tmp_map = self._shift_map(world.map.path)
         map_yaml = os.path.join(
             tmp_map.name,
@@ -241,6 +290,12 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             self.node.service_namespace('map_server', 'load_map'),
         )
         await self._cli.ensure()
+
+        self._cli_confirm_world = self.node.create_client_wrapper(
+            arena_runtime_msgs.srv.ConfirmWorld,
+            "/arena/confirm_world",
+        )
+        await self._cli_confirm_world.ensure()
 
         self.node.rosparam.callback(
             'world',

@@ -4,10 +4,10 @@
 
 Current state of the repo (verified by direct read):
 - `task_generator_node` exposes 9 services (`reset_task`, `pause_simulation` (SetBool), `wait_for_world`, `get_environments`, `get_parametrizeds`, `get_obstacles`, `get_scenarios`, `get_robots`, `get_worlds`).
-- `task_generator_msgs` has 7 `Get*.srv` files (one of which, `GetRobotScenarios.srv`, is dead code), no `msg/` directory.
+- `arena_runtime_msgs` has 7 `Get*.srv` files (one of which, `GetRobotScenarios.srv`, is dead code), no `msg/` directory.
 - Internal callers: `arena_training/.../base_env.py` (calls `reset_task`, `pause_simulation`), `rosnav_rl/.../curriculum_base.py` (uses raw `SetParameters` to flip task modes + episode params).
 - No MCP infrastructure anywhere. The `vllm` feature provides a LiteLLM proxy already; LLM stack exists.
-- `task_generator_msgs/CMakeLists.txt` uses `file(GLOB ...)` — new files are picked up automatically.
+- `arena_runtime_msgs/CMakeLists.txt` uses `file(GLOB ...)` — new files are picked up automatically.
 
 This plan covers two pieces together:
 1. **Service cleanup** — rename for verb consistency (task → episode), split god-services (`pause_simulation`, `get_obstacles`), add a small lifecycle surface, structured `Info[]` query responses, LLM-shaped `.srv` field comments. Task-mode setter is the one custom config service (set/get only — value space is enums); episode-shaping params (timeout, goal_tolerance, etc.) stay on raw ROS2 params with `ParameterDescriptor`s.
@@ -56,8 +56,8 @@ runtime/spawn_robot        SpawnRobot               # service; dispatches to TM_
 
 ### Latched topics (new)
 - `state/world` — `std_msgs/String`, latched (TRANSIENT_LOCAL, depth 1). Published whenever the active world changes (i.e. when `_current_episode.world` changes at a reset boundary).
-- `state/episode` — `task_generator_msgs/EpisodeRecord`, latched (TRANSIENT_LOCAL, depth 1). Current episode only. Republished on every state mutation (episode start, outcome resolution). Same `episode_id` may appear repeatedly across publications as the record mutates; subscribers dedup by id and keep the latest version. History is not exposed via the API; consumers that need a window accumulate locally.
-- `state/queue` — `task_generator_msgs/EpisodeRecord`, latched (TRANSIENT_LOCAL, depth `episode_queue_depth`, default 10). Queued (next) episode reflecting the current overrides buffer overlaid with live values. Republished on every `QueueEpisode` write and after reset drains the queue.
+- `state/episode` — `arena_runtime_msgs/EpisodeRecord`, latched (TRANSIENT_LOCAL, depth 1). Current episode only. Republished on every state mutation (episode start, outcome resolution). Same `episode_id` may appear repeatedly across publications as the record mutates; subscribers dedup by id and keep the latest version. History is not exposed via the API; consumers that need a window accumulate locally.
+- `state/queue` — `arena_runtime_msgs/EpisodeRecord`, latched (TRANSIENT_LOCAL, depth `episode_queue_depth`, default 10). Queued (next) episode reflecting the current overrides buffer overlaid with live values. Republished on every `QueueEpisode` write and after reset drains the queue.
 
 ### Existing topics (kept untouched)
 `task_reset`, `finished`, `reset_start`, `reset_end`.
@@ -87,7 +87,7 @@ bool success
 string error_msg
 ```
 
-**QueueEpisode.action** (lives under `task_generator_msgs/action/`)
+**QueueEpisode.action** (lives under `arena_runtime_msgs/action/`)
 ```
 # === Goal ===
 # Optional world to load before this episode; empty keeps current.
@@ -312,7 +312,7 @@ $ mcp call task_generator_mcp query_worlds
 
 ## Files to modify / create
 
-### `task_generator_msgs` (Agent A)
+### `arena_runtime_msgs` (Agent A)
 - New `srv/`: `ResetEpisode.srv`, `QueryWorlds.srv`, `QueryScenarios.srv`, `QueryRobots.srv`, `QueryStaticObstacles.srv`, `QueryDynamicObstacles.srv`, `QueryEnvironments.srv`, `QueryParametrizeds.srv`, `GetEpisode.srv`, `SetTaskModes.srv`, `GetTaskModes.srv`, `SpawnStatic.srv`, `SpawnDynamic.srv`, `SpawnRobot.srv` — **14 files**. No `SetWorld.srv` (world is episode-bound).
 - New `action/`: `QueueEpisode.action` — **1 file**. (CMakeLists.txt already globs `action/*.action`; no edits needed.)
 - New `msg/`: `EpisodeRecord.msg`, `EpisodeState.msg` — **2 files**. No `*Info` wrappers, no enum-carrier msgs, no `EpisodeState.msg` (replaced by `EpisodeState.current`).
@@ -441,10 +441,10 @@ $ mcp call task_generator_mcp query_worlds
 ### `arena_training/deps/rosnav_rl/.../curriculum_base.py` (Agent C)
 - Lines 97-100: parameter-node template default — update if it referenced a service path; node names stay.
 - Lines 187, 320: where `SetParameters.Request()` sets `tm_robots`/`tm_obstacles`/`tm_modules`, **route to `config/set_task_modes`** with the `.value` strings directly (no enum-constant lookup needed; service is string-typed). Episode-shaping params (`timeout`/`goal_tolerance_radius`/`robot_safe_dist`/`auto_reset`/`train_mode`/`episodes`/`record_data_dir`) and any other params **stay on raw `SetParameters`** — no migration needed for those.
-- Add `from task_generator_msgs.srv import SetTaskModes`. The `tm_modules` field is a `list[str]` of `.value` strings — convert from whatever shape the curriculum config uses (today often comma-joined string; split on comma if needed).
+- Add `from arena_runtime_msgs.srv import SetTaskModes`. The `tm_modules` field is a `list[str]` of `.value` strings — convert from whatever shape the curriculum config uses (today often comma-joined string; split on comma if needed).
 
 ### `utils/task_generator_mcp/` (Agent D — new package)
-- `package.xml` — ament_python, depends on `rclpy`, `rclpy_action`, `task_generator_msgs`, `task_generator` (for the Python enum import), `arena_rclpy_mixins`, `std_msgs`, `std_srvs`, `rcl_interfaces`.
+- `package.xml` — ament_python, depends on `rclpy`, `rclpy_action`, `arena_runtime_msgs`, `task_generator` (for the Python enum import), `arena_rclpy_mixins`, `std_msgs`, `std_srvs`, `rcl_interfaces`.
 - `setup.py` — `entry_points={'console_scripts': ['task_generator_mcp = task_generator_mcp.server:main']}`. Add `mcp>=1.0` to `install_requires`.
 - `resource/task_generator_mcp` — empty marker file.
 - `task_generator_mcp/__init__.py` — empty.
@@ -462,7 +462,7 @@ All six read this plan file as the contract. The contract is concrete enough to 
 
 | Agent | Scope | Outputs |
 |---|---|---|
-| **A: msgs** | `utils/msgs/task_generator_msgs/{srv,msg,action,CMakeLists.txt}` | 14 new `.srv`, 1 new `.action` (`RunEpisode`), 2 new `.msg`; deletes 7 obsolete `Get*.srv` (requests Bash for `rm`) |
+| **A: msgs** | `arena_runtime/arena_runtime_msgs/{srv,msg,action,CMakeLists.txt}` | 14 new `.srv`, 1 new `.action` (`RunEpisode`), 2 new `.msg`; deletes 7 obsolete `Get*.srv` (requests Bash for `rm`) |
 | **B: node** | `task_generator/task_generator/node.py`, `tasks/task.py`, `tasks/obstacles/__init__.py`, `tasks/robots/__init__.py`, TM_Random impls, `task_generator/launch/task_generator.launch.py`, `arena_bringup/launch/arena.launch.py`, `utils/arena_rclpy_mixins/arena_rclpy_mixins/params.py` | Rewritten `_set_up_services`, all new/split/renamed callbacks, action server, EpisodeRecord state, `Task.set_robot_*` integrity hooks, `extend()` method on TM bases (TM_Random as base), `train_mode` removal across node + launches, `auto_reset` launch arg + ParameterDescriptor, `ROSParamT.destroy()` |
 | **C: callers** | `arena_training/.../base_env.py`, `arena_training/.../flatland_gymnasium_env.py`, `rosnav_rl/.../curriculum_base.py` | Migrated service paths + new `config/*` calls; `train_mode` ROS-param reads → constructor kwargs only |
 | **D: mcp** | `utils/task_generator_mcp/` (new package) | Full MCP package per the design above |
@@ -474,9 +474,9 @@ Mutual exclusion: each agent owns its files exclusively. No agent touches anothe
 Cross-references:
 - A's `.srv` field names are the contract for B, C, D, F. Schemas above are precise — no agent should invent names.
 - B's service paths (`lifecycle/...`, `query/...`, `config/...`, `runtime/...`) are the contract for C, D, F. Plan above lists all.
-- D imports from `task_generator_msgs.srv`/`.msg`/`.action`; imports must match A's filenames.
+- D imports from `arena_runtime_msgs.srv`/`.msg`/`.action`; imports must match A's filenames.
 - D also imports from `task_generator.constants` (the Python enum) — that's the source of truth for enum values, not any `.msg`.
-- F is C++; uses `task_generator_msgs::srv::*` types and `arena_robots_msgs::action::GotoPose` (already used in arena_robots) for any direct robot-goal calls (panel does NOT call task_generator for goal-setting).
+- F is C++; uses `arena_runtime_msgs::srv::*` types and `arena_robots_msgs::action::GotoPose` (already used in arena_robots) for any direct robot-goal calls (panel does NOT call task_generator for goal-setting).
 
 ---
 
@@ -497,7 +497,7 @@ Per memory `feedback_no_smoke_tests`: static analysis + unit tests only; no `col
 
 | Agent | Docs |
 |---|---|
-| **A: msgs** | `utils/msgs/task_generator_msgs/README.md` (if exists; else create with one-liner per new srv/msg/action). |
+| **A: msgs** | `arena_runtime/arena_runtime_msgs/README.md` (if exists; else create with one-liner per new srv/msg/action). |
 | **B: node** | `CLAUDE.md` (Reset lifecycle section ~lines 41-50, Training mode line 84), `task_generator/README.md` (lines 52, 58 — reset_task wording), `task_generator/task_generator/manager/README.md` (lines 102-103 — before/after_reset_task), `task_generator/task_generator/tasks/README.md` (TM_Random / extend() / EpisodeRecord), `task_generator/task_generator/constants/README.md` (auto_reset, train_mode removal), `arena_bringup/BRINGUP.md` (line 162 — train_mode), `arena_bringup/launch/README.md` (lines 34-35 — train_mode arg). |
 | **C: callers** | `arena_training/README.md` (lines 54, 57, 65, 66, 69 — train_mode discussion → drop or rephrase), `arena_training/deps/rosnav_rl/rosnav_rl/rosnav_rl/action_server/README.md` (line 83 — train_mode reference). |
 | **D: mcp** | New `utils/task_generator_mcp/README.md` documenting tools, resources, env vars (`TASK_GENERATOR_NODE_NAME`), MCP client setup (Claude Desktop, mcp-cli). |
@@ -508,9 +508,9 @@ Per memory `feedback_no_smoke_tests`: static analysis + unit tests only; no `col
 
 Manual checks (post-fan-out, before commit):
 1. **Cross-agent alignment grep:**
-   - `grep -r "task_generator_msgs.srv" task_generator/ utils/task_generator_mcp/ arena_training/ rosnav_rl/` — every imported srv exists in A's output.
+   - `grep -r "arena_runtime_msgs.srv" task_generator/ utils/task_generator_mcp/ arena_training/ rosnav_rl/` — every imported srv exists in A's output.
    - `grep -rn "config/set_task_modes\|lifecycle/reset_episode\|lifecycle/pause\|lifecycle/unpause" arena_training/ rosnav_rl/ utils/task_generator_mcp/` — every path is registered in B's `_set_up_services`.
-   - **No `Tm*.msg` imports anywhere:** `grep -rn "from task_generator_msgs.msg import Tm" .` — must return nothing. Enum values are Python strings, not msg constants.
+   - **No `Tm*.msg` imports anywhere:** `grep -rn "from arena_runtime_msgs.msg import Tm" .` — must return nothing. Enum values are Python strings, not msg constants.
    - **No dropped services referenced:** `grep -rn "set_episode_params\|get_episode_params\|get_static_config" .` — must return nothing in code (param-backed tools wrap `SetParameters`/`GetParameters` directly).
 2. **No dead service references:** `grep -rn "reset_task\|pause_simulation\|get_obstacles\|get_environments\|get_parametrizeds\|get_scenarios\|get_robots\|get_worlds\|wait_for_world" task_generator/ arena_training/ rosnav_rl/ utils/task_generator_mcp/` — only matches in node.py callback bodies if any internal helpers retained the name; no service-path string literals.
 3. **MCP package sanity:** `python -c "from task_generator_mcp import server; from task_generator_mcp.tools import register_tools; from task_generator_mcp.resources import register_resources"` — imports resolve (run by user post-`colcon build`, not by us).

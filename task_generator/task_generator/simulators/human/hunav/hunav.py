@@ -13,11 +13,12 @@ import rclpy.node
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_runtime.constants import SimSimulator
+from arena_runtime.sim import BaseSim
 from geometry_msgs.msg import Point
 from hunav_msgs.msg import Agent, AgentBehavior, Agents, WallSegment
 from hunav_msgs.srv import ComputeAgent, ComputeAgents, GetAgents, GetWalls, MoveAgent
 from std_srvs.srv import Trigger
-from task_generator.constants import Constants
 from task_generator.shared import (
     DynamicObstacle,
     Obstacle,
@@ -27,7 +28,6 @@ from task_generator.shared import (
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.dummy import DummyHumanSimulator
-from task_generator.simulators.sim import BaseSim
 from visualization_msgs.msg import Marker, MarkerArray
 
 from . import HunavDynamicObstacle
@@ -115,7 +115,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._clear_agents_client = self.node.create_client_wrapper(Trigger, self.node.service_namespace(self.SERVICE_CLEAR_AGENTS))
 
     @property
-    def _simulator_type(self) -> Constants.SimSimulator:
+    def _simulator_type(self) -> SimSimulator:
         """Detect which simulator is being used"""
         return self.node.conf.Arena.SIM.value
 

@@ -21,6 +21,5 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES std_msgs geometry_msgs builtin_interfaces rcl_interfaces
 )
 
-
 ament_export_dependencies(rosidl_default_runtime)
 ament_auto_package()

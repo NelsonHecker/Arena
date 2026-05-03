@@ -8,13 +8,6 @@ class Constants:
     DEFAULT_PEDESTRIAN_MODEL = "arenian"
     TASK_GENERATOR_SERVER_NODE = Namespace("task_generator_server")
 
-    class SimSimulator(Enum):
-        DUMMY = "dummy"
-        FLATLAND = "flatland"
-        GAZEBO = "gazebo"
-        UNITY = "unity"
-        ISAAC = "isaac"
-
     class ArenaType(Enum):
         TRAINING = "training"
         DEPLOYMENT = "deployment"

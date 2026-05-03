@@ -4,6 +4,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import rclpy.parameter
+from arena_runtime_msgs.srv import LifecycleHold
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 from rcl_interfaces.msg import Parameter, ParameterValue
@@ -13,7 +14,6 @@ from task_generator.constants import Constants
 from task_generator_msgs.action import RunEpisode
 from task_generator_msgs.srv import (
     GetTaskModes,
-    Pause,
     QueryDynamicObstacles,
     QueryEnvironments,
     QueryParametrizeds,
@@ -321,12 +321,15 @@ async def _dispatch(name: str, args: dict[str, object], bridge: RosBridge) -> ob
         return {"success": resp.success, "error_msg": resp.error_msg}
 
     if name in ("lifecycle_pause", "lifecycle_unpause", "lifecycle_toggle_pause"):
-        req = Pause.Request()
-        req.action = {
-            "lifecycle_pause": Pause.Request.PAUSE,
-            "lifecycle_unpause": Pause.Request.UNPAUSE,
-            "lifecycle_toggle_pause": Pause.Request.TOGGLE,
-        }[name]
+        req = LifecycleHold.Request()
+        req.caller_id = bridge.get_fully_qualified_name()
+        req.reason = "mcp_external_pause"
+        if name == "lifecycle_pause":
+            req.action = LifecycleHold.Request.ACQUIRE
+        elif name == "lifecycle_unpause":
+            req.action = LifecycleHold.Request.RELEASE
+        else:
+            req.action = LifecycleHold.Request.RELEASE if bridge.arena_paused else LifecycleHold.Request.ACQUIRE
         resp = await bridge.client_pause.call_timeout(req)
         if resp is None:
             return {"success": False}

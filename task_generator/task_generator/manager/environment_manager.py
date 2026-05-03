@@ -5,9 +5,10 @@ from typing import Any
 
 import shapely
 import shapely.affinity
+from arena_runtime._node import NodeInterface
+from arena_runtime.sim import BaseSim
 from arena_simulation_setup.tree.World import WorldDescription
 
-from task_generator import NodeInterface
 from task_generator.manager.realizer import Realizer
 from task_generator.shared import (
     DynamicObstacle,
@@ -17,7 +18,6 @@ from task_generator.shared import (
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
-from task_generator.simulators.sim import BaseSim
 
 
 class EnvironmentManager(NodeInterface):

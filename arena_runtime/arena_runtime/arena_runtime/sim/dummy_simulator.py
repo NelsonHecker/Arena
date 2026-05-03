@@ -1,14 +1,39 @@
+"""
+`DummyHost` is constructed once by `arena_node` and owns the singleton paused-state flag that gates the /clock loop.
+`DummySimulator` is per-env on `task_generator_node` and is a no-op stub for the spawn/move/delete verbs.
+"""
+
+from __future__ import annotations
+
 import asyncio
 import typing
 from collections.abc import Sequence
 
-import rosgraph_msgs.msg
 from arena_people_msgs.msg import Pedestrians
-from arena_rclpy_mixins.Time import Time
 from task_generator.shared import Door, DynamicObstacle, Elevator, Entity, Floor, Obstacle, Robot, Wall
-from task_generator.simulators.sim import BaseSim
+
+from arena_runtime.sim import BaseSim, SimLifecycle
 
 T = typing.TypeVar('T')
+
+
+class DummyHost(SimLifecycle):
+    paused: bool = False
+
+    async def pause(self) -> bool:
+        self.paused = True
+        return True
+
+    async def unpause(self) -> bool:
+        self.paused = False
+        return True
+
+    async def cleanup_namespace(self, prefix: str) -> int:
+        del prefix
+        return 0
+
+    async def ensure_ready(self) -> None:
+        return
 
 
 class DummySimulator(BaseSim):
@@ -16,48 +41,10 @@ class DummySimulator(BaseSim):
     Does nothing.
     """
 
-    _clock_task: asyncio.Task
-    _paused: bool
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)
-        self._paused = False
-        self._clock_publisher = self.node.create_publisher(rosgraph_msgs.msg.Clock, '/clock', 10)
-        self._clock_task = asyncio.create_task(self._publish_clock_loop())
-
-    async def _publish_clock_loop(self):
-        """Publish simulated clock at ~100Hz using wall time."""
-        start = self.node.wall_time
-        paused_duration = Time()
-        pause_start = None
-        try:
-            while True:
-                if self._paused:
-                    if pause_start is None:
-                        pause_start = self.node.wall_time
-                    await asyncio.sleep(0.01)
-                    continue
-
-                if pause_start is not None:
-                    paused_duration += self.node.wall_time - pause_start
-                    pause_start = None
-
-                elapsed = self.node.wall_time - start - paused_duration
-                self._clock_publisher.publish(elapsed.to_rosgraph_msg())
-                await asyncio.sleep(0.01)
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            self._logger.exception("clock loop crashed: %s", repr(e))
-
     async def before_reset_episode(self) -> bool:
-        self._logger.debug("pausing")
-        self._paused = True
         return True
 
     async def after_reset_episode(self) -> bool:
-        self._logger.debug("unpausing")
-        self._paused = False
         return True
 
     # fake spawn

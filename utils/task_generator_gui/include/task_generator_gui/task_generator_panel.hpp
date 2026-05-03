@@ -2,8 +2,8 @@
 #define TASK_GENERATOR_GUI_TASK_GENERATOR_PANEL_HPP
 
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp/parameter_client.hpp"
 #include "rclcpp/node.hpp"
+#include "rclcpp/parameter_client.hpp"
 
 #include <rviz_common/panel.hpp>
 #include <rviz_common/ros_integration/ros_node_abstraction_iface.hpp>
