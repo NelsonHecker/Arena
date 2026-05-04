@@ -138,7 +138,7 @@ class HunavDynamicObstacle:
                 behavior_tree = str(obj.included_from / behavior_tree)
 
         return cls(
-            name=obj.name,
+            name=obj.sim_path,
             init_pose=PositionH(
                 x=extra.get('position', {}).get('x', obj.pose.position.x),
                 y=extra.get('position', {}).get('y', obj.pose.position.y),
