@@ -25,10 +25,10 @@ def test_result_state_constants():
 def test_result_fields():
     result = RunEpisode.Result()
     result.state = RunEpisode.Result.SUCCESS
-    result.reason = "finished"
+    result.info = "finished"
     result.episode_id = 42
     assert result.state == 2
-    assert result.reason == "finished"
+    assert result.info == "finished"
     assert result.episode_id == 42
 
 

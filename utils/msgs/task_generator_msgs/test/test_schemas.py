@@ -19,7 +19,7 @@ def test_episode_record_fields():
     r.tm_modules = ["benchmark"]
     r.robots = ["husky", "jackal"]
     r.outcome_state = EpisodeRecord.SUCCESS
-    r.outcome_reason = "reached goal"
+    r.outcome_info = "reached goal"
     r.goal_uuid = "abc-123"
     r.integrity = True
 
@@ -39,7 +39,7 @@ def test_episode_record_fields():
     assert r.tm_modules == ["benchmark"]
     assert list(r.robots) == ["husky", "jackal"]
     assert r.outcome_state == EpisodeRecord.SUCCESS
-    assert r.outcome_reason == "reached goal"
+    assert r.outcome_info == "reached goal"
     assert r.goal_uuid == "abc-123"
     assert r.integrity is True
     assert len(r.obstacles_params) == 1
@@ -271,7 +271,7 @@ def test_run_episode_action_result():
 
     result = RunEpisode.Result()
     result.state = RunEpisode.Result.SUCCESS
-    result.reason = ""
+    result.info = ""
     result.episode_id = 3
 
     assert result.state == RunEpisode.Result.SUCCESS

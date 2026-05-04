@@ -180,6 +180,6 @@ Calling `extend()` via the `runtime/spawn_*` services flips
 Episode state is tracked in `EpisodeRecord` (an `attrs.define` dataclass on the
 node). Key fields: `episode_id`, `world`, `seed` (derived via blake2b from
 `run_seed|world|episode_id`), snapshot task-mode strings, `outcome_state`,
-`outcome_reason`, `goal_uuid`, and `integrity`. A new record is created at every
+`outcome_info`, `goal_uuid`, and `integrity`. A new record is created at every
 NEXT reset; integrity starts `True` and flips `False` on any manual mutation
 (`extend()`, `set_robot_position`, `set_robot_goal`).

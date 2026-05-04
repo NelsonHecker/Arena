@@ -57,6 +57,12 @@ _LATCHED = rclpy.qos.QoSProfile(
     durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
 )
 
+# Deeper KeepLast for state/episode: terminal-then-next-RUNNING bursts.
+_EPISODE_QOS = rclpy.qos.QoSProfile(
+    depth=20,
+    durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+)
+
 
 @attrs.define
 class EpisodeRecord:
@@ -68,7 +74,7 @@ class EpisodeRecord:
     tm_modules: list[str] = attrs.Factory(list)
     robots: list[str] = attrs.Factory(list)
     outcome_state: int = 0
-    outcome_reason: str = ""
+    outcome_info: str = ""
     goal_uuid: str = ""
     integrity: bool = True
 
@@ -200,7 +206,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._pub_state_episode = self.create_publisher(
             task_generator_msgs.msg.EpisodeRecord,
             self.service_namespace("state", "episode"),
-            _LATCHED,
+            _EPISODE_QOS,
         )
 
         self._pub_state_robots = self.create_publisher(
@@ -451,7 +457,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.tm_modules = list(record.tm_modules)
         msg.robots = list(record.robots)
         msg.outcome_state = record.outcome_state
-        msg.outcome_reason = record.outcome_reason
+        msg.outcome_info = record.outcome_info
         msg.goal_uuid = record.goal_uuid
         msg.integrity = record.integrity
         return msg
@@ -461,6 +467,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.obstacles_params = self._params_for_mode(self._episodes.current.tm_obstacles)
         msg.robots_params = self._params_for_mode(self._episodes.current.tm_robots)
         self._pub_state_episode.publish(msg)
+
+    def set_episode_info(self, info: str) -> None:
+        self._episodes.current.outcome_info = info
+        self._publish_episode_state()
 
     def _publish_queue_state(self) -> None:
         overrides = self._episodes.pending_overrides
@@ -514,7 +524,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.tm_modules = list(queued_tm_modules)
         msg.robots = list(queued_robots)
         msg.outcome_state = task_generator_msgs.msg.EpisodeRecord.QUEUED
-        msg.outcome_reason = ""
+        msg.outcome_info = ""
         msg.goal_uuid = ""
         msg.integrity = True
         msg.obstacles_params = [RclParameter(name=k, value=v) for k, v in obstacles_map.items()]
@@ -584,6 +594,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
             self._pub_state_world.publish(String(data=record.world))
 
+            record.outcome_state = task_generator_msgs.action.RunEpisode.Result.RUNNING
             self._publish_episode_state()
 
             log = self.get_logger()
@@ -968,7 +979,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         episode_id = 0
         respawn = True
         outcome_state = task_generator_msgs.action.RunEpisode.Result.FAILED
-        outcome_reason = ""
+        outcome_info = ""
         try:
             await self._build_next_record(world, seed)
             if goal_handle is not None:
@@ -979,13 +990,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 goal_handle.publish_feedback(feedback)
 
             try:
-                self._episodes.current.outcome_state = task_generator_msgs.action.RunEpisode.Result.RUNNING
-                self._publish_episode_state()
                 await self._run_reset_cycle()
             except Exception as e:
                 self.get_logger().error(f"reset_cycle failed: {e!r}\n{traceback.format_exc()}")
                 outcome_state = task_generator_msgs.action.RunEpisode.Result.FATAL
-                outcome_reason = repr(e)
+                outcome_info = repr(e)
                 respawn = False
             else:
                 episode_id = self._episodes.current.episode_id
@@ -993,13 +1002,23 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 self._episodes.pending_outcomes[episode_id] = fut
 
                 try:
-                    outcome_state, outcome_reason = await fut
+                    outcome_state, outcome_info = await fut
                 except asyncio.CancelledError:
                     outcome_state = task_generator_msgs.action.RunEpisode.Result.SKIPPED
-                    outcome_reason = "cancelled"
+                    outcome_info = "cancelled"
+
+            if not outcome_info:
+                elapsed = (self.sim_time - self._start_time).to_seconds()
+                verb = {
+                    task_generator_msgs.action.RunEpisode.Result.SUCCESS: "finished",
+                    task_generator_msgs.action.RunEpisode.Result.FAILED: "failed",
+                    task_generator_msgs.action.RunEpisode.Result.FATAL: "failed",
+                    task_generator_msgs.action.RunEpisode.Result.SKIPPED: "skipped",
+                }.get(outcome_state, "ended")
+                outcome_info = f"{verb} after {elapsed:.1f}s"
 
             self._episodes.current.outcome_state = outcome_state
-            self._episodes.current.outcome_reason = outcome_reason
+            self._episodes.current.outcome_info = outcome_info
             self._publish_episode_state()
 
             if episode_id > 0:
@@ -1012,8 +1031,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 duration = self.sim_time.to_seconds() - self._start_time.to_seconds()
                 log = self.get_logger()
                 log.info(f"  state:    {state_label}")
-                if outcome_reason:
-                    log.info(f"  reason:   {outcome_reason}")
+                if outcome_info:
+                    log.info(f"  info:     {outcome_info}")
                 log.info(f"  duration: {duration:.2f}s")
                 log.warn(f"EPISODE FINISHED #{episode_id}")
                 log.warn("=============")
@@ -1023,7 +1042,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         result = task_generator_msgs.action.RunEpisode.Result()
         result.state = outcome_state
-        result.reason = outcome_reason
+        result.info = outcome_info
         result.episode_id = episode_id
 
         if goal_handle is not None:
@@ -1037,7 +1056,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             else:
                 goal_handle.succeed()
 
-        service_driven = outcome_state == task_generator_msgs.action.RunEpisode.Result.SKIPPED and outcome_reason == "reset"
+        service_driven = outcome_state == task_generator_msgs.action.RunEpisode.Result.SKIPPED and outcome_info == "reset"
         fatal = outcome_state == task_generator_msgs.action.RunEpisode.Result.FATAL
         if respawn and rclpy.ok() and not fatal and (service_driven or self.rosparam[bool].get_unsafe("auto_reset")):
             self._spawn_episode()

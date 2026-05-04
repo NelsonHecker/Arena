@@ -83,7 +83,7 @@ namespace task_generator_gui
 
         // Latched state/episode subscription — deduped into history_buffer_.
         {
-            rclcpp::QoS qos(rclcpp::KeepLast(1));
+            rclcpp::QoS qos(rclcpp::KeepLast(20));
             qos.transient_local();
             episode_sub = node->create_subscription<task_generator_msgs::msg::EpisodeRecord>(
                 task_generator_node + "/state/episode",
@@ -355,7 +355,7 @@ namespace task_generator_gui
         auto playlist_layout = new QVBoxLayout();
 
         playlist_table = new QTableWidget(0, 3);
-        playlist_table->setHorizontalHeaderLabels(QStringList({"World", "State", "Reason"}));
+        playlist_table->setHorizontalHeaderLabels(QStringList({"World", "State", "Info"}));
         playlist_table->horizontalHeader()->setStretchLastSection(true);
         playlist_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
         playlist_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -714,21 +714,27 @@ namespace task_generator_gui
         };
 
         // Count rows: history + optional current + optional queued preview.
+        // Queued row is hidden while running, the latched queue snapshot is stale until next reset.
         bool show_queued = false;
-        if (last_current_episode_ && last_queued_episode_)
+        const bool current_running = last_current_episode_
+            && last_current_episode_->outcome_state == task_generator_msgs::msg::EpisodeRecord::RUNNING;
+        if (last_queued_episode_ && !current_running)
         {
-            const auto &cur = *last_current_episode_;
-            const auto &que = *last_queued_episode_;
-            show_queued = (cur.world != que.world
-                || cur.tm_robots != que.tm_robots
-                || cur.tm_obstacles != que.tm_obstacles
-                || cur.robots != que.robots
-                || cur.obstacles_params.size() != que.obstacles_params.size()
-                || cur.robots_params.size() != que.robots_params.size());
-        }
-        else if (last_queued_episode_)
-        {
-            show_queued = true;
+            if (!last_current_episode_)
+            {
+                show_queued = true;
+            }
+            else
+            {
+                const auto &cur = *last_current_episode_;
+                const auto &que = *last_queued_episode_;
+                show_queued = (cur.world != que.world
+                    || cur.tm_robots != que.tm_robots
+                    || cur.tm_obstacles != que.tm_obstacles
+                    || cur.robots != que.robots
+                    || cur.obstacles_params.size() != que.obstacles_params.size()
+                    || cur.robots_params.size() != que.robots_params.size());
+            }
         }
 
         const uint32_t current_id = last_current_episode_ ? last_current_episode_->episode_id : 0;
@@ -752,7 +758,7 @@ namespace task_generator_gui
             if (last_current_episode_ && rec.episode_id == current_id) continue;
             playlist_table->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(rec.world)));
             playlist_table->setItem(row, 1, new QTableWidgetItem(outcomeLabel(rec.outcome_state)));
-            playlist_table->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(rec.outcome_reason)));
+            playlist_table->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(rec.outcome_info)));
             ++row;
         }
 
@@ -769,7 +775,7 @@ namespace task_generator_gui
             };
             playlist_table->setItem(row, 0, makeBold(QString::fromStdString(cur.world)));
             playlist_table->setItem(row, 1, makeBold(outcomeLabel(cur.outcome_state)));
-            playlist_table->setItem(row, 2, makeBold(QString::fromStdString(cur.outcome_reason)));
+            playlist_table->setItem(row, 2, makeBold(QString::fromStdString(cur.outcome_info)));
             ++row;
         }
 
@@ -786,7 +792,7 @@ namespace task_generator_gui
             };
             playlist_table->setItem(row, 0, makeItalic(QString::fromStdString(que.world)));
             playlist_table->setItem(row, 1, makeItalic(QString("(queued)")));
-            playlist_table->setItem(row, 2, makeItalic(QString::fromStdString(que.outcome_reason)));
+            playlist_table->setItem(row, 2, makeItalic(QString::fromStdString(que.outcome_info)));
         }
     }
 

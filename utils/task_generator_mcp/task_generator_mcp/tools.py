@@ -77,7 +77,7 @@ def _record_to_dict(record: object) -> dict[str, object]:
         "tm_obstacles": record.tm_obstacles,
         "tm_modules": list(record.tm_modules),
         "outcome_state": record.outcome_state,
-        "outcome_reason": record.outcome_reason,
+        "outcome_info": record.outcome_info,
         "goal_uuid": record.goal_uuid,
         "integrity": record.integrity,
         "obstacles_params": [{"name": p.name, "type": p.value.type, "value": _param_value_to_python(p.value)} for p in record.obstacles_params],
@@ -351,7 +351,7 @@ async def _dispatch(name: str, args: dict[str, object], bridge: RosBridge) -> ob
         result = wrapped.result
         return {
             "state": _RUN_EPISODE_STATE_NAMES.get(result.state, str(result.state)),
-            "reason": result.reason,
+            "info": result.info,
             "episode_id": result.episode_id,
         }
 

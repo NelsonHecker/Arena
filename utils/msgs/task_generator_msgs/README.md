@@ -19,7 +19,7 @@ Runtime types (env registry, holds, world confirm, cleanup, purge) live in [`are
 
 | File | Purpose |
 |---|---|
-| `EpisodeRecord.msg` | One episode: id, world, seed, task modes, `robots[]`, `outcome_state` (`QUEUED` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `FATAL`), `outcome_reason`, integrity flag, plus `obstacles_params` / `robots_params` (effective per-mode params, with staged dict overlay for queued records). Published latched on `state/episode` and `state/queue`. |
+| `EpisodeRecord.msg` | One episode: id, world, seed, task modes, `robots[]`, `outcome_state` (`QUEUED` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `FATAL`), `outcome_info` (live status string, may be republished mid-episode via `Task.set_info`), integrity flag, plus `obstacles_params` / `robots_params` (effective per-mode params, with staged dict overlay for queued records). Published latched on `state/episode` and `state/queue`. |
 | `RobotDescriptor.msg` | Per-robot description (model, ns, frame, capabilities). |
 | `RobotFleet.msg` | All currently-active `RobotDescriptor`s in the env. Published latched on `state/robots`. |
 

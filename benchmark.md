@@ -109,7 +109,7 @@ cells:                            # resolved cartesian product, post scale_episo
 
 ```
 ts_iso,run_id,cell_key,contestant,stage,env_id,episode_id,world,seed,
-tm_robots,tm_obstacles,tm_modules,robots,outcome_state,outcome_reason,
+tm_robots,tm_obstacles,tm_modules,robots,outcome_state,outcome_info,
 started_at,ended_at,runtime_s,robots_params_json,obstacles_params_json
 ```
 

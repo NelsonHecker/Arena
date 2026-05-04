@@ -255,6 +255,10 @@ class Task(_TaskRegistry, NodeInterface):
         robot = self._ctx.robots[robot_name]
         await robot.submit_task(request)
 
+    def set_info(self, info: str) -> None:
+        """Update the live info string shown in the RViz panel for the current episode."""
+        self.node.set_episode_info(info)
+
     _TaskKindAlias = TaskKind  # keep TaskKind import live
 
     def force_reset(self):

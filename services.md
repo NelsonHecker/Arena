@@ -227,7 +227,7 @@ uint8 SUCCESS    = 1
 uint8 FAILED     = 2
 uint8 SKIPPED    = 3
 uint8 outcome_state
-string outcome_reason
+string outcome_info
 string goal_uuid
 builtin_interfaces/Time start_time
 # False = manually mutated mid-episode.
