@@ -20,6 +20,46 @@ class IsolatedGroupAction(launch.actions.GroupAction):
         )
 
 
+class _ClearLaunchConfigurations(launch.Action):
+    def execute(self, context: launch.LaunchContext) -> None:
+        context.launch_configurations.clear()
+        return None
+
+
+class IsolatedIncludeLaunchDescription(launch.Action):
+    """IncludeLaunchDescription with symmetric LaunchConfiguration scope.
+
+    Substitutions in `args` are resolved against the parent context first, then the live
+    launch_configurations dict is cleared so the child sees only the resolved `args` plus
+    its own DeclareLaunchArgument defaults. Parent state is restored on exit. Use when
+    the included launch reuses generic arg names (e.g. ``global_planner``) that would
+    otherwise leak in from the parent context.
+    """
+
+    def __init__(
+        self,
+        source: launch.launch_description_source.LaunchDescriptionSource,
+        *,
+        args: Mapping[str, object] | None = None,
+    ) -> None:
+        super().__init__()
+        self._source = source
+        self._args = dict(args) if args else {}
+
+    def execute(self, context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:
+        from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
+
+        resolved: dict[str, str] = {}
+        for k, v in self._args.items():
+            resolved[k] = v if isinstance(v, str) else perform_substitutions(context, normalize_to_list_of_substitutions(v))
+        return [
+            launch.actions.PushLaunchConfigurations(),
+            _ClearLaunchConfigurations(),
+            launch.actions.IncludeLaunchDescription(self._source, launch_arguments=list(resolved.items())),
+            launch.actions.PopLaunchConfigurations(),
+        ]
+
+
 class IncludeLaunchDescriptionForward(launch.Action):
     """IncludeLaunchDescription that forwards every parent launch configuration to the child.
 
