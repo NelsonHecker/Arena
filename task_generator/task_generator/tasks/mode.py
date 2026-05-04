@@ -1,6 +1,6 @@
 from arena_rclpy_mixins.shared import Namespace
+from arena_runtime._node import NodeInterface
 
-from task_generator import NodeInterface
 from task_generator.tasks.context import TaskContext
 
 

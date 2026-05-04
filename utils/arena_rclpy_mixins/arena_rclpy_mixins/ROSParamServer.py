@@ -52,6 +52,12 @@ class ROSParamT[T](abc.ABC):
         Callback function for setting value.
         """
 
+    @abc.abstractmethod
+    def destroy(self) -> None:
+        """
+        Undeclare the parameter from the node. Idempotent.
+        """
+
 
 class _ROSParam[T](ROSParamT[T]):
     """
@@ -100,6 +106,12 @@ class _ROSParam[T](ROSParamT[T]):
         self.param = value
         return True
 
+    def destroy(self) -> None:
+        try:
+            self._node.undeclare_parameter(self._name)
+        except rclpy.exceptions.ParameterNotDeclaredException:
+            pass
+
     def __init__(
         self,
         /,
@@ -140,14 +152,29 @@ class _rosparam[T]:
     class _UNSET: ...
 
     @classmethod
-    def declare_safe(cls, param_name: str, value: object = None, **kwargs: object) -> None:
+    def declare_safe(cls, param_name: str, value: object = None, *, descriptor: rcl_interfaces.msg.ParameterDescriptor | None = None, **kwargs: object) -> None:
         if cls._node.has_parameter(param_name):
             return
 
         try:
-            cls._node.declare_parameter(param_name, value, **kwargs)
+            if descriptor is not None and descriptor.type != rclpy.Parameter.Type.NOT_SET.value and not isinstance(value, rclpy.Parameter.Type):
+                type_enum = rclpy.Parameter.Type(descriptor.type)
+                cls._node.declare_parameter(param_name, type_enum, descriptor=descriptor, **kwargs)
+                if value is not None:
+                    try:
+                        already_set = cls._node.get_parameter(param_name).type_ != rclpy.Parameter.Type.NOT_SET
+                    except rclpy.exceptions.ParameterUninitializedException:
+                        already_set = False
+                    if not already_set:
+                        cls._node.set_parameters([rclpy.Parameter(name=param_name, type_=type_enum, value=value)])
+            else:
+                cls._node.declare_parameter(param_name, value, **({"descriptor": descriptor} if descriptor is not None else {}), **kwargs)
         except rclpy.exceptions.ParameterAlreadyDeclaredException:
             pass
+
+    @classmethod
+    def declare_forward(cls, name: str, value: object, *, descriptor: rcl_interfaces.msg.ParameterDescriptor) -> None:
+        cls.declare_safe(name, value, descriptor=descriptor)
 
     @classmethod
     def get_unsafe(cls, param_name: str, default: T | type[_UNSET] = _UNSET) -> T:
@@ -226,14 +253,14 @@ class ROSParamServer(rclpy.node.Node):
     # ROSParam: type[_ROSParam[typing.Any]]
     # rosparam: type[_rosparam[typing.Any]]
 
-    _callbacks: dict[str, set[typing.Callable[[object], bool]]]
+    __callbacks: dict[str, set[typing.Callable[[object], bool]]]
 
     def add_param_callback(self, param_name: str, callback: typing.Callable[[object], bool]) -> None:
         """
         Add callback for parameter changes.
         """
 
-        self._callbacks.setdefault(param_name, set()).add(callback)
+        self.__callbacks.setdefault(param_name, set()).add(callback)
 
     def register_param(self, param: ROSParamT[T], value: object, **kwargs: object) -> None:
         del kwargs  # unused
@@ -254,7 +281,7 @@ class ROSParamServer(rclpy.node.Node):
         successful = True
         reason: list[str] = []
         for param in params:
-            for callback in self._callbacks.get(param.name, set()):
+            for callback in self.__callbacks.get(param.name, set()):
                 self.get_logger().debug(f"setting param {param.name} with value {param.value} (callback {callback})")
                 try:
                     successful &= callback(param.value)
@@ -272,7 +299,7 @@ class ROSParamServer(rclpy.node.Node):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self._callbacks = {}
+        self.__callbacks = {}
         self.add_on_set_parameters_callback(self._callback)
         self._setup_rosparam()
 

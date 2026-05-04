@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
 export ARENA_WS_DIR="/opt/arena_ws"
+export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
 export ARENA_VENV_DIR="/opt/venv"
-export ARENA_FEATURES_DIR="$ARENA_WS_DIR/src/Arena/_meta/docker/features"
+export ARENA_FEATURES_DIR="$ARENA_DIR/_meta/docker/features"
 
 docker_env=""
 docker_env="${docker_env} ARENA_PROJECT_NAME=$ARENA_PROJECT_NAME"
@@ -22,14 +23,7 @@ export HOST_UID
 HOST_GID=$(id -g)
 export HOST_GID
 
-arena_docker_compose(){
-    sudo env ${docker_env} \
-        docker compose \
-        -f "$ARENA_DIR/_meta/docker/docker-compose.yaml" \
-        --project-directory "$ARENA_WS_DIR" \
-        --project-name "$ARENA_PROJECT_NAME" \
-        "$@"
-}
-export -f arena_docker_compose 2>/dev/null || true
+export arena_compose_sudo="sudo"
+source "$ARENA_DIR/_meta/docker/lib"
 
 source src/Arena/_meta/tools/source

@@ -1,6 +1,6 @@
 # Arena-Rosnav
 
-A modular ROS 2 (Humble) platform for researching and benchmarking autonomous robot navigation in 2D and 3D simulated environments. It supports classical planners (Nav2), deep-RL planners ([rosnav_rl](https://github.com/Arena-Rosnav/rosnav-rl)), and a variety of simulators (Gazebo, Isaac Sim).
+A modular ROS 2 (Jazzy) platform for researching and benchmarking autonomous robot navigation in 2D and 3D simulated environments. It supports classical planners (Nav2), deep-RL planners ([rosnav_rl](https://github.com/Arena-Rosnav/rosnav-rl)), and a variety of simulators (Gazebo, Isaac Sim).
 
 ---
 
@@ -53,7 +53,7 @@ cd ~/arena_ws # replace with your actual workspace path
 source arena
 arena launch sim:=isaac                          # Isaac Sim
 arena launch local_planner:=rosnav_rl agent_name:=<your_agent>  # DRL planner
-arena launch sim:=gazebo local_planner:=rosnav_rl env_n:=2 train_config:=<path to config.yaml> # DRL training 
+arena train sim:=gazebo local_planner:=rosnav_rl train_config:=<config.yaml>  # DRL training
 ```
 
 ### DRL quick-start

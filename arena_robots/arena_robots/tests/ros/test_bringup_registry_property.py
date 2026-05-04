@@ -1,29 +1,21 @@
-"""Hypothesis property tests for arena_robots.bringup registry invariants."""
+"""Hypothesis property tests for ClassRegistry invariants."""
 
 from __future__ import annotations
-
-from unittest.mock import MagicMock
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-
-def _make_bringup_class(kind: str) -> type:
-    from arena_robots.bringup import Bringup
-
-    class _TestBringup(Bringup):
-        pass
-
-    _TestBringup.kind = kind
-    _TestBringup.requires = frozenset()
-    _TestBringup._launch_actions = lambda self, **kw: []
-    return _TestBringup
+from arena_rclpy_mixins.registry import ClassRegistry
 
 
 @given(
     kinds=st.lists(
-        st.text(alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd"), min_codepoint=65), min_size=1, max_size=20),
+        st.text(
+            alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd"), min_codepoint=65),
+            min_size=1,
+            max_size=20,
+        ),
         min_size=1,
         max_size=10,
         unique=True,
@@ -31,25 +23,21 @@ def _make_bringup_class(kind: str) -> type:
 )
 @settings(max_examples=30)
 def test_all_registered_kinds_are_retrievable(kinds: list[str]) -> None:
-    """After registering N unique kinds, all are retrievable exactly once."""
-    from arena_robots.bringup import _BRINGUPS, get_bringup, register_bringup
+    """After registering N unique kinds, all are retrievable."""
+    reg: ClassRegistry = ClassRegistry()
+    classes = {}
+    for kind in kinds:
 
-    registered = []
-    try:
-        for kind in kinds:
-            if kind in _BRINGUPS:
-                continue
-            cls = _make_bringup_class(kind)
-            register_bringup(cls)
-            registered.append(kind)
+        class _Cls:
+            pass
 
-        for kind in registered:
-            result = get_bringup(kind)
-            assert result is not None
-            assert result.kind == kind
-    finally:
-        for kind in registered:
-            _BRINGUPS.pop(kind, None)
+        _Cls.__name__ = kind
+        classes[kind] = _Cls
+        reg.register(kind)(lambda c=_Cls: c)
+
+    for kind in kinds:
+        result = reg.get(kind)
+        assert result is classes[kind]
 
 
 @given(
@@ -62,19 +50,10 @@ def test_all_registered_kinds_are_retrievable(kinds: list[str]) -> None:
 @settings(max_examples=20)
 def test_duplicate_registration_always_raises(kind: str) -> None:
     """Registering the same kind twice always raises."""
-    from arena_robots.bringup import _BRINGUPS, register_bringup
-
-    old = _BRINGUPS.pop(kind, None)
-    cls1 = _make_bringup_class(kind)
-    cls2 = _make_bringup_class(kind)
-    try:
-        register_bringup(cls1)
-        with pytest.raises(Exception):
-            register_bringup(cls2)
-    finally:
-        _BRINGUPS.pop(kind, None)
-        if old is not None:
-            _BRINGUPS[kind] = old
+    reg: ClassRegistry = ClassRegistry()
+    reg.register(kind)(lambda: object)
+    with pytest.raises(Exception):
+        reg.register(kind)(lambda: object)
 
 
 @given(
@@ -87,8 +66,6 @@ def test_duplicate_registration_always_raises(kind: str) -> None:
 @settings(max_examples=20)
 def test_get_unregistered_always_raises(kind: str) -> None:
     """Getting an unregistered kind always raises KeyError."""
-    from arena_robots.bringup import _BRINGUPS, get_bringup
-
-    _BRINGUPS.pop(kind, None)
+    reg: ClassRegistry = ClassRegistry()
     with pytest.raises(KeyError):
-        get_bringup(kind)
+        reg.get(kind)

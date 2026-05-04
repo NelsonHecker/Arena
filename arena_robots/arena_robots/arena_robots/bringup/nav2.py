@@ -6,10 +6,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
-from arena_robots.bringup import Bringup, register_bringup
+from arena_robots.bringup import Bringup
 
 
-@register_bringup
 class Nav2Bringup(Bringup):
     kind = "nav2"
     requires = frozenset({"mobile"})

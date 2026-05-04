@@ -1,9 +1,20 @@
 import os
+from collections import defaultdict
 from glob import glob
 
 from setuptools import find_packages, setup
 
 package_name = 'task_generator'
+
+
+def _share_tree(*patterns):
+    grouped = defaultdict(list)
+    for pattern in patterns:
+        for path in glob(pattern, recursive=True):
+            if os.path.isfile(path):
+                grouped[os.path.join('share', package_name, os.path.dirname(path))].append(path)
+    return list(grouped.items())
+
 
 setup(
     name=package_name,
@@ -17,7 +28,7 @@ setup(
         ('share/ament_index/resource_index/packages',
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        *_share_tree('launch/**/*.launch.py', 'launch/**/*.md'),
     ],
     install_requires=['setuptools'],
     extras_require={

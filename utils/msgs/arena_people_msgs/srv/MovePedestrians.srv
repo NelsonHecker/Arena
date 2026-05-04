@@ -1,0 +1,7 @@
+# Explicit teleport. Receivers reset animation phase and any
+# trajectory state so actors do not blink mid-stride.
+arena_people_msgs/Pedestrian[] pedestrians
+---
+uint8 SUCCESS=0
+uint8 NOT_FOUND=1
+uint8[] results

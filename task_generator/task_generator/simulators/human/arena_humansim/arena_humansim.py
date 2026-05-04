@@ -62,6 +62,7 @@ from arena_humansim_msgs.srv import (
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_runtime.sim import BaseSim
 from geometry_msgs.msg import (
     Point,
     Point32,
@@ -83,16 +84,16 @@ from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle
-from task_generator.simulators.sim import BaseSim
 from visualization_msgs.msg import MarkerArray
 
 
 class ArenaHumanSimulator(BaseHumanSimulator):
     @classmethod
     def _register_task_modes(cls):
+        from task_generator.tasks.obstacles.prompt import declare_schema
         from task_generator.tasks.task import _TaskRegistry
 
-        @_TaskRegistry.register_obstacles(Constants.TaskMode.TM_Obstacles.PROMPT)
+        @_TaskRegistry.register_obstacles(Constants.TaskMode.TM_Obstacles.PROMPT, schema=declare_schema)
         def _prompt() -> type:
             from task_generator.tasks.obstacles.prompt.arena import TM_Prompt
 
@@ -205,7 +206,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             10,
         )
 
-        # Forward arena_humansim debug visualization markers
+        # Forward arena_humansim's debug + static viz topics through the base class
+        # `publish_markers` / `publish_static_markers` API.
         self.node.create_subscription(
             MarkerArray,
             self.node.service_namespace("viz"),

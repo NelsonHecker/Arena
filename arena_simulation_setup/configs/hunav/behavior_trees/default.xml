@@ -220,26 +220,12 @@ https://raw.githubusercontent.com/robotics-upo/hunav_gazebo_wrapper/refs/heads/v
 
   <BehaviorTree ID="DefaultTree">
     <Fallback name="MainFallback">
-      <!-- Goal setting Sequence -->
-      <Sequence name="SetGoals">
-        <RunOnce>
-          <SetGoal agent_id="{id}" goal_id="1" target_x="0.0" target_y="0.0" />
-        </RunOnce>
-        <Inverter>
-          <RunOnce>
-            <SetGoal agent_id="{id}" goal_id="2" target_x="5.0" target_y="5.0" />
-          </RunOnce>
-        </Inverter>
-
-      </Sequence>
-      <!-- Navigation loop -->
       <Sequence name="RegularNavigation">
         <Inverter>
           <IsGoalReached agent_id="{id}" />
         </Inverter>
         <RegularNav agent_id="{id}" time_step="{dt}" />
       </Sequence>
-      <!-- Update Goal -->
       <UpdateGoal agent_id="{id}" />
     </Fallback>
   </BehaviorTree>

@@ -1,79 +1,106 @@
 #! /usr/bin/env python3
 
+import asyncio
 import os
 import sys
 import tempfile
-import time
 import typing
 
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
 import launch
-import launch.launch_service
 import launch_ros.actions
 import rcl_interfaces.msg
 import rcl_interfaces.srv
 import rclpy
 import yaml
 from ament_index_python.packages import get_package_share_directory
-from rclpy.node import Node
+from arena_rclpy_mixins import ArenaMixinNode
+from arena_rclpy_mixins.shared import FrameNamespace
+from task_generator_msgs.msg import RobotDescriptor, RobotFleet
 
 from rviz_utils.utils import Utils
 
 
-class ConfigFileGenerator(Node):
-    _origin: list[float]
+class ConfigFileGenerator(ArenaMixinNode):
     topics: list[tuple[str, list[str]]]
-    robot_names: list[str]
+    robots: list[RobotDescriptor]
+    _frame_prefix: str
+    _env_id: int
 
-    def _wait_for_param(
+    def __init__(self, TASKGEN_NODE: str = '/task_generator_node'):
+        super().__init__('rviz_config_generator')
+
+        self._TASKGEN_NODE = TASKGEN_NODE
+
+    async def _await_param(
         self,
         client: rclpy.client.Client,
         param_name: str,
         test_fn: typing.Callable[[typing.Any], bool] | None = None,
-        timeout: float = 1,
+        interval: float = 1.0,
     ) -> rcl_interfaces.msg.ParameterValue:
-        """
-        Block execution until parameter passes test function.
-        @parameter client: rclpy GetParameters service client
-        @paramter parameter_name: name of parameter
-        @test_fn: test function for parameter
-        @timeout: timeout in seconds
-        """
+        """Block until parameter passes test function."""
         while True:
             self.get_logger().info(f'waiting for {param_name} to be set')
-            for _ in range(5):
-                req = rcl_interfaces.srv.GetParameters.Request(names=[param_name])
-                future = client.call_async(req)
-                rclpy.spin_until_future_complete(self, future, timeout_sec=timeout)
-                params = future.result()
-                if params and params.values:
-                    value = params.values[0]
-                    if (not test_fn) or test_fn(value):
-                        self.get_logger().info(f'param {param_name} is set')
-                        return value
-                time.sleep(timeout)
+            req = rcl_interfaces.srv.GetParameters.Request(names=[param_name])
+            params = await self.await_ros(client.call_async(req))
+            if params and params.values:
+                value = params.values[0]
+                if (not test_fn) or test_fn(value):
+                    self.get_logger().info(f'param {param_name} is set')
+                    return value
+            await asyncio.sleep(interval)
 
-    def __init__(self, TASKGEN_NODE: str = '/task_generator_node'):
-        Node.__init__(self, 'rviz_config_generator')
+    async def _await_first_fleet(self) -> RobotFleet:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[RobotFleet] = loop.create_future()
+        topic = os.path.join(self._TASKGEN_NODE, 'state', 'robots')
+        sub = self.create_subscription(
+            RobotFleet,
+            topic,
+            lambda msg: loop.call_soon_threadsafe(future.set_result, msg) if not future.done() else None,
+            qos_profile=rclpy.qos.QoSProfile(
+                depth=1,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+        try:
+            self.get_logger().info(f'waiting for first {topic} message')
+            return await future
+        finally:
+            self.destroy_subscription(sub)
 
-        self._TASKGEN_NODE = TASKGEN_NODE
-
-        self.declare_parameter('origin', [0.0, 0.0, 0.0])
-        origin = self.get_parameter('origin').value
-        self._origin = list((*origin, 0.0, 0.0, 0.0)[:3])
-
+    async def setup(self) -> None:
         TASKGEN_PARAM_SRV = os.path.join(self._TASKGEN_NODE, 'get_parameters')
         PARAM_INITIALIZED = 'initialized'
 
         get_parameters_cli = self.create_client(rcl_interfaces.srv.GetParameters, TASKGEN_PARAM_SRV)
-        while not get_parameters_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info(f'waiting for service {TASKGEN_PARAM_SRV} to become available')
+        self.get_logger().info(f'waiting for service {TASKGEN_PARAM_SRV} to become available')
+        await self.wait_for_service_async(get_parameters_cli)
         self.get_logger().info(f'service {TASKGEN_PARAM_SRV} is available')
 
-        self._wait_for_param(get_parameters_cli, PARAM_INITIALIZED, lambda x: x.bool_value)
-        self.robot_names = self._wait_for_param(get_parameters_cli, 'robot_names').string_array_value
+        await self._await_param(get_parameters_cli, PARAM_INITIALIZED, lambda x: x.bool_value)
+        self._frame_prefix = (await self._await_param(get_parameters_cli, 'prefix')).string_value
+        self._env_id = (await self._await_param(get_parameters_cli, 'env_id')).integer_value
+        self.robots = list((await self._await_first_fleet()).robots)
 
-        # self.cli_load = self.create_client('/rviz2/load_config', rcl_interfaces.srv.SetString)
+        config_file = self.create_config()
+
+        await self.do_launch(
+            launch.LaunchDescription(
+                [
+                    NodeLogLevelExtension.SetGlobalLogLevelAction(rclpy.logging.get_logger_effective_level(self.get_logger().name).name.lower()),
+                    launch_ros.actions.Node(
+                        package="rviz2",
+                        executable="rviz2",
+                        name="rviz2",
+                        arguments=['-d', config_file],
+                        parameters=[{"use_sim_time": True}],
+                        output="screen",
+                    ),
+                ]
+            )
+        )
 
     def _create_pedestrian_group(self) -> dict[str, object]:
         """Creates a Pedestrian Group with stylized human visualizations"""
@@ -177,12 +204,12 @@ class ConfigFileGenerator(Node):
         )
 
         # Add TF display
-        displays.append({'Class': 'rviz_default_plugins/TF', 'Enabled': True, 'Name': 'TF', 'Frame Timeout': 15, 'Marker Scale': 1.0, 'Show Arrows': True, 'Show Axes': True, 'Show Names': False})
+        displays.append({'Class': 'rviz_default_plugins/TF', 'Enabled': False, 'Name': 'TF', 'Frame Timeout': 15, 'Marker Scale': 1.0, 'Show Arrows': True, 'Show Axes': True, 'Show Names': False})
 
         published_topics = [topic[0] for topic in self.get_topic_names_and_types()]
 
-        for robot_name in self.robot_names:
-            robot_group = self._create_robot_group(robot_name)
+        for robot in self.robots:
+            robot_group = self._create_robot_group(robot)
             displays.append(robot_group)
 
         # humans: pedestrian group
@@ -212,11 +239,7 @@ class ConfigFileGenerator(Node):
         default_file["Visualization Manager"]["Views"]["Current"] = {
             "Class": "rviz_default_plugins/Orbit",
             "Distance": 50.0,
-            "Focal Point": {
-                "X": 15.0 + self._origin[0],
-                "Y": 10.0 + self._origin[1],
-                "Z": 0.0 + self._origin[2],
-            },
+            "Focal Point": {"X": 15.0, "Y": 10.0, "Z": 0.0},
             "Name": "Current View",
             "Near Clip Distance": 0.01,
             "Pitch": 0.9,
@@ -227,7 +250,7 @@ class ConfigFileGenerator(Node):
 
         default_file["Visualization Manager"]["Displays"] = displays
 
-        file_path = self._tmp_config_file(default_file)
+        file_path = self._tmp_config_file(default_file, prefix=f"env{self._env_id}_")
         self.get_logger().info(f'created config file at {file_path}')
 
         return file_path
@@ -238,38 +261,41 @@ class ConfigFileGenerator(Node):
         self._send_load_config(file_path)
         return response
 
-    def _create_robot_group(self, robot_name: str) -> dict[str, object]:
+    def _create_robot_group(self, robot: RobotDescriptor) -> dict[str, object]:
         """Creates a Robot Group with all visualizations for a robot"""
         color = Utils.get_random_rviz_color()
+        robot_ns = robot.ns
+        robot_name = robot.name
 
         robot_group = {'Class': 'rviz_common/Group', 'Name': f'Robot: {robot_name}', 'Enabled': True, 'Displays': []}
 
-        # Add robot model using RobotModel display
-        robot_model_topic = f'{self._TASKGEN_NODE}/{robot_name}/robot_description'
-        robot_group['Displays'].append(Utils.Displays.robot_model(topic=robot_model_topic, robot_name=robot_name))
+        # TF Prefix must match the sanitized prefix used by robot_state_publisher.
+        tf_prefix = FrameNamespace(robot.frame).sanitize()
+        robot_model_topic = f'{robot_ns}/robot_description'
+        robot_group['Displays'].append(Utils.Displays.robot_model(topic=robot_model_topic, robot_name=robot_name, tf_prefix=tf_prefix))
 
         # Add odometry visualization
-        odom_topic = f'{self._TASKGEN_NODE}/{robot_name}/odom'
+        odom_topic = f'{robot_ns}/odom'
         robot_group['Displays'].append(Utils.Displays.odom(odom_topic, color))
 
         # Add local costmap
-        local_costmap_topic = f'{self._TASKGEN_NODE}/{robot_name}/local_costmap/costmap'
+        local_costmap_topic = f'{robot_ns}/local_costmap/costmap'
         robot_group['Displays'].append(Utils.Displays.local_costmap(local_costmap_topic))
 
         # Add global costmap
-        global_costmap_topic = f'{self._TASKGEN_NODE}/{robot_name}/global_costmap/costmap'
+        global_costmap_topic = f'{robot_ns}/global_costmap/costmap'
         robot_group['Displays'].append(Utils.Displays.global_costmap(global_costmap_topic))
 
         # Add path visualization
-        path_topic = f'{self._TASKGEN_NODE}/{robot_name}/plan'
+        path_topic = f'{robot_ns}/plan'
         robot_group['Displays'].append(Utils.Displays.global_path(path_topic, color))
 
         # Add local path visualization
-        local_path_topic = f'{self._TASKGEN_NODE}/{robot_name}/local_plan'
+        local_path_topic = f'{robot_ns}/local_plan'
         robot_group['Displays'].append(Utils.Displays.local_path(local_path_topic))
 
         # Add robot footprint
-        footprint_topic = f'{self._TASKGEN_NODE}/{robot_name}/local_costmap/published_footprint'
+        footprint_topic = f'{robot_ns}/local_costmap/published_footprint'
         robot_group['Displays'].append(Utils.Displays.robot_footprint(footprint_topic, color))
 
         # SENSORS
@@ -297,10 +323,9 @@ class ConfigFileGenerator(Node):
 
             # Filter for nodes related to this robot
             robot_nodes = []
-            robot_namespace = f'{self._TASKGEN_NODE}/{robot_name}'
 
             for node_name, node_namespace in node_names_and_namespaces:
-                if node_namespace == robot_namespace:
+                if node_namespace == robot_ns:
                     robot_nodes.append((node_name, node_namespace))
 
             self.get_logger().info(f"Found {len(robot_nodes)} nodes for robot {robot_name}")
@@ -317,7 +342,6 @@ class ConfigFileGenerator(Node):
 
         # Fall back to namespace filtering if node-based discovery failed
         if not robot_topics:
-            robot_ns = f'{self._TASKGEN_NODE}/{robot_name}'
             robot_topics = [(t, types) for t, types in self.topics if t.startswith(robot_ns)]
             self.get_logger().info(f"Found {len(robot_topics)} topics using namespace filtering")
 
@@ -345,50 +369,28 @@ class ConfigFileGenerator(Node):
         package_path = get_package_share_directory("rviz_utils")
         file_path = os.path.join(package_path, "config", "rviz_default.rviz")
 
+        fixed_frame = FrameNamespace(self._frame_prefix)('map').sanitize()
+
         with open(file_path) as file:
             content = file.read()
             # i'm lazy, bite me
-            content = content.format(task_generator_node=self._TASKGEN_NODE)
+            content = content.format(
+                task_generator_node=self._TASKGEN_NODE,
+                fixed_frame=fixed_frame,
+            )
             return yaml.safe_load(content)
 
     @classmethod
-    def _tmp_config_file(cls, config_file: dict[str, object]) -> str:
-        f = tempfile.NamedTemporaryFile('w', delete=False)
+    def _tmp_config_file(cls, config_file: dict[str, object], prefix: str = "") -> str:
+        f = tempfile.NamedTemporaryFile('w', delete=False, prefix=prefix)
         yaml.dump(config_file, f)
         f.close()
         return f.name
 
 
 def main():
-    rclpy.init()
-
     cli_args = rclpy.utilities.remove_ros_args(sys.argv)
-    config_file_generator = ConfigFileGenerator(*cli_args[1:])
-    try:
-        config_file = config_file_generator.create_config()
-        launch_service = launch.launch_service.LaunchService()
-        launch_service.include_launch_description(
-            launch.LaunchDescription(
-                [
-                    NodeLogLevelExtension.SetGlobalLogLevelAction(rclpy.logging.get_logger_effective_level(config_file_generator.get_logger().name).name.lower()),
-                    launch_ros.actions.Node(
-                        package="rviz2",
-                        executable="rviz2",
-                        name="rviz2",
-                        arguments=['-d', config_file],
-                        parameters=[{"use_sim_time": True}],
-                        output="screen",
-                    ),
-                ]
-            )
-        )
-        launch_service.run()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        config_file_generator.destroy_node()
-
-    sys.exit(0)
+    ConfigFileGenerator.run_main(*cli_args[1:])
 
 
 if __name__ == "__main__":

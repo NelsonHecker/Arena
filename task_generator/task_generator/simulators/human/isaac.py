@@ -3,12 +3,12 @@ import random
 import typing
 from collections.abc import Sequence
 
+from arena_runtime.sim import BaseSim
+from arena_runtime.sim.isaac_simulator import IsaacSimulator
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from task_generator.shared import DynamicObstacle, ModelWrapper
 from task_generator.simulators.human.dummy import DummyHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
-from task_generator.simulators.sim import BaseSim
-from task_generator.simulators.sim.isaac_simulator import IsaacSimulator
 
 
 class IsaacHumanSimulator(DummyHumanSimulator):
@@ -27,8 +27,8 @@ class IsaacHumanSimulator(DummyHumanSimulator):
         self._logger.debug(f'spawning {len(obstacles)} dynamic obstacles')
         futures: list[typing.Awaitable] = []
         for obstacle in obstacles:
-            self._logger.info(f"Attempting to spawn model: {obstacle.name}")
-            self._logger.info(f"waypoints:{obstacle.waypoints}")
+            self._logger.debug(f"Attempting to spawn model: {obstacle.name}")
+            self._logger.debug(f"waypoints:{obstacle.waypoints}")
             known = self._known_obstacles.get(obstacle.name)
             if known is None:
                 known = self._known_obstacles.create_or_get(name=obstacle.name, obstacle=obstacle)

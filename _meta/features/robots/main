@@ -24,7 +24,7 @@ case "$1" in
         python3 "$_py" "$@"
         rc=$?
         if [ "$rc" -eq 10 ]; then
-            arena deps
+            arena deps && arena build
             exit $?
         fi
         exit "$rc"

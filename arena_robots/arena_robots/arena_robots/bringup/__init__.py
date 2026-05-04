@@ -67,22 +67,6 @@ class Bringup(ABC):
         return frozenset(tk for (tk, k) in HANDLERS.keys() if k == self.kind)
 
 
-_BRINGUPS: dict[str, type[Bringup]] = {}
-
-
-def register_bringup(cls: type[Bringup]) -> type[Bringup]:
-    if cls.kind in _BRINGUPS:
-        raise ValueError(f"Bringup kind {cls.kind!r} is already registered to {_BRINGUPS[cls.kind]!r}")
-    _BRINGUPS[cls.kind] = cls
-    return cls
-
-
-def get_bringup(kind: str) -> type[Bringup]:
-    if kind not in _BRINGUPS:
-        raise KeyError(f"No bringup registered for kind {kind!r}; available: {sorted(_BRINGUPS)}")
-    return _BRINGUPS[kind]
-
-
 def check_caps(bringup: Bringup) -> None:
     available = bringup.robot.caps.available
     missing = bringup.requires - available
@@ -90,4 +74,34 @@ def check_caps(bringup: Bringup) -> None:
         raise AdapterCapMismatch(f"Bringup {bringup.kind!r} requires caps {sorted(missing)} but robot {bringup.robot.name!r} only advertises {sorted(available)}")
 
 
-from . import external, nav2, none  # noqa: F401
+from arena_rclpy_mixins.registry import ClassRegistry
+
+BRINGUPS: ClassRegistry[str, type[Bringup]] = ClassRegistry()
+
+
+@BRINGUPS.register("nav2")
+def _load_nav2() -> type[Bringup]:
+    from .nav2 import Nav2Bringup
+
+    return Nav2Bringup
+
+
+@BRINGUPS.register("test-collision")
+def _load_test_collision() -> type[Bringup]:
+    from .test_collision import TestCollisionBringup
+
+    return TestCollisionBringup
+
+
+@BRINGUPS.register("none")
+def _load_none() -> type[Bringup]:
+    from .none import NoneBringup
+
+    return NoneBringup
+
+
+@BRINGUPS.register("external")
+def _load_external() -> type[Bringup]:
+    from .external import ExternalBringup
+
+    return ExternalBringup

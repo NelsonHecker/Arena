@@ -8,7 +8,12 @@ from arena_bringup.substitutions import (
     YAMLReplaceSubstitution,
     YAMLRetrieveSubstitution,
 )
-from arena_robots.nav2 import Nav2SubBlockYAML, SensorsDerivedYAML
+from arena_robots.nav2 import (
+    Nav2CollisionDerivedYAML,
+    Nav2KinematicsDerivedYAML,
+    Nav2SubBlockYAML,
+    SensorsDerivedYAML,
+)
 from launch.actions import GroupAction, OpaqueFunction
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node, SetRemap
@@ -54,6 +59,8 @@ def generate_launch_description():
         YAMLFileSubstitution(nav2_cfg('defaults', 'model_params.yaml')),
         YAMLFileSubstitution(mobile_path),
         Nav2SubBlockYAML(mobile_path),
+        Nav2CollisionDerivedYAML(mobile_path),
+        Nav2KinematicsDerivedYAML(mobile_path),
         SensorsDerivedYAML(model_params_path),
         YAMLFileSubstitution(nav2_cfg('defaults', 'controller_config.yaml')),
         YAMLFileSubstitution(nav2_cfg('controllers', local_planner.substitution, 'controller_config.yaml')),

@@ -352,7 +352,7 @@ class TM_Prompt(TM_Obstacles):
             prompt = split_prompt_answer["spotlight_agents_prompt"]
             ambient_agent_prompt = split_prompt_answer["ambient_agents_prompt"]
 
-            self._logger.info(f"Spotlight Agents prompts: {prompt}\nAmbient_agents_prompt:{ambient_agent_prompt}")
+            self._logger.debug(f"Spotlight Agents prompts: {prompt}\nAmbient_agents_prompt:{ambient_agent_prompt}")
 
             bt_nodes = get_relevant_bt_nodes(
                 query=f'What are the nodes should be used for creating the behavior tree as described below: "{prompt}". Use GoTo node to guide agents to isolated places if needed.',
@@ -385,7 +385,7 @@ class TM_Prompt(TM_Obstacles):
             cgp = CrowdGenerationPipeline(cgp_config, vfgp_config)
 
             arena_world_bounds_res, x_min, y_min, x_max, y_max = self.send_arena_world_bounds_msg()
-            self._logger.info(f"Set Arena World bounds response: {arena_world_bounds_res.success}, {arena_world_bounds_res.message}")
+            self._logger.debug(f"Set Arena World bounds response: {arena_world_bounds_res.success}, {arena_world_bounds_res.message}")
             self.velocity_field_visualizer.update_world_bounds(x_min, y_min, x_max, y_max)
 
             scenario, arena_entity_to_semantic_entity_map = arena_world_to_text_crowd_scenario(self._ctx.world_manager.world, scenario_size=(1024, 1024))
@@ -399,7 +399,7 @@ class TM_Prompt(TM_Obstacles):
             )  # (n_groups, 64, 64, 2) (g, y, x, 2)
 
             vel_res = self.send_velocity_msg(velocity_field)
-            self._logger.info(f"Set velocity field response: {vel_res.success}, {vel_res.message}")
+            self._logger.debug(f"Set velocity field response: {vel_res.success}, {vel_res.message}")
 
             self.velocity_field_visualizer.publish_markers(velocity_field)
 
@@ -452,8 +452,8 @@ class TM_Prompt(TM_Obstacles):
             )
 
             answer = response.text
-            self._logger.info(f"LLM raw output for the prompt: {prompt}")
-            self._logger.info(answer)
+            self._logger.debug(f"LLM raw output for the prompt: {prompt}")
+            self._logger.debug(answer)
             end = time.time()
             self._logger.info(f"Inference done, took: {end - start:.1f}s")
 
@@ -484,7 +484,7 @@ class TM_Prompt(TM_Obstacles):
                 mode="w",
             ) as file:
                 json.dump(config, file, indent=2)
-                self._logger.warning(f"Saved parsed prompt result to {file.name}")
+                self._logger.debug(f"Saved parsed prompt result to {file.name}")
 
             if generation_mode == GenerationMode.CROWDED_BT.value:
                 with tempfile.NamedTemporaryFile(
@@ -615,17 +615,17 @@ class TM_Prompt(TM_Obstacles):
             )
         )  # Temporary directory to store behavior tree XML files
 
-        # Velocity field generation
-        self.velocity_field_client = self.node.create_client(SetVelocityField, "/task_generator_node/set_velocity_field")
+        node_fqn = self.node.get_fully_qualified_name()
+        self.velocity_field_client = self.node.create_client(SetVelocityField, f"{node_fqn}/set_velocity_field")
         while not self.velocity_field_client.wait_for_service(timeout_sec=1.0):
-            self.node.get_logger().info("Waiting for service /task_generator_node/set_velocity_field")
+            self.node.get_logger().info(f"Waiting for service {node_fqn}/set_velocity_field")
         self.velocity_field_visualizer = VelocityFieldVisualizer(
             self.node,
-            topic_name="/task_generator_node/velocity_field_marker",
+            topic_name=f"{node_fqn}/velocity_field_marker",
         )
-        self.arena_world_bounds_client = self.node.create_client(SetArenaWorldBounds, "/task_generator_node/set_arena_world_bounds")
+        self.arena_world_bounds_client = self.node.create_client(SetArenaWorldBounds, f"{node_fqn}/set_arena_world_bounds")
         while not self.arena_world_bounds_client.wait_for_service(timeout_sec=1.0):
-            self.node.get_logger().info("Waiting for service /task_generator_node/set_arena_world_bounds")
+            self.node.get_logger().info(f"Waiting for service {node_fqn}/set_arena_world_bounds")
 
     def __del__(self):
         try:

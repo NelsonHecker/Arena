@@ -59,8 +59,11 @@ variant of `caps/arm.yaml`.
 
 #### `caps/mobile.yaml` — flat, singleton
 
-A robot has exactly one mobile base by construction. Primitives at top level;
-adapter-specific config under namespaced sub-blocks (`nav2:`, `rl:`).
+A robot has exactly one mobile base by construction. All robot-physical
+primitives live at top level; adapter sub-blocks are reserved for
+adapter-specific wiring only. The `rl:` sub-block is retired — its former
+contents (`actions`, `laser`) are now top-level fields. The `nav2:` sub-block
+carries only planner plugin wiring.
 
 ```yaml
 odom_frame: odom
@@ -68,19 +71,35 @@ sensor_frame: base_scan
 radius: 0.5
 is_holonomic: false
 
-nav2:                      # consumed by the nav2 launch adapter
-  footprint: "[ [0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35] ]"
-  polygons: [StopPolygon]
-  polygons_dict: {...}
+footprint: [[0.5, 0.35], [0.5, -0.35], [-0.5, -0.35], [-0.5, 0.35]]
+footprint_padding: 0.1        # optional
+inflation_radius: 0.25        # optional
+polygons_dict:
+  StopPolygon: {type: polygon, points: [...], action_type: stop}
+
+velocity_limits:
+  linear: {min: -2.0, max: 2.0}
+  angular: {min: -4.0, max: 4.0}
+acceleration_limits:
+  linear: 3.0
+  angular: 3.5
+
+actions:
+  continuous: {linear: {min: -2.0, max: 2.0}, angular: {min: -4.0, max: 4.0}}
+  discrete: [{name: move_forward, linear: 0.3, angular: 0.0}, ...]
+
+laser: {angle: {min: -2.35619, max: 2.35619}, num_beams: 720, range: 30.0, update_rate: 10}
+
+nav2:                      # planner plugin wiring only
   planner_plugins: [GridBased]
   planner_plugins_dict: {...}
-
-rl:                        # consumed by RL adapters / training code
-  actions:
-    continuous: {linear_range: [-1.0, 1.0], angular_range: [-2.2, 2.2]}
-    discrete: [{name: move_forward, linear: 0.3, angular: 0.0}, ...]
-  laser: {angle: {min: -2.35619, max: 2.35619}, num_beams: 720, range: 30.0, update_rate: 10}
 ```
+
+`velocity_limits` and `acceleration_limits` flow into nav2 controller configs
+via `Nav2KinematicsDerivedYAML` substitution; controller YAMLs reference them
+as `${max_linear_vel:-default}` etc. To override a specific controller without
+touching `mobile.yaml`, replace the substitution with a literal value in that
+controller YAML.
 
 #### `caps/arm.yaml`, `caps/lift.yaml`, `caps/gripper.yaml` — dict-keyed
 

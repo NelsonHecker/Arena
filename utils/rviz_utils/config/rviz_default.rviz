@@ -35,7 +35,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: {fixed_frame}
     Frame Rate: 30
   Name: root
   Tools:
@@ -55,14 +55,14 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /initialpose
+        Value: {task_generator_node}/initialpose
     - Class: rviz_default_plugins/SetGoal
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /goal_pose
+        Value: {task_generator_node}/goal_pose
     - Class: rviz_default_plugins/PublishPoint
       Single click: true
       Topic:
@@ -70,7 +70,10 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /clicked_point
+        Value: {task_generator_node}/clicked_point
+    - Class: task_generator_gui::SpawnPedestrianTool
+      Target: {task_generator_node}
+      Model: arenian
   Transformation:
     Current:
       Class: rviz_default_plugins/TF

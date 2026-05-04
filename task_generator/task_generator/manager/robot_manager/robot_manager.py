@@ -6,6 +6,7 @@ import typing
 
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
+import attrs
 import geometry_msgs.msg
 import launch
 import launch.launch_description_sources
@@ -18,9 +19,9 @@ import rclpy.timer
 import tf2_ros
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
+from arena_runtime._node import NodeInterface
 
 import task_generator.utils.arena as Utils
-from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import Orientation, Pose, Position, Robot
@@ -28,6 +29,21 @@ from task_generator.shared import Orientation, Pose, Position, Robot
 if typing.TYPE_CHECKING:
     from task_generator.tasks.robots.adapters import Adapter
     from task_generator.tasks.robots.request import TaskKind, TaskRequest
+
+
+_NAV2_QUIET_NODES = (
+    'behavior_server',
+    'bt_navigator',
+    'collision_monitor',
+    'controller_server',
+    'lifecycle_manager_navigation',
+    'nav2_container',
+    'planner_server',
+    'smoother_server',
+    'velocity_smoother',
+    'waypoint_follower',
+)
+_NAV2_QUIET_RULES = '+[' + ', '.join(f'**/{n}:error' for n in _NAV2_QUIET_NODES) + ']'
 
 
 class RobotManager(NodeInterface):
@@ -125,15 +141,10 @@ class RobotManager(NodeInterface):
         # TODO: multi-capability adapter composition.
         # Deferred to break the import cycle between this module and
         # task_generator.tasks (which eagerly loads context.py → RobotManager).
-        # The adapter submodules are side-effect imported here to register
-        # themselves so ``get_adapter`` can resolve any kind named in config.
-        from task_generator.tasks.robots.adapters import external as _external  # noqa: F401
-        from task_generator.tasks.robots.adapters import get_adapter
-        from task_generator.tasks.robots.adapters import nav2 as _nav2  # noqa: F401
-        from task_generator.tasks.robots.adapters import none as _none  # noqa: F401
+        from task_generator.tasks.robots.adapters import ADAPTERS
 
         navigator_kind = self._robot.navigator or self._config.model_params.navigator
-        adapter_cls = get_adapter(navigator_kind)
+        adapter_cls = ADAPTERS.get(navigator_kind)
 
         adapter_kwargs: dict[str, typing.Any] = {}
         caps_list = self._config.model_params.capabilities
@@ -147,7 +158,7 @@ class RobotManager(NodeInterface):
             self._logger.info(f"robot {self._robot.name!r} has additional 'capabilities' entries ({other_kinds}) not bound to any adapter (TODO: multi-capability adapter composition)")
 
         # Nav2 reads its planner triplet + train_mode from the Robot runtime
-        # config (populated by CLI / benchmark YAML) unless the capabilities
+        # config (populated by CLI / benchmark CLI YAML) unless the capabilities
         # entry overrides it.
         if navigator_kind == 'nav2':
             adapter_kwargs.setdefault('global_planner', self._robot.global_planner)
@@ -266,12 +277,17 @@ class RobotManager(NodeInterface):
         return False
 
     async def submit_task(self, request: TaskRequest) -> None:
-        """Validate and dispatch phase 0 of a typed TaskRequest."""
+        """Validate and dispatch phase 0 of a typed TaskRequest. Phase poses are abstract, realized to map here."""
+        from task_generator.tasks.robots.request import GoToPhase
+
         if not request.phases:
             raise ValueError(f"TaskRequest has no phases; nothing to dispatch (robot={self.name!r})")
         for i, phase in enumerate(request.phases):
             if phase.kind not in self._adapters:
                 raise AssertionError(f"robot {self.name!r} cannot dispatch phase[{i}] of kind {phase.kind!r}; accepts {sorted(k.name for k in self.accepts)}")
+
+        realized_phases = [attrs.evolve(phase, pose=self._environment_manager.realize(phase.pose)) if isinstance(phase, GoToPhase) else phase for phase in request.phases]
+        request = attrs.evolve(request, phases=realized_phases)
 
         self._current_request = request
         self._phase_index = 0
@@ -307,11 +323,12 @@ class RobotManager(NodeInterface):
 
     async def move(self, pose: Pose) -> None:
         """Teleport the robot to ``pose``. Positioning only — no task dispatch."""
-        self._start_pos = self._environment_manager.realize(pose)
+        self._start_pos = pose
         await self._apply_pose(pose)
 
         if self._robot.record_data_dir:
-            self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("start"), [self.start_pos.position.x, self.start_pos.position.y, self.start_pos.orientation.to_yaw()])
+            realized = self._environment_manager.realize(self._start_pos)
+            self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("start"), [realized.position.x, realized.position.y, realized.orientation.to_yaw()])
 
     async def _publish_goal_loop(self):
         # Keeps republishing _goal_pos against amcl jitter until a reset
@@ -327,7 +344,7 @@ class RobotManager(NodeInterface):
                     break
 
                 goal = self._goal_pos
-                self._logger.info(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
+                self._logger.debug(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
 
                 if self._goal_timer is not None:
                     self._goal_timer.cancel()
@@ -348,7 +365,8 @@ class RobotManager(NodeInterface):
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
             launch_description = launch.LaunchDescription()
             current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
-            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))  # type: ignore
+            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))
+            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_NAV2_QUIET_RULES))
 
             # Adapter dispatch happens inside robot.launch.py via the
             # ``navigator`` launch arg; Adapter.launch_description is

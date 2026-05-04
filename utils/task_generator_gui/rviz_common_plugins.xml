@@ -2,4 +2,7 @@
     <class type="task_generator_gui::TaskGeneratorPanel" base_class_type="rviz_common::Panel">
       <description>A panel for configuring Arena parameters</description>
     </class>
+    <class type="task_generator_gui::SpawnPedestrianTool" base_class_type="rviz_common::Tool">
+      <description>Click+drag to spawn a dynamic obstacle (pedestrian) via task_generator runtime/spawn_dynamic.</description>
+    </class>
   </library>

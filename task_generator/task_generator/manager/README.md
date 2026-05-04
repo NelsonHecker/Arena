@@ -26,7 +26,7 @@ Parsing rules:
 - The `robot` param is a `ROSParamT[_RobotDiff]` with a parse callback, so
   it re-computes the diff on every parameter change.
 
-After `set_up()`, `robot_names` is published as a ROS string-array param.
+After `set_up()`, the active fleet is published latched on `state/robots` as a `arena_runtime_msgs/RobotFleet` carrying `[{name, model, ns, frame}]` for every robot. Consumers should subscribe with `TRANSIENT_LOCAL` durability and read the descriptors directly. (A `robot_names: list[str]` rosparam is also kept up to date on the node for back-compat with external tooling.)
 
 ## `RobotManager`
 
@@ -99,8 +99,8 @@ All obstacle/robot operations go through here.
 | `remove_robot(robots)` | remove robots from both layers |
 | `respawn(callback)` | `unuse_obstacles()` → `callback()` → `remove_obstacles(UNUSED)` |
 | `reset(purge)` | remove all obstacles at or below `purge` layer |
-| `before_reset_task()` | delegates to `BaseSim.before_reset_task()` (pauses sim) |
-| `after_reset_task()` | delegates to `BaseSim.after_reset_task()` (unpauses sim) |
+| `before_reset_episode()` | delegates to `BaseSim.before_reset_episode()` (pauses sim) |
+| `after_reset_episode()` | delegates to `BaseSim.after_reset_episode()` (unpauses sim) |
 
 **Obstacle/pedestrian removal is split:** `BaseHumanSimulator.unuse_obstacles`
 calls `_remove_obstacles_impl` (the human-sim-side pedestrian removal) and

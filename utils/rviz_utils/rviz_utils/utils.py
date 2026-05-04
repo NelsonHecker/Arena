@@ -239,12 +239,12 @@ class Utils:
             }
 
         @classmethod
-        def robot_model(cls, topic: str, robot_name: str, queue_size: int = 20) -> dict[str, object]:
+        def robot_model(cls, topic: str, robot_name: str, queue_size: int = 20, tf_prefix: str | None = None) -> dict[str, object]:
             return {
                 "Class": "rviz_default_plugins/RobotModel",
                 "Name": "Robot Model",
                 "Enabled": True,
-                "TF Prefix": robot_name,
+                "TF Prefix": tf_prefix if tf_prefix is not None else robot_name,
                 "Description Topic": {
                     "Value": topic,
                     "Depth": queue_size,

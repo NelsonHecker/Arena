@@ -4,6 +4,7 @@ import math
 
 import rclpy
 from arena_people_msgs.msg import Pedestrian, Pedestrians
+from arena_rclpy_mixins.spin import spin_node
 from geometry_msgs.msg import Vector3
 from rclpy.node import Node
 from rclpy.qos import (
@@ -315,16 +316,7 @@ class PedestrianMarkerPublisher(Node):
 
 def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
-
-    node = PedestrianMarkerPublisher()
-
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        node.get_logger().info("Shutting down pedestrian marker publisher")
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+    spin_node(PedestrianMarkerPublisher())
 
 
 if __name__ == "__main__":

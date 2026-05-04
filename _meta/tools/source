@@ -51,6 +51,13 @@ _feature_registry(){
             grep -qx -- "$name" "$INSTALLED" 2>/dev/null
             return $?
         ;;
+        require)
+            if ! _feature_registry has "$name"; then
+                echo "$name is not installed; run 'arena feature $name install' first." >&2
+                return 1
+            fi
+            return 0
+        ;;
         add)
             if ! _feature_registry has "$name"; then
                 echo "$name" >> "$INSTALLED"
@@ -87,7 +94,7 @@ _feature_registry(){
             return 0
         ;;
         *)
-            echo "Usage: _feature_registry <has|add|remove|list|pull|resolve> [name]" >&2
+            echo "Usage: _feature_registry <has|require|add|remove|list|pull|resolve> [name]" >&2
             return 1
         ;;
     esac
@@ -169,6 +176,9 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
         
         case "$verb" in
             build)
+                if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
+                    set -- --packages-select "$@"
+                fi
                 "${TOOLS_DIR}/colcon_build" "$@"
                 . "$SOURCE_FILE"
                 result=$?
@@ -184,23 +194,27 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     if [[ "$1" != --* ]]; then
                         set -- --packages-select "$@"
                     fi
-                    mapfile -t _REBUILD_PKGS < <(colcon list --names-only --base-paths "$ARENA_WS_DIR/src" "$@")
-                    if [ ${#_REBUILD_PKGS[@]} -eq 0 ]; then
+                    if ! _REBUILD_LIST=$(colcon list --names-only --base-paths "$ARENA_WS_DIR/src" "$@"); then
+                        echo "arena rebuild: colcon list rejected the arguments, aborting before clean" >&2
+                        result=1
+                    elif [ -z "$_REBUILD_LIST" ]; then
                         echo "arena rebuild: no packages matched" >&2
                         result=1
                     else
+                        mapfile -t _REBUILD_PKGS <<< "$_REBUILD_LIST"
                         echo "arena rebuild: resolved ${#_REBUILD_PKGS[@]} package(s): ${_REBUILD_PKGS[*]}"
                         for pkg in "${_REBUILD_PKGS[@]}"; do
+                            [ -n "$pkg" ] || continue
                             if [ -d "build/${pkg}" ] || [ -d "install/${pkg}" ]; then
                                 echo "  rm -rf build/${pkg} install/${pkg}"
+                                rm -rf "build/${pkg}" "install/${pkg}"
                             fi
-                            rm -rf "build/${pkg}" "install/${pkg}"
                         done
                         echo "arena rebuild: clean done, invoking arena build"
                         arena build "$@"
                         result=$?
                     fi
-                    unset _REBUILD_PKGS
+                    unset _REBUILD_PKGS _REBUILD_LIST
                 fi
             ;;
             deps)
@@ -213,9 +227,43 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 _arena_heal_pip
             ;;
             launch)
-		        killall -s 9 task_generator_node 2>/dev/null && sleep 1
+                killall -s 9 task_generator_node arena_node world_generator 2>/dev/null
+                sleep 1
                 ros2 launch arena_bringup arena.launch.py "$@"
                 result=$?
+            ;;
+            runtime)
+                # `arena runtime` brings up just the arena_node + simulator, no task envs.
+                # Use `arena launch` (or supply env_n:= explicitly) when you want envs.
+                killall -s 9 task_generator_node arena_node world_generator 2>/dev/null
+                sleep 1
+                ros2 launch arena_bringup arena_runtime.launch.py "$@"
+                result=$?
+            ;;
+            env)
+                ros2 launch task_generator task_generator.launch.py "$@"
+                result=$?
+            ;;
+            cleanup)
+                if [ $# -lt 1 ]; then
+                    echo "Usage: arena cleanup <env_id>" >&2
+                    result=1
+                else
+                    _arena_cleanup_id="$1"
+                    case "$_arena_cleanup_id" in
+                        ''|*[!0-9]*)
+                            echo "arena cleanup: env_id must be a non-negative integer, got: '$_arena_cleanup_id'" >&2
+                            result=1
+                            ;;
+                        *)
+                            ros2 service call /arena/cleanup_env \
+                                arena_runtime_msgs/srv/CleanupEnv \
+                                "{env_id: ${_arena_cleanup_id}}"
+                            result=$?
+                            ;;
+                    esac
+                    unset _arena_cleanup_id
+                fi
             ;;
             test)
                 if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
@@ -276,11 +324,12 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                                 result=0
                             else
                                 _feature_registry pull "$fname"
+                                _feature_registry add "$fname"
                                 if ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' update"); then
-                                    _feature_registry add "$fname"
                                     echo "Installed $fname successfully."
                                     result=0
                                 else
+                                    _feature_registry remove "$fname"
                                     echo "Install of $fname failed during update." >&2
                                     result=1
                                 fi
@@ -293,6 +342,21 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                             else
                                 shift
                                 ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' update $*")
+                                result=$?
+                            fi
+                        ;;
+                        launch)
+                            if [ "$fname" = "training" ]; then
+                                if ! _feature_registry has "$fname"; then
+                                    echo "training feature is not installed; run 'arena feature training install' first." >&2
+                                    result=1
+                                else
+                                    shift
+                                    ros2 launch arena_training training.launch.py "$@"
+                                    result=$?
+                                fi
+                            else
+                                ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
                                 result=$?
                             fi
                         ;;
@@ -323,8 +387,20 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 source "$SOURCE_FILE"
                 return $?
             ;;
+            train)
+                arena feature training launch "$@"
+                result=$?
+            ;;
+            benchmark)
+                arena feature evaluation launch "$@"
+                result=$?
+            ;;
+            evaluation)
+                arena feature evaluation "$@"
+                result=$?
+            ;;
             *)
-                echo 'Usage: arena <build|rebuild|deps|update|launch|test|deactivate|feature|registry|resource> [args...]' >&2
+                echo 'Usage: arena <benchmark|build|rebuild|deps|update|launch|runtime|env|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
                 result=1
             ;;
         esac

@@ -62,7 +62,7 @@ class VelocityFieldVisualizer:
             n_makers = self._add_markers(field[group_idx], f"group_{group_idx}", marker_array, id_counter)
             id_counter += n_makers
 
-        self._logger.info(f"Publishing {id_counter} markers")
+        self._logger.debug(f"Publishing {id_counter} markers")
         self.marker_publisher.publish(marker_array)
 
     def _add_markers(

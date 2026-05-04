@@ -5,6 +5,7 @@ import traceback
 
 import rclpy
 import yaml
+from task_generator_msgs.msg import RobotFleet
 from geometry_msgs.msg import Point, Vector3
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
@@ -17,39 +18,52 @@ class VisualizeRobotModel(Node):
     def __init__(self):
         super().__init__('visualize_robot_model')
 
+        self.declare_parameter('task_generator_node', '/task_generator_node')
+        tg_node = self.get_parameter('task_generator_node').value
+
         self.srv_start_setup = self.create_service(Empty, "start_model_visualization", self.start_model_visualization_callback)
 
         self.robot_models = {}
         self.publisher_map = {}
         self.subscribers = []
+        self._latest_fleet: RobotFleet | None = None
+
+        self._fleet_sub = self.create_subscription(
+            RobotFleet,
+            os.path.join(tg_node, 'state', 'robots'),
+            self._on_fleet,
+            qos_profile=rclpy.qos.QoSProfile(
+                depth=1,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+
+    def _on_fleet(self, msg: RobotFleet) -> None:
+        self._latest_fleet = msg
 
     def start_model_visualization_callback(self, request: Empty.Request, response: Empty.Response) -> Empty.Response:
-        # Declare parameters for robot_names
-        self.declare_parameter('robot_names', [])
-        robot_names = self.get_parameter('robot_names').value
+        if self._latest_fleet is None:
+            self.get_logger().error("No fleet snapshot received yet on state/robots; cannot visualize.")
+            return Empty.Response()
 
         # Get the appropriate odom topic based on complexity
         robot_odom_topic = self.get_complexity_odom_topic()
 
-        for name in robot_names:
-            # Get robot model name from parameter or use a default
-            self.declare_parameter(f'{name}.robot_model', 'jackal')
-            robot_model = self.get_parameter(f'{name}.robot_model').value
-
+        for robot in self._latest_fleet.robots:
             # Load the model file
-            model_file = self.read_robot_model_file(robot_model)
+            model_file = self.read_robot_model_file(robot.model)
 
             # Generate markers for the model
             markers_for_model = self.create_marker_array_for_robot(model_file)
 
             # Store the markers
-            self.robot_models[robot_model] = markers_for_model
+            self.robot_models[robot.model] = markers_for_model
 
             # Create publisher for each robot
-            self.publisher_map[name] = self.create_publisher(MarkerArray, os.path.join(name, "visualize", "model"), 10)
+            self.publisher_map[robot.name] = self.create_publisher(MarkerArray, os.path.join(robot.ns, "visualize", "model"), 10)
 
             # Create subscriber for each robot's odometry
-            self.subscribers.append(self.create_subscription(Odometry, os.path.join(name, robot_odom_topic), lambda msg, args=(robot_model, name): self.publish_model(msg, args), 10))
+            self.subscribers.append(self.create_subscription(Odometry, os.path.join(robot.ns, robot_odom_topic), lambda msg, args=(robot.model, robot.name): self.publish_model(msg, args), 10))
 
         return Empty.Response()
 
@@ -139,14 +153,10 @@ class VisualizeRobotModel(Node):
 
 
 def main(args: list[str] | None = None) -> None:
+    from arena_rclpy_mixins.spin import spin_node
+
     rclpy.init(args=args)
-
-    visualizer = VisualizeRobotModel()
-
-    rclpy.spin(visualizer)
-
-    visualizer.destroy_node()
-    rclpy.shutdown()
+    spin_node(VisualizeRobotModel())
 
 
 if __name__ == "__main__":

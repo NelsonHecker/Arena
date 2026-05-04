@@ -105,17 +105,15 @@ def test_tm_module_values_stable():
     assert TM.DYNAMIC_MAP.value == "dynamic_map"
     assert TM.CLEAR_FORBIDDEN_ZONES.value == "clear_forbidden_zones"
     assert TM.RVIZ_UI.value == "rviz_ui"
-    assert TM.BENCHMARK.value == "benchmark"
 
 
 def test_sim_simulator_values_stable():
-    from task_generator.constants import Constants
-    SS = Constants.SimSimulator
-    assert SS.DUMMY.value == "dummy"
-    assert SS.FLATLAND.value == "flatland"
-    assert SS.GAZEBO.value == "gazebo"
-    assert SS.UNITY.value == "unity"
-    assert SS.ISAAC.value == "isaac"
+    from arena_runtime.constants import SimSimulator
+    assert SimSimulator.DUMMY.value == "dummy"
+    assert SimSimulator.FLATLAND.value == "flatland"
+    assert SimSimulator.GAZEBO.value == "gazebo"
+    assert SimSimulator.UNITY.value == "unity"
+    assert SimSimulator.ISAAC.value == "isaac"
 
 
 def test_human_simulator_values_stable():

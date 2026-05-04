@@ -1,0 +1,10 @@
+# Acquire or release an exclusive sim-unpause window.
+# While a window is held, the simulator is force-unpaused regardless of holds.
+# On release, pause state is restored from the hold count.
+uint8 ACQUIRE = 0
+uint8 RELEASE = 1
+uint8 action
+string caller_id     # node FQN, from node.get_fully_qualified_name()
+---
+bool success
+string error_msg

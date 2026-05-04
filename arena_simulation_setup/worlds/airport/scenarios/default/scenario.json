@@ -23,7 +23,7 @@
                 0.0
             ],
             "type": "adult",
-            "model": "actor1",
+            "model": "arenian",
             "waypoints": [
                 [
                     25.5,
@@ -46,7 +46,7 @@
                 0.0
             ],
             "type": "adult",
-            "model": "actor1",
+            "model": "arenian",
             "waypoints": [
                 [
                     21.27,
@@ -69,7 +69,7 @@
                 0.0
             ],
             "type": "adult",
-            "model": "actor1",
+            "model": "arenian",
             "waypoints": [
                 [
                     30.1,

@@ -1,9 +1,15 @@
 # Arena bringup usage
 
-All Arena sessions start with `arena.launch.py`. It brings up the simulator,
+Most Arena sessions start with `arena.launch.py`. It brings up the simulator,
 one or more task-generator nodes, and (optionally) a human simulator.
 Navigation stacks and robot spawning are handled by
 `task_generator.launch.py`, which `arena.launch.py` includes automatically.
+
+For the decoupled flow (runtime stays up, envs come and go),
+`arena_runtime.launch.py` brings up just the simulator and the `arena_node`
+runtime; clients then attach task-generator envs dynamically via
+`task_generator.launch.py`. See [Runtime / client mode](#runtime--client-mode-dynamic-envs)
+below.
 
 The full argument surface is in [launch/README.md](launch/README.md).
 
@@ -136,19 +142,54 @@ ros2 launch arena_bringup arena.launch.py \
     world:=map_empty \
     robot:=jackal \
     env_n:=3 \
-    env_d:=60 \
     headless:=1
 ```
 
 | Arg | Implication |
 |---|---|
-| `env_n:=3` | Three task-generator instances under `task_generator_node/env0`, `.../env1`, `.../env2` |
-| `env_d:=60` | 60 m spacing between environments on the snail grid |
-| `headless:=1` | Only rviz is shown (no per-env Gazebo GUIs) |
+| `env_n:=3` | Three task-generator instances under `arena/env_0/task_generator_node`, `arena/env_1/...`, `arena/env_2/...`. `arena_node` self-orchestrates the fleet via `/arena/spawn_env`. |
+| `headless:=1` | Only rviz is shown (no per-env Gazebo GUIs). `headless:=-1` shows all envs, `0` shows env 0 only, `2` hides everything. |
+
+Slot positions are placed by the shelf packer in `arena_node` based on each env's `WorldExtent`; spacing is governed by the `slot_buffer` ROS parameter on `arena_node` (default 5 m).
 
 ---
 
-### 6. RL training mode
+### 6. Runtime / client mode (dynamic envs)
+
+The runtime (`arena_node`) and the simulator can be launched without any
+task-generator envs, then envs can be added or removed at runtime.
+
+```bash
+# Runtime: sim + arena_node only, no envs.
+ros2 launch arena_bringup arena_runtime.launch.py \
+    sim:=gazebo \
+    world:=map_empty \
+    headless:=1
+```
+
+`arena.launch.py env_n:=0` reaches the same state via the all-in-one
+launcher; `arena_runtime.launch.py` is the leaner direct entry.
+
+Once the runtime is up, attach an env with `task_generator.launch.py`:
+
+```bash
+ros2 launch task_generator task_generator.launch.py \
+    robot:=jackal \
+    tm_robots:=explore \
+    tm_obstacles:=random
+```
+
+The env registers with `arena_node` (`/arena/register_env`), is placed on the
+shelf-packed grid, and runs its task loop until despawned. See
+[arena_runtime/arena_runtime/README.md](../arena_runtime/arena_runtime/README.md)
+for the simulator interface and registry primitives.
+
+To tear an env down by id, call the cleanup service (or use
+`arena cleanup <env_id>`, see [CLI verbs](#cli-verbs)).
+
+---
+
+### 7. RL training mode
 
 ```bash
 ros2 launch arena_bringup arena.launch.py \
@@ -159,8 +200,8 @@ ros2 launch arena_bringup arena.launch.py \
 ```
 
 When `train_config` is non-empty:
-- `train_mode` is implicitly `true` — the RL env publishes `cmd_vel` directly;
-  nav2 controller output is silenced.
+- `auto_reset` is forced `false` — managed mode; the RL training loop drives
+  resets via `lifecycle/reset_episode`.
 - `train_agent.py` is started automatically with `--config <train_config>`.
 
 ---
@@ -174,17 +215,40 @@ complexity:=2        # AMCL (position unknown); 3 = SLAM
 record_data_dir:=/tmp/arena_run  # enable data recording
 ```
 
+## CLI verbs
+
+`source arena` (from `~/arena_ws`) loads a bash function that wraps the
+common entry points. Verbs relevant to bringup:
+
+| Verb | Wraps | Purpose |
+|---|---|---|
+| `arena launch [args]` | `arena.launch.py` | All-in-one launch (sim + runtime + envs). |
+| `arena runtime [args]` | `arena_runtime.launch.py` | Runtime-only launch (sim + `arena_node`, no envs). |
+| `arena env [args]` | `task_generator.launch.py` | Attach one task-generator env to a running runtime. |
+| `arena cleanup <env_id>` | `/arena/cleanup_namespace` service | Force-clean an env's namespace by id (calls the service for both the `env_<id>_` and `env_<id>/` prefixes, covering gazebo and isaac layouts). |
+| `arena train [args]` | `arena_training` feature launcher | RL training entry, see section 7 below. |
+
+`arena launch` and `arena runtime` both kill any prior `task_generator_node`,
+`arena_node`, and `world_generator` processes before relaunching.
+
 ## Benchmark mode
 
-Benchmark runs use `tm_modules:=benchmark` and are configured through
-[configs/benchmark/](configs/benchmark/README.md):
+Benchmark runs are driven by the `arena benchmark` CLI verb, which launches
+`arena_evaluation/launch/benchmark.launch.py`. Configuration lives in
+[arena_evaluation/configs/benchmark/](../arena_evaluation/configs/benchmark/README.md).
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
-    sim:=gazebo \
-    tm_modules:=benchmark \
-    headless:=2
+arena benchmark sim:=gazebo headless:=2 suite:=basic contest:=basic
 ```
 
-`Mod_Benchmark` reads `config.yaml`, selects the active suite and contest,
-and drives the task-generator through stages automatically.
+The runner groups steps by `(contestant, robot, simulator)`. One env is
+spawned per group; stage transitions within the group are pushed via
+`QueueEpisode` rather than a respawn. The env is despawned only between
+groups (i.e. between contestants, or when the robot changes).
+
+Total run time scales as `bringup_time × num_contestants + episode_time ×
+total_episodes`, not `bringup_time × num_steps`.
+
+`env_n` caps the number of parallel groups (parallel contestants). Results
+land under `$ARENA_DATA_DIR/benchmarks/<run_id>/`. Resume an interrupted run
+with `arena benchmark --resume <run_id>`.

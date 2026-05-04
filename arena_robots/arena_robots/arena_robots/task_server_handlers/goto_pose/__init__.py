@@ -22,6 +22,13 @@ def _load_nav2() -> type[GotoPoseHandler]:
     return GotoPoseHandlerNav2
 
 
+@HANDLERS.register((TaskKind.GOTO_POSE, "test-collision"))
+def _load_test_collision() -> type[GotoPoseHandler]:
+    from ._passthrough import GotoPoseHandlerNone
+
+    return GotoPoseHandlerNone
+
+
 @HANDLERS.register((TaskKind.GOTO_POSE, "none"))
 def _load_none() -> type[GotoPoseHandler]:
     from ._passthrough import GotoPoseHandlerNone

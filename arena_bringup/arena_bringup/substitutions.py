@@ -63,6 +63,24 @@ class LaunchArgument(launch.actions.DeclareLaunchArgument):
         return self.param(str)
 
 
+class OptionalLaunchArgument:
+    """undeclared launch configuration that defers default to downstream consumer"""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def value_if_given(self, context: launch.LaunchContext) -> str | None:
+        return context.launch_configurations.get(self.name) or None
+
+    def dict_if_given(self, context: launch.LaunchContext) -> dict[str, str]:
+        v = self.value_if_given(context)
+        return {self.name: v} if v is not None else {}
+
+    def cli_if_given(self, context: launch.LaunchContext, flag: str) -> list[str]:
+        v = self.value_if_given(context)
+        return [flag, v] if v is not None else []
+
+
 class SelectAction(launch.Action):
     _actions: dict[str, list[launch.Action]]
     _selector: list[launch.Substitution]
@@ -277,7 +295,7 @@ class _YAMLReplacer:
 
                 matchable = v[start:end]
 
-                match = self._sub_match(matchable)
+                match = self._sub_match(matchable, strict_string=True)
 
                 if not isinstance(match.value, str):
                     raise ValueError(f'misplaced substitution {matchable} of type {type(match.value)} in {v}')
@@ -290,14 +308,25 @@ class _YAMLReplacer:
 
         return None
 
-    def _sub_match(self, v: str) -> Replacement:
+    def _sub_match(self, v: str, *, strict_string: bool = False) -> Replacement:
 
         str_v: str | None = v
         replacement: None | _YAMLReplacer.Replacement = None
+        used_default: bool = False
 
         while str_v is not None:
             if (match := re.match(r'^\$\{(.*)\}$', str_v)) is None:  # not a full-length substitution
-                return self.NoReplacement(value=str_v)
+                value: typing.Any = str_v
+                # Defaults from `${var:-literal}` are written in YAML syntax — coerce
+                # so numeric/bool defaults round-trip as their parsed type instead of
+                # leaking strings into typed ROS parameters. `strict_string` keeps the
+                # inter-string concatenation path on raw strings.
+                if used_default and not strict_string:
+                    try:
+                        value = yaml.safe_load(str_v)
+                    except yaml.YAMLError:
+                        pass
+                return self.NoReplacement(value=value)
 
             sub, *defaults = match.group(1).split(':-', 1)
             default = defaults[0] if defaults else None
@@ -314,6 +343,7 @@ class _YAMLReplacer:
                 return self.StringReplacement(value=self._substitutions[sub])
 
             str_v = default
+            used_default = True
 
         if replacement is None:
             if (inter_sub := self._replace_inter_string(v)) is not None:

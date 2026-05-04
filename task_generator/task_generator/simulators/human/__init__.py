@@ -3,18 +3,16 @@ from __future__ import annotations
 import abc
 import asyncio
 import itertools
-import math
 import typing
 from collections.abc import Mapping, Sequence
 
-import rclpy
 import rclpy.publisher
+import rclpy.qos
 from arena_people_msgs.msg import Pedestrians
+from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
-from geometry_msgs.msg import PoseStamped, Vector3
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import ColorRGBA
-from task_generator import NodeInterface
+from arena_runtime._node import NodeInterface
+from arena_runtime.sim import BaseSim
 from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
 from task_generator.simulators.human.utils import (
@@ -22,21 +20,12 @@ from task_generator.simulators.human.utils import (
     KnownObstacles,
     ObstacleLayer,
 )
-from task_generator.simulators.sim import BaseSim
-from task_generator.utils.registry import Registry
-from tf_transformations import quaternion_from_euler, quaternion_multiply
-from visualization_msgs.msg import Marker, MarkerArray
+from visualization_msgs.msg import MarkerArray
 
 
 class BaseHumanSimulator(NodeInterface, abc.ABC):
-    MESH_RESOURCE = "package://pal_gazebo_worlds/models/citizen_extras_male_03/meshes/mesh.dae"
-    BODY_HEIGHT = 1.6
-    ARROW_LENGTH = 0.6
-
-    _goal_pub: rclpy.publisher.Publisher
     _arena_peds_publisher: rclpy.publisher.Publisher
     _marker_publisher: rclpy.publisher.Publisher
-    _extra_marker_publisher: rclpy.publisher.Publisher
     _static_marker_publisher: rclpy.publisher.Publisher
     _known_obstacles: KnownObstacles
     _known_walls: KnownObstacles[Wall]
@@ -69,124 +58,39 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._wall_counter = itertools.count()
         self._known_regions: dict[str, Region] = {}
 
-        self._goal_pub = self.node.create_publisher(PoseStamped, self._namespace("/goal"), 1)
-
         self._arena_peds_publisher = self.node.create_publisher(Pedestrians, self._namespace("arena_peds"), 10)
-
-        self._marker_publisher = self.node.create_publisher(MarkerArray, self._namespace("pedestrian_markers"), 10)
-
-        self._extra_marker_publisher = self.node.create_publisher(MarkerArray, self._namespace("pedestrian_markers/extra"), 10)
-
+        self._marker_publisher = self.node.create_publisher(
+            MarkerArray,
+            self._namespace("pedestrian_markers", "extra"),
+            rclpy.qos.QoSProfile(
+                reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
+                durability=rclpy.qos.DurabilityPolicy.VOLATILE,
+                history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+                depth=10,
+            ),
+        )
         self._static_marker_publisher = self.node.create_publisher(
             MarkerArray,
-            self._namespace("pedestrian_markers/static"),
-            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+            self._namespace("pedestrian_markers", "static"),
+            rclpy.qos.QoSProfile(
+                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+                history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+                depth=1,
+            ),
         )
 
     def publish_arena_peds(self, msg: Pedestrians):
-        """Publish pedestrian states and base visualization markers."""
+        """Publish pedestrian states."""
         self._arena_peds_publisher.publish(msg)
-        self._marker_publisher.publish(self._pedestrians_to_markers(msg))
 
-    def publish_markers(self, markers: MarkerArray):
-        """Publish additional visualization markers (debug overlays etc.)."""
-        self._extra_marker_publisher.publish(markers)
+    def publish_markers(self, markers: MarkerArray) -> None:
+        """Publish a transient debug-overlay MarkerArray on `pedestrian_markers/extra`."""
+        self._marker_publisher.publish(markers)
 
-    def publish_static_markers(self, markers: MarkerArray):
+    def publish_static_markers(self, markers: MarkerArray) -> None:
+        """Publish a latched MarkerArray on `pedestrian_markers/static` (TRANSIENT_LOCAL, late subscribers catch up)."""
         self._static_marker_publisher.publish(markers)
-
-    def _pedestrians_to_markers(self, msg: Pedestrians) -> MarkerArray:
-        """Convert a Pedestrians message to base visualization markers."""
-        markers: list[Marker] = []
-
-        for ped in msg.pedestrians:
-            pid = ped.id
-
-            # Body mesh
-            body = Marker()
-            body.header = msg.header
-            body.ns = "pedestrian_meshes"
-            body.id = pid
-            body.type = Marker.MESH_RESOURCE
-            body.mesh_resource = self.MESH_RESOURCE
-            body.mesh_use_embedded_materials = True
-            body.action = Marker.ADD
-            body.pose.position.x = ped.pose.position.x
-            body.pose.position.y = ped.pose.position.y
-            body.pose.position.z = 0.01
-            q_org = [
-                ped.pose.orientation.x,
-                ped.pose.orientation.y,
-                ped.pose.orientation.z,
-                ped.pose.orientation.w,
-            ]
-            q = quaternion_multiply(q_org, quaternion_from_euler(0, 0, math.pi / 2))
-            body.pose.orientation.x = q[0]
-            body.pose.orientation.y = q[1]
-            body.pose.orientation.z = q[2]
-            body.pose.orientation.w = q[3]
-            mesh_scale = self.BODY_HEIGHT / 1.87
-            body.scale = Vector3(x=mesh_scale, y=mesh_scale, z=mesh_scale)
-            body.lifetime.sec = 1
-            markers.append(body)
-
-            # Velocity arrow
-            speed = math.hypot(ped.twist.linear.x, ped.twist.linear.y)
-            if speed > 0.1:
-                vel = Marker()
-                vel.header = msg.header
-                vel.ns = "pedestrian_velocity"
-                vel.id = pid
-                vel.type = Marker.ARROW
-                vel.action = Marker.ADD
-                vel.pose.position.x = ped.pose.position.x
-                vel.pose.position.y = ped.pose.position.y
-                vel.pose.position.z = self.BODY_HEIGHT / 2 + 0.2
-                yaw = math.atan2(ped.twist.linear.y, ped.twist.linear.x)
-                vel.pose.orientation.z = math.sin(yaw / 2)
-                vel.pose.orientation.w = math.cos(yaw / 2)
-                arrow_len = min(self.ARROW_LENGTH * speed, self.ARROW_LENGTH)
-                vel.scale = Vector3(x=arrow_len, y=0.1, z=0.1)
-                vel.color = ColorRGBA(r=1.0, g=0.5, b=0.0, a=1.0)
-                vel.lifetime.sec = 1
-                markers.append(vel)
-
-            # Orientation arrow
-            ori = Marker()
-            ori.header = msg.header
-            ori.ns = "pedestrian_orientation"
-            ori.id = pid
-            ori.type = Marker.ARROW
-            ori.action = Marker.ADD
-            ori.pose.position.x = ped.pose.position.x
-            ori.pose.position.y = ped.pose.position.y
-            ori.pose.position.z = self.BODY_HEIGHT / 2
-            ori.pose.orientation = ped.pose.orientation
-            ori.scale = Vector3(x=self.ARROW_LENGTH, y=0.15, z=0.15)
-            ori.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.8)
-            ori.lifetime.sec = 1
-            markers.append(ori)
-
-            # Name label
-            label = Marker()
-            label.header = msg.header
-            label.ns = "pedestrian_labels"
-            label.id = pid
-            label.type = Marker.TEXT_VIEW_FACING
-            label.action = Marker.ADD
-            label.scale.z = 0.3
-            label.pose.position.x = ped.pose.position.x
-            label.pose.position.y = ped.pose.position.y
-            label.pose.position.z = self.BODY_HEIGHT + label.scale.z / 2
-            label.pose.orientation.w = 1.0
-            label.text = ped.name
-            label.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
-            label.lifetime.sec = 1
-            markers.append(label)
-
-        result = MarkerArray()
-        result.markers = markers
-        return result
 
     async def spawn_obstacles(self, obstacles: Sequence[Obstacle], layer: ObstacleLayer = ObstacleLayer.INUSE):
         """Spawns static obstacles.
@@ -265,7 +169,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             await self._spawn_dynamic_obstacles_impl([known.obstacle for known in to_register]),
             strict=False,
         ):
-            self._logger.info(f"Spawned dynamic obstacle: {obstacle}")
+            self._logger.debug(f"Spawned dynamic obstacle: {obstacle}")
             if not obstacle:
                 continue
 

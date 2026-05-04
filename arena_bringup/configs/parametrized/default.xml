@@ -9,17 +9,11 @@
     </obstacle>
   </static>
   <dynamic>
-    <obstacle name="actor1">
+    <obstacle name="arenian">
       <min>1</min>
       <max>3</max>
       <type>adult</type>
-      <model>actor1</model>
-    </obstacle>
-    <obstacle name="actor2">
-      <min>2</min>
-      <max>4</max>
-      <type>adult</type>
-      <model>actor2</model>
+      <model>arenian</model>
     </obstacle>
   </dynamic>
 </random>

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from arena_rclpy_mixins.registry import ClassRegistry
+
 
 @pytest.fixture(autouse=True)
 def _ros_gate():
@@ -12,129 +14,55 @@ def _ros_gate():
 
 
 def test_register_and_get_round_trip():
-    from task_generator.tasks.robots.adapters import Adapter, _ADAPTERS, register_adapter, get_adapter
+    reg: ClassRegistry[str, type] = ClassRegistry()
 
-    class _TestFoo(Adapter):
-        kind = "_test_foo"
+    class _Foo:
+        pass
 
-        async def dispatch_phase(self, phase, robot):
-            return None
+    @reg.register("_test_foo")
+    def _load():
+        return _Foo
 
-    try:
-        register_adapter(_TestFoo)
-        assert get_adapter("_test_foo") is _TestFoo
-    finally:
-        _ADAPTERS.pop("_test_foo", None)
+    assert reg.get("_test_foo") is _Foo
 
 
-def test_register_idempotent_same_class():
-    from task_generator.tasks.robots.adapters import Adapter, _ADAPTERS, register_adapter
+def test_register_raises_on_duplicate():
+    reg: ClassRegistry[str, type] = ClassRegistry()
 
-    class _TestIdem(Adapter):
-        kind = "_test_idem"
+    @reg.register("_test_dup")
+    def _load_a():
+        return object
 
-        async def dispatch_phase(self, phase, robot):
-            return None
-
-    try:
-        register_adapter(_TestIdem)
-        register_adapter(_TestIdem)
-    finally:
-        _ADAPTERS.pop("_test_idem", None)
+    with pytest.raises(ValueError):
+        @reg.register("_test_dup")
+        def _load_b():
+            return object
 
 
-def test_register_raises_value_error_different_class():
-    from task_generator.tasks.robots.adapters import Adapter, _ADAPTERS, register_adapter
+def test_get_raises_key_error_unknown_kind():
+    reg: ClassRegistry[str, type] = ClassRegistry()
 
-    class _TestBarA(Adapter):
-        kind = "_test_bar"
+    @reg.register("_test_known")
+    def _load():
+        return object
 
-        async def dispatch_phase(self, phase, robot):
-            return None
-
-    class _TestBarB(Adapter):
-        kind = "_test_bar"
-
-        async def dispatch_phase(self, phase, robot):
-            return None
-
-    try:
-        register_adapter(_TestBarA)
-        with pytest.raises(ValueError) as exc_info:
-            register_adapter(_TestBarB)
-        assert "_TestBarA" in str(exc_info.value)
-    finally:
-        _ADAPTERS.pop("_test_bar", None)
+    with pytest.raises(KeyError) as exc_info:
+        reg.get("_no_such_kind")
+    assert "known" in str(exc_info.value)
 
 
-def test_register_raises_type_error_non_string_kind():
-    from task_generator.tasks.robots.adapters import Adapter, register_adapter
+def test_lazy_loading():
+    reg: ClassRegistry[str, type] = ClassRegistry()
 
-    class _TestIntKind(Adapter):
-        kind = 123  # type: ignore[assignment]
+    @reg.register("_test_poison")
+    def _poison():
+        raise RuntimeError("should not be called")
 
-        async def dispatch_phase(self, phase, robot):
-            return None
+    class _Bar:
+        pass
 
-    with pytest.raises(TypeError):
-        register_adapter(_TestIntKind)
+    @reg.register("_test_bar")
+    def _load():
+        return _Bar
 
-
-def test_register_raises_type_error_empty_string_kind():
-    from task_generator.tasks.robots.adapters import Adapter, register_adapter
-
-    class _TestEmptyKind(Adapter):
-        kind = ""
-
-        async def dispatch_phase(self, phase, robot):
-            return None
-
-    with pytest.raises(TypeError):
-        register_adapter(_TestEmptyKind)
-
-
-def test_register_raises_type_error_missing_kind():
-    from task_generator.tasks.robots.adapters import Adapter, register_adapter
-
-    class _TestNoKind(Adapter):
-        async def dispatch_phase(self, phase, robot):
-            return None
-
-    with pytest.raises(TypeError):
-        register_adapter(_TestNoKind)
-
-
-def test_get_adapter_raises_key_error_unknown_kind():
-    from task_generator.tasks.robots.adapters import Adapter, _ADAPTERS, register_adapter, get_adapter
-
-    class _TestKnown(Adapter):
-        kind = "_test_known"
-
-        async def dispatch_phase(self, phase, robot):
-            return None
-
-    try:
-        register_adapter(_TestKnown)
-        with pytest.raises(KeyError) as exc_info:
-            get_adapter("_test_no_such_kind_xyz")
-        msg = str(exc_info.value)
-        assert "known" in msg
-        assert "_test_known" in msg
-    finally:
-        _ADAPTERS.pop("_test_known", None)
-
-
-def test_register_returns_class():
-    from task_generator.tasks.robots.adapters import Adapter, _ADAPTERS, register_adapter
-
-    class _TestRet(Adapter):
-        kind = "_test_ret"
-
-        async def dispatch_phase(self, phase, robot):
-            return None
-
-    try:
-        result = register_adapter(_TestRet)
-        assert result is _TestRet
-    finally:
-        _ADAPTERS.pop("_test_ret", None)
+    assert reg.get("_test_bar") is _Bar

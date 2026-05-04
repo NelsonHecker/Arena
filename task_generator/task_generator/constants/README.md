@@ -9,14 +9,14 @@ maps them to live ROS parameters.
 
 | Name | Type | Values |
 | --- | --- | --- |
-| `DEFAULT_PEDESTRIAN_MODEL` | `str` | `"actor1"` |
+| `DEFAULT_PEDESTRIAN_MODEL` | `str` | `"arenian"` |
 | `TASK_GENERATOR_SERVER_NODE` | `Namespace` | `"task_generator_server"` |
 | `SimSimulator` | `Enum` | `dummy`, `flatland`, `gazebo`, `unity`, `isaac` |
 | `ArenaType` | `Enum` | `training`, `deployment` |
 | `HumanSimulator` | `Enum` | `dummy`, `hunav`, `isaac` |
 | `TaskMode.TM_Obstacles` | `Enum` | `parametrized`, `random`, `scenario`, `environment`, `prompt` |
 | `TaskMode.TM_Robots` | `Enum` | `guided`, `explore`, `random`, `scenario` |
-| `TaskMode.TM_Module` | `Enum` | `staged`, `dynamic_map`, `clear_forbidden_zones`, `rviz_ui`, `benchmark` |
+| `TaskMode.TM_Module` | `Enum` | `staged`, `dynamic_map`, `clear_forbidden_zones`, `rviz_ui` |
 
 `TM_Obstacles.default()` returns `RANDOM`. `TM_Robots.default()` returns
 `RANDOM`. `TM_Module.default()` returns an empty `set`.
@@ -73,6 +73,18 @@ Config.General.RNG.value      # numpy Generator
 | `CONTROLLER` | `local_planner` | `''` | |
 | `BEHAVIOR` | `inter_planner` | `''` | |
 | `NAVIGATOR` | `navigator` | `'nav2'` | adapter kind |
+
+### Node-level runtime params (declared with `ParameterDescriptor`)
+
+Declared directly on `TaskGenerator` at construction time, not via `Configuration`:
+
+| ROS param | Default | Notes |
+| --- | --- | --- |
+| `auto_reset` | `true` | `true` = standalone (node auto-advances); `false` = managed (external controller drives resets via `lifecycle/reset_episode`) |
+| `run_seed` | random uuid hex | Hex string for per-episode blake2b seed derivation |
+| `episode_history_size` | `10` | Bounded history length for `state/episode` |
+
+`train_mode` has been removed from the task_generator node. Use `auto_reset:=false` (managed mode) instead; this is set automatically when `train_config:=<path>` is provided to the launch file.
 
 ### `Config.TaskMode`
 

@@ -8,7 +8,7 @@ update(){
     echo "Updating $name..."
 
     pushd "$ARENA_DIR" > /dev/null || return 1
-        git submodule update --init arena_isaac
+        git submodule update --init --rebase arena_isaac
     popd > /dev/null || return 1
 
     arena_docker_compose build isaac

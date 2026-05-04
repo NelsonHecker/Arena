@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from arena_simulation_setup.tree.assets.Material import Material, MaterialIdentifier
-from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
+from arena_simulation_setup.tree.assets.Object import ObjectIdentifier, ObjectView
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.utils.models import ModelWrapper
 
@@ -18,9 +18,10 @@ def test_object_identifier_load_sdf_only(tmp_path):
     sdf_file.write_text("<sdf></sdf>")
 
     ident = ObjectIdentifier(model_name)
-    wrapper = ident.load(model_dir)
-    assert isinstance(wrapper, ModelWrapper)
-    assert wrapper.name == model_name
+    view = ident.load(model_dir)
+    assert isinstance(view, ObjectView)
+    assert isinstance(view.model, ModelWrapper)
+    assert view.model.name == model_name
 
 
 def test_object_identifier_load_empty_dir(tmp_path):
@@ -29,8 +30,9 @@ def test_object_identifier_load_empty_dir(tmp_path):
     model_dir.mkdir()
 
     ident = ObjectIdentifier(model_name)
-    wrapper = ident.load(model_dir)
-    assert isinstance(wrapper, ModelWrapper)
+    view = ident.load(model_dir)
+    assert isinstance(view, ObjectView)
+    assert isinstance(view.model, ModelWrapper)
 
 
 def test_object_identifier_load_nested_sdf(tmp_path):
@@ -41,8 +43,9 @@ def test_object_identifier_load_nested_sdf(tmp_path):
     (nested_dir / f"{model_name}.sdf").write_text("<sdf/>")
 
     ident = ObjectIdentifier(model_name)
-    wrapper = ident.load(model_dir)
-    assert isinstance(wrapper, ModelWrapper)
+    view = ident.load(model_dir)
+    assert isinstance(view, ObjectView)
+    assert isinstance(view.model, ModelWrapper)
 
 
 def test_pedestrian_identifier_load_sdf(tmp_path):
