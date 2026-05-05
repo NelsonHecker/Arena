@@ -14,6 +14,9 @@ docker_env="${docker_env} ARENA_ROS_DISTRO=$ARENA_ROS_DISTRO"
 docker_env="${docker_env} HOST_UID=$HOST_UID"
 docker_env="${docker_env} HOST_GID=$HOST_GID"
 docker_env="${docker_env} HOST_ARENA_WS_DIR=$HOST_ARENA_WS_DIR"
+docker_env="${docker_env} HOST_ARENA_DATA_DIR=$HOST_ARENA_DATA_DIR"
+docker_env="${docker_env} ARENA_DATA_DIR=$ARENA_DATA_DIR"
+docker_env="${docker_env} ROSNAV_AGENTS_DIR=$ROSNAV_AGENTS_DIR"
 
 
 export docker_env
