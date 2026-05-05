@@ -1,4 +1,8 @@
 
+robots:
+  - start: [10.0, 0.5, 1.5708]
+    goal: [4.0, 17.6, 0.0]
+
 dynamic:
   - name: doctor_1
     model: male_adult_medical_01

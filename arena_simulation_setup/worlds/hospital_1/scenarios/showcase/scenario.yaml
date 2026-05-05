@@ -7,6 +7,10 @@
 # Use case 3 — Reception queue: patients QUEUE_USE at reception desk.
 #              If a participant leaves, others see INTERRUPTED outcome.
 
+robots:
+  - start: [10.0, 0.5, 1.5708]
+    goal: [4.0, 17.6, 0.0]
+
 dynamic:
   # --- Use case 1: nurse escort ---
   - name: nurse_1

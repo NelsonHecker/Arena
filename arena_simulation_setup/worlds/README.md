@@ -98,7 +98,7 @@ dynamic:
     pose: [4.0, 2.0, 0.0]
     velocity: 2.5
     desired_velocity: 2.5
-    waypoint:
+    waypoints:
     - [4.0, 2.0, 0.0]
 robots:
   - start: [x, y, yaw]

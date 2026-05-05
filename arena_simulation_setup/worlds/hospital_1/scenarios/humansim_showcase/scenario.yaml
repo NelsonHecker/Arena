@@ -59,14 +59,14 @@ dynamic:
     pose: {x: 10.0, y: 0.8}
     agent: {agent_type: ./queue_patient.yaml, desired_velocity: 0.9}
     waypoints:
-      - {x: 4.0, y: 1.0}
+      - {x: 4.7, y: 1.0}
 
   - name: queue_patient_3
     model: male_adult_construction_03
     pose: {x: 10.5, y: 0.5}
     agent: {agent_type: ./queue_patient.yaml, desired_velocity: 1.0}
     waypoints:
-      - {x: 4.0, y: 1.0}
+      - {x: 5.4, y: 1.0}
 
   # --- Background flow ---
   - name: doctor_2
