@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import typing
+
 import attrs
 
 from arena_simulation_setup.tree.assets.Material import Material, MaterialIdentifier
-from arena_simulation_setup.tree.Wall import WallDescription, WallIdentifier, WallRealization
 from arena_simulation_setup.utils.cattrs import Serializable
 from arena_simulation_setup.utils.geometry import Position
+
+if typing.TYPE_CHECKING:
+    from arena_simulation_setup.tree.Wall import WallRealization
 
 
 @attrs.define
@@ -19,6 +23,8 @@ class Wall(Serializable):
         """
         Get sub-assets that make up the wall.
         """
+        from arena_simulation_setup.tree.Wall import WallDescription, WallIdentifier
+
         try:
             if self.kind:
                 _description = await WallIdentifier(self.kind).resolve()

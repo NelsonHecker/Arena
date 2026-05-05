@@ -6,6 +6,7 @@ import itertools
 import typing
 from collections.abc import Mapping, Sequence
 
+import attrs
 import rclpy.publisher
 import rclpy.qos
 from arena_people_msgs.msg import Pedestrians
@@ -13,6 +14,8 @@ from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
+from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+from arena_simulation_setup.utils.models import ModelType
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
@@ -184,8 +187,31 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             known.layer = ObstacleLayer.INUSE
 
         if to_spawn:
-            futures.append(self._simulator.pedestrian_spawn(to_spawn))
+            futures.append(self._simulator.pedestrian_spawn(await self._ensure_spawnable(to_spawn)))
         await asyncio.gather(*futures)
+
+    _PEDESTRIAN_FALLBACK: typing.ClassVar[str] = "arenian"
+
+    async def _ensure_spawnable(self, obstacles: Sequence[DynamicObstacle]) -> Sequence[DynamicObstacle]:
+        """Swap unresolvable ped models for _PEDESTRIAN_FALLBACK."""
+
+        async def _resolve(obs: DynamicObstacle) -> DynamicObstacle:
+            try:
+                wrapper = await obs.model.resolve()
+                model = await wrapper.get(ModelType.SDF)
+                if model.type is not ModelType.UNKNOWN:
+                    return obs
+            except Exception as e:
+                self._logger.warning(
+                    f"pedestrian {obs.name!r}: model {obs.model.name!r} unresolved ({e}); using fallback",
+                )
+            else:
+                self._logger.warning(
+                    f"pedestrian {obs.name!r}: model {obs.model.name!r} has no SDF; using fallback",
+                )
+            return attrs.evolve(obs, model=PedestrianIdentifier.parse(self._PEDESTRIAN_FALLBACK))
+
+        return await asyncio.gather(*(_resolve(o) for o in obstacles))
 
     async def spawn_world(
         self,
