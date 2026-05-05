@@ -368,13 +368,30 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except Exception as e:
             self._logger.error(f"Error in interpolation loop: {e}\n{traceback.format_exc()}")
 
+    def _runtime_obstacle(
+        self,
+        name: str,
+        pose: Pose,
+        *,
+        model: str = "default",
+        velocity: float = 0.0,
+    ) -> DynamicObstacle:
+        """Build a runtime DynamicObstacle with env-prefixed sim_path."""
+        obs = DynamicObstacle(
+            name=name,
+            pose=pose,
+            model=model,
+            waypoints=[],
+            velocity=velocity,
+        )
+        obs.sim_path = self._realizer.prefix(name)
+        return obs
+
     def _make_flow_dynamic_obstacle(self, agent: AgentStateMsg) -> DynamicObstacle:
         """Create a DynamicObstacle for a source-spawned agent using a default model."""
-        return DynamicObstacle(
-            name=str(agent.agent_id),
+        return self._runtime_obstacle(
+            name=f"flow_{agent.agent_id}",
             pose=Pose(Position(agent.pose.x, agent.pose.y)),
-            model="default",
-            waypoints=[],
             velocity=agent.desired_velocity,
         )
 
@@ -411,22 +428,21 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                                 if self._pool_free:
                                     pool_name = self._pool_free.pop()
                                     self._pool_active[aid] = pool_name
-                                    self._agent_names[aid] = pool_name
-                                    to_move.append(
-                                        DynamicObstacle(
-                                            name=pool_name,
-                                            pose=Pose(Position(agent.pose.x, agent.pose.y)),
-                                            model="default",
-                                        )
+                                    obs = self._runtime_obstacle(
+                                        name=pool_name,
+                                        pose=Pose(Position(agent.pose.x, agent.pose.y)),
                                     )
+                                    self._agent_names[aid] = obs.sim_path
+                                    to_move.append(obs)
                                 else:
                                     self._physim_agent_ids.add(aid)
-                                    self._agent_names[aid] = f"flow_{aid}"
-                                    to_spawn.append(self._make_flow_dynamic_obstacle(agent))
+                                    obs = self._make_flow_dynamic_obstacle(agent)
+                                    self._agent_names[aid] = obs.sim_path
+                                    to_spawn.append(obs)
                             if to_move:
                                 await self._simulator.pedestrian_move(to_move)
                             if to_spawn:
-                                await self._simulator.pedestrian_spawn(to_spawn)
+                                await self._simulator.pedestrian_spawn(await self._ensure_spawnable(to_spawn))
 
                         if gone_ids:
                             to_park: list[DynamicObstacle] = []
@@ -437,22 +453,10 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                                 if aid in self._pool_active:
                                     pool_name = self._pool_active.pop(aid)
                                     self._pool_free.append(pool_name)
-                                    to_park.append(
-                                        DynamicObstacle(
-                                            name=pool_name,
-                                            pose=parking,
-                                            model="default",
-                                        )
-                                    )
+                                    to_park.append(self._runtime_obstacle(name=pool_name, pose=parking))
                                 else:
                                     self._physim_agent_ids.discard(aid)
-                                    to_delete.append(
-                                        DynamicObstacle(
-                                            name=str(aid),
-                                            pose=parking,
-                                            model="default",
-                                        )
-                                    )
+                                    to_delete.append(self._runtime_obstacle(name=f"flow_{aid}", pose=parking))
                             if to_park:
                                 await self._simulator.pedestrian_move(to_park)
                             if to_delete:
@@ -577,15 +581,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     async def _spawn_pool(self, size: int):
         """Pre-spawn pool pedestrians at the parking position."""
         parking = Pose(Position(self.POOL_PARKING_X, self.POOL_PARKING_Y))
-        pool_peds = [
-            DynamicObstacle(
-                name=f"_flow_pool_{i}",
-                pose=parking,
-                model="default",
-            )
-            for i in range(size)
-        ]
-        await self._simulator.pedestrian_spawn(pool_peds)
+        pool_peds = [self._runtime_obstacle(name=f"_flow_pool_{i}", pose=parking) for i in range(size)]
+        await self._simulator.pedestrian_spawn(await self._ensure_spawnable(pool_peds))
         self._pool_free = [p.name for p in pool_peds]
         self._pool_spawned = True
         self._logger.info(f"Pre-spawned {size} pool pedestrians")
@@ -725,7 +722,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 obstacle_type = annotation.get("name", "") or annotation.get("desc", "")
 
                 msg = ObstacleConfigMsg()
-                msg.name = obstacle.name
+                msg.name = obstacle.sim_path
                 msg.pose = Pose2DMsg(
                     x=obstacle.pose.position.x,
                     y=obstacle.pose.position.y,
@@ -743,7 +740,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
                 extra = obstacle.extra
                 info = WorldObjectInfoMsg()
-                info.object_id = obstacle.name
+                info.object_id = obstacle.sim_path
                 info.type = str(extra.get("type", obstacle_type))
                 info.pose = msg.pose
                 info.capacity = int(extra.get("capacity", 1))
@@ -761,7 +758,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     info.formation_param_values = [float(v) for v in formation_params.values()]
                 world_objects_request.objects.append(info)
             except Exception as e:
-                self._logger.warning(f"Failed to build obstacle config for '{obstacle.name}': {e}")
+                self._logger.warning(f"Failed to build obstacle config for '{obstacle.sim_path}': {e}")
 
         if obstacles_request.obstacles:
             try:
@@ -793,7 +790,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             agent_msg = AgentStateMsg()
             agent_msg.agent_id = self._next_id
             self._bridge_agent_ids.add(self._next_id)
-            self._agent_names[self._next_id] = obstacle.name
+            self._agent_names[self._next_id] = obstacle.sim_path
             self._next_id += 1
 
             agent_msg.pose = Pose2DMsg(

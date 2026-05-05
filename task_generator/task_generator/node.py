@@ -399,6 +399,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             node=self,
             namespace=self._namespace,
             simulator=self._simulator,
+            realizer=realizer,
         )
 
         self._logger.info("Setting up environment manager")

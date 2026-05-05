@@ -14,6 +14,7 @@ from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
 from task_generator.constants import Constants
+from task_generator.manager.realizer import Realizer
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
 from task_generator.simulators.human.utils import (
     KnownObstacle,
@@ -39,18 +40,20 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         task modes specific to their simulator (e.g. TM_Prompt).
         """
 
-    def __init__(self, *args: object, namespace: Namespace, simulator: BaseSim, **kwargs: object) -> None:
+    def __init__(self, *args: object, namespace: Namespace, simulator: BaseSim, realizer: Realizer, **kwargs: object) -> None:
         """
         Initialize human simulator.
 
         Args:
             namespace: global namespace
             simulator: Simulator instance
+            realizer: per-env Realizer (used to stamp sim_path on runtime-spawned obstacles)
         """
         super().__init__(*args, **kwargs)
         self._register_task_modes()
         self._simulator = simulator
         self._namespace = namespace
+        self._realizer = realizer
 
         self._known_obstacles = KnownObstacles[Obstacle]()
         self._known_walls = KnownObstacles[Wall]()

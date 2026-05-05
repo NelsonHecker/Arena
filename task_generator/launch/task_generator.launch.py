@@ -11,7 +11,6 @@ import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
-from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import LaunchArgument
 from launch.actions import (
     ExecuteProcess,
@@ -226,9 +225,6 @@ def generate_launch_description():
                 {"namespace": allocated_ns},
             ],
             output="screen",
-            condition=launch.conditions.IfCondition(
-                PythonExpression([f'"{human_val}" == "hunav"'])
-            ),
         )
 
         rviz_node = launch_ros.actions.Node(
