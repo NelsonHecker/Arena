@@ -811,9 +811,10 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 agent_msg.radius = params.agent_radius
                 agent_msg.vision_range = params.perception.vision_range
                 agent_msg.vision_fov = params.perception.vision_fov
-                agent_msg.relaxation_time = params.local_planner_params.relaxation_time
-                agent_msg.repulsion_strength = params.local_planner_params.repulsion_strength
-                agent_msg.repulsion_range = params.local_planner_params.repulsion_range
+                lp = params.local_planner_params
+                agent_msg.relaxation_time = lp.get("relaxation_time", 0.0)
+                agent_msg.repulsion_strength = lp.get("repulsion_strength", 0.0)
+                agent_msg.repulsion_range = lp.get("repulsion_range", 0.0)
                 agent_msg.agent_type = parsed.agent_type
             else:
                 agent_msg.desired_velocity = float(obstacle.velocity)
