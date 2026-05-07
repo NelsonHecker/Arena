@@ -238,7 +238,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             arena_runtime_msgs.msg.ShutdownRequest,
             "/arena/shutdown_request",
             self._cb_shutdown_request,
-            _LATCHED,
+            10,
         )
 
         self._check_status_task: asyncio.Task | None = None

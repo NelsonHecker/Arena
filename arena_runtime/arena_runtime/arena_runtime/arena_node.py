@@ -121,7 +121,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         self._pub_shutdown_request = self.create_publisher(
             arena_runtime_msgs.msg.ShutdownRequest,
             self.service_namespace("shutdown_request"),
-            _LATCHED,
+            10,
         )
 
         self.get_logger().info(f"waiting for {sim_name} services to come up")
