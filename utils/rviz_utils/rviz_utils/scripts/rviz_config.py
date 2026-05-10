@@ -107,21 +107,16 @@ class ConfigFileGenerator(ArenaMixinNode):
 
         pedestrian_group = {'Class': 'rviz_common/Group', 'Name': 'Pedestrians', 'Enabled': True, 'Displays': []}
 
-        # Check if pedestrian topics exist
         pedestrian_topics = []
         for topic_name, topic_types in self.topics:
             if os.path.basename(topic_name) == 'arena_peds' and 'arena_people_msgs/msg/Pedestrians' in topic_types:
                 pedestrian_topics.append((topic_name, 'arena_people_msgs/msg/Pedestrians'))
-            # Check for converted pedestrian markers
-            elif topic_name.endswith('/pedestrian_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
+            elif 'visualization_msgs/msg/MarkerArray' in topic_types and (
+                topic_name.endswith('/pedestrian_markers')
+                or '/pedestrian_markers/' in topic_name
+                or topic_name.endswith('/wall_markers')
+            ):
                 pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
-            elif topic_name.endswith('/pedestrian_markers/extra') and 'visualization_msgs/msg/MarkerArray' in topic_types:
-                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
-            elif topic_name.endswith('/pedestrian_markers/static') and 'visualization_msgs/msg/MarkerArray' in topic_types:
-                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
-            elif topic_name.endswith('/wall_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
-                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
-            # Check for legacy people topics (fallback)
             elif topic_name.endswith('/people') and 'people_msgs/msg/People' in topic_types:
                 pedestrian_topics.append((topic_name, 'people_msgs/msg/People'))
             elif topic_name.endswith('/human_states') and 'hunav_msgs/msg/Agents' in topic_types:
@@ -139,12 +134,13 @@ class ConfigFileGenerator(ArenaMixinNode):
                 # BaseHumanSimulator publishes MarkerArray on pedestrian_markers
 
             elif topic_type == 'visualization_msgs/msg/MarkerArray':
-                # Use MarkerArray display for converted pedestrian markers
-                is_static = topic_name.endswith('/pedestrian_markers/static')
-                enabled = not (topic_name.endswith('/wall_markers') or topic_name.endswith('/extra') or is_static)
+                leaf = os.path.basename(topic_name)
+                is_static = leaf.startswith('static')
+                is_legacy_unbucketed_static = leaf == 'static'
+                enabled = not (topic_name.endswith('/wall_markers') or leaf == 'extra' or is_legacy_unbucketed_static)
                 display = Utils.Displays.pedestrians(
                     topic_name,
-                    name=os.path.basename(topic_name),
+                    name=leaf,
                     enabled=enabled,
                     reliability='Reliable' if is_static else 'Best Effort',
                     durability='Transient Local' if is_static else 'Volatile',

@@ -43,6 +43,26 @@ Every subclass must implement:
 | `_remove_robot_impl(robots)` | human-sim side: deregister robots |
 | `_move_robot_impl(robots)` | human-sim side: update robot positions |
 
+## Visualization topics
+
+Each `BaseHumanSimulator` publishes under `<namespace>/pedestrian_markers/`:
+
+| Topic | QoS | Purpose |
+| --- | --- | --- |
+| `pedestrian_markers` | best-effort, volatile | Pedestrian body markers (set by adapters via `publish_arena_peds` downstream). |
+| `pedestrian_markers/extra` | best-effort, volatile | Debug overlay (forces, vision cones, etc.). Disabled by default in auto-rviz. |
+| `pedestrian_markers/static*` | reliable, transient-local, depth 1 | Latched authoritative scene (walls, obstacles, furniture, sources, sinks). |
+
+The `static*` slot is open-ended: an adapter may publish one combined topic (`/static`) or split into per-bucket sub-topics (`/static_walls`, `/static_objects`, ...). The rviz config builder auto-discovers any sibling matching `pedestrian_markers/static*` and adds a latched MarkerArray display. Bucket choice is per-adapter; consumers should not assume a fixed set.
+
+Current adapters:
+
+| Adapter | Static topics published |
+| --- | --- |
+| `hunav` | `pedestrian_markers/static` (single combined topic) |
+| `arena_humansim` | `pedestrian_markers/static_walls`, `pedestrian_markers/static_objects` |
+| `dummy`, `isaac` | none |
+
 ## PROMPT registration
 
 `TM_Prompt` is not registered centrally. Each `BaseHumanSimulator` subclass

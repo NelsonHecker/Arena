@@ -50,14 +50,19 @@ from arena_humansim_msgs.srv import (
     AddSource,
     AddWalls,
     AddWorldObjects,
+    Feedback,
+    GetProfile,
     RemoveAgents,
     RemoveObstacles,
     RemoveSink,
     RemoveSource,
     RemoveWalls,
     RemoveWorldObjects,
+    ResetSimulation,
     SetFlow,
+    SetWaypoints,
     SpawnAgents,
+    UpdateRobot,
 )
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.Async import ClientWrapper
@@ -101,6 +106,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
     SERVICE_SPAWN_AGENTS = "spawn_agents"
     SERVICE_REMOVE_AGENTS = "remove_agents"
+    SERVICE_UPDATE_ROBOT = "update_robot"
+    SERVICE_SET_WAYPOINTS = "set_waypoints"
     SERVICE_SET_FLOW = "set_flow"
     SERVICE_ADD_SOURCE = "add_source"
     SERVICE_REMOVE_SOURCE = "remove_source"
@@ -112,6 +119,9 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     SERVICE_REMOVE_OBSTACLES = "remove_obstacles"
     SERVICE_ADD_WORLD_OBJECTS = "add_world_objects"
     SERVICE_REMOVE_WORLD_OBJECTS = "remove_world_objects"
+    SERVICE_RESET = "reset"
+    SERVICE_GET_PROFILE = "get_profile"
+    SERVICE_FEEDBACK = "feedback"
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
@@ -168,6 +178,26 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             RemoveWorldObjects,
             self.node.service_namespace(self.SERVICE_REMOVE_WORLD_OBJECTS),
         )
+        self._update_robot_client: ClientWrapper = self.node.create_client_wrapper(
+            UpdateRobot,
+            self.node.service_namespace(self.SERVICE_UPDATE_ROBOT),
+        )
+        self._set_waypoints_client: ClientWrapper = self.node.create_client_wrapper(
+            SetWaypoints,
+            self.node.service_namespace(self.SERVICE_SET_WAYPOINTS),
+        )
+        self._reset_client: ClientWrapper = self.node.create_client_wrapper(
+            ResetSimulation,
+            self.node.service_namespace(self.SERVICE_RESET),
+        )
+        self._get_profile_client: ClientWrapper = self.node.create_client_wrapper(
+            GetProfile,
+            self.node.service_namespace(self.SERVICE_GET_PROFILE),
+        )
+        self._feedback_client: ClientWrapper = self.node.create_client_wrapper(
+            Feedback,
+            self.node.service_namespace(self.SERVICE_FEEDBACK),
+        )
 
         self._next_id: int = 1
         self._rng: np.random.Generator = np.random.default_rng(42)
@@ -206,8 +236,6 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             10,
         )
 
-        # Forward arena_humansim's debug + static viz topics through the base class
-        # `publish_markers` / `publish_static_markers` API.
         self.node.create_subscription(
             MarkerArray,
             self.node.service_namespace("viz"),
@@ -220,23 +248,37 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             ),
         )
 
+        static_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        self._static_walls_pub = self.node.create_publisher(
+            MarkerArray,
+            self._namespace("pedestrian_markers", "static_walls"),
+            static_qos,
+        )
+        self._static_objects_pub = self.node.create_publisher(
+            MarkerArray,
+            self._namespace("pedestrian_markers", "static_objects"),
+            static_qos,
+        )
         self.node.create_subscription(
             MarkerArray,
-            self.node.service_namespace("viz_static"),
-            self._forward_static_markers,
-            QoSProfile(
-                reliability=QoSReliabilityPolicy.RELIABLE,
-                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                history=QoSHistoryPolicy.KEEP_LAST,
-                depth=1,
-            ),
+            self.node.service_namespace("viz_static", "walls"),
+            self._static_walls_pub.publish,
+            static_qos,
+        )
+        self.node.create_subscription(
+            MarkerArray,
+            self.node.service_namespace("viz_static", "objects"),
+            self._static_objects_pub.publish,
+            static_qos,
         )
 
     def _forward_debug_markers(self, msg: MarkerArray):
         self.publish_markers(msg)
-
-    def _forward_static_markers(self, msg: MarkerArray):
-        self.publish_static_markers(msg)
 
     def _agent_states_callback(self, msg: AgentStatesMsg):
         """Cache prev/curr snapshots from arena_humansim for local interpolation."""
@@ -315,6 +357,11 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     self._remove_obstacles_client,
                     self._add_world_objects_client,
                     self._remove_world_objects_client,
+                    self._update_robot_client,
+                    self._set_waypoints_client,
+                    self._reset_client,
+                    self._get_profile_client,
+                    self._feedback_client,
                 )
             )
         )
@@ -878,7 +925,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     async def _remove_pedestrians_impl(self) -> bool:
         """Remove all dynamic agents from arena_humansim."""
         request = RemoveAgents.Request()
-        request.agent_ids = [-1]  # -1 = remove all
+        request.agent_ids = []  # empty = remove all
 
         try:
             response = await self._remove_client.call_timeout(request)
