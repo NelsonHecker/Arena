@@ -319,7 +319,8 @@
     <origin xyz="0 0 ${riser_height + deck_thickness}" rpy="0 0 0"/>
   </joint>
 
-  <!-- Bring in simulation data for Gazebo. -->
+  <xacro:include filename="$(find arena_robots)/robots/ridgeback/urdf/base_hw/ridgeback.ros2_control.urdf"/>
+
   <xacro:include filename="$(find arena_robots)/robots/ridgeback/urdf/ridgeback.gazebo" />
 
   <!-- Optional standard accessories, including their simulation data. The rendering

@@ -6,6 +6,8 @@ GazeboSimulator is per-env on task_generator_node and adapts env-namespace state
 import asyncio
 import itertools
 import math
+import os
+import tempfile
 import time
 import traceback
 import typing
@@ -15,6 +17,8 @@ import arena_robots.Robot
 import launch
 import launch_ros
 import rclpy.impl.rcutils_logger
+import yaml
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
@@ -184,6 +188,57 @@ class GazeboSimulator(BaseSim):
     async def after_reset_episode(self) -> bool:
         return True
 
+    def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
+        args: dict[str, object] = {**robot.asdict(), 'sim_path': robot.sim_path}
+        robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+        control_spec = robot_config.model_params.control
+        if control_spec is None or not control_spec.is_ros2_control:
+            return args
+        args['namespace'] = str(self.node.service_namespace(robot.name))
+        for k, v in control_spec.xacro_args.items():
+            args[k] = v
+        if control_spec.config is not None:
+            args['gazebo_controllers'] = self._render_ros2_control_yaml(
+                robot,
+                control_spec.config,
+                frame_prefix=robot.frame.raw(),
+            )
+        return args
+
+    def _render_ros2_control_yaml(self, robot: Robot, config_uri: str, *, frame_prefix: str) -> str:
+        if config_uri.startswith("package://"):
+            pkg, _, sub = config_uri[len("package://"):].partition('/')
+            try:
+                src_path = os.path.join(get_package_share_directory(pkg), sub)
+            except PackageNotFoundError as e:
+                raise FileNotFoundError(f"control.config package '{pkg}' not found") from e
+        else:
+            src_path = config_uri
+        with open(src_path) as f:
+            data = yaml.safe_load(f)
+
+        def _prefix_frames(obj: object) -> object:
+            if isinstance(obj, dict):
+                return {
+                    k: (f"{frame_prefix}/{v}" if isinstance(k, str) and k.endswith("_frame_id") and isinstance(v, str) and "/" not in v else _prefix_frames(v))
+                    for k, v in obj.items()
+                }
+            if isinstance(obj, list):
+                return [_prefix_frames(x) for x in obj]
+            return obj
+
+        rendered = _prefix_frames(data)
+        if isinstance(rendered, dict):
+            rendered = {
+                (k if k.startswith('/') else f'/**/{k}'): v
+                for k, v in rendered.items()
+            }
+        out_dir = tempfile.gettempdir()
+        out_path = os.path.join(out_dir, f"arena_control_{robot.sim_path}.yaml")
+        with open(out_path, 'w') as f:
+            yaml.safe_dump(rendered, f, sort_keys=False)
+        return out_path
+
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return await asyncio.gather(*map(self._spawn_entity, obstacles))
 
@@ -195,7 +250,7 @@ class GazeboSimulator(BaseSim):
         async def impl(robot: Robot) -> bool:
             if not await self._spawn_entity(robot):
                 return False
-            _loader_args = {**robot.asdict(), 'sim_path': robot.sim_path}
+            _loader_args = self._robot_loader_args(robot)
             model = await (await robot.model.resolve()).model.get(ModelType.URDF, loader_args=_loader_args)
             if model.type is ModelType.UNKNOWN:
                 return False
@@ -292,7 +347,7 @@ class GazeboSimulator(BaseSim):
                 # Get model description
                 try:
                     if isinstance(entity, Robot):
-                        _loader_args = {**entity.asdict(), 'sim_path': entity.sim_path}
+                        _loader_args = self._robot_loader_args(entity)
                         model = await (await entity.model.resolve()).model.get(ModelType.URDF, loader_args=_loader_args)
                     else:
                         model = await (await entity.model.resolve()).model.get(ModelType.SDF)
@@ -477,10 +532,7 @@ class GazeboSimulator(BaseSim):
                 ],
             )
         )
-        # pose_to_tf: publish odom→base_link from Gazebo's ground-truth pose
-        # so downstream localization is not contaminated by wheel-slip odometry.
-        # DiffDrive's own TF is suppressed via <tf_topic>/discard_tf</tf_topic>
-        # in each robot's gazebo file.
+
         launch_description.add_action(
             launch_ros.actions.Node(
                 package="pose_to_tf",
@@ -497,9 +549,45 @@ class GazeboSimulator(BaseSim):
                 ],
             )
         )
-        # Static identity map→odom. pose_to_tf already publishes odom→base_link =
-        # robot's world pose, and map coincides with world, so this makes
-        # map→base_link track ground truth with no per-reset recomputation.
+
+        control_spec = robot_config.model_params.control
+        if control_spec is not None and control_spec.is_ros2_control:
+            if not control_spec.controllers:
+                raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
+            for controller_name in control_spec.controllers:
+                launch_description.add_action(
+                    launch_ros.actions.Node(
+                        package="controller_manager",
+                        executable="spawner",
+                        name=f"spawner_{controller_name}",
+                        output="screen",
+                        arguments=[
+                            controller_name,
+                            "--controller-manager",
+                            "controller_manager",
+                            "--controller-manager-timeout",
+                            "60",
+                        ],
+                        parameters=[{"use_sim_time": True}],
+                    )
+                )
+            launch_description.add_action(
+                launch_ros.actions.Node(
+                    package="twist_stamper",
+                    executable="twist_stamper",
+                    name="twist_stamper",
+                    output="screen",
+                    remappings=[
+                        ("cmd_vel_in", "cmd_vel"),
+                        ("cmd_vel_out", control_spec.cmd_vel_topic),
+                    ],
+                    parameters=[{
+                        "use_sim_time": True,
+                        "frame_id": robot.frame(robot_config.model_params.base_frame).raw(),
+                    }],
+                )
+            )
+
         launch_description.add_action(
             launch_ros.actions.Node(
                 package="tf2_ros",

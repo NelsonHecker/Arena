@@ -6,3 +6,10 @@ sensors:
     type: laserscan
     topic: ${namespace}/lidar
     frame: lidar
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/ridgeback_plus/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - platform_velocity_controller
+  cmd_vel_topic: platform_velocity_controller/reference

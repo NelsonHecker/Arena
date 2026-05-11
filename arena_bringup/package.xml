@@ -22,6 +22,14 @@
   <depend>angles</depend>
   <depend>slam_toolbox</depend>
 
+  <exec_depend>gz_ros2_control</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>ros2controlcli</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>diff_drive_controller</exec_depend>
+  <exec_depend>mecanum_drive_controller</exec_depend>
+  <exec_depend>twist_stamper</exec_depend>
+
   <test_depend>python3-pytest</test_depend>
 
   <export>

@@ -16,6 +16,47 @@ from arena_robots.caps import MobileSpec, RobotCaps
 from arena_robots.Sensor import SensorSpec
 
 
+@attrs.frozen
+class ControlSpec:
+    """ros2_control wiring declared in ``model_params.yaml`` under ``control:``.
+
+    Presence in the YAML opts the robot into the ros2_control path in
+    Gazebo bringup: an in-process controller_manager (hosted by the URDF's
+    gz_ros2_control plugin) plus a controller_manager/spawner per entry in
+    ``controllers``. Absence means the legacy gazebo_native path (PosePublisher
+    + pose_to_tf + bridged cmd_vel) runs unchanged.
+    """
+
+    mode: str
+    controllers: tuple[str, ...]
+    config: str | None = None
+    cmd_vel_topic: str = "cmd_vel"
+    xacro_args: typing.Mapping[str, str] = attrs.field(factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: typing.Mapping[str, typing.Any]) -> "ControlSpec":
+        mode = str(data.get("mode", "gazebo_native"))
+        controllers_raw = data.get("controllers", [])
+        if not isinstance(controllers_raw, list):
+            raise ValueError(f"control.controllers must be a list; got {type(controllers_raw).__name__}")
+        controllers = tuple(str(c) for c in controllers_raw)
+        config = data.get("config")
+        xacro_args_raw = data.get("xacro_args", {}) or {}
+        if not isinstance(xacro_args_raw, dict):
+            raise ValueError(f"control.xacro_args must be a mapping; got {type(xacro_args_raw).__name__}")
+        return cls(
+            mode=mode,
+            controllers=controllers,
+            config=str(config) if config is not None else None,
+            cmd_vel_topic=str(data.get("cmd_vel_topic", "cmd_vel")),
+            xacro_args={str(k): str(v) for k, v in xacro_args_raw.items()},
+        )
+
+    @property
+    def is_ros2_control(self) -> bool:
+        return self.mode == "ros2_control"
+
+
 class ModelParams(dict[str, typing.Any]):
     """Robot-wide identity (from ``model_params.yaml``) with typed accessors
     that delegate to the sibling ``caps/`` tree for mobile primitives.
@@ -69,6 +110,17 @@ class ModelParams(dict[str, typing.Any]):
     def navigator(self) -> str:
         """Default navstack adapter kind baked into the robot model; precedence: robot_setup YAML > CLI > model_params."""
         return str(self.get('navigator', 'nav2'))
+
+    @property
+    def control(self) -> ControlSpec | None:
+        """Typed view of the ``control:`` block in model_params.yaml. ``None``
+        when absent (legacy gazebo_native pipeline)."""
+        raw = self.get('control')
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            raise ValueError(f"model_params 'control' must be a mapping; got {type(raw).__name__}")
+        return ControlSpec.from_dict(raw)
 
     @property
     def sensors(self) -> list["SensorSpec"]:

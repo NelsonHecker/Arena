@@ -8,8 +8,11 @@ from pathlib import Path
 
 import aiofiles
 import attrs
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 
 from . import Model, ModelProvider, ModelType
+
+_PACKAGE_URI = "package://"
 
 
 class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
@@ -56,31 +59,35 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
             tree = ET.parse(model_path)
             root = tree.getroot()
 
-            prefix = "package://jackal_description"
-
-            # Iterate over every element in the XML tree and update 'filename' attributes
             for elem in root.iter():
-                if 'filename' in elem.attrib:
-                    original_path = elem.attrib['filename']
-                    # Remove the specific package prefix if present
-                    if original_path.startswith(prefix):
-                        # Remove the prefix and any leading '/'
-                        new_relative = original_path[len(prefix) :].lstrip('/')
-                        original_path = new_relative
-                        print(f"Removed prefix: {prefix} -> New relative path: {original_path}")
-                    # Convert to absolute path if it's not already
-                    if not os.path.isabs(original_path):
-                        abs_path = os.path.abspath(os.path.join(base_dir, original_path))
-                        elem.attrib['filename'] = abs_path
-                        print(f"Updated relative path to absolute: {original_path} -> {abs_path}")
+                if 'filename' not in elem.attrib:
+                    continue
+                if elem.tag.rpartition('}')[-1] == 'plugin':
+                    continue
+                original_path = elem.attrib['filename']
 
-            # Write the updated XML tree to a temporary file
+                if original_path.startswith(_PACKAGE_URI):
+                    pkg, _, sub = original_path[len(_PACKAGE_URI):].partition('/')
+                    try:
+                        share = get_package_share_directory(pkg)
+                        abs_path = os.path.join(share, sub)
+                    except PackageNotFoundError:
+                        abs_path = os.path.abspath(os.path.join(base_dir, sub))
+                    elem.attrib['filename'] = abs_path
+                    print(f"Resolved {original_path} -> {abs_path}")
+                    continue
+
+                if not os.path.isabs(original_path):
+                    abs_path = os.path.abspath(os.path.join(base_dir, original_path))
+                    elem.attrib['filename'] = abs_path
+                    print(f"Updated relative path to absolute: {original_path} -> {abs_path}")
+
+            ser = ET.tostring(root, encoding="utf-8", method="xml", xml_declaration=True)
             async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".urdf", mode="wb") as tmp:
-                ser = ET.tostring(root, encoding="utf-8", method="xml", xml_declaration=True)
                 await tmp.write(ser)
                 print(f"Converted URDF saved to temporary file: {tmp.name}")
 
-            return Model(type=ModelType.URDF, name=model, description=model_desc, path=Path(tmp.name))
+            return Model(type=ModelType.URDF, name=model, description=ser.decode("utf-8"), path=Path(tmp.name))
 
         except subprocess.CalledProcessError as e:
             print(f"error processing model {model} URDF file {xacro_path}. refusing to load.\n{e}\n{e.output.decode('utf-8')}", file=sys.stderr)
