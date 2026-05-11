@@ -124,7 +124,6 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             walls (Sequence[Wall]): _description_
             doors (Sequence[Door]): _description_
         """
-        self._logger.debug(f'spawning {len(walls)} walls and {len(doors)} doors')
         await asyncio.gather(
             self._simulator.spawn_doors(doors),
             self._simulator.spawn_walls(walls),

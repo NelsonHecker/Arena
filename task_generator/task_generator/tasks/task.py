@@ -186,6 +186,7 @@ class Task(_TaskRegistry, NodeInterface):
             self.__reset_start.publish(std_msgs.Empty())
 
             await self.robots_manager.set_up()
+            await self.robots_manager.launch_pending()
 
             await self.environment_manager.before_reset_episode()
 

@@ -244,6 +244,32 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._check_status_task: asyncio.Task | None = None
         self._episode_task: asyncio.Task | None = None
 
+        self._publish_bootstrap_queue_state()
+
+    def _publish_bootstrap_queue_state(self) -> None:
+        # Latch a minimal state/queue at construction so the rviz panel can
+        # build its mode comboboxes and param tree before managers exist,
+        # instead of waiting for _build_next_record at first reset.
+        current_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
+        current_obstacles = self.conf.TaskMode.TM_OBSTACLES.value.value if self.conf.TaskMode.TM_OBSTACLES.value else ""
+        current_modules = [m.value for m in self.conf.TaskMode.TM_MODULES.value]
+
+        msg = task_generator_msgs.msg.EpisodeRecord()
+        msg.episode_id = 0
+        msg.world = ""
+        msg.seed = -1
+        msg.tm_robots = current_robots
+        msg.tm_obstacles = current_obstacles
+        msg.tm_modules = list(current_modules)
+        msg.robots = []
+        msg.outcome_state = task_generator_msgs.msg.EpisodeRecord.QUEUED
+        msg.outcome_info = ""
+        msg.goal_uuid = ""
+        msg.integrity = True
+        msg.obstacles_params = self._params_for_mode(current_obstacles)
+        msg.robots_params = self._params_for_mode(current_robots)
+        self._pub_state_queue.publish(msg)
+
     def _declare_mutable_param(self, name: str, default: object, descriptor: ParameterDescriptor) -> None:
         self.rosparam[type(default)].declare_safe(name, default, descriptor=descriptor)
 
@@ -285,7 +311,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         rclpy.try_shutdown()
 
     async def setup(self) -> None:
-        self._logger.info("Configuring Task Generator Node")
         try:
             await self._set_up_services()
             await self._arena_hold_client.ensure()
@@ -297,8 +322,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             tm_modules.add(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
             tm_modules.add(Constants.TaskMode.TM_Module.RVIZ_UI)
 
-            self._logger.info("Creating task")
-            self._logger.debug(f"Modules: {list(tm_modules)}")
             self._task = await Task.create(
                 node=self,
                 environment_manager=self._environment_manager,
@@ -308,9 +331,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             )
 
             await self._world_manager.sync()
+            await self._robots_manager.launch_pending()
 
             self.rosparam[bool].set("initialized", True)
-            self._logger.info("Task Generator Node configured")
+            self._publish_queue_state()
         except Exception as e:
             self._logger.error(f"configure failed: {e!r}\n{traceback.format_exc()}")
             return

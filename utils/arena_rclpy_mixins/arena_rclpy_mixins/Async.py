@@ -21,22 +21,23 @@ T = typing.TypeVar('T')
 
 class AsyncLaunchManager:
     def __init__(self):
-        self.active: dict[asyncio.Task[int], launch.LaunchService] = {}
+        self.active_tasks: set[asyncio.Task] = set()
 
-    async def launch_description(self, description: launch.LaunchDescription) -> asyncio.Task[int]:
-        ls = launch.LaunchService()
+    async def launch_description(self, description: launch.LaunchDescription) -> asyncio.Task:
+        ls = launch.LaunchService(noninteractive=True)
         ls.include_launch_description(description)
         task = asyncio.create_task(ls.run_async())
-        self.active[task] = ls
-        task.add_done_callback(lambda t: self.active.pop(t, None))
+        self.active_tasks.add(task)
+        task.add_done_callback(self.active_tasks.discard)
         return task
 
     async def kill_all(self):
-        if not self.active:
+        if not self.active_tasks:
             return
-        shutdowns = [ls.shutdown() for ls in list(self.active.values())]
-        await asyncio.gather(*shutdowns, return_exceptions=True)
-        await asyncio.gather(*list(self.active), return_exceptions=True)
+        for task in self.active_tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*self.active_tasks, return_exceptions=True)
 
 
 class AsyncNode(TimeNode, rclpy.node.Node):
@@ -45,7 +46,7 @@ class AsyncNode(TimeNode, rclpy.node.Node):
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self.__loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        self.__launch_manager = AsyncLaunchManager()
+        self._launch_manager = AsyncLaunchManager()
 
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:
@@ -72,12 +73,12 @@ class AsyncNode(TimeNode, rclpy.node.Node):
 
     async def do_launch(self, launch_description: launch.LaunchDescription) -> None:
         async def _launcher():
-            await self.__launch_manager.launch_description(launch_description)
+            await self._launch_manager.launch_description(launch_description)
 
         asyncio.run_coroutine_threadsafe(_launcher(), self.__loop)
 
     async def kill_launches(self) -> None:
-        await self.__launch_manager.kill_all()
+        await self._launch_manager.kill_all()
 
     def wait_for(self, future: typing.Awaitable[T]) -> T:
         try:
