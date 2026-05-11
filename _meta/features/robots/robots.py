@@ -13,7 +13,6 @@ from pathlib import Path
 
 ROBOTS_PREFIX = "arena_robots/arena_robots/robots"
 
-EXIT_NEEDS_DEPS = 10  # main script runs `arena deps` when seen
 
 MESH_URI_RE = re.compile(r'package://arena_robots/([^\s"\'<>\)\}\$]+)')
 FIND_URI_RE = re.compile(r'\$\(find\s+arena_robots\)/([^\s"\'<>\)\}\$]+)')
@@ -112,19 +111,15 @@ def cmd_add(arena: Path, args) -> int:
             print("robots: specify robot name(s) or --all", file=sys.stderr)
             return 2
         names = args.names
-    status_before = submodule_status(arena)
-    newly_init = False
     for robot in names:
         paths = subs.get(robot)
         if not paths:
             print(f"robots: '{robot}' has no submodules — nothing to install")
             continue
         for p in paths:
-            if status_before.get(p) == "uninit":
-                newly_init = True
             _git(["-c", "protocol.file.allow=always",
                   "submodule", "update", "--init", "--checkout", p], arena)
-    return EXIT_NEEDS_DEPS if newly_init else 0
+    return 0
 
 
 def cmd_rm(arena: Path, args) -> int:

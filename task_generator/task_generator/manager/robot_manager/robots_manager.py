@@ -7,10 +7,11 @@ import typing
 import arena_robots.SetupFile as robot_setup
 import attrs
 import rclpy
+import task_generator_msgs.msg
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_rclpy_mixins.shared import Namespace
+from arena_runtime._node import NodeInterface
 
-from task_generator import NodeInterface
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import Pose, Position, Robot
 
@@ -197,7 +198,11 @@ class RobotsManager(NodeInterface):
             # TODO
         self._diff.to_update.clear()
 
-        node_paths: set[str] = set()
+        # Re-seed staging poses from the latest prespawn anchor; placement may
+        # have changed since the previous reset.
+        prespawn_x, prespawn_y = self.node._prespawn_offset
+        self._initialpose = _initialpose_generator(prespawn_x, prespawn_y, -5)
+
         for robot_name, config in self._diff.to_add.items():
             config = attrs.evolve(config)
             config.name = robot_name
@@ -210,29 +215,62 @@ class RobotsManager(NodeInterface):
                 environment_manager=self._environment_manager,
                 robot=config,
             )
-            futures.append(manager.set_up_robot(node_paths))
+            futures.append(manager.set_up_robot())
             self.managers[robot_name] = manager
+            self._pending_launch.append(manager)
 
-        with self.provide_node_paths(node_paths) as fetch_task:
-            await asyncio.wait(
-                (
-                    fetch_task,
-                    asyncio.gather(*futures),
-                ),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+        await asyncio.gather(*futures)
         self._diff.to_add.clear()
 
         self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
+
+        fleet = task_generator_msgs.msg.RobotFleet(
+            robots=[
+                task_generator_msgs.msg.RobotDescriptor(
+                    name=mgr.name,
+                    model=mgr.model_name,
+                    ns=str(mgr.namespace),
+                    frame=mgr.frame.raw().lstrip("/"),
+                )
+                for mgr in self.managers.values()
+            ]
+        )
+        self.node._pub_state_robots.publish(fleet)
 
     def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager: EnvironmentManager = environment_manager
         self._managers: dict[str, RobotManager] = {}
-        self._initialpose = _initialpose_generator(-10, -10, -5)
+        self._initialpose = _initialpose_generator(0.0, 0.0, -5)
+        self._diff = _RobotDiff()
+        self._pending_launch: list[RobotManager] = []
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](
             'robot',
             type_=rclpy.Parameter.Type.STRING,
             parse=self._parse_robot_configurations,
         )
+
+    async def launch_pending(self) -> None:
+        """Bring up navstacks for managers queued by set_up. Caller controls when this fires
+        so LaunchService.run_async()'s main-loop block doesn't starve concurrent work
+        (e.g. spawn_world_obstacles)."""
+        if not self._pending_launch:
+            return
+        pending = self._pending_launch
+        self._pending_launch = []
+        node_paths: set[str] = set()
+        with self.provide_node_paths(node_paths) as fetch_task:
+            await asyncio.wait(
+                (
+                    fetch_task,
+                    asyncio.gather(*(m.launch(node_paths) for m in pending)),
+                ),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+    def add_pending(self, name: str, robot: Robot) -> None:
+        """Queue a robot for full set_up_robot on the next reset_cycle."""
+        if name in self._managers or name in self._diff.to_add:
+            raise ValueError(f"robot {name!r} already exists")
+        self._diff.to_add[name] = robot

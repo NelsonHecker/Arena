@@ -8,13 +8,6 @@ class Constants:
     DEFAULT_PEDESTRIAN_MODEL = "arenian"
     TASK_GENERATOR_SERVER_NODE = Namespace("task_generator_server")
 
-    class SimSimulator(Enum):
-        DUMMY = "dummy"
-        FLATLAND = "flatland"
-        GAZEBO = "gazebo"
-        UNITY = "unity"
-        ISAAC = "isaac"
-
     class ArenaType(Enum):
         TRAINING = "training"
         DEPLOYMENT = "deployment"
@@ -62,7 +55,6 @@ class Constants:
             DYNAMIC_MAP = "dynamic_map"
             CLEAR_FORBIDDEN_ZONES = "clear_forbidden_zones"
             RVIZ_UI = "rviz_ui"
-            BENCHMARK = "benchmark"
 
             @classmethod
             def prefix(cls, *args: object) -> Namespace:

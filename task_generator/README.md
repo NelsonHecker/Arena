@@ -1,8 +1,11 @@
 # task_generator
 
-Runtime task orchestration for Arena. Assigns goals to robots, populates the
+Per-env episode loop for Arena. Assigns goals to robots, populates the
 simulator with obstacles, and coordinates across episodes via a three-axis
 task-mode registry.
+
+The `arena_node` runtime, env/hold registries, and simulator adapters live
+in [`arena_runtime/`](../arena_runtime/README.md).
 
 ## Guides
 
@@ -18,8 +21,8 @@ task-mode registry.
   hooks, shipped modules.
 - [Managers](task_generator/manager/README.md) — `RobotsManager`,
   `RobotManager`, `WorldManager`, `EnvironmentManager`, `Realizer`.
-- [Sim interface](task_generator/simulators/sim/README.md) — `BaseSim` and its
-  four sub-interfaces; registered implementations.
+- [Sim interface](../arena_runtime/arena_runtime/arena_runtime/sim/README.md) —
+  `BaseSim` and its four sub-interfaces; registered implementations.
 - [Human simulator](task_generator/simulators/human/README.md) —
   `BaseHumanSimulator`, PROMPT registration, hunav default agent.
 - [Utils](task_generator/utils/README.md) — generic `Registry`, arena helpers,

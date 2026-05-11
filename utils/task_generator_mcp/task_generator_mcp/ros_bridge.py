@@ -7,15 +7,16 @@ from typing import Any
 import rclpy
 import rclpy.qos
 from arena_rclpy_mixins.shared import ActionClientWrapper, AsyncNode, ClientWrapper
+from arena_runtime_msgs.srv import LifecycleHold
 from geometry_msgs.msg import PoseStamped
 from rcl_interfaces.srv import DescribeParameters, GetParameters, ListParameters, SetParameters
+from std_msgs.msg import Bool as BoolMsg
 from std_msgs.msg import String
 from std_srvs.srv import Empty
 from task_generator_msgs.action import RunEpisode
 from task_generator_msgs.msg import EpisodeRecord
 from task_generator_msgs.srv import (
     GetTaskModes,
-    Pause,
     QueryDynamicObstacles,
     QueryEnvironments,
     QueryParametrizeds,
@@ -55,8 +56,10 @@ class RosBridge(AsyncNode):
 
         # lifecycle
         self.client_reset_episode: ClientWrapper[ResetEpisode] = self.create_client_wrapper(ResetEpisode, _path("lifecycle/reset_episode"))
-        self.client_pause: ClientWrapper[Pause] = self.create_client_wrapper(Pause, _path("lifecycle/pause"))
+        self.client_pause: ClientWrapper[LifecycleHold] = self.create_client_wrapper(LifecycleHold, "/arena/sim_lifecycle/hold")
         self.client_wait_for_world: ClientWrapper[Empty] = self.create_client_wrapper(Empty, _path("lifecycle/wait_for_world"))
+
+        self._arena_paused: bool = False
 
         # query
         self.client_query_worlds: ClientWrapper[QueryWorlds] = self.create_client_wrapper(QueryWorlds, _path("query/worlds"))
@@ -91,6 +94,12 @@ class RosBridge(AsyncNode):
         self._queued_episode: EpisodeRecord | None = None
 
         self.create_subscription(
+            BoolMsg,
+            "/arena/state/paused",
+            self._on_arena_paused,
+            _TRANSIENT_LOCAL_1,
+        )
+        self.create_subscription(
             String,
             _path("state/world"),
             self._on_state_world,
@@ -112,6 +121,9 @@ class RosBridge(AsyncNode):
         # spin on a background thread
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
+
+    def _on_arena_paused(self, msg: BoolMsg) -> None:
+        self._arena_paused = msg.data
 
     def _on_state_world(self, msg: String) -> None:
         self._state_world = msg.data
@@ -136,6 +148,10 @@ class RosBridge(AsyncNode):
     @property
     def queued_episode(self) -> EpisodeRecord | None:
         return self._queued_episode
+
+    @property
+    def arena_paused(self) -> bool:
+        return self._arena_paused
 
     def pose_dict_to_msg(self, pose: dict[str, Any] | None) -> tuple[PoseStamped, bool]:
         """Convert an optional pose dict to a PoseStamped and use_pose flag."""

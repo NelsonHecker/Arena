@@ -1,0 +1,9 @@
+uint16 env_id           # registered env to place
+WorldExtent extent      # bbox of geometry the client wants placed, runtime pads with slot_buffer
+---
+bool success
+float32[2] reference    # origin offset to apply (bbox center maps to slot center)
+float32[2] slot_extent  # packed slot size [w, h] including buffer ring
+float32[2] prespawn     # pre-spawn anchor in absolute coords, inside the buffer ring east of bbox
+bool reallocated        # true if reference changed (always true on first placement)
+string error_msg

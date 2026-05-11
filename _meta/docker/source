@@ -6,6 +6,12 @@ export HOST_ARENA_WS_DIR="$ARENA_WS_DIR"
 export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
 export ARENA_ROS_DISTRO=jazzy
 
+export ARENA_DATA_DIR="${ARENA_DATA_DIR:-$ARENA_WS_DIR/data}"
+mkdir -p "$ARENA_DATA_DIR"
+mkdir -p "$ARENA_DATA_DIR/benchmarks"
+mkdir -p "$ARENA_DATA_DIR/agents"
+export HOST_ARENA_DATA_DIR="$ARENA_DATA_DIR"
+export ROSNAV_AGENTS_DIR="${ROSNAV_AGENTS_DIR:-$ARENA_DATA_DIR/agents}"
 
 mkdir -p "$ARENA_DIR/.venv"
 mkdir -p "$ARENA_WS_DIR/build"
@@ -33,6 +39,8 @@ docker_env="${docker_env} ARENA_IMAGE_TAG=$ARENA_IMAGE_TAG"
 docker_env="${docker_env} ARENA_WS_DIR=$ARENA_WS_DIR"
 docker_env="${docker_env} HOST_UID=$HOST_UID"
 docker_env="${docker_env} HOST_GID=$HOST_GID"
+docker_env="${docker_env} ARENA_DATA_DIR=$ARENA_DATA_DIR"
+docker_env="${docker_env} ROSNAV_AGENTS_DIR=$ROSNAV_AGENTS_DIR"
 export docker_env
 
 export arena_compose_sudo=""

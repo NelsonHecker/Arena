@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
+import asyncio.base_subprocess
 import contextlib
-from collections.abc import Iterator
+import errno
+import gc
+import signal
+import traceback
+import typing
+from collections.abc import Callable, Iterator
 
 import rclpy
 import rclpy.executors
 import rclpy.node
+from rclpy.exceptions import InvalidHandle
 from rclpy.executors import ExternalShutdownException
+from rclpy.signals import SignalHandlerOptions
+
+if typing.TYPE_CHECKING:
+    from arena_rclpy_mixins import ArenaMixinNode
 
 
 @contextlib.contextmanager
@@ -16,22 +28,7 @@ def spin_context(
     *,
     executor: rclpy.executors.Executor | None = None,
 ) -> Iterator[None]:
-    """Wrap a custom mainloop with robust teardown.
-
-    First SIGINT/external shutdown exits the body; subsequent KeyboardInterrupts
-    during shutdown are swallowed so finalizers don't get torn apart mid-call.
-
-    Caller-supplied executor is shut down on exit (we own what we're handed).
-    A None executor means the body relies on rclpy.spin's implicit global, which
-    rclpy.shutdown cleans up.
-
-    Body drives its own spin::
-
-        with spin_context(executor=exec):
-            while rclpy.ok():
-                exec.spin_once(timeout_sec=0.1)
-                do_other_work()
-    """
+    """Wrap a custom mainloop: swallow SIGINT/ExternalShutdown, shut down executor + rclpy on exit."""
     try:
         yield
     except (KeyboardInterrupt, ExternalShutdownException):
@@ -45,7 +42,7 @@ def spin_context(
 
 
 def spin_node(node: rclpy.node.Node, **kwargs: object) -> None:
-    """Spin a single node until shutdown. Forwards kwargs to spin_context."""
+    """Spin a single node until shutdown."""
     executor = kwargs.get("executor")
     with spin_context(**kwargs):
         try:
@@ -53,3 +50,147 @@ def spin_node(node: rclpy.node.Node, **kwargs: object) -> None:
         finally:
             with contextlib.suppress(KeyboardInterrupt):
                 node.destroy_node()
+
+
+def _close_subprocess_transports() -> None:
+    # gc walk: pipe transports are in loop._transports but BaseSubprocessTransport itself isn't.
+    for obj in gc.get_objects():
+        if isinstance(obj, asyncio.base_subprocess.BaseSubprocessTransport):
+            with contextlib.suppress(Exception):
+                obj.close()
+
+
+def _suppress_shutdown_noise(loop: asyncio.AbstractEventLoop, context: dict) -> None:
+    exc = context.get("exception")
+    if isinstance(exc, asyncio.InvalidStateError):
+        return
+    if not rclpy.ok():
+        if isinstance(exc, AssertionError):
+            return
+        if isinstance(exc, OSError) and exc.errno == errno.EBADF:
+            return
+    loop.default_exception_handler(context)
+
+
+async def async_main(
+    *,
+    node_factory: Callable[[], ArenaMixinNode],
+    aiomonitor: bool = False,
+) -> None:
+    """Standard rclpy+asyncio entry: build node, spin in worker, await forever, tear down."""
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    loop = asyncio.get_running_loop()
+    loop.set_exception_handler(_suppress_shutdown_noise)
+
+    executor = rclpy.executors.MultiThreadedExecutor()
+    node = node_factory()
+    node.event_loop = loop
+    executor.add_node(node)
+
+    def _spin() -> None:
+        while rclpy.ok():
+            try:
+                executor.spin()
+                return
+            except ExternalShutdownException:
+                return
+            except InvalidHandle:
+                continue
+
+    spin_future = loop.run_in_executor(None, _spin)
+
+    async def _app() -> None:
+        await node.setup()
+        await asyncio.Event().wait()
+
+    app_task = asyncio.create_task(_app())
+
+    teardown_started = asyncio.Event()
+
+    async def _graceful_shutdown(sig_name: str) -> None:
+        if teardown_started.is_set():
+            return
+        teardown_started.set()
+        node.get_logger().info(f"received {sig_name}, tearing down")
+        try:
+            await asyncio.wait_for(node.teardown(), timeout=5.0)
+        except Exception as e:
+            node.get_logger().warning(f"teardown raised: {e!r}")
+        rclpy.try_shutdown()
+
+    def _c_sig_handler(signum: int, _frame: object) -> None:
+        name = signal.Signals(signum).name
+        loop.call_soon_threadsafe(lambda: loop.create_task(_graceful_shutdown(name)))
+
+    for sig, name in ((signal.SIGINT, "SIGINT"), (signal.SIGTERM, "SIGTERM")):
+        loop.add_signal_handler(
+            sig,
+            lambda n=name: loop.create_task(_graceful_shutdown(n)),
+        )
+        signal.signal(sig, _c_sig_handler)
+        signal.siginterrupt(sig, False)
+
+    cm: contextlib.AbstractContextManager[object] = contextlib.nullcontext()
+    if aiomonitor:
+        config = node.aiomonitor_config()
+        if config is not None:
+            import aiomonitor as _aiomonitor
+
+            try:
+                cm = _aiomonitor.start_monitor(loop=loop, locals=locals(), **config)
+            except OSError as e:
+                node.get_logger().warning(f"aiomonitor disabled: {e!r}")
+
+    try:
+        with cm:
+            done, _ = await asyncio.wait([spin_future, app_task], return_when=asyncio.FIRST_COMPLETED)
+
+        if spin_future in done:
+            spin_future.result()
+        if app_task in done:
+            app_task.result()
+    except asyncio.CancelledError:
+        node.get_logger().info("Shutting down.")
+    except Exception:
+        node.get_logger().error(traceback.format_exc())
+        raise
+    finally:
+        with contextlib.suppress(Exception):
+            await node.kill_launches()
+
+        current = asyncio.current_task()
+        pending = [t for t in asyncio.all_tasks(loop) if t is not current and not t.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=2.0)
+
+        executor.shutdown()
+        with contextlib.suppress(Exception):
+            await spin_future
+
+        executor.remove_node(node)
+        node.destroy_node()
+        _close_subprocess_transports()
+        gc.collect()
+        rclpy.try_shutdown()
+
+
+def run_main(
+    node_cls: type[ArenaMixinNode],
+    /,
+    *args: object,
+    aiomonitor: bool = False,
+    **kwargs: object,
+) -> None:
+    """Sync entry. Use as `def main(): run_main(MyNode)` or via the classmethod."""
+    try:
+        asyncio.run(
+            async_main(
+                node_factory=lambda: node_cls(*args, **kwargs),
+                aiomonitor=aiomonitor,
+            )
+        )
+    except KeyboardInterrupt:
+        pass

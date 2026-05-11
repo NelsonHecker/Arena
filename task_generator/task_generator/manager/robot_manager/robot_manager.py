@@ -19,9 +19,9 @@ import rclpy.timer
 import tf2_ros
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
+from arena_runtime._node import NodeInterface
 
 import task_generator.utils.arena as Utils
-from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import Orientation, Pose, Position, Robot
@@ -158,7 +158,7 @@ class RobotManager(NodeInterface):
             self._logger.info(f"robot {self._robot.name!r} has additional 'capabilities' entries ({other_kinds}) not bound to any adapter (TODO: multi-capability adapter composition)")
 
         # Nav2 reads its planner triplet + train_mode from the Robot runtime
-        # config (populated by CLI / benchmark YAML) unless the capabilities
+        # config (populated by CLI / benchmark CLI YAML) unless the capabilities
         # entry overrides it.
         if navigator_kind == 'nav2':
             adapter_kwargs.setdefault('global_planner', self._robot.global_planner)
@@ -188,8 +188,7 @@ class RobotManager(NodeInterface):
         self._current_request = None
         self._phase_index = 0
 
-    async def set_up_robot(self, node_names: set[str]):
-
+    async def set_up_robot(self):
         self._robot.pose.position.z += self._config.model_params.z_offset
         self._robot = (await self._environment_manager.spawn_robot((self._robot,)))[0]
 
@@ -201,6 +200,9 @@ class RobotManager(NodeInterface):
             10,
         )
 
+    async def launch(self, node_names: set[str]):
+        """Bring up the robot's navstack. Split from set_up_robot so callers can sequence the
+        LaunchService run after spawn_world_obstacles (which it would otherwise starve)."""
         await self._launch_robot(node_names)
 
         self._robot_radius = self.node.rosparam[float].get(
@@ -238,7 +240,7 @@ class RobotManager(NodeInterface):
         if Utils.get_arena_type() == Constants.ArenaType.TRAINING:
             return Namespace(f"{self._namespace}{self._namespace}_{self.model_name}")
 
-        return self._namespace(self.name)
+        return self._namespace(self._robot.name)
 
     @property
     async def is_done(self) -> bool:
@@ -360,8 +362,6 @@ class RobotManager(NodeInterface):
 
     async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot's navstack via the bound adapter."""
-        self._logger.info(f"LAUNCH ROBOT {self.name}")
-
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
             launch_description = launch.LaunchDescription()
             current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
@@ -424,7 +424,6 @@ class RobotManager(NodeInterface):
             )
 
             await self.node.do_launch(launch_description)
-
             await self._adapter.wait_until_ready(self, node_paths)
 
     async def update(self):

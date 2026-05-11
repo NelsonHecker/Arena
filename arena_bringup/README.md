@@ -1,7 +1,7 @@
 # arena_bringup
 
 Top-level launch entry point for Arena, plus shared Python launch helpers,
-task configs, and benchmark data. Everything that ties together the simulator,
+task configs. Everything that ties together the simulator,
 task-generator, and navigation stack lives here.
 
 ## Guides
@@ -12,12 +12,12 @@ task-generator, and navigation stack lives here.
   top-level composition, and the `utils/` helpers.
 - [Simulator dispatch](launch/simulator/sim/README.md) — `SelectAction`
   convention, per-sim subdirs (`gazebo/`, `isaac/`), adding a new simulator.
-- [Human simulator dispatch](launch/simulator/human/README.md) — same
-  pattern for human-simulation backends (currently `hunav/`).
+- Human simulator dispatch: see `task_generator/launch/human/README.md`
+  (moved alongside its `BaseHumanSimulator` adapters).
 - [Task configs](configs/tasks/README.md) — `TaskModeSpec` schema,
   fleet-manager allocation, examples.
-- [Benchmark configs](configs/benchmark/README.md) — `config.yaml`, suites,
-  contests, and how `Mod_Benchmark` ingests them.
+- [Benchmark configs](../arena_evaluation/configs/benchmark/README.md) — suites,
+  contests, and how the runner consumes them.
 - [Python helpers](README.md) — `LaunchArgument`, `SelectAction`,
   `IsolatedGroupAction`, YAML substitutions, and log-level extension.
 

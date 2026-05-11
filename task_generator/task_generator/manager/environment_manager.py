@@ -5,9 +5,10 @@ from typing import Any
 
 import shapely
 import shapely.affinity
+from arena_runtime._node import NodeInterface
+from arena_runtime.sim import BaseSim
 from arena_simulation_setup.tree.World import WorldDescription
 
-from task_generator import NodeInterface
 from task_generator.manager.realizer import Realizer
 from task_generator.shared import (
     DynamicObstacle,
@@ -17,7 +18,6 @@ from task_generator.shared import (
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
-from task_generator.simulators.sim import BaseSim
 
 
 class EnvironmentManager(NodeInterface):
@@ -92,7 +92,6 @@ class EnvironmentManager(NodeInterface):
         Loads given obstacles into the simulator,
         the map file is retrieved from launch parameter "world"
         """
-
         walls = tuple(map(self.realize, world.all_walls))
         doors = tuple(map(self.realize, world.all_doors))
         floors = tuple(map(self.realize, world.all_floors))
@@ -115,7 +114,6 @@ class EnvironmentManager(NodeInterface):
             futures.append(self._human_simulator.spawn_world(walls, doors))
         futures.append(self._human_simulator.spawn_obstacles(statics, layer=ObstacleLayer.WORLD))
         if elevators:
-            self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
             futures.append(self._simulator.spawn_elevators(elevators))
 
         await asyncio.gather(*futures)

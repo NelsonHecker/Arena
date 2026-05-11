@@ -1,0 +1,6 @@
+# Trigger graceful self-shutdown on a task_generator env via lifecycle SHUTDOWN.
+# Works for both managed (arena-spawned) and unmanaged (CLI-launched) envs.
+uint16 env_id
+---
+bool success
+string error_msg

@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import traceback
 import typing
+import warnings
 
 import launch
 import rclpy.action
@@ -19,28 +21,23 @@ T = typing.TypeVar('T')
 
 class AsyncLaunchManager:
     def __init__(self):
-        self.active: dict[asyncio.Task[int], launch.LaunchService] = {}
+        self.active_tasks: set[asyncio.Task] = set()
 
-    async def launch_description(self, description: launch.LaunchDescription) -> asyncio.Task[int]:
-        """Launch a launch description asynchronously
-
-        Args:
-            description (launch.LaunchDescription): _launch description to launch
-        """
-        ls = launch.LaunchService()
+    async def launch_description(self, description: launch.LaunchDescription) -> asyncio.Task:
+        ls = launch.LaunchService(noninteractive=True)
         ls.include_launch_description(description)
         task = asyncio.create_task(ls.run_async())
-        self.active[task] = ls
-        task.add_done_callback(lambda t: self.active.pop(t, None))
+        self.active_tasks.add(task)
+        task.add_done_callback(self.active_tasks.discard)
         return task
 
     async def kill_all(self):
-        """Gracefully shut down all active launch services so subprocess transports close before the loop does."""
-        if not self.active:
+        if not self.active_tasks:
             return
-        shutdowns = [ls.shutdown() for ls in list(self.active.values())]
-        await asyncio.gather(*shutdowns, return_exceptions=True)
-        await asyncio.gather(*list(self.active), return_exceptions=True)
+        for task in self.active_tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*self.active_tasks, return_exceptions=True)
 
 
 class AsyncNode(TimeNode, rclpy.node.Node):
@@ -48,17 +45,16 @@ class AsyncNode(TimeNode, rclpy.node.Node):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self._loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        self.__loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         self._launch_manager = AsyncLaunchManager()
 
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:
-        """active event loop of node"""
-        return self._loop
+        return self.__loop
 
     @event_loop.setter
     def event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop
+        self.__loop = loop
 
     async def wait_for_service_async(
         self,
@@ -66,9 +62,6 @@ class AsyncNode(TimeNode, rclpy.node.Node):
         timeout: float | None = None,
         interval: float = 0.1,
     ) -> bool:
-        """
-        Asynchronously wait for service to be available
-        """
         start_time = self.wall_time
         while True:
             if client.wait_for_service(timeout_sec=interval):
@@ -79,19 +72,26 @@ class AsyncNode(TimeNode, rclpy.node.Node):
             await asyncio.sleep(interval)
 
     async def do_launch(self, launch_description: launch.LaunchDescription) -> None:
-        """
-        Asynchronously launch a launch description
-        """
-
         async def _launcher():
             await self._launch_manager.launch_description(launch_description)
 
-        asyncio.run_coroutine_threadsafe(_launcher(), self._loop)
+        asyncio.run_coroutine_threadsafe(_launcher(), self.__loop)
+
+    async def kill_launches(self) -> None:
+        await self._launch_manager.kill_all()
 
     def wait_for(self, future: typing.Awaitable[T]) -> T:
-        """
-        Wait for an awaitable to complete in a blocking manner
-        """
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is self.event_loop:
+            warnings.warn(
+                "wait_for invoked from the node's own event loop thread; this will block the loop on itself. Await the coroutine directly instead.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            traceback.print_stack()
 
         async def coro() -> T:
             return await future
@@ -99,10 +99,6 @@ class AsyncNode(TimeNode, rclpy.node.Node):
         return asyncio.run_coroutine_threadsafe(coro(), self.event_loop).result()
 
     def sync_wrap(self, fn: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., T]:
-        """
-        Wrap an asynchronous function to be called synchronously
-        """
-
         @functools.wraps(fn)
         def sync_fn(*args: object, **kwargs: object) -> T:
             return self.wait_for(fn(*args, **kwargs))
@@ -110,9 +106,6 @@ class AsyncNode(TimeNode, rclpy.node.Node):
         return sync_fn
 
     def syncify(self, fn: typing.Callable[..., T] | typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., T]:
-        """
-        Wrap any function to be called synchronously
-        """
         if inspect.iscoroutinefunction(fn):
             return self.sync_wrap(fn)
 
@@ -126,10 +119,8 @@ class AsyncNode(TimeNode, rclpy.node.Node):
         return sync_fn
 
     async def await_ros(self, ros_future: asyncio.Future[T]) -> T:
-        """
-        Wraps a ROS Future into an Asyncio Future so it can be awaited.
-        """
-        aio_future = self._loop.create_future()
+        """Wraps a ROS Future into an Asyncio Future so it can be awaited."""
+        aio_future = self.__loop.create_future()
 
         def on_ros_done(fut: asyncio.Future[T]) -> None:
             if aio_future.cancelled():
@@ -137,15 +128,14 @@ class AsyncNode(TimeNode, rclpy.node.Node):
 
             try:
                 result = fut.result()
-                self._loop.call_soon_threadsafe(aio_future.set_result, result)
+                self.__loop.call_soon_threadsafe(aio_future.set_result, result)
             except Exception as e:
-                self._loop.call_soon_threadsafe(aio_future.set_exception, e)
+                self.__loop.call_soon_threadsafe(aio_future.set_exception, e)
 
         ros_future.add_done_callback(on_ros_done)
 
         return await aio_future
 
-    # rclpy.node.Node overrides
     def create_subscription(
         self,
         msg_type: type,
@@ -189,7 +179,6 @@ class AsyncNode(TimeNode, rclpy.node.Node):
 
 
 class AsyncUtil:
-    # timeout wrappers
     @classmethod
     async def timeout(cls, coro: typing.Awaitable[T], timeout_sec: float) -> T | None:
         try:
@@ -202,22 +191,15 @@ ServiceT = typing.TypeVar('ServiceT')
 
 
 class ClientWrapper[ServiceT]:
-    """A wrapper around rclpy.client.Client to provide async utilities."""
+    """Async wrapper around rclpy.client.Client."""
 
     def __init__(self, node: AsyncNode, client: rclpy.client.Client, timeout: float = 60.0):
-        """
-        Args:
-            node (AsyncNode | None): node that will own the client.
-            client (rclpy.client.Client): The rclpy client to wrap.
-            timeout (float, optional): Timeout in seconds. Defaults to 60.0.
-        """
         self._node: AsyncNode = node
         self._client: rclpy.client.Client = client
         self._timeout: float = timeout
 
     @property
     def client(self) -> rclpy.client.Client:
-        """The underlying rclpy client."""
         return self._client
 
     async def call_timeout(
@@ -225,15 +207,6 @@ class ClientWrapper[ServiceT]:
         request: ServiceT.Request,
         timeout_sec: float | None = None,
     ) -> ServiceT.Response | None:
-        """Call the service with a timeout.
-
-        Args:
-            request (rclpy.client.SrvTypeRequest): The service request object.
-            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
-
-        Returns:
-            rclpy.client.SrvTypeResponse | None: The service response object or None if timed out.
-        """
         if timeout_sec is None:
             timeout_sec = self._timeout
         res = await AsyncUtil.timeout(self._node.await_ros(self._client.call_async(request)), timeout_sec=timeout_sec)
@@ -246,15 +219,6 @@ class ClientWrapper[ServiceT]:
         request: ServiceT.Request,
         timeout_sec: float | None = None,
     ) -> ServiceT.Response | None:
-        """Call the service with a timeout in a blocking manner.
-
-        Args:
-            request (ServiceT.Request): The service request object.
-            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
-
-        Returns:
-            ServiceT.Response | None: The service response object or None if timed out.
-        """
         if timeout_sec is None:
             timeout_sec = self._timeout
 
@@ -266,11 +230,6 @@ class ClientWrapper[ServiceT]:
         )
 
     async def ensure(self, timeout_sec: float | None = None) -> bool:
-        """Ensure the service is available within the given timeout.
-
-        Args:
-            timeout_sec (float | None, optional): Timeout in seconds. If None, wait forever. Defaults to None.
-        """
         return await self._node.wait_for_service_async(self._client, timeout=timeout_sec)
 
 
@@ -278,22 +237,15 @@ ActionT = typing.TypeVar('ActionT')
 
 
 class ActionClientWrapper[ActionT]:
-    """A wrapper around rclpy.action.ActionClient to provide async utilities."""
+    """Async wrapper around rclpy.action.ActionClient."""
 
     def __init__(self, node: AsyncNode, action_client: rclpy.action.ActionClient, timeout: float = 60.0):
-        """
-        Args:
-            node (AsyncNode): node that will own the client.
-            action_client (rclpy.action.ActionClient): The rclpy action client to wrap.
-            timeout (float, optional): Timeout in seconds. Defaults to 60.0.
-        """
         self._node: AsyncNode = node
         self._client: rclpy.action.ActionClient = action_client
         self._timeout: float = timeout
 
     @property
     def client(self) -> rclpy.action.ActionClient:
-        """The underlying rclpy action client."""
         return self._client
 
     async def send_goal(
@@ -302,15 +254,6 @@ class ActionClientWrapper[ActionT]:
         *,
         feedback_callback: typing.Callable[[typing.Any], None] | None = None,
     ) -> rclpy.action.client.ClientGoalHandle:
-        """Send a goal and await its acceptance.
-
-        Args:
-            goal (ActionT.Goal): The goal message.
-            feedback_callback: Optional callback invoked with each feedback message.
-
-        Returns:
-            ClientGoalHandle: handle for the accepted goal. Raises if rejected.
-        """
         send_future = self._client.send_goal_async(goal, feedback_callback=feedback_callback)
         goal_handle = await self._node.await_ros(send_future)
         if not goal_handle.accepted:
@@ -324,16 +267,6 @@ class ActionClientWrapper[ActionT]:
         *,
         feedback_callback: typing.Callable[[typing.Any], None] | None = None,
     ) -> rclpy.action.client.ClientGoalHandle | None:
-        """Send a goal with a timeout on acceptance.
-
-        Args:
-            goal (ActionT.Goal): The goal message.
-            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
-            feedback_callback: Optional callback invoked with each feedback message.
-
-        Returns:
-            ClientGoalHandle | None: handle for the accepted goal, or None if timed out.
-        """
         if timeout_sec is None:
             timeout_sec = self._timeout
         res = await AsyncUtil.timeout(
@@ -348,14 +281,6 @@ class ActionClientWrapper[ActionT]:
         self,
         goal_handle: rclpy.action.client.ClientGoalHandle,
     ) -> object:
-        """Await the final result for an accepted goal.
-
-        Args:
-            goal_handle (ClientGoalHandle): handle returned by :meth:`send_goal`.
-
-        Returns:
-            The wrapped result response (with ``.status`` and ``.result`` attributes).
-        """
         return await self._node.await_ros(goal_handle.get_result_async())
 
     async def await_result_timeout(
@@ -363,15 +288,6 @@ class ActionClientWrapper[ActionT]:
         goal_handle: rclpy.action.client.ClientGoalHandle,
         timeout_sec: float | None = None,
     ) -> object | None:
-        """Await the final result with a timeout.
-
-        Args:
-            goal_handle (ClientGoalHandle): handle returned by :meth:`send_goal`.
-            timeout_sec (float | None, optional): Timeout in seconds. Defaults to constructor timeout.
-
-        Returns:
-            The wrapped result response, or None if timed out.
-        """
         if timeout_sec is None:
             timeout_sec = self._timeout
         res = await AsyncUtil.timeout(
@@ -389,16 +305,6 @@ class ActionClientWrapper[ActionT]:
         *,
         feedback_callback: typing.Callable[[typing.Any], None] | None = None,
     ) -> object | None:
-        """Convenience: send a goal and await its result in one call.
-
-        Args:
-            goal (ActionT.Goal): The goal message.
-            timeout_sec (float | None, optional): Combined acceptance + result timeout. Defaults to constructor timeout.
-            feedback_callback: Optional callback invoked with each feedback message.
-
-        Returns:
-            The wrapped result response, or None if timed out.
-        """
         if timeout_sec is None:
             timeout_sec = self._timeout
         goal_handle = await self.send_goal_timeout(goal, timeout_sec=timeout_sec, feedback_callback=feedback_callback)
@@ -407,22 +313,9 @@ class ActionClientWrapper[ActionT]:
         return await self.await_result_timeout(goal_handle, timeout_sec=timeout_sec)
 
     async def cancel(self, goal_handle: rclpy.action.client.ClientGoalHandle) -> object:
-        """Cancel an in-flight goal and await the cancel response.
-
-        Args:
-            goal_handle (ClientGoalHandle): handle returned by :meth:`send_goal`.
-
-        Returns:
-            The cancel response.
-        """
         return await self._node.await_ros(goal_handle.cancel_goal_async())
 
     async def ensure(self, timeout_sec: float | None = None) -> bool:
-        """Ensure the action server is available within the given timeout.
-
-        Args:
-            timeout_sec (float | None, optional): Timeout in seconds. If None, wait forever. Defaults to None.
-        """
         start_time = self._node.wall_time
         interval = 0.1
         while not self._client.server_is_ready():

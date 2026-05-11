@@ -6,8 +6,8 @@ import rclpy
 import rclpy.publisher
 import std_msgs.msg as std_msgs
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer
+from arena_runtime._node import NodeInterface
 
-from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.robot_manager import RobotsManager
@@ -186,6 +186,7 @@ class Task(_TaskRegistry, NodeInterface):
             self.__reset_start.publish(std_msgs.Empty())
 
             await self.robots_manager.set_up()
+            await self.robots_manager.launch_pending()
 
             await self.environment_manager.before_reset_episode()
 
@@ -254,6 +255,10 @@ class Task(_TaskRegistry, NodeInterface):
         """Submit a typed task request to a specific robot; bypasses TM_Robots."""
         robot = self._ctx.robots[robot_name]
         await robot.submit_task(request)
+
+    def set_info(self, info: str) -> None:
+        """Update the live info string shown in the RViz panel for the current episode."""
+        self.node.set_episode_info(info)
 
     _TaskKindAlias = TaskKind  # keep TaskKind import live
 

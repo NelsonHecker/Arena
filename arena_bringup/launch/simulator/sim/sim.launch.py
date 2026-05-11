@@ -7,7 +7,7 @@ import launch
 import launch_ros.actions
 from arena_bringup.substitutions import LaunchArgument, SelectAction
 
-from task_generator.constants import Constants
+from arena_runtime.constants import SimSimulator
 
 
 def generate_launch_description():
@@ -28,10 +28,10 @@ def generate_launch_description():
         name='world'
     )
 
-    launch_simulator = SelectAction(launch.substitutions.LaunchConfiguration('simulator'))
+    launch_simulator = SelectAction(launch.substitutions.LaunchConfiguration('sim'))
 
     launch_simulator.add(
-        Constants.SimSimulator.DUMMY.value,
+        SimSimulator.DUMMY.value,
         launch.actions.GroupAction([
             launch_ros.actions.Node(
                 package='tf2_ros',
@@ -42,7 +42,7 @@ def generate_launch_description():
     )
 
     launch_simulator.add(
-        Constants.SimSimulator.GAZEBO.value,
+        SimSimulator.GAZEBO.value,
         launch.actions.IncludeLaunchDescription(
             PathJoinSubstitution([
                 FindPackageShare('arena_bringup'),
@@ -57,7 +57,7 @@ def generate_launch_description():
     )
 
     launch_simulator.add(
-        Constants.SimSimulator.ISAAC.value,
+        SimSimulator.ISAAC.value,
         launch.actions.IncludeLaunchDescription(
             PathJoinSubstitution([
                 FindPackageShare('arena_bringup'),
@@ -70,8 +70,8 @@ def generate_launch_description():
         )
     )
 
-    simulator = LaunchArgument(
-        name='simulator',
+    sim = LaunchArgument(
+        name='sim',
         choices=launch_simulator.keys,
     )
 

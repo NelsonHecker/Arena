@@ -19,7 +19,7 @@ def test_episode_record_fields():
     r.tm_modules = ["benchmark"]
     r.robots = ["husky", "jackal"]
     r.outcome_state = EpisodeRecord.SUCCESS
-    r.outcome_reason = "reached goal"
+    r.outcome_info = "reached goal"
     r.goal_uuid = "abc-123"
     r.integrity = True
 
@@ -39,7 +39,7 @@ def test_episode_record_fields():
     assert r.tm_modules == ["benchmark"]
     assert list(r.robots) == ["husky", "jackal"]
     assert r.outcome_state == EpisodeRecord.SUCCESS
-    assert r.outcome_reason == "reached goal"
+    assert r.outcome_info == "reached goal"
     assert r.goal_uuid == "abc-123"
     assert r.integrity is True
     assert len(r.obstacles_params) == 1
@@ -47,10 +47,12 @@ def test_episode_record_fields():
     assert r.obstacles_params[0].value.integer_value == 4
     assert list(r.robots_params) == []
 
-    assert EpisodeRecord.UNFINISHED == 0
-    assert EpisodeRecord.SUCCESS == 1
-    assert EpisodeRecord.FAILED == 2
-    assert EpisodeRecord.SKIPPED == 3
+    assert EpisodeRecord.QUEUED == 0
+    assert EpisodeRecord.RUNNING == 1
+    assert EpisodeRecord.SUCCESS == 2
+    assert EpisodeRecord.FAILED == 3
+    assert EpisodeRecord.SKIPPED == 4
+    assert EpisodeRecord.FATAL == 5
 
 
 def test_reset_episode_srv():
@@ -227,6 +229,7 @@ def test_spawn_dynamic_srv():
 
 
 def test_spawn_robot_srv():
+    from diagnostic_msgs.msg import KeyValue
     from geometry_msgs.msg import PoseStamped
     from task_generator_msgs.srv import SpawnRobot
 
@@ -235,9 +238,16 @@ def test_spawn_robot_srv():
     req.name = ""
     req.pose = PoseStamped()
     req.use_pose = False
+    req.args = [
+        KeyValue(key="local_planner", value="teb"),
+        KeyValue(key="agent_name", value=""),
+    ]
 
     assert req.model == "turtlebot3"
     assert req.name == ""
+    assert len(req.args) == 2
+    assert req.args[0].key == "local_planner"
+    assert req.args[0].value == "teb"
 
     res = SpawnRobot.Response()
     res.name = "turtlebot3_0"
@@ -261,15 +271,18 @@ def test_run_episode_action_result():
 
     result = RunEpisode.Result()
     result.state = RunEpisode.Result.SUCCESS
-    result.reason = ""
+    result.info = ""
     result.episode_id = 3
 
     assert result.state == RunEpisode.Result.SUCCESS
     assert result.episode_id == 3
 
-    assert RunEpisode.Result.SUCCESS == 1
-    assert RunEpisode.Result.FAILED == 2
-    assert RunEpisode.Result.SKIPPED == 3
+    assert RunEpisode.Result.QUEUED == 0
+    assert RunEpisode.Result.RUNNING == 1
+    assert RunEpisode.Result.SUCCESS == 2
+    assert RunEpisode.Result.FAILED == 3
+    assert RunEpisode.Result.SKIPPED == 4
+    assert RunEpisode.Result.FATAL == 5
 
 
 def test_run_episode_action_feedback():

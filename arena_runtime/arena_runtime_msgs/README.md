@@ -1,0 +1,35 @@
+# arena_runtime_msgs
+
+rosidl interfaces for `arena_node` (the runtime). Env registry, lifecycle holds, world placement, namespace cleanup, env shutdown, env purge.
+
+Per-env episode types (`EpisodeRecord`, `RunEpisode`, query/spawn services) live in [`task_generator_msgs`](../../utils/msgs/task_generator_msgs/README.md) instead.
+
+## Services (`srv/`)
+
+| File | Purpose |
+|---|---|
+| `RegisterEnv.srv` | Reserve an env_id and namespace; called by an env that launches without managed mode. |
+| `SpawnEnv.srv` | Reserve + launch `task_generator.launch.py` as a child process; waits for ACTIVE. |
+| `DespawnEnv.srv` | Publish a `ShutdownRequest` asking an env to self-shutdown via lifecycle. |
+| `ConfirmWorld.srv` | Run the shelf packer for an env's extent; returns `reference`, `slot_extent`, `prespawn`. |
+| `LifecycleHold.srv` | Acquire or release a pause hold (ref-counted across callers). |
+| `LifecycleUnpauseWindow.srv` | Acquire or release the exclusive unpause window. |
+| `CleanupNamespace.srv` | Delete sim entities under a validated `env_<id>{_,/}` prefix. |
+
+## Messages (`msg/`)
+
+| File | Purpose |
+|---|---|
+| `EnvRecord.msg` | Single env entry: `env_id`, `fqn`, `placed`, `reference`, `slot_extent`, `extent`, `draining`. |
+| `EnvRegistry.msg` | Snapshot of all non-draining `EnvRecord`s. Published latched on `state/envs`. |
+| `Heartbeat.msg` | Liveness ping from a managed env's `task_generator_node`. |
+| `HoldEntry.msg` | One `(caller_id, reason, count)` triple. |
+| `HoldRegistry.msg` | All active `HoldEntry`s. Published latched on `state/holders`. |
+| `ShutdownRequest.msg` | Broadcast asking `env_id` to shut down (reason carried as a string). |
+| `WorldExtent.msg` | World bounding box submitted with `ConfirmWorld`. |
+
+## Actions (`action/`)
+
+| File | Purpose |
+|---|---|
+| `PurgeEnv.action` | Delete entities under an arbitrary prefix and stream `purging` / `done` feedback. |

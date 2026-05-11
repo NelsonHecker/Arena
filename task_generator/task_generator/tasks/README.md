@@ -1,6 +1,6 @@
 # task_generator tasks
 
-Core abstractions for the episode loop: the `Task` orchestrator, `TaskMode`
+Core abstractions for the episode loop: the `Task` driver, `TaskMode`
 base, `TaskContext` dependency bundle, and the `_TaskRegistry` that wires
 everything together.
 
@@ -10,7 +10,7 @@ everything together.
 
 [`task.py:33`](task.py#L33)
 
-The top-level orchestrator. Combines one `TM_Robots`, one `TM_Obstacles`, and
+The top-level driver. Combines one `TM_Robots`, one `TM_Obstacles`, and
 zero-or-more `TM_Module` instances into a single episode loop. Entry points:
 
 | Method | Purpose |
@@ -180,6 +180,6 @@ Calling `extend()` via the `runtime/spawn_*` services flips
 Episode state is tracked in `EpisodeRecord` (an `attrs.define` dataclass on the
 node). Key fields: `episode_id`, `world`, `seed` (derived via blake2b from
 `run_seed|world|episode_id`), snapshot task-mode strings, `outcome_state`,
-`outcome_reason`, `goal_uuid`, and `integrity`. A new record is created at every
+`outcome_info`, `goal_uuid`, and `integrity`. A new record is created at every
 NEXT reset; integrity starts `True` and flips `False` on any manual mutation
 (`extend()`, `set_robot_position`, `set_robot_goal`).

@@ -4,6 +4,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import rclpy.parameter
+from arena_runtime_msgs.srv import LifecycleHold
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 from rcl_interfaces.msg import Parameter, ParameterValue
@@ -13,7 +14,6 @@ from task_generator.constants import Constants
 from task_generator_msgs.action import RunEpisode
 from task_generator_msgs.srv import (
     GetTaskModes,
-    Pause,
     QueryDynamicObstacles,
     QueryEnvironments,
     QueryParametrizeds,
@@ -39,9 +39,12 @@ TM_OBSTACLES_VALUES: list[str] = [m.value for m in Constants.TaskMode.TM_Obstacl
 TM_MODULE_VALUES: list[str] = [m.value for m in Constants.TaskMode.TM_Module]
 
 _RUN_EPISODE_STATE_NAMES: dict[int, str] = {
+    RunEpisode.Result.QUEUED: "QUEUED",
+    RunEpisode.Result.RUNNING: "RUNNING",
     RunEpisode.Result.SUCCESS: "SUCCESS",
     RunEpisode.Result.FAILED: "FAILED",
     RunEpisode.Result.SKIPPED: "SKIPPED",
+    RunEpisode.Result.FATAL: "FATAL",
 }
 
 _POSE_SCHEMA: dict[str, Any] = {
@@ -74,7 +77,7 @@ def _record_to_dict(record: object) -> dict[str, object]:
         "tm_obstacles": record.tm_obstacles,
         "tm_modules": list(record.tm_modules),
         "outcome_state": record.outcome_state,
-        "outcome_reason": record.outcome_reason,
+        "outcome_info": record.outcome_info,
         "goal_uuid": record.goal_uuid,
         "integrity": record.integrity,
         "obstacles_params": [{"name": p.name, "type": p.value.type, "value": _param_value_to_python(p.value)} for p in record.obstacles_params],
@@ -321,12 +324,15 @@ async def _dispatch(name: str, args: dict[str, object], bridge: RosBridge) -> ob
         return {"success": resp.success, "error_msg": resp.error_msg}
 
     if name in ("lifecycle_pause", "lifecycle_unpause", "lifecycle_toggle_pause"):
-        req = Pause.Request()
-        req.action = {
-            "lifecycle_pause": Pause.Request.PAUSE,
-            "lifecycle_unpause": Pause.Request.UNPAUSE,
-            "lifecycle_toggle_pause": Pause.Request.TOGGLE,
-        }[name]
+        req = LifecycleHold.Request()
+        req.caller_id = bridge.get_fully_qualified_name()
+        req.reason = "mcp_external_pause"
+        if name == "lifecycle_pause":
+            req.action = LifecycleHold.Request.ACQUIRE
+        elif name == "lifecycle_unpause":
+            req.action = LifecycleHold.Request.RELEASE
+        else:
+            req.action = LifecycleHold.Request.RELEASE if bridge.arena_paused else LifecycleHold.Request.ACQUIRE
         resp = await bridge.client_pause.call_timeout(req)
         if resp is None:
             return {"success": False}
@@ -345,7 +351,7 @@ async def _dispatch(name: str, args: dict[str, object], bridge: RosBridge) -> ob
         result = wrapped.result
         return {
             "state": _RUN_EPISODE_STATE_NAMES.get(result.state, str(result.state)),
-            "reason": result.reason,
+            "info": result.info,
             "episode_id": result.episode_id,
         }
 

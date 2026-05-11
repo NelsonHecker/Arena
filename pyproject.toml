@@ -64,6 +64,7 @@ dev = [
 target-version = "py312"
 line-length = 320
 src = [
+    "arena_runtime/arena_runtime/arena_runtime",
     "task_generator/task_generator",
     "arena_bringup/arena_bringup",
     "arena_robots/arena_robots/arena_robots",

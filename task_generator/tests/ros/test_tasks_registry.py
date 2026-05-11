@@ -33,7 +33,6 @@ def test_registry_has_robots_entries():
 def test_registry_has_module_entries():
     from task_generator.constants import Constants
     from task_generator.tasks.registry import _TaskRegistry
-    assert Constants.TaskMode.TM_Module.BENCHMARK in _TaskRegistry.registry_module
     assert Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES in _TaskRegistry.registry_module
     assert Constants.TaskMode.TM_Module.RVIZ_UI in _TaskRegistry.registry_module
     assert Constants.TaskMode.TM_Module.STAGED in _TaskRegistry.registry_module

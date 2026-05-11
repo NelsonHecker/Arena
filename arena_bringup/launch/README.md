@@ -61,7 +61,8 @@ without clobbering it.
 ## Simulator dispatch
 
 - [simulator/sim/README.md](simulator/sim/README.md) — physics simulator backends (`dummy`, `gazebo`, `isaac`).
-- [simulator/human/README.md](simulator/human/README.md) — human-simulation backends (`dummy`, `hunav`).
+- Human-simulation backends: see `task_generator/launch/human/README.md`
+  (moved alongside their `BaseHumanSimulator` adapters).
 
 ## Top-level composition
 
@@ -89,7 +90,7 @@ outward from the origin with spacing `d`, so multiple parallel environments do
 not overlap.
 
 The simulator is paused during setup and the entire `Task._reset_episode` body —
-see [Sim-paused invariant](../../task_generator/task_generator/simulators/sim/README.md#sim-paused-invariant).
+see [Sim-paused invariant](../../arena_runtime/arena_runtime/arena_runtime/sim/README.md#sim-paused-invariant).
 
 ## utils/
 

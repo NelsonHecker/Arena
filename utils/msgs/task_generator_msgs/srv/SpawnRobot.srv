@@ -1,9 +1,12 @@
+# Inject an additional robot at runtime via TM_Robots.extend.
 string model
 # Empty auto-generates.
 string name
 geometry_msgs/PoseStamped pose
 # False = task mode picks placement.
 bool use_pose
+# Forwarded to Robot.parse; unrecognized keys silently ignored.
+diagnostic_msgs/KeyValue[] args
 ---
 string name
 bool success

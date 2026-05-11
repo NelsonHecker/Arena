@@ -51,6 +51,13 @@ _feature_registry(){
             grep -qx -- "$name" "$INSTALLED" 2>/dev/null
             return $?
         ;;
+        require)
+            if ! _feature_registry has "$name"; then
+                echo "$name is not installed; run 'arena feature $name install' first." >&2
+                return 1
+            fi
+            return 0
+        ;;
         add)
             if ! _feature_registry has "$name"; then
                 echo "$name" >> "$INSTALLED"
@@ -87,7 +94,7 @@ _feature_registry(){
             return 0
         ;;
         *)
-            echo "Usage: _feature_registry <has|add|remove|list|pull|resolve> [name]" >&2
+            echo "Usage: _feature_registry <has|require|add|remove|list|pull|resolve> [name]" >&2
             return 1
         ;;
     esac
@@ -220,9 +227,43 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 _arena_heal_pip
             ;;
             launch)
-		        killall -s 9 task_generator_node 2>/dev/null && sleep 1
+                killall -s 9 task_generator_node arena_node world_generator 2>/dev/null
+                sleep 1
                 ros2 launch arena_bringup arena.launch.py "$@"
                 result=$?
+            ;;
+            runtime)
+                # `arena runtime` brings up just the arena_node + simulator, no task envs.
+                # Use `arena launch` (or supply env_n:= explicitly) when you want envs.
+                killall -s 9 task_generator_node arena_node world_generator 2>/dev/null
+                sleep 1
+                ros2 launch arena_bringup arena_runtime.launch.py "$@"
+                result=$?
+            ;;
+            env)
+                ros2 launch task_generator task_generator.launch.py "$@"
+                result=$?
+            ;;
+            cleanup)
+                if [ $# -lt 1 ]; then
+                    echo "Usage: arena cleanup <env_id>" >&2
+                    result=1
+                else
+                    _arena_cleanup_id="$1"
+                    case "$_arena_cleanup_id" in
+                        ''|*[!0-9]*)
+                            echo "arena cleanup: env_id must be a non-negative integer, got: '$_arena_cleanup_id'" >&2
+                            result=1
+                            ;;
+                        *)
+                            ros2 service call /arena/cleanup_env \
+                                arena_runtime_msgs/srv/CleanupEnv \
+                                "{env_id: ${_arena_cleanup_id}}"
+                            result=$?
+                            ;;
+                    esac
+                    unset _arena_cleanup_id
+                fi
             ;;
             test)
                 if [ $# -gt 0 ] && [[ "$1" != --* ]]; then
@@ -304,6 +345,21 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                                 result=$?
                             fi
                         ;;
+                        launch)
+                            if [ "$fname" = "training" ]; then
+                                if ! _feature_registry has "$fname"; then
+                                    echo "training feature is not installed; run 'arena feature training install' first." >&2
+                                    result=1
+                                else
+                                    shift
+                                    ros2 launch arena_training training.launch.py "$@"
+                                    result=$?
+                                fi
+                            else
+                                ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
+                                result=$?
+                            fi
+                        ;;
                         uninstall)
                             shift
                             # shellcheck disable=SC1090
@@ -331,8 +387,20 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 source "$SOURCE_FILE"
                 return $?
             ;;
+            train)
+                arena feature training launch "$@"
+                result=$?
+            ;;
+            benchmark)
+                arena feature evaluation launch "$@"
+                result=$?
+            ;;
+            evaluation)
+                arena feature evaluation "$@"
+                result=$?
+            ;;
             *)
-                echo 'Usage: arena <build|rebuild|deps|update|launch|test|deactivate|feature|registry|resource> [args...]' >&2
+                echo 'Usage: arena <benchmark|build|rebuild|deps|update|launch|runtime|env|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
                 result=1
             ;;
         esac

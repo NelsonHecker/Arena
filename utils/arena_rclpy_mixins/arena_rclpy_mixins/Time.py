@@ -7,8 +7,11 @@ from typing import Self
 
 import attrs
 import builtin_interfaces.msg
+import rclpy.callback_groups
+import rclpy.clock
 import rclpy.node
 import rclpy.time
+import rclpy.timer
 import rosgraph_msgs.msg
 
 
@@ -142,13 +145,14 @@ class TimeNode(rclpy.node.Node):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self._clock_subscriber = self.create_subscription(
+        self.__clock_subscriber = self.create_subscription(
             rosgraph_msgs.msg.Clock,
             '/clock',
             self.__clock_callback,
             10,
         )
-        self._sim_time: Time = Time()
+        self.__sim_time: Time = Time()
+        self.__wall_clock: rclpy.clock.Clock | None = None
 
     def __clock_callback(self, msg: rosgraph_msgs.msg.Clock):
         """Callback for /clock topic to update node clock when using simulated time.
@@ -156,7 +160,7 @@ class TimeNode(rclpy.node.Node):
         Args:
             msg (rosgraph_msgs.msg.Clock): Clock message
         """
-        self._sim_time = Time.from_rosgraph_msg(msg)
+        self.__sim_time = Time.from_rosgraph_msg(msg)
 
     @property
     def sim_time(self) -> Time:
@@ -165,7 +169,7 @@ class TimeNode(rclpy.node.Node):
         Returns:
             Time: Simulated time
         """
-        return Time(self._sim_time.sec, self._sim_time.nanosec)
+        return Time(self.__sim_time.sec, self.__sim_time.nanosec)
 
     @property
     def wall_time(self) -> Time:
@@ -189,6 +193,28 @@ class TimeNode(rclpy.node.Node):
         now = self.get_clock().now()
         sec, nanosec = now.seconds_nanoseconds()
         return Time(sec=sec, nanosec=nanosec)
+
+    @property
+    def wall_clock(self) -> rclpy.clock.Clock:
+        """Steady wall clock, immune to NTP adjustments. Memoized; reusable across timers."""
+        if self.__wall_clock is None:
+            self.__wall_clock = rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.STEADY_TIME)
+        return self.__wall_clock
+
+    def wall_timer(
+        self,
+        period_sec: float,
+        callback: typing.Callable[[], None],
+        *,
+        callback_group: rclpy.callback_groups.CallbackGroup | None = None,
+    ) -> rclpy.timer.Timer:
+        """Create a timer driven by the steady wall clock, regardless of the node's `use_sim_time`."""
+        return self.create_timer(
+            period_sec,
+            callback,
+            clock=self.wall_clock,
+            callback_group=callback_group,
+        )
 
     @contextlib.contextmanager
     def sim_time_rate(self, rate: float, lifetime: float | None = None) -> typing.Generator[tuple[asyncio.Event, asyncio.Queue[float]], None, None]:

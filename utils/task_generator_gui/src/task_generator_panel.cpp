@@ -83,7 +83,7 @@ namespace task_generator_gui
 
         // Latched state/episode subscription — deduped into history_buffer_.
         {
-            rclcpp::QoS qos(rclcpp::KeepLast(1));
+            rclcpp::QoS qos(rclcpp::KeepLast(20));
             qos.transient_local();
             episode_sub = node->create_subscription<task_generator_msgs::msg::EpisodeRecord>(
                 task_generator_node + "/state/episode",
@@ -93,6 +93,9 @@ namespace task_generator_gui
                     QMetaObject::invokeMethod(this, [this, msg]()
                     {
                         last_current_episode_ = msg;
+
+                        if (next_pending_ && msg->episode_id != next_pending_baseline_id_)
+                            clearNextPending();
 
                         // Dedup history by episode_id: replace existing entry or append.
                         bool found = false;
@@ -335,6 +338,12 @@ namespace task_generator_gui
         connect(queue_button,   &QPushButton::clicked, this, &TaskGeneratorPanel::onQueueClicked);
         connect(next_button,    &QPushButton::clicked, this, &TaskGeneratorPanel::onNextClicked);
 
+        // Fallback re-enable in case the reset is silently dropped or the episode
+        // topic stops publishing, so the button does not get stuck.
+        next_pending_timeout_ = new QTimer(this);
+        next_pending_timeout_->setSingleShot(true);
+        connect(next_pending_timeout_, &QTimer::timeout, this, [this]() { clearNextPending(); });
+
         episode_nav_layout->addWidget(pause_button);
         episode_nav_layout->addWidget(discard_button);
         episode_nav_layout->addWidget(queue_button);
@@ -346,7 +355,7 @@ namespace task_generator_gui
         auto playlist_layout = new QVBoxLayout();
 
         playlist_table = new QTableWidget(0, 3);
-        playlist_table->setHorizontalHeaderLabels(QStringList({"World", "State", "Reason"}));
+        playlist_table->setHorizontalHeaderLabels(QStringList({"World", "State", "Info"}));
         playlist_table->horizontalHeader()->setStretchLastSection(true);
         playlist_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
         playlist_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -521,12 +530,23 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::onNextClicked()
     {
+        if (next_pending_)
+            return;
+
+        next_pending_ = true;
+        next_pending_baseline_id_ = last_current_episode_ ? last_current_episode_->episode_id : 0;
+        next_button->setEnabled(false);
+        updateDirtyButtons();
+        next_pending_timeout_->start(std::chrono::seconds(30));
+
         if (isDirty())
         {
             pushQueueEpisode([this](bool ok)
             {
                 if (ok)
                     QMetaObject::invokeMethod(this, [this]() { sendResetEpisode(); }, Qt::QueuedConnection);
+                else
+                    QMetaObject::invokeMethod(this, [this]() { clearNextPending(); }, Qt::QueuedConnection);
             });
         }
         else
@@ -545,9 +565,23 @@ namespace task_generator_gui
             {
                 auto resp = f.get();
                 if (resp && !resp->success)
+                {
                     RCLCPP_WARN(node->get_logger(),
                                 "reset_episode failed: %s", resp->error_msg.c_str());
+                    QMetaObject::invokeMethod(this, [this]() { clearNextPending(); }, Qt::QueuedConnection);
+                }
             });
+    }
+
+    void TaskGeneratorPanel::clearNextPending()
+    {
+        next_pending_ = false;
+        next_pending_baseline_id_ = 0;
+        if (next_pending_timeout_)
+            next_pending_timeout_->stop();
+        if (next_button)
+            next_button->setEnabled(true);
+        updateDirtyButtons();
     }
 
     // --- Pause toggle ---
@@ -572,9 +606,9 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::updateDirtyButtons()
     {
-        const bool dirty_and_queued = isDirty() && last_queued_episode_ != nullptr;
-        if (discard_button) discard_button->setEnabled(dirty_and_queued);
-        if (queue_button)   queue_button->setEnabled(dirty_and_queued);
+        const bool enable = isDirty() && last_queued_episode_ != nullptr && !next_pending_;
+        if (discard_button) discard_button->setEnabled(enable);
+        if (queue_button)   queue_button->setEnabled(enable);
     }
 
     // --- Populate widgets from queued record ---
@@ -669,29 +703,38 @@ namespace task_generator_gui
         {
             switch (s)
             {
+            case task_generator_msgs::msg::EpisodeRecord::QUEUED:   return "QUEUED";
+            case task_generator_msgs::msg::EpisodeRecord::RUNNING:  return "RUNNING";
             case task_generator_msgs::msg::EpisodeRecord::SUCCESS:  return "SUCCESS";
             case task_generator_msgs::msg::EpisodeRecord::FAILED:   return "FAILED";
             case task_generator_msgs::msg::EpisodeRecord::SKIPPED:  return "SKIPPED";
-            default:                                                 return "UNFINISHED";
+            case task_generator_msgs::msg::EpisodeRecord::FATAL:    return "FATAL";
+            default:                                                 return "UNKNOWN";
             }
         };
 
         // Count rows: history + optional current + optional queued preview.
+        // Queued row is hidden while running, the latched queue snapshot is stale until next reset.
         bool show_queued = false;
-        if (last_current_episode_ && last_queued_episode_)
+        const bool current_running = last_current_episode_
+            && last_current_episode_->outcome_state == task_generator_msgs::msg::EpisodeRecord::RUNNING;
+        if (last_queued_episode_ && !current_running)
         {
-            const auto &cur = *last_current_episode_;
-            const auto &que = *last_queued_episode_;
-            show_queued = (cur.world != que.world
-                || cur.tm_robots != que.tm_robots
-                || cur.tm_obstacles != que.tm_obstacles
-                || cur.robots != que.robots
-                || cur.obstacles_params.size() != que.obstacles_params.size()
-                || cur.robots_params.size() != que.robots_params.size());
-        }
-        else if (last_queued_episode_)
-        {
-            show_queued = true;
+            if (!last_current_episode_)
+            {
+                show_queued = true;
+            }
+            else
+            {
+                const auto &cur = *last_current_episode_;
+                const auto &que = *last_queued_episode_;
+                show_queued = (cur.world != que.world
+                    || cur.tm_robots != que.tm_robots
+                    || cur.tm_obstacles != que.tm_obstacles
+                    || cur.robots != que.robots
+                    || cur.obstacles_params.size() != que.obstacles_params.size()
+                    || cur.robots_params.size() != que.robots_params.size());
+            }
         }
 
         const uint32_t current_id = last_current_episode_ ? last_current_episode_->episode_id : 0;
@@ -715,7 +758,7 @@ namespace task_generator_gui
             if (last_current_episode_ && rec.episode_id == current_id) continue;
             playlist_table->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(rec.world)));
             playlist_table->setItem(row, 1, new QTableWidgetItem(outcomeLabel(rec.outcome_state)));
-            playlist_table->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(rec.outcome_reason)));
+            playlist_table->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(rec.outcome_info)));
             ++row;
         }
 
@@ -732,7 +775,7 @@ namespace task_generator_gui
             };
             playlist_table->setItem(row, 0, makeBold(QString::fromStdString(cur.world)));
             playlist_table->setItem(row, 1, makeBold(outcomeLabel(cur.outcome_state)));
-            playlist_table->setItem(row, 2, makeBold(QString::fromStdString(cur.outcome_reason)));
+            playlist_table->setItem(row, 2, makeBold(QString::fromStdString(cur.outcome_info)));
             ++row;
         }
 
@@ -749,7 +792,7 @@ namespace task_generator_gui
             };
             playlist_table->setItem(row, 0, makeItalic(QString::fromStdString(que.world)));
             playlist_table->setItem(row, 1, makeItalic(QString("(queued)")));
-            playlist_table->setItem(row, 2, makeItalic(QString::fromStdString(que.outcome_reason)));
+            playlist_table->setItem(row, 2, makeItalic(QString::fromStdString(que.outcome_info)));
         }
     }
 

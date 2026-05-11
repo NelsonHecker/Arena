@@ -30,6 +30,9 @@ class Realizer:
     def __init__(self, config: "Realizer._Configuration"):
         self._config = config
 
+    def set_origin(self, x: float, y: float) -> None:
+        self._config = attrs.evolve(self._config, x=x, y=y)
+
     @typing.overload
     def realize(self) -> str: ...
 

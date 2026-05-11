@@ -63,6 +63,24 @@ class LaunchArgument(launch.actions.DeclareLaunchArgument):
         return self.param(str)
 
 
+class OptionalLaunchArgument:
+    """undeclared launch configuration that defers default to downstream consumer"""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def value_if_given(self, context: launch.LaunchContext) -> str | None:
+        return context.launch_configurations.get(self.name) or None
+
+    def dict_if_given(self, context: launch.LaunchContext) -> dict[str, str]:
+        v = self.value_if_given(context)
+        return {self.name: v} if v is not None else {}
+
+    def cli_if_given(self, context: launch.LaunchContext, flag: str) -> list[str]:
+        v = self.value_if_given(context)
+        return [flag, v] if v is not None else []
+
+
 class SelectAction(launch.Action):
     _actions: dict[str, list[launch.Action]]
     _selector: list[launch.Substitution]

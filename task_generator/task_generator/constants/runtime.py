@@ -1,6 +1,7 @@
 import numpy as np
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer
+from arena_runtime.constants import SimSimulator
 
 from . import Constants
 
@@ -20,7 +21,7 @@ def Configuration(server: ROSParamServer) -> type:
             Formerly arena.py.
             """
 
-            SIM = server.ROSParam[Constants.SimSimulator]('sim', Constants.SimSimulator.DUMMY.value, parse=Constants.SimSimulator)
+            SIM = server.ROSParam[SimSimulator]('sim', SimSimulator.DUMMY.value, parse=SimSimulator)
 
             HUMAN = server.ROSParam[Constants.HumanSimulator]('human', Constants.HumanSimulator.DUMMY.value, parse=Constants.HumanSimulator)
 
