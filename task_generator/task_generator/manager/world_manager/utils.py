@@ -4,6 +4,7 @@ This file exists to make world_manager more readable
 
 import collections.abc
 from collections.abc import Callable, Collection
+import typing
 from typing import TypeVar
 
 import attrs
@@ -216,6 +217,21 @@ class WorldMap:
 
     def detect_walls(self) -> WorldWalls:
         return self.occupancy.detect_walls(self.tf_grid2pos)
+
+@attrs.define
+class MultiLevelMap:
+    _maps: dict[str, WorldMap] = attrs.field(factory=dict)
+
+    @property
+    def floor_ids(self) -> typing.Iterable[str]:
+        return self._maps.keys()
+
+    @property
+    def maps(self) -> list[WorldMap]:
+        return list(self._maps.values())
+
+    def get_map(self, floor_id: str) -> WorldMap | None:
+        return self._maps.get(floor_id, None)
 
 
 # END TYPES

@@ -1,6 +1,9 @@
 import itertools
 from collections.abc import Collection
 from math import floor
+import typing
+
+import attrs
 
 import arena_simulation_setup.tree.World as World
 import numpy as np
@@ -9,7 +12,7 @@ from arena_runtime._node import NodeInterface
 
 from task_generator.shared import Position, PositionRadius, Wall
 
-from .utils import WorldMap, WorldOccupancy
+from .utils import WorldMap, WorldOccupancy, MultiLevelMap
 
 
 class WorldManager(NodeInterface):
@@ -301,3 +304,138 @@ class WorldManager(NodeInterface):
         # cv2.imwrite("_debug4.png", visual(WorldOccupancy.empty(spread)))
 
         return np.transpose(np.where(WorldOccupancy.empty(spread)))
+
+class LevelManager(WorldManager):
+    """basic unit of manager to be used in multi-level context.
+    _world field becomes a stub, replaced by _level field
+    """
+    _level: World.Level
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        del self._world
+
+    def __getattribute__(self, name):
+        if name == "_world":
+            raise AttributeError(
+                "Direct access to '_world' is not allowed in LevelManager. "
+                "Use the 'world' property (which returns _level) instead."
+            )
+        return super().__getattribute__(name)
+
+    @property
+    def world(self) -> World.WorldDescription:
+        return self._level
+
+    @property
+    def level(self) -> World.Level:
+        return self._level
+
+    def update_world(self, world_map: WorldMap, world_description: World.WorldDescription):
+        return NotImplemented
+
+    def update_level(self, world_map: WorldMap, level: World.Level):
+        world_description = level
+        self._detected_walls = None
+        self._map = world_map
+
+        counter = itertools.count(0)
+        for entity in itertools.chain(world_description.all_static_entities, world_description.all_dynamic_entities):
+            if not entity.name:
+                entity.name = f'{next(counter)}_{entity.model.name}'
+            entity.name = f'world_{entity.name}'
+
+        self._level = level
+
+        for obstacle in self.world.all_static_entities:
+            self.map.occupancy.obstacle_occupy(
+                *self.map.tf_posr2rect(
+                    PositionRadius(
+                        x=obstacle.pose.position.x,
+                        y=obstacle.pose.position.y,
+                        radius=1,  # TODO actual radius
+                    )
+                )
+            )
+
+    @classmethod
+    def create(cls, level: World.Level, map: WorldMap) -> 'LevelManager':
+        out = LevelManager()
+        out.update_level(world_map=map, level=level) # map & level occupancy sync logic happens here
+        return out
+    
+@attrs.define()
+class MultiLevelManager(NodeInterface):
+    """
+    manages multi-level worlds
+    """
+    _managers: dict[str, LevelManager] = attrs.field(factory=dict)
+
+    @property
+    def managers(self) -> dict[str, LevelManager]:
+        return self._managers
+
+    @property
+    def list_managers(self) -> typing.Iterable[LevelManager]:
+        return self._managers.values()
+
+    @property
+    def floor_ids(self) -> typing.Iterable[str]:
+        return self._managers.keys()
+
+    def get_manager(self, floor_id: str) -> LevelManager | None:
+        return self.managers.get(floor_id, None)
+
+    def add_level(self, floor_id: str, level: World.Level, map: WorldMap) -> None:
+        if floor_id in self.floor_ids:
+            raise ValueError(f"floor id {floor_id} is already used")
+        _manager = LevelManager.create(level, map)
+        self._managers[floor_id] = _manager
+
+    def update_level(self, floor_id: str, level_map: WorldMap, level_world: World.Level):
+        """if the floor_id is already in use, replace the manager corresponding to that id
+        if not, add a new manager"""
+
+        _manager = LevelManager.create(level=level_world, map=level_map)
+        self.managers[floor_id] = _manager
+    
+    @staticmethod
+    def _check_floor_id_consistent(multi_level_world: World.MultiLevelWorld, multi_level_map: MultiLevelMap) -> None:
+        level_world_keys = multi_level_world.floor_ids
+        level_map_keys = multi_level_map.floor_ids
+
+        for map_key in level_map_keys:
+            if map_key not in level_world_keys:
+                raise ValueError(f"floor id {map_key} not found in MultiLevelWorld instance. Not safe to create MultiLevelManager instance")
+        for world_key in level_world_keys:
+            if world_key not in level_map_keys:
+                raise ValueError(f"floor id {map_key} not found in MultiLevelMap instance. Not safe to create MultiLevelManager instance")
+
+
+    @classmethod
+    def from_multi_levels(cls, multi_level_world: World.MultiLevelWorld, multi_level_map: MultiLevelMap) -> 'MultiLevelManager':
+        """construct a class instance from given MultiLevelWorld.
+        Raises if MultiLevelWorld is not validated.
+        Creating a manager this way is preferred since it guarantees consistency across floors
+        """
+        multi_level_world.validate()
+        cls._check_floor_id_consistent(multi_level_world, multi_level_map)
+        out = cls()
+        for floor_id in multi_level_world.floor_ids:
+            level = multi_level_world.get_level(floor_id)
+            map = multi_level_map.get_map(floor_id)
+            if level and map:
+                out.add_level(floor_id, level, map)
+
+        return out
+
+    def update_world(
+        self,
+        multi_level_map: MultiLevelMap,
+        multi_level_world: World.MultiLevelWorld
+    ):
+        """This method completely rewrites the current manager.
+        """
+        updated = self.from_multi_levels(multi_level_world=multi_level_world, multi_level_map=multi_level_map)
+        self = updated
+    

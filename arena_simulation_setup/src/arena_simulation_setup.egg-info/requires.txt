@@ -1,0 +1,9 @@
+setuptools
+requests
+attrs
+shapely
+pillow
+
+[test]
+pytest>=7
+hypothesis>=6

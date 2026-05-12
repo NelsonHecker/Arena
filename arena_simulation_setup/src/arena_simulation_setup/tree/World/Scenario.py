@@ -17,14 +17,17 @@ from arena_simulation_setup.utils.cattrs import converter
 class RobotGoal:
     start: Pose = attrs.field(converter=Pose.converter)
     goal: Pose = attrs.field(converter=Pose.converter)
+    start_floor: str = attrs.field(default="")
+    goal_floor: str = attrs.field(default="")
 
     @classmethod
     def parse(cls, obj: dict) -> "RobotGoal":
         return cls(
             start=Pose.parse(obj.get("start", [])),
             goal=Pose.parse(obj.get("goal", [])),
+            start_floor=obj.get("start_floor", ""),
+            goal_floor=obj.get("goal_floor", "")
         )
-
 
 @attrs.define
 class Scenario:

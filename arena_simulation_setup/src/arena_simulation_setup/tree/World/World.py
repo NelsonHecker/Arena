@@ -316,8 +316,12 @@ class Shaft:
 
 @attrs.define
 class MultiLevelWorld:
-    levels: dict[str, Level] = attrs.field(factory=dict)
-    shafts: dict[str, Shaft] = attrs.field(factory=dict)
+    levels: dict[str, Level] = attrs.field(factory=dict) # level (floor) by its floor id
+    shafts: dict[str, Shaft] = attrs.field(factory=dict) # shaft by its shaft id
+
+    @property
+    def floor_ids(self) -> typing.Iterable[str]:
+        return self.levels.keys()
 
     @property
     def all_elevator_names(self) -> typing.Iterable[str]:
@@ -333,6 +337,25 @@ class MultiLevelWorld:
             level
             for level in self.levels.values()
         )
+
+    @property
+    def all_static_entities(self) -> typing.Iterable[Obstacle]:
+        return (
+            obstacle
+            for level in self.all_levels
+            for obstacle in level.all_static_entities
+        )
+    
+    @property
+    def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
+        return (
+            d_obstacle
+            for level in self.all_levels
+            for d_obstacle in level.all_dynamic_entities
+        )
+
+    def get_level(self, floor_id: str) -> Level | None:
+        return self.levels.get(floor_id, None)
 
     def validate(self):
         elevator_floors: dict[str, str] = {}
@@ -765,9 +788,22 @@ class World(PathView):
 class MultiLevelWorldView(PathView):
 
     @property
-    def scenario(self):
-        # TODO : need to refactor (or create an extension of) Scenario first
-        return
+    def scenario(self) -> type[Identifier[ScenarioView]]:
+        class ScenarioIdentifier(Identifier[ScenarioView]):
+            @classmethod
+            def listall(cls, **kwargs: object) -> Iterator[Self]:
+                scenarios_dir = self.path / 'scenarios'
+                if not scenarios_dir.is_dir():
+                    yield from ()
+                    return
+                yield from (cls(entry.name) for entry in os.scandir(scenarios_dir) if entry.is_dir())
+
+            def load(self, path: Path, /, **kwargs: object) -> ScenarioView:
+                del kwargs
+                return ScenarioView(path)
+
+        ScenarioIdentifier.use(FallbackResolver(ScenarioIdentifier, self.path / 'scenarios'))
+        return ScenarioIdentifier
 
     @property
     def map(self) -> Map:

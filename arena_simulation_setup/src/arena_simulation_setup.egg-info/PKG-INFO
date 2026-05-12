@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: arena_simulation_setup
+Version: 1.0.0
+Summary: arena_simulation_setup.
+Maintainer: voshch
+Maintainer-email: dev@voshch.dev
+License: MIT
+Requires-Dist: setuptools
+Requires-Dist: requests
+Requires-Dist: attrs
+Requires-Dist: shapely
+Requires-Dist: pillow
+Provides-Extra: test
+Requires-Dist: pytest>=7; extra == "test"
+Requires-Dist: hypothesis>=6; extra == "test"
+Dynamic: license
+Dynamic: maintainer
+Dynamic: maintainer-email
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: summary
