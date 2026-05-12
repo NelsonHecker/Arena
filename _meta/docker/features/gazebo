@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+
+name="gazebo"
+
+update(){
+    return 0
+}
+
+uninstall(){
+    arena registry remove "$name"
+    arena resource
+}
+
+source_fn(){
+    if [[ ! "$ARENA_MODELS_FORMATS" =~ sdf ]]; then
+        export ARENA_MODELS_FORMATS="${ARENA_MODELS_FORMATS},sdf"
+    fi
+}
+
+
+help(){
+    echo "Usage: $name <update|uninstall|source>"
+}
+
+case "$1" in
+    update)
+        update
+        exit $?
+    ;;
+    uninstall)
+        uninstall
+        exit $?
+    ;;
+    source)
+        source_fn
+        return $?
+    ;;
+    *)
+        help
+        exit 1
+    ;;
+esac

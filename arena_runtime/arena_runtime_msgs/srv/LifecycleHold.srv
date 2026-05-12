@@ -1,0 +1,9 @@
+# Acquire or release a sim-lifecycle hold.
+uint8 ACQUIRE = 0
+uint8 RELEASE = 1
+uint8 action
+string caller_id     # node FQN, from node.get_fully_qualified_name()
+string reason        # short label, e.g. "reset", "robot_move", "training"
+---
+bool paused          # paused state after this operation
+uint32 hold_count    # total active holds across all callers

@@ -1,0 +1,6 @@
+# Delete all sim entities belonging to env_id. Runtime computes the prefix from the active simulator.
+uint16 env_id
+---
+bool success
+uint32 removed
+string error_msg

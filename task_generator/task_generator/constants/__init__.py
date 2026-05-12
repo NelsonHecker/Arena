@@ -5,15 +5,8 @@ from arena_rclpy_mixins.shared import Namespace
 
 
 class Constants:
-    DEFAULT_PEDESTRIAN_MODEL = "actor1"
+    DEFAULT_PEDESTRIAN_MODEL = "arenian"
     TASK_GENERATOR_SERVER_NODE = Namespace("task_generator_server")
-
-    class SimSimulator(Enum):
-        DUMMY = "dummy"
-        FLATLAND = "flatland"
-        GAZEBO = "gazebo"
-        UNITY = "unity"
-        ISAAC = "isaac"
 
     class ArenaType(Enum):
         TRAINING = "training"
@@ -34,7 +27,7 @@ class Constants:
             PROMPT = "prompt"
 
             @classmethod
-            def prefix(cls, *args):
+            def prefix(cls, *args: object) -> Namespace:
                 return Namespace("tm_obstacles")(*args)
 
             @classmethod
@@ -49,7 +42,7 @@ class Constants:
             SCENARIO = "scenario"
 
             @classmethod
-            def prefix(cls, *args):
+            def prefix(cls, *args: object) -> Namespace:
                 return Namespace("tm_robots")(*args)
 
             @classmethod
@@ -62,10 +55,9 @@ class Constants:
             DYNAMIC_MAP = "dynamic_map"
             CLEAR_FORBIDDEN_ZONES = "clear_forbidden_zones"
             RVIZ_UI = "rviz_ui"
-            BENCHMARK = "benchmark"
 
             @classmethod
-            def prefix(cls, *args):
+            def prefix(cls, *args: object) -> Namespace:
                 return Namespace("tm_module")(*args)
 
             @classmethod
@@ -94,6 +86,7 @@ class Constants:
 class UnityConstants:
     WALL_HEIGHT = 4.0
     ATTACH_SAFE_DIST_SENSOR_TOPIC = "attach_safe_dist_sensor"
+
 
 # if __name__ == "__main__":
 #     rospack = rospkg.RosPack()

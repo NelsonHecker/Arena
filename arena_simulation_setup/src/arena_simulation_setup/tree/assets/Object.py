@@ -1,11 +1,14 @@
+from functools import cached_property
 from pathlib import Path
 
 import attrs
+import yaml
 
 from arena_simulation_setup.tree import (
     DomainAssetIdentifier,
     DynamicPaths,
     NetResolver,
+    PathView,
 )
 from arena_simulation_setup.utils.models import ModelWrapper
 from arena_simulation_setup.utils.models.model_loader import (
@@ -14,21 +17,55 @@ from arena_simulation_setup.utils.models.model_loader import (
 )
 
 
-@attrs.define(eq=False, hash=False)
-class ObjectIdentifier(DomainAssetIdentifier[ModelWrapper]):
-    """Represents an identifier referencing a 3D model asset.
+class ObjectView(PathView):
+    """View around a resolved Object asset directory.
+
+    Exposes typed accessors over the asset contents (model + bounds), keeping
+    asset-format details out of consumers. Mirrors the Map/ScenarioView/World
+    pattern used elsewhere in the tree.
     """
+
+    @cached_property
+    def model(self) -> ModelWrapper:
+        return ModelWrapper(
+            self.path.name,
+            {
+                **ModelProvider_USD.asdict(self.path, self.path.name),
+                **ModelProvider_SDF.asdict(self.path, self.path.name),
+            },
+        )
+
+    @cached_property
+    def annotation(self) -> dict | None:
+        """Parsed annotation.yaml contents, or None if absent."""
+        ann_path = self.path / 'annotation.yaml'
+        if not ann_path.exists():
+            return None
+        return yaml.safe_load(ann_path.read_text())
+
+    @cached_property
+    def bounds(self) -> list[tuple[float, float]] | None:
+        """2D footprint corners in obstacle-local frame (pre-rotation), or None
+        if annotation.yaml is absent or lacks a bounding_box."""
+        ann = self.annotation
+        if ann is None:
+            return None
+        bbox = ann.get('bounding_box')
+        if bbox is None:
+            return None
+        (min_x, max_x), (min_y, max_y), _ = bbox
+        return [(min_x, min_y), (min_x, max_y), (max_x, max_y), (max_x, min_y)]
+
+
+@attrs.define(eq=False, hash=False)
+class ObjectIdentifier(DomainAssetIdentifier[ObjectView]):
+    """Represents an identifier referencing a 3D model asset."""
+
     _asset_type = 'Object'
 
-    def load(self, path: Path, /, **kwargs) -> ModelWrapper:
+    def load(self, path: Path, /, **kwargs: object) -> ObjectView:
         del kwargs  # unused
-        return ModelWrapper(
-            self.name,
-            {
-                **ModelProvider_USD.asdict(path, path.name),
-                **ModelProvider_SDF.asdict(path, path.name),
-            }
-        )
+        return ObjectView(path)
 
 
 ObjectIdentifier.use(*DynamicPaths.as_resolvers(ObjectIdentifier))

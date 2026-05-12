@@ -1,14 +1,12 @@
 import itertools
 import os
 
-import yaml
-
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 from arena_bringup.future import IfElseSubstitution, PythonExpression  # noqa
 from arena_bringup.substitutions import LaunchArgument
@@ -56,7 +54,10 @@ def generate_launch_description():
 
     GZ_SIM_RESOURCE_PATHS = [
         os.path.join(staging_path),
-        robots_root
+        robots_root,
+        os.path.dirname(robots_root),
+        os.path.join(ss_root, "assets", "Common", "Pedestrian", "arenian", "arenian.sdf"),
+        os.path.join(ss_root, "assets", "Common", "Pedestrian", "arenian"),
     ]
 
     deps_file = os.path.join(staging_path, 'deps')
@@ -72,9 +73,6 @@ def generate_launch_description():
 
     GZ_SIM_RESOURCE_PATHS = [os.path.normpath(path) for path in GZ_SIM_RESOURCE_PATHS]
 
-    # GZ_CONFIG_PATH = ":".join(GZ_CONFIG_PATHS)
-    GZ_CONFIG_PATH = "/usr/share/gz"
-
     for root, dirs, files in os.walk(os.path.join(ss_root, "gazebo_models")):
         for dir_name in dirs:
             if 'hospital' in dir_name.lower():
@@ -88,56 +86,48 @@ def generate_launch_description():
         GZ_SIM_RESOURCE_PATHS_COMBINED = f"{model_path}:{GZ_SIM_RESOURCE_PATHS_COMBINED}"
     os.environ["GZ_SIM_RESOURCE_PATH"] = GZ_SIM_RESOURCE_PATHS_COMBINED
     os.environ["GAZEBO_MODEL_PATH"] = GZ_SIM_RESOURCE_PATHS_COMBINED
-    # os.environ['GZ_CONFIG_PATH'] = GZ_CONFIG_PATH
-    # os.environ["GZ_CONFIG_PATH"] = GZ_CONFIG_PATH
     # os.environ["GZ_SIM_PHYSICS_ENGINE_PATH"] = GZ_SIM_PHYSICS_ENGINE_PATH
 
-    desired_world = PathJoinSubstitution(
-        [
-            ss_root,
-            "worlds",
-            world.substitution,
-            "worlds",
-            PythonExpression(['"', world.substitution, '.world"']),
-        ]
-    )
+    desired_world = PathJoinSubstitution([
+        ss_root,
+        "worlds",
+        world.substitution,
+        "worlds",
+        PythonExpression(['"', world.substitution, '.world"']),
+    ])
 
     world_path = IfElseSubstitution(
         condition=PythonExpression(['not os.path.isfile("', desired_world, '")'], python_modules=['os']),
-        if_value=PathJoinSubstitution(
-            [
-                package_root,
-                'configs',
-                'gazebo',
-                'empty.sdf',
-            ]
-        ),
+        if_value=PathJoinSubstitution([
+            package_root,
+            'configs',
+            'gazebo',
+            'empty.sdf',
+        ]),
         else_value=desired_world,
     )
 
-    # Gazebo launch
-    gz_sim_launch_file = os.path.join(
-        get_package_share_directory("ros_gz_sim"), "launch", "gz_sim.launch.py"
-    )
+    def _launch_gazebo(context, *args, **kwargs):
+        resolved_world = context.perform_substitution(world_path)
+        headless_val = context.perform_substitution(headless.substitution)
+        gz_args = resolved_world + " -r --render-engine ogre"
+        if headless_val.lower() in ("true", "1"):
+            gz_args += " -s"
+        include = IncludeLaunchDescription(
+            PathJoinSubstitution([
+                FindPackageShare('ros_gz_sim'),
+                'launch',
+                'gz_sim.launch.py',
+            ]),
+            launch_arguments={
+                "gz_version": "8",
+                "gz_args": gz_args,
+                "physics-engine": "gz-physics-dartsim",
+            }.items(),
+        )
+        return [include]
 
-    gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(gz_sim_launch_file),
-        launch_arguments={
-            "gz_version": "8",
-            "gz_args": [
-                world_path,
-                # " -v 4",
-                " -r",
-                " --render-engine ogre",
-                IfElseSubstitution(
-                    headless.substitution,
-                    " -s",
-                    "",
-                ),
-            ],
-            "physics-engine": "gz-physics-dartsim",
-        }.items(),
-    )
+    gazebo = OpaqueFunction(function=_launch_gazebo)
 
     clock_bridge = Node(
         package='ros_gz_bridge',
@@ -156,7 +146,6 @@ def generate_launch_description():
             use_sim_time,
             world,
             headless,
-            SetEnvironmentVariable("GZ_CONFIG_PATH", GZ_CONFIG_PATH),
             # SetEnvironmentVariable(
             #     "GZ_SIM_PHYSICS_ENGINE_PATH", GZ_SIM_PHYSICS_ENGINE_PATH
             # ),

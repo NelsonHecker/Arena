@@ -46,11 +46,12 @@ class WorldGeneratorROS(WorldGenerator, ServiceNamespace):
         self.create_service(std_srvs.srv.Trigger, self.service_namespace('generate_world'), self._cb_generate)
 
 
-def main(argv=sys.argv):
+def main(argv: list[str] = sys.argv) -> None:
     import os
 
     import rclpy
     import rclpy.utilities
+    from arena_rclpy_mixins.spin import spin_node
 
     rclpy.init(args=argv)
     argv = rclpy.utilities.remove_ros_args(argv)
@@ -59,14 +60,7 @@ def main(argv=sys.argv):
         print(f'usage: {os.path.basename(__file__)}')
         sys.exit(1)
 
-    node = WorldGeneratorROS()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+    spin_node(WorldGeneratorROS())
 
 
 if __name__ == '__main__':

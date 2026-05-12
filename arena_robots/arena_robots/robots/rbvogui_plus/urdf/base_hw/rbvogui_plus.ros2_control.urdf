@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<robot name="rbvogui_plus" xmlns:xacro="http://ros.org/wiki/xacro">
+  <!-- TODO: rbvogui base_hw ros2_control is not yet vendored. The upstream uses
+       Robotnik's own plugin; Arena would wrap gazebo/ignition ros2_control plugins.
+       Deferred until robotnik_sensors lands. -->
+</robot>

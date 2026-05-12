@@ -1,0 +1,7 @@
+# World; empty inherits.
+string world
+# Seed override; -1 derives.
+int64 seed -1
+---
+bool success
+string error_msg

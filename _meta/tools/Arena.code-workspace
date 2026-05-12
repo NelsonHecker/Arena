@@ -9,6 +9,10 @@
       "path": "src/Arena/arena_bringup"
     },
     {
+      "name": "runtime",
+      "path": "src/Arena/arena_runtime"
+    },
+    {
       "name": "task_generator",
       "path": "src/Arena/task_generator"
     },
@@ -37,11 +41,14 @@
     },
     {
       "name": "robots",
-      "path": "src/Arena/arena_robots/arena_robots"
+      "path": "src/Arena/arena_robots"
     },
     {
       "name": "hunav",
       "path": "src/deps/hunav"
+    },
+    {
+      "path": "src/Arena/arena_training"
     }
   ],
   "settings": {
@@ -138,7 +145,7 @@
       "${workspaceFolder:Arena}/../../install/geometry_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/std_srvs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
-      "${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_runtime_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/hunav_msgs/lib/python3.10/site-packages/",
@@ -168,7 +175,7 @@
       "${workspaceFolder:Arena}/../../install/geometry_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/std_srvs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/arena_rclpy_mixins/lib/python3.10/site-packages/",
-      "${workspaceFolder:Arena}/../../install/task_generator_msgs/lib/python3.10/site-packages/",
+      "${workspaceFolder:Arena}/../../install/arena_runtime_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/isaacsim_msgs/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/arena_robots/lib/python3.10/site-packages/",
       "${workspaceFolder:Arena}/../../install/hunav_msgs/lib/python3.10/site-packages/",

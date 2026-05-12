@@ -4,90 +4,33 @@ from collections.abc import Sequence
 
 import rclpy
 import rclpy.publisher
-import rosgraph_msgs.msg as rosgraph_msgs
 import std_msgs.msg as std_msgs
 from arena_rclpy_mixins.ROSParamServer import ROSParamServer
-from arena_rclpy_mixins.shared import DefaultParameter, Namespace
+from arena_runtime._node import NodeInterface
 
-from task_generator import NodeInterface
 from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
-from task_generator.manager.robot_manager.robots_manager_ros import RobotsManager
+from task_generator.manager.robot_manager import RobotsManager
 from task_generator.manager.world_manager.world_manager_ros import WorldManager
-from task_generator.shared import Pose, rosparam_set
+from task_generator.shared import Pose
+from task_generator.tasks.registry import _TaskRegistry
+from task_generator.tasks.robots.composite import (
+    TM_Composite,
+    _scoped_ctx,
+    get_extra_tm_loader,
+)
+from task_generator.tasks.robots.fleet_manager import FleetManager, TaskModeSpec
+from task_generator.tasks.robots.request import TaskKind, TaskRequest
 
-from . import Namespaced, Props_
-from .modules import TM_Module
+from . import TaskContext
 from .obstacles import TM_Obstacles
 from .robots import TM_Robots
 
 # import training.srv as training_srvs
 
 
-class _TaskRegistry(Namespaced):
-    registry_obstacles: dict[Constants.TaskMode.TM_Obstacles, typing.Callable[[], type[TM_Obstacles]]] = {}
-    registry_robots: dict[Constants.TaskMode.TM_Robots, typing.Callable[[], type[TM_Robots]]] = {}
-    registry_module: dict[Constants.TaskMode.TM_Module, typing.Callable[[], type[TM_Module]]] = {}
-
-    _namespace: typing.ClassVar[Namespace] = Namespaced.namespace('task')
-
-    @classmethod
-    def register_obstacles(cls, name: Constants.TaskMode.TM_Obstacles):
-        def inner_wrapper(
-                loader: typing.Callable[[], type[TM_Obstacles]]):
-            assert (
-                name not in cls.registry_obstacles
-            ), f"TaskMode '{name}' for obstacles already exists!"
-
-            def namespaced_loader():
-                class Inner(loader()):
-                    _namespace = cls._namespace(name.value)
-                return Inner
-
-            cls.registry_obstacles[name] = namespaced_loader
-            return loader
-
-        return inner_wrapper
-
-    @classmethod
-    def register_robots(cls, name: Constants.TaskMode.TM_Robots):
-        def inner_wrapper(loader: typing.Callable[[], type[TM_Robots]]):
-            assert (
-                name not in cls.registry_obstacles
-            ), f"TaskMode '{name}' for robots already exists!"
-
-            def namespaced_loader():
-                class Inner(loader()):
-                    _namespace = cls._namespace(name.value)
-                return Inner
-
-            cls.registry_robots[name] = namespaced_loader
-            return loader
-
-        return inner_wrapper
-
-    @classmethod
-    def register_module(cls, name: Constants.TaskMode.TM_Module):
-        def inner_wrapper(loader: typing.Callable[[], type[TM_Module]]):
-            assert (
-                name not in cls.registry_obstacles
-            ), f"TaskMode '{name}' for module already exists!"
-
-            def namespaced_loader():
-                class Inner(loader()):
-                    _namespace = cls._namespace(name.value)
-                return Inner
-
-            cls.registry_module[name] = namespaced_loader
-            return loader
-
-        return inner_wrapper
-
-
-class Task(_TaskRegistry, NodeInterface, Props_):
-    """Task class that comibnes task modes.
-    """
-    last_reset_time: int
+class Task(_TaskRegistry, NodeInterface):
+    """Task class that comibnes task modes."""
 
     TOPIC_RESET_START = "reset_start"
     TOPIC_RESET_END = "reset_end"
@@ -96,10 +39,10 @@ class Task(_TaskRegistry, NodeInterface, Props_):
     @classmethod
     def declare_parameters(cls, node: ROSParamServer):
         node.ROSParam[bool](cls.PARAM_RESETTING, True)
+        _TaskRegistry.walk_schemas(node)
 
     __reset_start: rclpy.publisher.Publisher
     __reset_end: rclpy.publisher.Publisher
-    __reset_mutex: bool
 
     PARAM_TM_ROBOTS = "tm_robots"
     PARAM_TM_OBSTACLES = "tm_obstacles"
@@ -120,8 +63,8 @@ class Task(_TaskRegistry, NodeInterface, Props_):
         robots_manager: RobotsManager,
         world_manager: WorldManager,
         modules: Sequence[Constants.TaskMode.TM_Module] = (),
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> "Task":
         self = cls(
             environment_manager=environment_manager,
             robots_manager=robots_manager,
@@ -132,122 +75,148 @@ class Task(_TaskRegistry, NodeInterface, Props_):
         await self.robots_manager.set_up()
         return self
 
+    _ctx: TaskContext
+
+    @property
+    def environment_manager(self) -> EnvironmentManager:
+        return self._ctx.environment_manager
+
+    @property
+    def robots_manager(self) -> RobotsManager:
+        return self._ctx.robots_manager
+
+    @property
+    def world_manager(self) -> WorldManager:
+        return self._ctx.world_manager
+
+    @property
+    def robots(self) -> dict:
+        return self._ctx.robots
+
     def __init__(
         self,
-        *args,
+        *args: object,
         environment_manager: EnvironmentManager,
         robots_manager: RobotsManager,
         world_manager: WorldManager,
         modules: Sequence[Constants.TaskMode.TM_Module] = (),
-        **kwargs,
-    ):
-        """
-        Initializes a CombinedTask object.
-
-        Args:
-            environment_manager (ObstacleManager): The obstacle manager for the task.
-            robots_manager (RobotsManager): The dict of robot managers for the task.
-            world_manager (WorldManager): The world manager for the task.
-            namespace (str, optional): The namespace for the task. Defaults to "".
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-        """
+        **kwargs: object,
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self._force_reset = False
 
-        self.environment_manager = environment_manager
-        self.robots_manager = robots_manager
-        self.world_manager = world_manager
-
-        self._train_mode = self.node.get_parameter_or("/train_mode", DefaultParameter(False)).value
+        self._ctx = TaskContext(
+            environment_manager=environment_manager,
+            robots_manager=robots_manager,
+            world_manager=world_manager,
+        )
 
         self.__reset_start = self.node.create_publisher(std_msgs.Empty, 'reset_start', 1)
         self.__reset_end = self.node.create_publisher(std_msgs.Empty, 'reset_end', 1)
-        self.__reset_mutex = False
-
-        self.node.create_subscription(rosgraph_msgs.Clock, '/clock', self._clock_callback, 10)
-        self.last_reset_time = 0
-        self.clock = rosgraph_msgs.Clock()
 
         self.__param_tm_obstacles = None  # type: ignore
         self.__param_tm_robots = None  # type: ignore
-        self._logger.info('initing modules')
-        self.__modules = [
-            self.registry_module[module]()(node=self.node, task=self) for module in modules
-        ]
-
-        if self._train_mode:
-            self.set_tm_robots(Constants.TaskMode.TM_Robots(self.node.conf.TaskMode.TM_ROBOTS.value))
-            self.set_tm_obstacles(Constants.TaskMode.TM_Obstacles(self.node.conf.TaskMode.TM_OBSTACLES.value))
+        self._logger.debug('initing modules')
+        self.__modules = []
+        for module in modules:
+            loader, ns, _schema = self.registry_module[module]
+            self.__modules.append(loader()(ctx=self._ctx, namespace=ns, task=self, node=self.node))
 
     def set_tm_robots(self, tm_robots: Constants.TaskMode.TM_Robots):
-        """
-        Sets the task mode for robots.
-
-        Args:
-            tm_robots (Constants.TaskMode.TM_Robots): The task mode for robots.
-        """
         assert tm_robots in self.registry_robots, f"TaskMode '{tm_robots}' for robots is not registered!"
-        self.__tm_robots = self.registry_robots[tm_robots]()(node=self.node, props=self)
+        loader, ns, _schema = self.registry_robots[tm_robots]
+        self.__tm_robots = loader()(ctx=self._ctx, namespace=ns, node=self.node)
         self.__param_tm_robots = tm_robots
 
-    def set_tm_obstacles(
-            self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
-        """
-        Sets the task mode for obstacles.
+    def set_tm_robots_composite(
+        self,
+        specs: typing.Sequence[TaskModeSpec],
+    ) -> None:
+        """Bind a multi-TM composite task mode via FleetManager allocation."""
+        if not specs:
+            raise ValueError("task_modes list is empty")
 
-        Args:
-            tm_obstacles (Constants.TaskMode.TM_Obstacles): The task mode for obstacles.
-        """
+        allocation = FleetManager.match(
+            list(specs),
+            self._ctx.robots.values(),
+        )
+
+        sub_modes: list[TM_Robots] = []
+        for spec, robots in allocation.items():
+            # Resolve the TM loader via the standard TaskMode enum;
+            # fall back to the composite module's extra registry for TM_Null.
+            loader = None
+            ns = None
+            try:
+                enum_key = Constants.TaskMode.TM_Robots(spec.kind)
+            except ValueError:
+                enum_key = None
+            if enum_key is not None and enum_key in self.registry_robots:
+                loader, ns, _schema = self.registry_robots[enum_key]
+            else:
+                extra = get_extra_tm_loader(spec.kind)
+                if extra is None:
+                    raise KeyError(f"task_mode kind {spec.kind!r} is not registered")
+                loader = extra
+                ns = _TaskRegistry._namespace(spec.kind)
+
+            scoped = _scoped_ctx(self._ctx, (r.name for r in robots))
+            sub_modes.append(loader()(ctx=scoped, namespace=ns, node=self.node))
+
+        self.__tm_robots = TM_Composite(
+            ctx=self._ctx,
+            namespace=_TaskRegistry._namespace("composite"),
+            node=self.node,
+            sub_modes=sub_modes,
+        )
+        # No single enum value applies; sentinel prevents the
+        # new_tm_robots != __param_tm_robots comparison in _reset_episode
+        # from retriggering a rebind.
+        self.__param_tm_robots = None  # type: ignore[assignment]
+
+    def set_tm_obstacles(self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
         assert tm_obstacles in self.registry_obstacles, f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
-        self.__tm_obstacles = self.registry_obstacles[tm_obstacles]()(node=self.node, props=self)
+        loader, ns, _schema = self.registry_obstacles[tm_obstacles]
+        self.__tm_obstacles = loader()(ctx=self._ctx, namespace=ns, node=self.node)
         self.__param_tm_obstacles = tm_obstacles
 
-    async def _reset_task(self, **kwargs):
-        """
-        Reset the task by updating task modes, resetting modules, and spawning obstacles.
-
-        Args:
-            **kwargs: Additional keyword arguments for resetting the task.
-
-        Returns:
-            None
-        """
+    async def _reset_episode(self, **kwargs: object) -> None:
         try:
             self.__reset_start.publish(std_msgs.Empty())
 
             await self.robots_manager.set_up()
+            await self.robots_manager.launch_pending()
 
-            if not self._train_mode:
-                if (
-                    new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value
-                ) != self.__param_tm_robots:
+            await self.environment_manager.before_reset_episode()
+
+            try:
+                if (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
                     self.set_tm_robots(new_tm_robots)
 
-                if (
-                    new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value
-                ) != self.__param_tm_obstacles:
+                if (new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value) != self.__param_tm_obstacles:
                     self.set_tm_obstacles(new_tm_obstacles)
 
-            for module in self.__modules:
-                module.before_reset()
+                self.node._apply_staged_params()
 
-            await self.__tm_robots.reset(**kwargs)
-            obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
+                for module in self.__modules:
+                    module.before_reset()
 
-            async def respawn():
-                await asyncio.gather(
-                    self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
-                    self.environment_manager.spawn_obstacles(obstacles),
-                )
+                await self.__tm_robots.reset(**kwargs)
+                obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
 
-            await self.environment_manager.respawn(respawn)
+                async def respawn():
+                    await asyncio.gather(
+                        self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
+                        self.environment_manager.spawn_obstacles(obstacles),
+                    )
 
-            for module in self.__modules:
-                module.after_reset()
+                await self.environment_manager.respawn(respawn)
 
-            self.last_reset_time = self.clock.clock.sec
+                for module in self.__modules:
+                    module.after_reset()
+            finally:
+                await self.environment_manager.after_reset_episode()
 
         except Exception as e:
             self.node.get_logger().error(repr(e))
@@ -256,76 +225,42 @@ class Task(_TaskRegistry, NodeInterface, Props_):
         finally:
             self.__reset_end.publish(std_msgs.Empty())
 
-    def _mutex_reset_task(self, **kwargs):
-        """
-        Executes a reset task while ensuring mutual exclusion.
-
-        This function acquires a mutex lock to ensure that only one reset task is executed at a time.
-        It sets a parameter to indicate that the system is resetting, publishes a reset start message,
-        performs the reset task, and then publishes a reset end message. If any exception occurs during
-        the reset task, it logs the error, shuts down the ROS node, and raises an exception.
-
-        Args:
-            kwargs: Additional keyword arguments.
-
-        Raises:
-            Exception: If an error occurs during the reset task.
-
-        """
-        # TODO
-        raise NotImplementedError("This method is deprecated. Use _reset_task instead.")
-        while self.__reset_mutex:
-            rclpy.sleep(0.001)
-        self.__reset_mutex = True
-
-        try:
-            rosparam_set(self.PARAM_RESETTING, True)
-            self._reset_task()
-
-        except Exception as e:
-            raise e
-
-        finally:
-            rosparam_set(self.PARAM_RESETTING, False)
-            self.__reset_mutex = False
-
-    async def reset(self, **kwargs):
-        """
-        Resets the task.
-
-        Args:
-            **kwargs: Arbitrary keyword arguments.
-        """
+    async def reset(self, **kwargs: object) -> None:
         self._force_reset = False
-        await self._reset_task(**kwargs)
+        await self._reset_episode(**kwargs)
 
     @property
     async def is_done(self) -> bool:
-        """
-        Checks if the task is done.
-
-        Returns:
-            bool: True if the task is done, False otherwise.
-        """
         return self._force_reset or await self.__tm_robots.done
 
-    async def set_robot_position(self, pose: Pose):
-        """
-        Sets the position of the robot.
+    @property
+    def tm_obstacles(self) -> TM_Obstacles:
+        return self.__tm_obstacles
 
-        Args:
-            position (Pose): The position and orientation of the robot.
-        """
+    @property
+    def tm_robots(self) -> TM_Robots:
+        return self.__tm_robots
+
+    async def set_robot_position(self, pose: Pose):
+        """Broadcast a teleport to all robots (back-compat shim for RViz / training UI)."""
         await self.__tm_robots.set_position(pose)
+        self.node._flip_integrity()
 
     async def set_robot_goal(self, pose: Pose):
-        """
-        Sets the goal position for the robot.
-
-        Args:
-            position (Pose): The goal position for the robot.
-        """
+        """Broadcast a goal to all robots (back-compat shim for RViz / training UI)."""
         await self.__tm_robots.set_goal(pose)
+        self.node._flip_integrity()
+
+    async def submit_task(self, request: TaskRequest, robot_name: str) -> None:
+        """Submit a typed task request to a specific robot; bypasses TM_Robots."""
+        robot = self._ctx.robots[robot_name]
+        await robot.submit_task(request)
+
+    def set_info(self, info: str) -> None:
+        """Update the live info string shown in the RViz panel for the current episode."""
+        self.node.set_episode_info(info)
+
+    _TaskKindAlias = TaskKind  # keep TaskKind import live
 
     def force_reset(self):
         self._force_reset = True

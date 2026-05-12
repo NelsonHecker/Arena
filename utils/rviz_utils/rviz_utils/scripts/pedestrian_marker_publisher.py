@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 
+import math
+
 import rclpy
+from arena_people_msgs.msg import Pedestrian, Pedestrians
+from arena_rclpy_mixins.spin import spin_node
+from geometry_msgs.msg import Vector3
 from rclpy.node import Node
 from rclpy.qos import (
-    QoSProfile,
-    QoSReliabilityPolicy,
     QoSDurabilityPolicy,
     QoSHistoryPolicy,
+    QoSProfile,
+    QoSReliabilityPolicy,
 )
-
-from arena_people_msgs.msg import Pedestrians, Pedestrian
-from visualization_msgs.msg import MarkerArray, Marker
-from geometry_msgs.msg import Vector3
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import ColorRGBA, Header
 from tf_transformations import quaternion_from_euler, quaternion_multiply
-import math
+from visualization_msgs.msg import Marker, MarkerArray
 
 
 class PedestrianMarkerPublisher(Node):
@@ -50,14 +51,10 @@ class PedestrianMarkerPublisher(Node):
         marker_topic = f"{namespace}/pedestrian_markers"
 
         # Subscriber to arena_peds topic
-        self.pedestrians_subscriber = self.create_subscription(
-            Pedestrians, pedestrians_topic, self.pedestrians_callback, pedestrians_qos
-        )
+        self.pedestrians_subscriber = self.create_subscription(Pedestrians, pedestrians_topic, self.pedestrians_callback, pedestrians_qos)
 
         # Publisher for pedestrian markers
-        self.marker_publisher = self.create_publisher(
-            MarkerArray, marker_topic, marker_qos
-        )
+        self.marker_publisher = self.create_publisher(MarkerArray, marker_topic, marker_qos)
 
         # Parameters for visualization
         self.declare_parameter("body_height", 1.6)  # Height of pedestrian body
@@ -66,18 +63,14 @@ class PedestrianMarkerPublisher(Node):
         self.declare_parameter("arrow_length", 0.6)  # Length of direction arrow
         self.declare_parameter("show_labels", True)  # Show name labels
         self.declare_parameter("show_velocity_arrows", True)  # Show velocity arrows
-        self.declare_parameter(
-            "show_orientation_arrows", True
-        )  # Show orientation arrows
+        self.declare_parameter("show_orientation_arrows", True)  # Show orientation arrows
         self.declare_parameter(
             "mesh_resource",
             "package://pal_gazebo_worlds/models/citizen_extras_male_03/meshes/mesh.dae",
         )
 
         self.get_logger().info("Pedestrian Marker Publisher initialized")
-        self.get_logger().info(
-            f"Subscribing to {pedestrians_topic}, publishing to {marker_topic}"
-        )
+        self.get_logger().info(f"Subscribing to {pedestrians_topic}, publishing to {marker_topic}")
 
     def pedestrians_callback(self, msg: Pedestrians):
         """Convert Pedestrians message to MarkerArray with stylized human figures"""
@@ -99,8 +92,7 @@ class PedestrianMarkerPublisher(Node):
         delete_marker.action = Marker.DELETEALL
         markers.append(delete_marker)
 
-        for i, pedestrian in enumerate(msg.pedestrians):
-            # Use pedestrian ID directly
+        for pedestrian in msg.pedestrians:
             pedestrian_id = pedestrian.id
 
             # Determine colors based on animation state
@@ -119,33 +111,25 @@ class PedestrianMarkerPublisher(Node):
 
             # 3. Velocity Arrow (if pedestrian is moving)
             if show_velocity_arrows:
-                velocity_magnitude = math.sqrt(
-                    pedestrian.twist.linear.x**2 + pedestrian.twist.linear.y**2
-                )
+                velocity_magnitude = math.sqrt(pedestrian.twist.linear.x**2 + pedestrian.twist.linear.y**2)
                 if velocity_magnitude > 0.1:  # Only show if moving fast enough
-                    arrow_marker = self._create_velocity_arrow(
-                        pedestrian, pedestrian_id, arrow_length, body_height, msg.header
-                    )
+                    arrow_marker = self._create_velocity_arrow(pedestrian, pedestrian_id, arrow_length, body_height, msg.header)
                     markers.append(arrow_marker)
 
             # 4. Orientation Arrow (shows where pedestrian is facing)
             if show_orientation_arrows:
-                orientation_marker = self._create_orientation_arrow(
-                    pedestrian, pedestrian_id, arrow_length, body_height, msg.header
-                )
+                orientation_marker = self._create_orientation_arrow(pedestrian, pedestrian_id, arrow_length, body_height, msg.header)
                 markers.append(orientation_marker)
 
             # 5. Name Label
             if show_labels:
-                label_marker = self._create_name_label(
-                    pedestrian, pedestrian_id, body_height, msg.header
-                )
+                label_marker = self._create_name_label(pedestrian, pedestrian_id, body_height, msg.header)
                 markers.append(label_marker)
 
         marker_array.markers = markers
         self.marker_publisher.publish(marker_array)
 
-    def _get_pedestrian_colors(self, pedestrian: Pedestrian):
+    def _get_pedestrian_colors(self, pedestrian: Pedestrian) -> tuple[ColorRGBA, ColorRGBA]:
         """Get colors based on pedestrian animation state"""
 
         # Map animation states to colors
@@ -181,7 +165,7 @@ class PedestrianMarkerPublisher(Node):
         color: ColorRGBA,
         body_height: float,
         body_radius: float,
-        header,
+        header: Header,
     ) -> Marker:
         """Create mesh marker for pedestrian body"""
         marker = Marker()
@@ -229,7 +213,7 @@ class PedestrianMarkerPublisher(Node):
         pedestrian_id: int,
         arrow_length: float,
         body_height: float,
-        header,
+        header: Header,
     ) -> Marker:
         """Create arrow marker showing pedestrian orientation"""
         marker = Marker()
@@ -264,7 +248,7 @@ class PedestrianMarkerPublisher(Node):
         pedestrian_id: int,
         arrow_length: float,
         body_height: float,
-        header,
+        header: Header,
     ) -> Marker:
         """Create arrow marker showing pedestrian velocity direction"""
         marker = Marker()
@@ -300,9 +284,7 @@ class PedestrianMarkerPublisher(Node):
 
         return marker
 
-    def _create_name_label(
-        self, pedestrian: Pedestrian, pedestrian_id: int, body_height: float, header
-    ) -> Marker:
+    def _create_name_label(self, pedestrian: Pedestrian, pedestrian_id: int, body_height: float, header: Header) -> Marker:
         """Create text marker with pedestrian name"""
         marker = Marker()
         marker.header = header
@@ -332,18 +314,9 @@ class PedestrianMarkerPublisher(Node):
         return marker
 
 
-def main(args=None):
+def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
-
-    node = PedestrianMarkerPublisher()
-
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        node.get_logger().info("Shutting down pedestrian marker publisher")
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+    spin_node(PedestrianMarkerPublisher())
 
 
 if __name__ == "__main__":

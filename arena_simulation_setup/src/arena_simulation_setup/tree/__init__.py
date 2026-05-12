@@ -7,14 +7,13 @@ import logging
 import os
 import subprocess
 import threading
+import time
 import typing
-import warnings
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Optional
+from typing import Self
 
 import attrs
-from typing_extensions import Self
 
 from arena_simulation_setup import (
     ARENA_ASSETS_DIR,
@@ -56,7 +55,7 @@ class DynamicPaths:
     ARENA = DynamicPath(Path(os.getenv('ARENA_ASSETS_DIR_LOCAL', ARENA_ASSETS_DIR / 'local')))
 
     @classmethod
-    def as_resolvers(cls, _T: typing.Type[IdentifierT], /) -> Iterable[DynamicPathResolver[IdentifierT]]:
+    def as_resolvers(cls, _T: type[IdentifierT], /) -> Iterable[DynamicPathResolver[IdentifierT]]:
         yield DynamicPathResolver(_T, cls.WORLD, fn=lambda p: p / 'assets')
         yield DynamicPathResolver(_T, cls.ARENA)
 
@@ -68,18 +67,19 @@ class ResolverBase(abc.ABC, typing.Generic[IdentifierT]):
     """
     Base class for resolvers.
     """
+
     @property
     def _asset_type(self) -> str:
         return self._IdentifierT.label()
 
     _cache: dict[IdentifierT, Path] = attrs.field(factory=dict, init=False)
 
-    def __init__(self, _T: typing.Type[IdentifierT], /):
-        self._IdentifierT: typing.Type[IdentifierT] = _T
+    def __init__(self, _T: type[IdentifierT], /):
+        self._IdentifierT: type[IdentifierT] = _T
         self._cache = {}
 
     @abc.abstractmethod
-    async def resolve(self, identifier: IdentifierT) -> Optional[Path]:
+    async def resolve(self, identifier: IdentifierT) -> Path | None:
         """
         Resolve the given identifier.
         """
@@ -90,7 +90,7 @@ class ResolverBase(abc.ABC, typing.Generic[IdentifierT]):
         """
         self._cache.clear()
 
-    def listall(self, **kwargs) -> Iterator[IdentifierT]:
+    def listall(self, **kwargs: object) -> Iterator[IdentifierT]:
         """
         List all local assets available. Builds the cache in the process.
         """
@@ -104,12 +104,12 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
     """
     Resolve asset paths from disk.
     """
+
     @property
     @abc.abstractmethod
-    def path(self) -> Path:
-        ...
+    def path(self) -> Path: ...
 
-    async def resolve(self, identifier: IdentifierT) -> Optional[Path]:
+    async def resolve(self, identifier: IdentifierT) -> Path | None:
         """
         Resolve the given identifier.
         """
@@ -120,7 +120,7 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
                 return candidate
         return self._cache.get(identifier, None)
 
-    def listall(self, **kwargs) -> Iterator[IdentifierT]:
+    def listall(self, **kwargs: object) -> Iterator[IdentifierT]:
         """
         List all local assets available.
         """
@@ -139,6 +139,8 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
                 pass
 
             for file in files:
+                if file.lower() == 'readme.md':
+                    continue
                 file_relpath = relpath / file
                 try:
                     yield self._IdentifierT.from_relpath(file_relpath)
@@ -154,7 +156,7 @@ class SimplePathResolver(PathResolverBase[IdentifierT], typing.Generic[Identifie
     Resolve asset paths from a single disk location.
     """
 
-    def __init__(self, _T: typing.Type[IdentifierT], /, path: Path, **kwargs):
+    def __init__(self, _T: type[IdentifierT], /, path: Path, **kwargs: object) -> None:
         super().__init__(_T, **kwargs)
         self._path = path
 
@@ -168,10 +170,13 @@ class DynamicPathResolver(PathResolverBase[IdentifierT], typing.Generic[Identifi
     Resolve asset paths from a dynamic disk location.
     """
 
-    def __init__(self, _T: typing.Type[IdentifierT], /, path: DynamicPath, *, fn: typing.Callable[[Path], Path] | None = None, **kwargs):
+    def __init__(self, _T: type[IdentifierT], /, path: DynamicPath, *, fn: typing.Callable[[Path], Path] | None = None, **kwargs: object) -> None:
         super().__init__(_T, **kwargs)
         if fn is None:
-            def _identity_fn(p): return p
+
+            def _identity_fn(p: Path) -> Path:
+                return p
+
             fn = _identity_fn
         self._dynamic_path = path
         self._fn = fn
@@ -181,111 +186,158 @@ class DynamicPathResolver(PathResolverBase[IdentifierT], typing.Generic[Identifi
         return self._fn(self._dynamic_path.path)
 
 
-class NetResolver(typing.Generic[IdentifierT], SimplePathResolver[IdentifierT], ResolverBase[IdentifierT]):
+class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
     """
-    Resolve asset paths from both disk and network.
+    Resolve asset paths from network.
     """
 
-    def __init__(self, _T: typing.Type[IdentifierT], /, provider: str, **kwargs):
+    _TTL_MARKER = '.ttl'
+
+    def __init__(self, _T: type[IdentifierT], /, provider: str, **kwargs: object) -> None:
         path = ARENA_ASSETS_DIR / provider
         super().__init__(_T, path=path, **kwargs)
         self._provider: str = provider
 
-        self._running_fetches: dict[IdentifierT, asyncio.Task[Optional[Path]]] = {}
-        self._running_lock = asyncio.Lock()
+        self._formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
+        self._ttl = int(os.environ.get('ARENA_MODELS_TTL', '86400'))
+        self._pending: dict[str, list[asyncio.Future[Path | None]]] = {}
+        self._flush_scheduled = False
+        self._batch_lock = asyncio.Lock()
 
     @classmethod
-    async def check_output_async(cls, args: Iterable[str], **kwargs) -> bytes:
-        process = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            **kwargs
-        )
+    async def check_output_async(cls, args: Iterable[str], **kwargs: object) -> bytes:
+        process = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, **kwargs)
         stdout, stderr = await process.communicate()
         if process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
         return stdout
 
-    async def _network_fetch(self, provider: str, identifier: IdentifierT) -> Optional[Path]:
-        relpath = identifier.relpath()
-        root_path = ARENA_ASSETS_DIR / provider
-        target_path = root_path / relpath
+    async def _batch_request(self, relpath: str) -> Path | None:
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[Path | None] = loop.create_future()
+        async with self._batch_lock:
+            self._pending.setdefault(relpath, []).append(future)
+            if not self._flush_scheduled:
+                self._flush_scheduled = True
+                asyncio.create_task(self._flush())
+        return await future
 
-        formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
+    async def _flush(self):
+        # yield once so that requests arriving in the same tick are collected
+        await asyncio.sleep(0)
+
+        async with self._batch_lock:
+            batch = dict(self._pending)
+            self._pending.clear()
+            self._flush_scheduled = False
+
+        relpaths = list(batch.keys())
+        root_path = ARENA_ASSETS_DIR / self._provider
+        logging.info(
+            "Batched fetch of %d asset(s) from provider %s: %s",
+            len(relpaths),
+            self._provider,
+            relpaths,
+        )
 
         try:
-            if (await self.check_output_async([
-                'ros2',
-                'run',
-                'arena_models',
-                'arena_models',
-                '-s',
-                'net',
-                provider,
-                'exists',
-                str(relpath),
-            ])).strip().decode() == '1':
-                logging.info(f"Fetching asset {identifier} from network provider {provider}...")
-                await self.check_output_async([
+            await self.check_output_async(
+                [
                     'ros2',
                     'run',
                     'arena_models',
                     'arena_models',
                     '-s',
                     'net',
-                    provider,
+                    self._provider,
                     'fetch',
-                    str(relpath),
+                    *relpaths,
                     '-o',
                     str(root_path),
-                    *itertools.chain.from_iterable(('--format', format) for format in formats if format),
-                ])
-                return target_path
-
-        except subprocess.CalledProcessError:
+                    *itertools.chain.from_iterable(('--format', fmt) for fmt in self._formats if fmt),
+                ]
+            )
+            stamp = str(int(time.time()))
+            for relpath, futures in batch.items():
+                target = root_path / relpath
+                result = target if target.exists() else None
+                if result is not None and result.is_dir():
+                    try:
+                        (result / self._TTL_MARKER).write_text(stamp)
+                    except OSError:
+                        pass
+                for fut in futures:
+                    if not fut.done():
+                        fut.set_result(result)
+        except Exception:
             import traceback
-            logging.warning(traceback.format_exc())
-            return None
 
-    async def resolve(self, identifier):
+            logging.warning(traceback.format_exc())
+            for futures in batch.values():
+                for fut in futures:
+                    if not fut.done():
+                        fut.set_result(None)
+
+    async def resolve(self, identifier: IdentifierT) -> Path | None:
         """
         Resolve the given name.
         """
         if identifier in self._cache:
             return self._cache[identifier]
 
-        local_result = await SimplePathResolver.resolve(self, identifier)
-        if local_result is not None:
-            return local_result
+        candidate = self.path / identifier.relpath()
+        if candidate.is_dir():
+            marker = candidate / self._TTL_MARKER
+            try:
+                stamp = int(marker.read_text().strip())
+            except (OSError, ValueError):
+                stamp = 0
+            if stamp and time.time() - stamp < self._ttl:
+                self._cache[identifier] = candidate
+                return candidate
 
-        async with self._running_lock:
-            if identifier in self._running_fetches:
-                fetch_task = self._running_fetches[identifier]
-            else:
-                fetch_task = asyncio.create_task(self._network_fetch(self._provider, identifier))
-                self._running_fetches[identifier] = fetch_task
-
-        net_result = await fetch_task
-        if net_result is not None:
-            self._cache[identifier] = net_result
+        result = await self._batch_request(str(identifier.relpath()))
+        if result is not None:
+            self._cache[identifier] = result
 
         return self._cache.get(identifier, None)
 
-    def listall(self, *, network: bool = False, **kwargs) -> Iterator[IdentifierT]:
+    def listall(self, *, network: bool = False, **kwargs: object) -> Iterator[IdentifierT]:
         """
-        List all local assets available. Builds the cache in the process.
+        List all assets available. When *network* is True, also queries the
+        remote provider via ``ros2 run arena_models arena_models … list``.
         """
-        yield from SimplePathResolver.listall(self, **kwargs)
+        yield from super(SimplePathResolver, self).listall(**kwargs)
         if network:
-            warnings.warn(f'Network listing is not yet supported in {repr(self.__class__)}', UserWarning)
-            yield from ()
+            try:
+                output = subprocess.check_output(
+                    [
+                        'ros2',
+                        'run',
+                        'arena_models',
+                        'arena_models',
+                        '-s',
+                        'net',
+                        self._provider,
+                        'list',
+                        self._asset_type,
+                    ],
+                    stderr=subprocess.DEVNULL,
+                )
+                for line in output.decode().splitlines():
+                    line = line.strip()
+                    if line:
+                        yield self._IdentifierT.from_relpath(Path(line))
+            except subprocess.CalledProcessError:
+                import traceback
+
+                logging.warning(traceback.format_exc())
 
     def __repr__(self) -> str:
         return f"{super().__repr__()}(net={self._provider})"
 
     @classmethod
-    def all(cls, _T: typing.Type[IdentifierT], /) -> Iterable[Self]:
+    def all(cls, _T: type[IdentifierT], /) -> Iterable[Self]:
         for provider in NETWORK_PROVIDERS:
             yield cls(_T, provider=provider)
 
@@ -295,11 +347,11 @@ class FallbackResolver(ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
     Resolver that always yields a fallback path.
     """
 
-    def __init__(self, _T: typing.Type[IdentifierT], /, path: Path, **kwargs):
+    def __init__(self, _T: type[IdentifierT], /, path: Path, **kwargs: object) -> None:
         super().__init__(_T, **kwargs)
         self._path = path
 
-    async def resolve(self, identifier: IdentifierT) -> Optional[Path]:
+    async def resolve(self, identifier: IdentifierT) -> Path | None:
         """
         Resolve the given identifier.
         """
@@ -308,6 +360,7 @@ class FallbackResolver(ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({repr(self._path)})"
 
+
 # IDENTIFIERS
 
 
@@ -315,16 +368,14 @@ T = typing.TypeVar('T')
 T_co = typing.TypeVar('T_co', covariant=True)
 
 
-class IdentifierProtocol(typing.Protocol, typing.Generic[T_co]):
-    async def resolve(self, **kwargs) -> T_co:
-        """Resolve and load the asset referenced by this identifier.
-        """
+class IdentifierProtocol(typing.Protocol[T_co]):
+    async def resolve(self, **kwargs: object) -> T_co:
+        """Resolve and load the asset referenced by this identifier."""
         ...
 
     @property
     def shortname(self) -> str:
-        """Get the short name of the identifier.
-        """
+        """Get the short name of the identifier."""
         ...
 
     def relpath(self) -> Path:
@@ -348,21 +399,19 @@ class IdentifierProtocol(typing.Protocol, typing.Generic[T_co]):
 
     @classmethod
     def label(cls) -> str:
-        """Short label for the identifier type.
-        """
+        """Short label for the identifier type."""
         ...
 
     @classmethod
-    def listall(cls, **kwargs) -> Iterator[Self]:
-        """List all local assets available.
-        """
+    def listall(cls, **kwargs: object) -> Iterator[Self]:
+        """List all local assets available."""
         ...
 
 
 @attrs.define(eq=False, hash=False)
 class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typing.Generic[T]):
-    """Represents an identifier referencing an path.
-    """
+    """Represents an identifier referencing an path."""
+
     name: str
 
     @property
@@ -382,14 +431,14 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
             msg += f'\n\t{repr(resolver)}'
         raise FileNotFoundError(msg)
 
-    async def resolve(self, **kwargs) -> T:
-        return self.load(await self.resolve_path(), **kwargs)
+    async def resolve(self, **kwargs: object) -> T:
+        path = await self.resolve_path()
+        return await asyncio.to_thread(self.load, path, **kwargs)
 
-    def resolve_sync(self, **kwargs) -> T:
-        """Synchronously load the asset referenced by this identifier.
-        """
+    def resolve_sync(self, **kwargs: object) -> T:
+        """Synchronously load the asset referenced by this identifier."""
         result: T = None  # type: ignore
-        exc: Optional[Exception] = None
+        exc: Exception | None = None
 
         def _run_async_load():
             loop = asyncio.new_event_loop()
@@ -412,11 +461,10 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
         return result
 
     @abc.abstractmethod
-    def load(self, path: Path, /, **kwargs) -> T:
-        """Load the asset referenced by this identifier.
-        """
+    def load(self, path: Path, /, **kwargs: object) -> T:
+        """Load the asset referenced by this identifier."""
 
-    def serialize(self):
+    def serialize(self) -> str:
         return self.shortname
 
     # Class Methods
@@ -449,11 +497,11 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
         return cls(name=value)
 
     @classmethod
-    def converter(cls, *args, **kwargs):
+    def converter(cls, *args: object, **kwargs: object) -> typing.Self:
         return super().instance_or(cls.parse)(*args, **kwargs)
 
     @classmethod
-    def listall(cls, **kwargs) -> Iterator[Self]:
+    def listall(cls, **kwargs: object) -> Iterator[Self]:
         for resolver in cls._resolvers:
             yield from resolver.listall(**kwargs)
 
@@ -467,7 +515,7 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
         cls._resolvers.extend(resolver)
 
     @classmethod
-    def inline(cls: typing.Type[Self], data: T, /, name: str = '', modifiers: dict | None = None) -> Self:
+    def inline(cls: type[Self], data: T, /, name: str = '', modifiers: dict | None = None) -> Self:
         """Create an InlineIdentifier containing the given data.
 
         Args:
@@ -480,18 +528,14 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
         """
         del modifiers
 
-        TypedInline = type(
-            f"TypedInline_{cls.__name__}",
-            (InlineIdentifier, cls),
-            {}
-        )
+        TypedInline = type(f"TypedInline_{cls.__name__}", (InlineIdentifier, cls), {})
         return typing.cast(Self, TypedInline(data, name=name))
 
 
 @attrs.define(eq=False, hash=False)
 class AssetIdentifier(Identifier[T], typing.Generic[T]):
-    """Represents an identifier referencing an asset.
-    """
+    """Represents an identifier referencing an asset."""
+
     name: str
 
     _asset_type: typing.ClassVar[str]
@@ -501,8 +545,7 @@ class AssetIdentifier(Identifier[T], typing.Generic[T]):
 
     @classmethod
     def label(cls) -> str:
-        """Short label for the identifier type.
-        """
+        """Short label for the identifier type."""
         return cls._asset_type
 
     @classmethod
@@ -521,8 +564,8 @@ class AssetIdentifier(Identifier[T], typing.Generic[T]):
 
 @attrs.define(eq=False, hash=False)
 class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
-    """Represents an identifier referencing an asset.
-    """
+    """Represents an identifier referencing an asset."""
+
     name: str
     domain: str = attrs.field(default=DOMAIN_DEFAULT)
 
@@ -557,10 +600,17 @@ class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
         if not isinstance(value, str):
             raise TypeError(f'Expected str, got {repr(value)}')
 
-        parts = list(reversed(value.split('/', 2)))
+        parts = list(value.split('/', 3))
 
-        name = parts[0]
-        domain = parts[1] if len(parts) > 1 else DOMAIN_DEFAULT
+        if len(parts) > 1 and parts[1] == cls._asset_type:
+            # asset type included, shift
+            parts.pop(1)
+        if len(parts) > 1:
+            # domain included
+            domain = parts.pop(0)
+        else:
+            domain = DOMAIN_DEFAULT
+        name = "/".join(parts)
 
         return cls(
             domain=domain,
@@ -569,9 +619,7 @@ class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
 
     @property
     def shortname(self) -> str:
-        if self.domain == DOMAIN_DEFAULT:
-            return self.name
-        return f'{self.domain}/{self.name}'
+        return f'{self.domain}/{self._asset_type}/{self.name}'
 
     def relpath(self) -> Path:
         """Get the path representation of the identifier.
@@ -597,24 +645,17 @@ class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
 
 @attrs.define(eq=False, hash=False)
 class ModifiersDomainAssetIdentifier(DomainAssetIdentifier[T], typing.Generic[T]):
-    """DomainIdentifiers that supports modifiers.
-    """
+    """DomainIdentifiers that supports modifiers."""
+
     _modifiers: dict | None = attrs.field(default=None, alias='modifiers', repr=False)
 
     @property
     def modifiers(self) -> dict:
-        """Get the modifiers dictionary.
-        """
+        """Get the modifiers dictionary."""
         return {} if self._modifiers is None else self._modifiers
 
     def __hash__(self) -> int:
-        return hash(
-            (
-                self.domain,
-                self.name,
-                frozenset(self.modifiers.items())
-            )
-        )
+        return hash((self.domain, self.name, frozenset(self.modifiers.items())))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ModifiersDomainAssetIdentifier):
@@ -657,7 +698,7 @@ class ModifiersDomainAssetIdentifier(DomainAssetIdentifier[T], typing.Generic[T]
             modifiers=modifiers,
         )
 
-    def serialize(self) -> typing.Any:
+    def serialize(self) -> str | tuple[str, dict]:
         base = super().serialize()
         if self.modifiers is None:
             return base
@@ -665,20 +706,20 @@ class ModifiersDomainAssetIdentifier(DomainAssetIdentifier[T], typing.Generic[T]
 
 
 class InlineIdentifier(Identifier[T], typing.Generic[T]):
-    """An identifier that directly contains the asset data.
-    """
+    """An identifier that directly contains the asset data."""
+
     _data: T
 
-    def __init__(self, data: T, /, name: str = '', **kwargs) -> None:
+    def __init__(self, data: T, /, name: str = '', **kwargs: object) -> None:
         super().__init__(name=name, **kwargs)
         self._data = data
 
     def serialize(self) -> str:
         raise TypeError('InlineIdentifier cannot be serialized')
 
-    async def resolve(self, **kwargs) -> T:
+    async def resolve(self, **kwargs: object) -> T:
         del kwargs  # unused
         return self._data
 
-    def load(self, path: Path, /, **kwargs) -> T:
+    def load(self, path: Path, /, **kwargs: object) -> T:
         raise NotImplementedError('How did you even get here?')

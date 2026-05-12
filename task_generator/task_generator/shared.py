@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-import typing
-from typing import Optional, Type, TypeVar
+from typing import TYPE_CHECKING
 
 import attrs
-from arena_rclpy_mixins.shared import FrameNamespace, Namespace
+from arena_rclpy_mixins.shared import FrameNamespace
 from arena_robots.Robot import RobotIdentifier
 from arena_robots.SetupFile import Config as RobotSetupConfig
 from arena_simulation_setup.shared import (  # noqa
     CustomDynamicObstacle,
     Door,
     DynamicObstacle,
+    Elevator,
     Entity,
     Floor,
     Obstacle,
     Wall,
-    Elevator,
 )
 from arena_simulation_setup.shared.entities import Entity as _Entity  # noqa
 from arena_simulation_setup.utils.geometry import (  # noqa
@@ -26,39 +25,8 @@ from arena_simulation_setup.utils.geometry import (  # noqa
 )
 from arena_simulation_setup.utils.models import Model, ModelType, ModelWrapper  # noqa
 
-from . import TaskGenerator
-
-
-def configure_node(node: TaskGenerator) -> None:
-    global _node
-    _node = node
-
-
-# -- PREPARE REMOVAL, ONLY USED IN LEGACY FILES
-T = TypeVar("T")
-
-
-def rosparam_get(
-    cast: Type[T], param_name: str, default: T
-) -> T:
-    """
-    # TODO deprecate in favor of ROSParamServer.rosparam[T].get
-    Get typed ros parameter (strict)
-    @cast: Return type of function
-    @param_name: Name of parameter on parameter server
-    @default: Default value. Raise ValueError is default is unset and parameter can't be found.
-    """
-    return _node.rosparam[cast].get(param_name, default)
-
-
-def rosparam_set(
-    param_name: str, value: typing.Any
-) -> bool:
-    """
-    # TODO deprecate in favor of ROSParamServer.rosparam[T].set
-    """
-    return _node.rosparam.set(param_name, value)
-# -- END
+if TYPE_CHECKING:
+    from . import TaskGenerator
 
 
 @attrs.define
@@ -68,10 +36,11 @@ class Robot(Entity):
     local_planner: str
     global_planner: str
     agent: str
-    record_data_dir: Optional[str] = None
+    navigator: str = 'nav2'
+    record_data_dir: str | None = None
 
     def compatible(self, value: Robot) -> bool:
-        return self.model.name == value.model.name and self.local_planner == value.local_planner and self.global_planner == value.global_planner and self.agent == value.agent
+        return self.model.name == value.model.name and self.local_planner == value.local_planner and self.global_planner == value.global_planner and self.agent == value.agent and self.navigator == value.navigator
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Robot):
@@ -82,13 +51,13 @@ class Robot(Entity):
     @property
     def frame(self) -> FrameNamespace:
         if hasattr(self, 'sim_path'):
-            return FrameNamespace(getattr(self, 'sim_path'))
+            return FrameNamespace(self.sim_path)
         if self.name:
             return FrameNamespace(self.name)
         return FrameNamespace('')
 
     @classmethod
-    def from_setup(cls, setup: RobotSetupConfig) -> Robot:
+    def from_setup(cls, setup: RobotSetupConfig, *, node: TaskGenerator) -> Robot:
         dict_value = {}
         dict_value['model'] = setup.robot
         if setup.behavior is not None:
@@ -97,20 +66,28 @@ class Robot(Entity):
             dict_value['local_planner'] = setup.controller
         if setup.planner is not None:
             dict_value['global_planner'] = setup.planner
+        if setup.navigator is not None:
+            dict_value['navigator'] = setup.navigator
         dict_value.update(setup.extra)
         dict_value['name'] = setup.name or ''
-        return cls.parse(dict_value)
+        return cls.parse(dict_value, node=node)
 
     @classmethod
-    def parse(cls, value: dict) -> "Robot":
+    def parse(cls, value: dict, *, node: TaskGenerator) -> Robot:
         name = str(value['name'])
         model = str(value['model'])
-        pose = Pose(value.get("pos", (0, 0, 0)))
-        inter_planner = str(value.get("inter_planner", _node.conf.Robot.BEHAVIOR.value))
-        local_planner = str(value.get("local_planner", _node.conf.Robot.CONTROLLER.value))
-        global_planner = str(value.get("global_planner", _node.conf.Robot.PLANNER.value))
-        agent = str(value.get("agent", _node.conf.Robot.AGENT.value))
-        record_data = value.get("record_data_dir", _node.conf.Robot.RECORD_DATA_DIR.value)
+        pose = Pose.parse(value.get("pos", (0, 0, 0)))
+        inter_planner = str(value.get("inter_planner", node.conf.Robot.BEHAVIOR.value))
+        local_planner = str(value.get("local_planner", node.conf.Robot.CONTROLLER.value))
+        global_planner = str(value.get("global_planner", node.conf.Robot.PLANNER.value))
+        agent = str(value.get("agent", node.conf.Robot.AGENT.value))
+        # CLI / YAML precedence for the navstack adapter: per-robot YAML
+        # wins; the ``navigator`` rosparam (set from the launch CLI) is
+        # the default only. Mirrors the same shape as ``local_planner``
+        # et al. — per-robot entry in robot_setup YAML overrides the
+        # node-level default.
+        navigator = str(value.get("navigator", node.conf.Robot.NAVIGATOR.value))
+        record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
         return cls(
             name=name,
@@ -120,6 +97,7 @@ class Robot(Entity):
             global_planner=global_planner,
             model=RobotIdentifier.parse(model),
             agent=agent,
+            navigator=navigator,
             record_data_dir=record_data,
             extra=value,
         )

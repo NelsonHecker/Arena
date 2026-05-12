@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<robot name="rbrobout_plus" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find arena_robots)/robots/rbrobout/urdf/base_hw/rbrobout.ros2_control.urdf"/>
+
+  <xacro:macro name="rbrobout_plus_arm_hw_controller" params="gazebo_classic:=false gazebo_ignition:=false">
+
+    <ros2_control name="rbrobout_plus_arm" type="system">
+      <hardware>
+        <xacro:if value="${gazebo_classic}">
+          <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+        </xacro:if>
+        <xacro:if value="${gazebo_ignition}">
+          <plugin>ign_ros2_control/IgnitionSystem</plugin>
+        </xacro:if>
+        <xacro:unless value="${gazebo_classic or gazebo_ignition}">
+          <plugin>mock_components/GenericSystem</plugin>
+        </xacro:unless>
+      </hardware>
+      <joint name="robot_arm_shoulder_pan_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="robot_arm_shoulder_lift_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="robot_arm_elbow_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="robot_arm_wrist_1_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="robot_arm_wrist_2_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="robot_arm_wrist_3_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+
+  </xacro:macro>
+
+  <xacro:macro name="rbrobout_plus_lift_hw_controller" params="gazebo_classic:=false gazebo_ignition:=false">
+
+    <ros2_control name="rbrobout_plus_lift" type="system">
+      <hardware>
+        <xacro:if value="${gazebo_classic}">
+          <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+        </xacro:if>
+        <xacro:if value="${gazebo_ignition}">
+          <plugin>ign_ros2_control/IgnitionSystem</plugin>
+        </xacro:if>
+        <xacro:unless value="${gazebo_classic or gazebo_ignition}">
+          <plugin>mock_components/GenericSystem</plugin>
+        </xacro:unless>
+      </hardware>
+      <joint name="robot_lift_ewellix_lift_top_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+
+  </xacro:macro>
+
+</robot>

@@ -3,13 +3,16 @@ import contextlib
 import datetime
 import functools
 import typing
+from typing import Self
 
 import attrs
 import builtin_interfaces.msg
-import rosgraph_msgs.msg
+import rclpy.callback_groups
+import rclpy.clock
 import rclpy.node
 import rclpy.time
-from typing_extensions import Self
+import rclpy.timer
+import rosgraph_msgs.msg
 
 
 @functools.total_ordering
@@ -18,6 +21,7 @@ class Time:
     """
     Wrapper for builtin_interfaces.msg.Time
     """
+
     sec: int = attrs.field(converter=int, default=0)
     nanosec: int = attrs.field(converter=int, default=0)
 
@@ -127,9 +131,7 @@ class Time:
         """
         Create rosgraph_msgs.msg.Clock from self.
         """
-        return rosgraph_msgs.msg.Clock(
-            clock=self.to_msg()
-        )
+        return rosgraph_msgs.msg.Clock(clock=self.to_msg())
 
     def to_seconds(self) -> float:
         """
@@ -139,18 +141,18 @@ class Time:
 
 
 class TimeNode(rclpy.node.Node):
-    """Mixin class to provide clock utilities for rclpy nodes.
-    """
+    """Mixin class to provide clock utilities for rclpy nodes."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self._clock_subscriber = self.create_subscription(
+        self.__clock_subscriber = self.create_subscription(
             rosgraph_msgs.msg.Clock,
             '/clock',
             self.__clock_callback,
             10,
         )
-        self._sim_time: Time = Time()
+        self.__sim_time: Time = Time()
+        self.__wall_clock: rclpy.clock.Clock | None = None
 
     def __clock_callback(self, msg: rosgraph_msgs.msg.Clock):
         """Callback for /clock topic to update node clock when using simulated time.
@@ -158,7 +160,7 @@ class TimeNode(rclpy.node.Node):
         Args:
             msg (rosgraph_msgs.msg.Clock): Clock message
         """
-        self._sim_time = Time.from_rosgraph_msg(msg)
+        self.__sim_time = Time.from_rosgraph_msg(msg)
 
     @property
     def sim_time(self) -> Time:
@@ -167,7 +169,7 @@ class TimeNode(rclpy.node.Node):
         Returns:
             Time: Simulated time
         """
-        return Time(self._sim_time.sec, self._sim_time.nanosec)
+        return Time(self.__sim_time.sec, self.__sim_time.nanosec)
 
     @property
     def wall_time(self) -> Time:
@@ -192,26 +194,48 @@ class TimeNode(rclpy.node.Node):
         sec, nanosec = now.seconds_nanoseconds()
         return Time(sec=sec, nanosec=nanosec)
 
+    @property
+    def wall_clock(self) -> rclpy.clock.Clock:
+        """Steady wall clock, immune to NTP adjustments. Memoized; reusable across timers."""
+        if self.__wall_clock is None:
+            self.__wall_clock = rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.STEADY_TIME)
+        return self.__wall_clock
+
+    def wall_timer(
+        self,
+        period_sec: float,
+        callback: typing.Callable[[], None],
+        *,
+        callback_group: rclpy.callback_groups.CallbackGroup | None = None,
+    ) -> rclpy.timer.Timer:
+        """Create a timer driven by the steady wall clock, regardless of the node's `use_sim_time`."""
+        return self.create_timer(
+            period_sec,
+            callback,
+            clock=self.wall_clock,
+            callback_group=callback_group,
+        )
+
     @contextlib.contextmanager
     def sim_time_rate(self, rate: float, lifetime: float | None = None) -> typing.Generator[tuple[asyncio.Event, asyncio.Queue[float]], None, None]:
         """Context manager to perform a task at a given simulated time rate.
 
-            Usage:
-                ```
-                with node.sim_time_rate(10.0) as (done, rate):
-                    while not done.is_set():
-                        dt = await rate.get()
-                        # do something
-                ```
+        Usage:
+            ```
+            with node.sim_time_rate(10.0) as (done, rate):
+                while not done.is_set():
+                    dt = await rate.get()
+                    # do something
+            ```
 
-            Can be canceled by setting the `done` event or exiting the context.
+        Can be canceled by setting the `done` event or exiting the context.
 
-            Args:
-                rate (float): Rate in Hz to perform the task.
-                lifetime (float | None): Optional lifetime in seconds for the rate context.
+        Args:
+            rate (float): Rate in Hz to perform the task.
+            lifetime (float | None): Optional lifetime in seconds for the rate context.
 
-            Yields:
-                asyncio.Queue: Queue that yields the time delta in seconds at each rate interval.
+        Yields:
+            asyncio.Queue: Queue that yields the time delta in seconds at each rate interval.
         """
         interval = 1.0 / rate
         last_time = self.sim_time
@@ -225,7 +249,7 @@ class TimeNode(rclpy.node.Node):
             while not done.is_set():
                 await asyncio.sleep(0.01)
                 now = self.sim_time
-                if (is_put := (dt := (now - last_time).to_seconds()) >= interval):
+                if is_put := (dt := (now - last_time).to_seconds()) >= interval:
                     last_time = now
                     await events.put(dt)
                 if finish_time is not None and now >= finish_time:
@@ -234,7 +258,7 @@ class TimeNode(rclpy.node.Node):
                         await events.put(dt)
                     break
 
-        events.put_nowait(0.)
+        events.put_nowait(0.0)
         loop_task = asyncio.create_task(_rate_loop())
         try:
             yield done, events

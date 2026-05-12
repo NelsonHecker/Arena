@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+"""arena_robots feature backend: per-robot submodule ops + mesh URI check."""
+
+from __future__ import annotations
+
+import argparse
+import configparser
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROBOTS_PREFIX = "arena_robots/arena_robots/robots"
+
+
+MESH_URI_RE = re.compile(r'package://arena_robots/([^\s"\'<>\)\}\$]+)')
+FIND_URI_RE = re.compile(r'\$\(find\s+arena_robots\)/([^\s"\'<>\)\}\$]+)')
+DYN_RE = re.compile(r'\$\{|\$\(')
+SCAN_EXTS = {".urdf", ".xacro", ".yaml", ".xml", ".launch", ".py", ".sdf", ".world"}
+
+
+def arena_dir() -> Path:
+    if "ARENA_DIR" in os.environ:
+        return Path(os.environ["ARENA_DIR"])
+    for p in Path(__file__).resolve().parents:
+        if (p / ".gitmodules").is_file() and (p / "arena_robots").is_dir():
+            return p
+    sys.exit("error: set ARENA_DIR or run inside an Arena checkout")
+
+
+def submodule_status(arena: Path) -> dict[str, str]:
+    """{path: 'init'|'uninit'} for each submodule."""
+    out = subprocess.run(
+        ["git", "submodule", "status"], cwd=arena,
+        text=True, capture_output=True, check=False,
+    ).stdout
+    status: dict[str, str] = {}
+    for line in out.splitlines():
+        if not line:
+            continue
+        parts = line[1:].split()
+        if len(parts) < 2:
+            continue
+        status[parts[1]] = "uninit" if line[0] == "-" else "init"
+    return status
+
+
+def robot_submodules(arena: Path) -> dict[str, list[str]]:
+    """{robot: [paths]} — union of path-prefix under ROBOTS_PREFIX and `robot =` attribute.
+    `robot =` may list multiple whitespace-separated names (shared upstream dep)."""
+    cfg = configparser.ConfigParser()
+    cfg.read(arena / ".gitmodules")
+    out: dict[str, list[str]] = {}
+    for section in cfg.sections():
+        if not section.startswith("submodule "):
+            continue
+        path = cfg[section].get("path", "").strip()
+        if not path:
+            continue
+        robots = cfg[section].get("robot", "").split()
+        if not robots:
+            rel = path.removeprefix(f"{ROBOTS_PREFIX}/")
+            if rel == path:
+                continue
+            robots = [rel.split("/", 1)[0]]
+        for robot in robots:
+            out.setdefault(robot, []).append(path)
+    return out
+
+
+def _path_robots(arena: Path) -> dict[str, set[str]]:
+    """{path: {robots tagging it}} — reverse of robot_submodules for sharing checks."""
+    out: dict[str, set[str]] = {}
+    for robot, paths in robot_submodules(arena).items():
+        for p in paths:
+            out.setdefault(p, set()).add(robot)
+    return out
+
+
+def all_robots(arena: Path) -> list[str]:
+    robots = set(robot_submodules(arena).keys())
+    root = arena / ROBOTS_PREFIX
+    if root.is_dir():
+        robots |= {p.name for p in root.iterdir() if p.is_dir()}
+    return sorted(robots)
+
+
+def _git(args: list[str], arena: Path, *, check: bool = True) -> int:
+    return subprocess.run(["git", *args], cwd=arena, check=check).returncode
+
+
+def cmd_ls(arena: Path, _args) -> int:
+    subs = robot_submodules(arena)
+    status = submodule_status(arena)
+    for robot in all_robots(arena):
+        pending = any(status.get(p) == "uninit" for p in subs.get(robot, []))
+        print(f"{'[ ]' if pending else '[x]'} {robot}")
+    return 0
+
+
+def cmd_add(arena: Path, args) -> int:
+    subs = robot_submodules(arena)
+    if args.all:
+        if args.names:
+            print("robots: --all is mutually exclusive with robot names", file=sys.stderr)
+            return 2
+        names = sorted(subs)
+    else:
+        if not args.names:
+            print("robots: specify robot name(s) or --all", file=sys.stderr)
+            return 2
+        names = args.names
+    for robot in names:
+        paths = subs.get(robot)
+        if not paths:
+            print(f"robots: '{robot}' has no submodules — nothing to install")
+            continue
+        for p in paths:
+            _git(["-c", "protocol.file.allow=always",
+                  "submodule", "update", "--init", "--checkout", p], arena)
+    return 0
+
+
+def cmd_rm(arena: Path, args) -> int:
+    subs = robot_submodules(arena)
+    shared = _path_robots(arena)
+    for robot in args.names:
+        paths = subs.get(robot)
+        if not paths:
+            print(f"robots: '{robot}' has no submodules — nothing to remove")
+            continue
+        for p in paths:
+            others = shared.get(p, set()) - {robot}
+            if others and not args.force:
+                print(f"robots: keeping '{p}' (still tagged by: {', '.join(sorted(others))})")
+                continue
+            if others:
+                print(f"robots: force-removing '{p}' (also pending: {', '.join(sorted(others))})")
+            _git(["submodule", "deinit", "-f", p], arena, check=False)
+    return 0
+
+
+def cmd_update(arena: Path, _args) -> int:
+    subs = robot_submodules(arena)
+    status = submodule_status(arena)
+    paths = [p for ps in subs.values() for p in ps if status.get(p) == "init"]
+    if not paths:
+        return 0
+    return _git(["submodule", "update", "--recursive", *paths], arena, check=False)
+
+
+def cmd_uninstall(arena: Path, _args) -> int:
+    subs = robot_submodules(arena)
+    status = submodule_status(arena)
+    for p in (p for ps in subs.values() for p in ps):
+        if status.get(p) == "init":
+            _git(["submodule", "deinit", "-f", p], arena, check=False)
+    return 0
+
+
+def _uninit_mesh_paths(arena: Path) -> dict[str, set[Path]]:
+    """Robots whose mesh submodule(s) under ROBOTS_PREFIX are uninitialized,
+    with paths rewritten relative to arena_robots/arena_robots (matching URI layout)."""
+    subs = robot_submodules(arena)
+    status = submodule_status(arena)
+    out: dict[str, set[Path]] = {}
+    for robot, paths in subs.items():
+        for p in paths:
+            if status.get(p) != "uninit" or not p.startswith(f"{ROBOTS_PREFIX}/"):
+                continue
+            out.setdefault(robot, set()).add(Path(p).relative_to("arena_robots/arena_robots"))
+    return out
+
+
+def cmd_check(arena: Path, args) -> int:
+    root = arena / "arena_robots" / "arena_robots" / "robots"
+    if not root.is_dir():
+        print(f"error: {root} not found", file=sys.stderr)
+        return 1
+    uninit = {} if args.all else _uninit_mesh_paths(arena)
+
+    misses: dict[str, dict[str, set[str]]] = {}
+    dynamic: set[str] = set()
+    files = [p for p in root.rglob("*")
+             if p.is_file() and (p.suffix.lower() in SCAN_EXTS or ".urdf." in p.name)]
+    for f in files:
+        try:
+            txt = f.read_text(errors="ignore")
+        except OSError:
+            continue
+        for line in txt.splitlines():
+            hits = list(MESH_URI_RE.finditer(line)) + list(FIND_URI_RE.finditer(line))
+            if not hits:
+                continue
+            line_dynamic = bool(DYN_RE.search(line))
+            for m in hits:
+                rel = m.group(1).rstrip('-"\'')
+                if line_dynamic:
+                    dynamic.add(rel)
+                    continue
+                mesh_rest = rel.removeprefix("robots/")
+                robot = (mesh_rest.split("/", 1)[0]
+                         if mesh_rest != rel and "/" in mesh_rest else None)
+                rel_path = Path(rel)
+                if robot and any(rel_path.is_relative_to(sm) for sm in uninit.get(robot, ())):
+                    continue
+                if not (root.parent / rel).is_file():
+                    owner = robot or "<other>"
+                    src = str(f.relative_to(root.parent.parent))
+                    misses.setdefault(owner, {}).setdefault(rel, set()).add(src)
+
+    if not args.quiet:
+        if uninit:
+            print(f"skipping uninitialized robots: {', '.join(sorted(uninit))}")
+        print(f"dynamic refs: {len(dynamic)} — not statically checkable")
+
+    total = sum(len(v) for v in misses.values())
+    if total == 0:
+        if not args.quiet:
+            print("OK: every concrete package://arena_robots/... URI resolves")
+        return 0
+
+    print(f"\nFAIL: {total} unresolved path(s) in {len(misses)} robot(s):")
+    for robot in sorted(misses):
+        print(f"\n  [{robot}]")
+        for rel in sorted(misses[robot]):
+            print(f"    {rel}")
+            for src in sorted(misses[robot][rel]):
+                print(f"      ← {src}")
+    return 1
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("ls")
+    sub.add_parser("update")
+    sub.add_parser("uninstall")
+    p_add = sub.add_parser("add")
+    p_add.add_argument("names", nargs="*")
+    p_add.add_argument("--all", action="store_true", help="fetch every robot")
+    p_rm = sub.add_parser("rm")
+    p_rm.add_argument("names", nargs="+")
+    p_rm.add_argument("-f", "--force", action="store_true",
+                      help="deinit shared paths too; co-tagged robots become pending")
+    p = sub.add_parser("check")
+    p.add_argument("--all", action="store_true")
+    p.add_argument("-q", "--quiet", action="store_true")
+
+    args = ap.parse_args()
+    handlers = {
+        "ls": cmd_ls, "add": cmd_add, "rm": cmd_rm,
+        "update": cmd_update, "uninstall": cmd_uninstall, "check": cmd_check,
+    }
+    return handlers[args.cmd](arena_dir(), args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

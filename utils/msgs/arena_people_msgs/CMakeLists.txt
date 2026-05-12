@@ -14,12 +14,16 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 set(srv_files
-  "srv/DeleteActors.srv"
+  "srv/SpawnPedestrians.srv"
+  "srv/DeletePedestrians.srv"
+  "srv/UpdatePedestrians.srv"
+  "srv/MovePedestrians.srv"
 )
 
 set(msg_files
   "msg/Pedestrian.msg"
   "msg/Pedestrians.msg"
+  "msg/SpawnPedestrian.msg"
 )
 
 # Generate messages

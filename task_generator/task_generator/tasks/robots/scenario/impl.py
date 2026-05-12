@@ -1,0 +1,53 @@
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
+from arena_simulation_setup.tree.World import WorldIdentifier
+from arena_simulation_setup.tree.World.Scenario import RobotGoal
+
+from task_generator.shared import PositionRadius
+from task_generator.tasks.robots import TM_Robots
+from task_generator.tasks.robots.request import GoToPhase, TaskRequest
+
+
+class TM_Scenario(TM_Robots):
+    """Scenario task mode for robots."""
+
+    _config: ROSParamT[list[RobotGoal]]
+
+    def _parse_scenario(self, scenario: str) -> list[RobotGoal]:
+        return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
+
+    async def reset(self, **kwargs: object) -> None:
+        await super().reset(**kwargs)
+
+        SCENARIO_ROBOTS = self._config.value
+
+        managed_robots = list(self._ctx.robots.values())
+
+        scenario_robots_length = len(SCENARIO_ROBOTS)
+        setup_robot_length = len(managed_robots)
+
+        if setup_robot_length > scenario_robots_length:
+            managed_robots = managed_robots[:scenario_robots_length]
+            self._logger.warn("Robot setup contains more robots than the scenario file.", once=True)
+
+        if scenario_robots_length > setup_robot_length:
+            SCENARIO_ROBOTS = SCENARIO_ROBOTS[:setup_robot_length]
+            self._logger.warn("Scenario file contains more robots than setup.", once=True)
+
+        for robot, config in zip(managed_robots, SCENARIO_ROBOTS, strict=False):
+            await robot.move(config.start)
+            await robot.submit_task(TaskRequest(phases=[GoToPhase(pose=config.goal)]))
+            self._ctx.world_manager.forbid(
+                [
+                    PositionRadius(x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance),
+                    PositionRadius(x=config.goal.position.x, y=config.goal.position.y, radius=robot.safe_distance),
+                ]
+            )
+
+    def __init__(self, **kwargs: object) -> None:
+        TM_Robots.__init__(self, **kwargs)
+
+        self._config = self.node.ROSParam[list[RobotGoal]](
+            self.namespace('file'),
+            'default.json',
+            parse=self._parse_scenario,
+        )

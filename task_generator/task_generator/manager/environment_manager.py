@@ -1,245 +1,120 @@
 import asyncio
-import itertools
-import os
 import typing
-from collections.abc import Callable, Collection, Iterator, Sequence
+from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
-import attrs
-from arena_simulation_setup.shared import Elevator
+import shapely
+import shapely.affinity
+from arena_runtime._node import NodeInterface
+from arena_runtime.sim import BaseSim
 from arena_simulation_setup.tree.World import WorldDescription
 
-from task_generator import NodeInterface
+from task_generator.manager.realizer import Realizer
 from task_generator.shared import (
-    Door,
     DynamicObstacle,
-    Entity,
-    Floor,
-    FrameNamespace,
     Obstacle,
-    Orientation,
     Pose,
-    Position,
     Robot,
-    Wall,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
-from task_generator.simulators.sim import BaseSim
-from arena_simulation_setup.utils.geometry import Position
-
-EntityPropsT = typing.TypeVar('EntityPropsT', bound=Entity)
 
 
-class _Realizer:
-    @attrs.frozen()
-    class _Configuration:
-        x: float = 0.0
-        y: float = 0.0
-        prefix: str = ''
-
-    _config: _Configuration
-
-    @typing.overload
-    def realize(self, target: str) -> str: ...
-
-    def _prefix(self, *s: str) -> str:
-        return str(FrameNamespace(self._config.prefix)(*s))
-
-    @typing.overload
-    def realize(self, target: Position) -> Position: ...
-
-    def _realize_position(self, position: Position) -> Position:
-        return Position(
-            x=position.x + self._config.x,
-            y=position.y + self._config.y,
-            z=position.z,
-        )
-
-    def _realize_position_inv(self, position: Position) -> Position:
-        return Position(
-            x=position.x - self._config.x,
-            y=position.y - self._config.y,
-            z=position.z,
-        )
-
-    def _realize_orientation(self, orientation: Orientation) -> Orientation:
-        return Orientation(*orientation)
-
-    def _realize_pose(self, pose: Pose) -> Pose:
-        return Pose(
-            self._realize_position(pose.position),
-            self._realize_orientation(pose.orientation)
-        )
-
-    @typing.overload
-    def realize(self, target: EntityPropsT) -> EntityPropsT: ...
-
-    @typing.overload
-    def realize(self, target: Pose) -> Pose: ...
-
-    def _realize_entity(self, entity: EntityPropsT) -> EntityPropsT:
-        entity = attrs.evolve(
-            entity,
-            pose=self._realize_pose(entity.pose),
-        )
-        return entity
-
-    @typing.overload
-    def realize(self, target: Wall) -> Wall: ...
-
-    def _realize_wall(self, wall: Wall) -> Wall:
-        return attrs.evolve(
-            wall,
-            start=self._realize_position(wall.start),
-            end=self._realize_position(wall.end),
-        )
-
-    @typing.overload
-    def realize(self, target: Floor) -> Floor: ...
-
-    def _realize_floor(self, floor: Floor) -> Floor:
-        return attrs.evolve(
-            floor,
-            name=self._prefix(floor.name),
-            pos=self._realize_position(floor.pos),
-        )
-
-    @typing.overload
-    def realize(self, target: Door) -> Door: ...
-
-    def _realize_door(self, door: Door) -> Door:
-        return attrs.evolve(
-            door,
-            name=self._prefix(door.name),
-            start=self._realize_position(door.start),
-            end=self._realize_position(door.end),
-        )
-
-    @typing.overload
-    def realize(self, target: Elevator) -> Elevator: ...
-
-    def _realize_elevator(self, elevator: Elevator) -> Elevator:
-        pos = list(elevator.position)
-        if len(pos) >= 2:
-            pos[0] += self._config.x
-            pos[1] += self._config.y
-        # Create Position object from modified list
-        new_position = Position(x=pos[0], y=pos[1], z=pos[2] if len(pos) > 2 else 0.0)
-        name = self._prefix(elevator.name)
-        destination = self._prefix(elevator.destination) if getattr(elevator, 'destination', None) else elevator.destination
-        return attrs.evolve(
-            elevator,
-            name=name,
-            position=new_position,
-            destination=destination,
-        )
-
-    def realize(
-        self,
-        target
-    ):
-        if isinstance(target, str):
-            return self._prefix(target)
-
-        if isinstance(target, Position):
-            return self._realize_position(target)
-
-        if isinstance(target, Pose):
-            return self._realize_pose(target)
-
-        if isinstance(target, Wall):
-            return self._realize_wall(target)
-
-        res = None
-
-        if isinstance(target, Entity):
-            res = self._realize_entity(target)
-
-        elif isinstance(target, Door):
-            res = self._realize_door(target)
-
-        elif isinstance(target, Floor):
-            res = self._realize_floor(target)
-
-        elif isinstance(target, Elevator):
-            res = self._realize_elevator(target)
-
-        if res is None:
-            raise TypeError(f'realization not implemented for type {type(target)}')
-
-        res.sim_path = self._prefix(res.name)
-        return res
-
-
-class EnvironmentManager(NodeInterface, _Realizer):
-
-    _namespace: str
+class EnvironmentManager(NodeInterface):
     _human_simulator: BaseHumanSimulator
     _simulator: BaseSim
+    _realizer: Realizer
 
-    id_generator: Iterator[int]
+    _walls_geometry: shapely.MultiLineString
+    _static_polygons: dict[str, shapely.Polygon]
 
     def __init__(
         self,
-        *args,
-        namespace,
+        *args: object,
         simulator: BaseSim,
-        entity_manager: BaseHumanSimulator,
-        **kwargs,
+        human_simulator: BaseHumanSimulator,
+        realizer: Realizer,
+        **kwargs: object,
     ):
         super().__init__(*args, **kwargs)
 
-        self._namespace = namespace
         self._simulator = simulator
-        self._human_simulator = entity_manager
+        self._human_simulator = human_simulator
+        self._realizer = realizer
 
-        ref_x, ref_y = self.node.rosparam[tuple[float, float]].get('reference', (0.0, 0.0))
-        prefix = self.node.rosparam[str].get('prefix', '')
-        self._config = self._Configuration(
-            x=ref_x,
-            y=ref_y,
-            prefix=prefix,
-        )
+        self._walls_geometry = shapely.MultiLineString()
+        self._static_polygons = {}
 
-        self.id_generator = itertools.count(434)
+    def realize(self, target: object) -> object:
+        return self._realizer.realize(target)
+
+    def ezilear(self, target: Pose) -> Pose:
+        return self._realizer.ezilear(target)
+
+    @property
+    def walls_geometry(self) -> shapely.MultiLineString:
+        """Map-frame line geometry of all world walls and doors."""
+        return self._walls_geometry
+
+    @property
+    def static_polygons(self) -> dict[str, shapely.Polygon]:
+        """Map-frame footprint polygons of every static obstacle currently spawned,
+        keyed by obstacle name. Includes both WORLD-layer entities and INUSE
+        episode-spawned obstacles. Pedestrians are not included — consumers should
+        read those from the `arena_peds` topic."""
+        return self._static_polygons
+
+    async def _resolve_polygon(self, obstacle: Obstacle) -> shapely.Polygon | None:
+        try:
+            view = await obstacle.model.resolve()
+        except FileNotFoundError:
+            return None
+        bounds = view.bounds
+        if bounds is None:
+            return None
+        poly = shapely.Polygon(bounds)
+        poly = shapely.affinity.rotate(poly, obstacle.pose.orientation.to_yaw(), origin=(0, 0), use_radians=True)
+        return shapely.affinity.translate(poly, xoff=obstacle.pose.position.x, yoff=obstacle.pose.position.y)
+
+    async def _cache_polygons(self, obstacles: Sequence[Obstacle]) -> None:
+        polys = await asyncio.gather(*(self._resolve_polygon(o) for o in obstacles))
+        for obstacle, poly in zip(obstacles, polys, strict=True):
+            if poly is not None:
+                self._static_polygons[obstacle.name] = poly
+
+    def _sync_static_polygons(self) -> None:
+        """Drop polygons whose obstacle is no longer registered in the human simulator."""
+        alive = set(self._human_simulator._known_obstacles.keys())
+        self._static_polygons = {n: p for n, p in self._static_polygons.items() if n in alive}
 
     async def spawn_world_obstacles(self, world: WorldDescription):
         """
         Loads given obstacles into the simulator,
         the map file is retrieved from launch parameter "world"
         """
+        walls = tuple(map(self.realize, world.all_walls))
+        doors = tuple(map(self.realize, world.all_doors))
+        floors = tuple(map(self.realize, world.all_floors))
+        elevators = tuple(map(self.realize, world.all_elevators))
+        statics = tuple(map(self.realize, world.all_static_entities))
+
+        line_strings: list[shapely.LineString] = []
+        for w in walls:
+            line_strings.append(shapely.LineString([(w.start.x, w.start.y), (w.end.x, w.end.y)]))
+        for d in doors:
+            line_strings.append(shapely.LineString([(d.start.x, d.start.y), (d.end.x, d.end.y)]))
+        self._walls_geometry = shapely.MultiLineString(line_strings) if line_strings else shapely.MultiLineString()
+
+        await self._cache_polygons(statics)
 
         futures: list[typing.Awaitable] = []
-
-        walls = tuple(world.all_walls)
-        doors = tuple(world.all_doors)
-        floors = tuple(world.all_floors)
-        elevators = tuple(world.all_elevators)
         if floors:
-            futures.append(self._simulator.spawn_floors(tuple(map(self.realize, floors))))
-
+            futures.append(self._simulator.spawn_floors(floors))
         if walls or doors:
-            futures.append(
-                self._human_simulator.spawn_world(
-                    tuple(map(self.realize, walls)),
-                    tuple(map(self.realize, doors)),
-                )
-            )
-
-        futures.append(
-            self._human_simulator.spawn_obstacles(
-                tuple(map(self.realize, world.all_static_entities)),
-                layer=ObstacleLayer.WORLD,
-            )
-        )
+            futures.append(self._human_simulator.spawn_world(walls, doors))
+        futures.append(self._human_simulator.spawn_obstacles(statics, layer=ObstacleLayer.WORLD))
         if elevators:
-            self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
-            futures.append(
-                self._simulator.spawn_elevators(
-                    tuple(map(self.realize, elevators))
-                )
-            )
+            futures.append(self._simulator.spawn_elevators(elevators))
 
         await asyncio.gather(*futures)
 
@@ -248,16 +123,15 @@ class EnvironmentManager(NodeInterface, _Realizer):
         Loads given dynamic obstacles into the simulator.
         """
 
-        await self._human_simulator.spawn_dynamic_obstacles(
-            tuple(map(self.realize, setups))
-        )
+        await self._human_simulator.spawn_dynamic_obstacles(tuple(map(self.realize, setups)))
 
     async def spawn_obstacles(self, setups: Collection[Obstacle]):
         """
         Loads given obstacles into the simulator.
         """
-
-        await self._human_simulator.spawn_obstacles(tuple(map(self.realize, setups)))
+        realized = tuple(map(self.realize, setups))
+        await self._cache_polygons(realized)
+        await self._human_simulator.spawn_obstacles(realized)
 
     async def spawn_robot(self, robots: Sequence[Robot]) -> Sequence[Robot]:
         """
@@ -286,9 +160,22 @@ class EnvironmentManager(NodeInterface, _Realizer):
         await self._human_simulator.unuse_obstacles()
         await callback()
         await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
+        self._sync_static_polygons()
 
     async def reset(self, purge: ObstacleLayer = ObstacleLayer.INUSE):
         """
         Unuse and remove all obstacles
         """
         await self._human_simulator.remove_obstacles(purge=purge)
+        self._sync_static_polygons()
+        if purge >= ObstacleLayer.WORLD:
+            self._walls_geometry = shapely.MultiLineString()
+
+    async def step(self, n: int = 1) -> bool:
+        return await self._simulator.step(n)
+
+    async def before_reset_episode(self) -> bool:
+        return await self._simulator.before_reset_episode()
+
+    async def after_reset_episode(self) -> bool:
+        return await self._simulator.after_reset_episode()

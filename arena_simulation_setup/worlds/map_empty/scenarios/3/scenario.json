@@ -43,7 +43,7 @@
       "name": "1",
       "pos": [18.7, 9.57, -0.00534],
       "type": "adult",
-      "model": "gazebo_actor",
+      "model": "arenian",
       "waypoints": [
         [18.7, 9.57, -0.00534],
         [29.7, 15.8, -0.00143]
@@ -54,7 +54,7 @@
       "name": "2",
       "pos": [18, 22.6, -0.00143],
       "type": "adult",
-      "model": "gazebo_actor",
+      "model": "arenian",
       "waypoints": [
         [18, 22.6, -0.00143],
         [17.8, 13.3, -0.00143]
@@ -65,7 +65,7 @@
       "name": "3",
       "pos": [29.3, 22.4, -0.00143],
       "type": "adult",
-      "model": "gazebo_actor",
+      "model": "arenian",
       "waypoints": [
         [29.3, 22.4, -0.00143],
         [20.4, 13.4, 0.00247]

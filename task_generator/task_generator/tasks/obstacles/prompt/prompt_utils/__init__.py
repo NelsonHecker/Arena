@@ -1,5 +1,6 @@
 from arena_hunav_sim_bridge import BT_REF_DOC_PATH, CHROMA_DB_PATH
-from .context import ARENA_FORMAT, BEHAVIOR_TREE_FORMAT, SYSTEM_INSTRUCTION, SPLIT_PROMPT_INSTRUCTION
+
+from .context import ARENA_FORMAT, BEHAVIOR_TREE_FORMAT, SPLIT_PROMPT_INSTRUCTION, SYSTEM_INSTRUCTION
 from .vector_db import (
     create_chroma_db,
     get_chroma_collection,

@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class WorldGeneratorHallway(WorldGeneratorImpl):
-
     class Configuration(BaseConfiguration):
         width: float = 80.0
         height: float = 50.0
@@ -57,44 +56,31 @@ class WorldGeneratorHallway(WorldGeneratorImpl):
         top_rooms = self._impl("top", self.config.rooms_per_side)
         bottom_rooms = self._impl("bottom", self.config.rooms_per_side)
 
-        return WorldDescription(
-            zones=[*top_rooms, *bottom_rooms]
-        )
+        return WorldDescription(zones=[*top_rooms, *bottom_rooms])
 
-    def _impl(self, side, num_rooms) -> Iterable[WorldDescription.Zone]:
+    def _impl(self, side: str, num_rooms: int) -> Iterable[WorldDescription.Zone]:
         rooms: list[WorldDescription.Zone] = []
 
         widths: list[float] = []
         heights: list[float] = []
 
-        rooms.append(WorldDescription.Zone(
-            name=f"{side}_room_{len(rooms)}",
-            corners=[
-                Position(x=0, y=self.config.hallway_bottom),
-                Position(x=self.config.width, y=self.config.hallway_bottom),
-                Position(x=self.config.width, y=self.config.hallway_top),
-                Position(x=0, y=self.config.hallway_top)
-            ],
-            walls=[
-                Wall(
-                    start=Position(
-                        x=self.config.wall_gap / 2,
-                        y=self.config.hallway_top),
-                    end=Position(
-                        x=self.config.wall_gap / 2,
-                        y=self.config.hallway_bottom),
-                ),
-                Wall(
-                    start=Position(
-                        x=self.config.width - self.config.wall_gap / 2,
-                        y=self.config.hallway_bottom),
-                    end=Position(
-                        x=self.config.width - self.config.wall_gap / 2,
-                        y=self.config.hallway_top),
-                ),
-            ],
-            description="hallway",
-        ))
+        rooms.append(
+            WorldDescription.Zone(
+                name=f"{side}_room_{len(rooms)}",
+                corners=[Position(x=0, y=self.config.hallway_bottom), Position(x=self.config.width, y=self.config.hallway_bottom), Position(x=self.config.width, y=self.config.hallway_top), Position(x=0, y=self.config.hallway_top)],
+                walls=[
+                    Wall(
+                        start=Position(x=self.config.wall_gap / 2, y=self.config.hallway_top),
+                        end=Position(x=self.config.wall_gap / 2, y=self.config.hallway_bottom),
+                    ),
+                    Wall(
+                        start=Position(x=self.config.width - self.config.wall_gap / 2, y=self.config.hallway_bottom),
+                        end=Position(x=self.config.width - self.config.wall_gap / 2, y=self.config.hallway_top),
+                    ),
+                ],
+                description="hallway",
+            )
+        )
 
         for i in range(num_rooms):
             if i == 0 or i == num_rooms - 1:
@@ -131,37 +117,26 @@ class WorldGeneratorHallway(WorldGeneratorImpl):
             door_start = round(door_start, 1)
             door_end = round(door_end, 1)
 
-            room_polygon = shapely.Polygon((
-                (x, y),
-                (x + w, y),
-                (x + w, y + h),
-                (x, y + h)
-            )).buffer(-self.config.wall_gap / 2)
+            room_polygon = shapely.Polygon(((x, y), (x + w, y), (x + w, y + h), (x, y + h))).buffer(-self.config.wall_gap / 2)
 
             door_height = self.config.resolution * 2
-            door_polygon = shapely.Polygon((
-                (door_start, door_y - door_height),
-                (door_end, door_y - door_height),
-                (door_end, door_y + door_height),
-                (door_start, door_y + door_height)
-            ))
+            door_polygon = shapely.Polygon(((door_start, door_y - door_height), (door_end, door_y - door_height), (door_end, door_y + door_height), (door_start, door_y + door_height)))
 
-            room_walls = shapely.difference(
-                room_polygon.exterior,
-                door_polygon
-            )
+            room_walls = shapely.difference(room_polygon.exterior, door_polygon)
 
             rooms.append(
                 WorldDescription.Zone(
                     name=f"{side}_room_{len(rooms)}",
                     corners=to_corners(room_polygon),
                     walls=to_walls(room_walls),
-                    doors=[Door(
-                        name=f"{side}_room_{len(rooms)}_door",
-                        start=Position(x=door_start, y=door_y),
-                        end=Position(x=door_end, y=door_y),
-                    )],
-                    description=f"{side} room {i + 1} of size {w: .1f} x {h: .1f}"
+                    doors=[
+                        Door(
+                            name=f"{side}_room_{len(rooms)}_door",
+                            start=Position(x=door_start, y=door_y),
+                            end=Position(x=door_end, y=door_y),
+                        )
+                    ],
+                    description=f"{side} room {i + 1} of size {w: .1f} x {h: .1f}",
                 )
             )
 

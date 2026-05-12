@@ -5,6 +5,10 @@ from setuptools import find_packages, setup
 
 package_name = 'task_generator'
 
+
+def existing(*patterns):
+    return [p for pat in patterns for p in glob(pat) if os.path.exists(p)]
+
 setup(
     name=package_name,
     version='0.0.0',
@@ -17,9 +21,16 @@ setup(
         ('share/ament_index/resource_index/packages',
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'launch'), existing('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'launch', 'human'),
+         existing('launch/human/*.launch.py', 'launch/human/*.md')),
+        (os.path.join('share', package_name, 'launch', 'human', 'hunav'),
+         existing('launch/human/hunav/*.launch.py')),
     ],
     install_requires=['setuptools'],
+    extras_require={
+        'test': ['pytest>=7', 'hypothesis>=6'],
+    },
     zip_safe=True,
     maintainer='Name',
     maintainer_email='your@email.com',

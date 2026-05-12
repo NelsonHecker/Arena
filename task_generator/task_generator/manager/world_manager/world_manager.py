@@ -1,16 +1,18 @@
 import itertools
 from collections.abc import Collection
 from math import floor
-from typing import Optional
+import typing
 
+import attrs
+
+import arena_simulation_setup.tree.World as World
 import numpy as np
 import scipy.signal
-import arena_simulation_setup.tree.World as World
+from arena_runtime._node import NodeInterface
 
-from task_generator import NodeInterface
 from task_generator.shared import Position, PositionRadius, Wall
 
-from .utils import WorldMap, WorldOccupancy, occupancy_to_walls
+from .utils import WorldMap, WorldOccupancy, MultiLevelMap
 
 
 class WorldManager(NodeInterface):
@@ -24,7 +26,7 @@ class WorldManager(NodeInterface):
     _map: WorldMap
     _classic_forbidden_zones: list[PositionRadius]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._detected_walls = None
         self._classic_forbidden_zones = []
@@ -49,15 +51,12 @@ class WorldManager(NodeInterface):
     def resolution(self) -> float:
         return self._map.resolution
 
-    _detected_walls: Optional[Collection[Wall]] = None
+    _detected_walls: Collection[Wall] | None = None
 
     @property
     def detected_walls(self) -> Collection[Wall]:
         if self._detected_walls is None:
-            self._detected_walls = occupancy_to_walls(
-                occupancy_grid=self.map.occupancy._walls.grid,
-                transform=self.map.tf_grid2pos
-            )
+            self._detected_walls = self._map.detect_walls()
         return self._detected_walls
 
     def update_world(
@@ -82,21 +81,19 @@ class WorldManager(NodeInterface):
                     PositionRadius(
                         x=obstacle.pose.position.x,
                         y=obstacle.pose.position.y,
-                        radius=1,   # TODO actual radius
+                        radius=1,  # TODO actual radius
                     )
                 )
             )
 
     def forbid(self, forbidden_zones: list[PositionRadius]):
         for zone in forbidden_zones:
-            self.map.occupancy.forbidden_occupy(
-                *self.map.tf_posr2rect(zone))
+            self.map.occupancy.forbidden_occupy(*self.map.tf_posr2rect(zone))
 
     def forbid_clear(self):
         self._map.occupancy.forbidden_clear()
 
-    def _classic_get_random_pos_on_map(self, safe_dist: float, forbid: bool = True,
-                                       forbidden_zones: Optional[list[PositionRadius]] = None) -> Position:
+    def _classic_get_random_pos_on_map(self, safe_dist: float, forbid: bool = True, forbidden_zones: list[PositionRadius] | None = None) -> Position:
         """
         This function is used by the robot manager and
         obstacles manager to get new positions for both
@@ -124,23 +121,20 @@ class WorldManager(NodeInterface):
 
         import math
 
-        def is_pos_valid(x: float, y: float, safe_dist: float,
-                         forbidden_zones: list[PositionRadius]):
+        def is_pos_valid(x: float, y: float, safe_dist: float, forbidden_zones: list[PositionRadius]) -> bool:
             """
             @safe_dist: minimal distance to the next obstacles for calculated positions
             """
             for p in forbidden_zones:
                 # euklidian distance to the forbidden zone
-                dist = math.floor(np.linalg.norm(
-                    np.array([x, y]) - np.array([p.x, p.y]))) - p.radius
+                dist = math.floor(np.linalg.norm(np.array([x, y]) - np.array([p.x, p.y]))) - p.radius
 
                 if dist <= safe_dist:
                     return False
 
             return True
 
-        safe_dist_in_cells = math.ceil(
-            safe_dist / self.map.resolution) + 1
+        safe_dist_in_cells = math.ceil(safe_dist / self.map.resolution) + 1
 
         forbidden_zones_in_cells: list[PositionRadius] = [
             PositionRadius(
@@ -152,8 +146,7 @@ class WorldManager(NodeInterface):
         ]
 
         # Now get index of all cells were dist is > safe_dist_in_cells
-        possible_cells: list[tuple[np.intp, np.intp]] = np.array(
-            np.where(self.map.occupancy.grid > safe_dist_in_cells)).transpose().tolist()
+        possible_cells: list[tuple[np.intp, np.intp]] = np.array(np.where(self.map.occupancy.grid > safe_dist_in_cells)).transpose().tolist()
 
         # return (random.randint(1,6), random.randint(1, 9), 0)
         assert len(possible_cells) > 0, "No cells available"
@@ -165,15 +158,11 @@ class WorldManager(NodeInterface):
         # forbidden zones is high enough
 
         while len(possible_cells) > 0:
-
             # Select a random cell
-            x, y = possible_cells.pop(
-                self.node.conf.General.RNG.value.integers(
-                    len(possible_cells)))
+            x, y = possible_cells.pop(self.node.conf.General.RNG.value.integers(len(possible_cells)))
 
             # Check if valid
-            if is_pos_valid(float(x), float(y), safe_dist_in_cells,
-                            forbidden_zones_in_cells):
+            if is_pos_valid(float(x), float(y), safe_dist_in_cells, forbidden_zones_in_cells):
                 break
 
         else:
@@ -190,12 +179,7 @@ class WorldManager(NodeInterface):
 
         return Position(x=point.x, y=point.y)
 
-    def get_positions_on_map(
-        self,
-        n: int, safe_dist: float,
-        forbidden_zones: Optional[list[PositionRadius]] = None,
-        forbid: bool = True
-    ) -> list[Position]:
+    def get_positions_on_map(self, n: int, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> list[Position]:
         """
         This function is used by the robot manager and
         obstacles manager to get new positions for both
@@ -240,19 +224,10 @@ class WorldManager(NodeInterface):
             max_depth = 10
 
             for zone in forbidden_zones:
-                fork.occupy(
-                    *self.map.tf_posr2rect(
-                        PositionRadius(
-                            x=zone.x,
-                            y=zone.y,
-                            radius=zone.radius / self.resolution,
-                        )
-                    )
-                )
+                fork.occupy(*self.map.tf_posr2rect(zone))
 
             min_dist: float = safe_dist / self.resolution
-            available_positions = self._occupancy_to_available(
-                occupancy=fork.grid, safe_dist=min_dist)
+            available_positions = self._occupancy_to_available(occupancy=fork.grid, safe_dist=min_dist)
 
             def sample(target: int) -> Collection[Position]:
 
@@ -266,31 +241,23 @@ class WorldManager(NodeInterface):
 
                 try:
                     while depth < max_depth:
-
                         if to_produce > len(available_positions):
                             raise RuntimeError()
 
-                        candidates = available_positions[self.node.conf.General.RNG.value.choice(
-                            len(available_positions), to_produce, replace=False), :]
+                        candidates = available_positions[self.node.conf.General.RNG.value.choice(len(available_positions), to_produce, replace=False), :]
 
                         for candidate in candidates:
-
                             banned = all_banned[:banned_index, :]
 
-                            if np.any(np.linalg.norm(
-                                    banned - candidate, axis=1) < min_dist):
+                            if np.any(np.linalg.norm(banned - candidate, axis=1) < min_dist):
                                 continue
 
                             all_banned[banned_index] = candidate
                             banned_index += 1
 
-                            fork.occupy(
-                                (candidate - min_dist),
-                                (candidate + min_dist)
-                            )
+                            fork.occupy((candidate - min_dist), (candidate + min_dist))
 
-                            result.append(self._map.tf_grid2pos(
-                                (candidate[0], candidate[1])))
+                            result.append(self._map.tf_grid2pos((candidate[0], candidate[1])))
 
                         to_produce = target - len(result)
                         if to_produce <= 0:
@@ -299,19 +266,11 @@ class WorldManager(NodeInterface):
                         depth += 1
 
                     else:
-                        raise RuntimeError(
-                            f"Failed to find free position after {depth} tries")
+                        raise RuntimeError(f"Failed to find free position after {depth} tries")
 
                 except RuntimeError:
-                    result += [
-                        self._map.tf_grid2pos(
-                            (
-                                (-1 - floor(i / 5)) * int(self._shape[1] / 5),
-                                int((i % 5) * self._shape[0] / 5)
-                            )
-                        ) for i in range(to_produce)]
-                    self._logger.warn(
-                        f"Couldn't find enough empty cells for {to_produce} requests")
+                    result += [self._map.tf_grid2pos(((-1 - floor(i / 5)) * int(self._shape[1] / 5), int((i % 5) * self._shape[0] / 5))) for i in range(to_produce)]
+                    self._logger.warn(f"Couldn't find enough empty cells for {to_produce} requests")
 
                 return result
 
@@ -322,28 +281,17 @@ class WorldManager(NodeInterface):
 
         return points
 
-    def get_position_on_map(
-            self, safe_dist: float, forbidden_zones: Optional[list[PositionRadius]] = None, forbid: bool = True) -> Position:
-        return self.get_positions_on_map(
-            n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid
-        )[0]
+    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> Position:
+        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid)[0]
 
     id_gen = itertools.count()
 
-    def _occupancy_to_available(
-            self, occupancy: np.ndarray, safe_dist: float) -> np.ndarray:
+    def _occupancy_to_available(self, occupancy: np.ndarray, safe_dist: float) -> np.ndarray:
 
         filt_size = int(2 * safe_dist + 1)
-        filt = np.full((filt_size, filt_size), 1) / (filt_size ** 2)
+        filt = np.full((filt_size, filt_size), 1) / (filt_size**2)
 
-        spread = scipy.signal.convolve2d(
-            WorldOccupancy.not_full(occupancy).astype(
-                np.uint8) * np.iinfo(np.uint8).max,
-            filt,
-            mode="full",
-            boundary="fill",
-            fillvalue=int(WorldOccupancy.FULL)
-        )
+        spread = scipy.signal.convolve2d(WorldOccupancy.not_full(occupancy).astype(np.uint8) * np.iinfo(np.uint8).max, filt, mode="full", boundary="fill", fillvalue=int(WorldOccupancy.FULL))
 
         # import cv2
 
@@ -356,3 +304,138 @@ class WorldManager(NodeInterface):
         # cv2.imwrite("_debug4.png", visual(WorldOccupancy.empty(spread)))
 
         return np.transpose(np.where(WorldOccupancy.empty(spread)))
+
+class LevelManager(WorldManager):
+    """basic unit of manager to be used in multi-level context.
+    _world field becomes a stub, replaced by _level field
+    """
+    _level: World.Level
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        del self._world
+
+    def __getattribute__(self, name):
+        if name == "_world":
+            raise AttributeError(
+                "Direct access to '_world' is not allowed in LevelManager. "
+                "Use the 'world' property (which returns _level) instead."
+            )
+        return super().__getattribute__(name)
+
+    @property
+    def world(self) -> World.WorldDescription:
+        return self._level
+
+    @property
+    def level(self) -> World.Level:
+        return self._level
+
+    def update_world(self, world_map: WorldMap, world_description: World.WorldDescription):
+        return NotImplemented
+
+    def update_level(self, world_map: WorldMap, level: World.Level):
+        world_description = level
+        self._detected_walls = None
+        self._map = world_map
+
+        counter = itertools.count(0)
+        for entity in itertools.chain(world_description.all_static_entities, world_description.all_dynamic_entities):
+            if not entity.name:
+                entity.name = f'{next(counter)}_{entity.model.name}'
+            entity.name = f'world_{entity.name}'
+
+        self._level = level
+
+        for obstacle in self.world.all_static_entities:
+            self.map.occupancy.obstacle_occupy(
+                *self.map.tf_posr2rect(
+                    PositionRadius(
+                        x=obstacle.pose.position.x,
+                        y=obstacle.pose.position.y,
+                        radius=1,  # TODO actual radius
+                    )
+                )
+            )
+
+    @classmethod
+    def create(cls, level: World.Level, map: WorldMap) -> 'LevelManager':
+        out = LevelManager()
+        out.update_level(world_map=map, level=level) # map & level occupancy sync logic happens here
+        return out
+    
+@attrs.define()
+class MultiLevelManager(NodeInterface):
+    """
+    manages multi-level worlds
+    """
+    _managers: dict[str, LevelManager] = attrs.field(factory=dict)
+
+    @property
+    def managers(self) -> dict[str, LevelManager]:
+        return self._managers
+
+    @property
+    def list_managers(self) -> typing.Iterable[LevelManager]:
+        return self._managers.values()
+
+    @property
+    def floor_ids(self) -> typing.Iterable[str]:
+        return self._managers.keys()
+
+    def get_manager(self, floor_id: str) -> LevelManager | None:
+        return self.managers.get(floor_id, None)
+
+    def add_level(self, floor_id: str, level: World.Level, map: WorldMap) -> None:
+        if floor_id in self.floor_ids:
+            raise ValueError(f"floor id {floor_id} is already used")
+        _manager = LevelManager.create(level, map)
+        self._managers[floor_id] = _manager
+
+    def update_level(self, floor_id: str, level_map: WorldMap, level_world: World.Level):
+        """if the floor_id is already in use, replace the manager corresponding to that id
+        if not, add a new manager"""
+
+        _manager = LevelManager.create(level=level_world, map=level_map)
+        self.managers[floor_id] = _manager
+    
+    @staticmethod
+    def _check_floor_id_consistent(multi_level_world: World.MultiLevelWorld, multi_level_map: MultiLevelMap) -> None:
+        level_world_keys = multi_level_world.floor_ids
+        level_map_keys = multi_level_map.floor_ids
+
+        for map_key in level_map_keys:
+            if map_key not in level_world_keys:
+                raise ValueError(f"floor id {map_key} not found in MultiLevelWorld instance. Not safe to create MultiLevelManager instance")
+        for world_key in level_world_keys:
+            if world_key not in level_map_keys:
+                raise ValueError(f"floor id {map_key} not found in MultiLevelMap instance. Not safe to create MultiLevelManager instance")
+
+
+    @classmethod
+    def from_multi_levels(cls, multi_level_world: World.MultiLevelWorld, multi_level_map: MultiLevelMap) -> 'MultiLevelManager':
+        """construct a class instance from given MultiLevelWorld.
+        Raises if MultiLevelWorld is not validated.
+        Creating a manager this way is preferred since it guarantees consistency across floors
+        """
+        multi_level_world.validate()
+        cls._check_floor_id_consistent(multi_level_world, multi_level_map)
+        out = cls()
+        for floor_id in multi_level_world.floor_ids:
+            level = multi_level_world.get_level(floor_id)
+            map = multi_level_map.get_map(floor_id)
+            if level and map:
+                out.add_level(floor_id, level, map)
+
+        return out
+
+    def update_world(
+        self,
+        multi_level_map: MultiLevelMap,
+        multi_level_world: World.MultiLevelWorld
+    ):
+        """This method completely rewrites the current manager.
+        """
+        updated = self.from_multi_levels(multi_level_world=multi_level_world, multi_level_map=multi_level_map)
+        self = updated
+    

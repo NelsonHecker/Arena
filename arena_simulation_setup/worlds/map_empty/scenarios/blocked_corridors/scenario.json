@@ -4,7 +4,7 @@
       "name": "20",
       "id": 0,
       "pos": [21.02, 16.89],
-      "type": "gazebo_actor",
+      "type": "arenian",
       "waypoints": [
         [18.42, 15.03],
         [18.42, 7.99],
@@ -20,7 +20,7 @@
       "name": "23",
       "id": 0,
       "pos": [1.44, 8.61],
-      "type": "gazebo_actor",
+      "type": "arenian",
       "waypoints": [],
       "waypoint_mode": 0
     },
@@ -28,7 +28,7 @@
       "name": "24",
       "id": 0,
       "pos": [0.33, 6.78],
-      "type": "gazebo_actor",
+      "type": "arenian",
       "waypoints": [],
       "waypoint_mode": 0
     },
@@ -36,7 +36,7 @@
       "name": "25",
       "id": 0,
       "pos": [18.15, 11.52],
-      "type": "gazebo_actor",
+      "type": "arenian",
       "waypoints": [],
       "waypoint_mode": 0
     },
@@ -44,7 +44,7 @@
       "name": "26",
       "id": 0,
       "pos": [17.0, 9.9],
-      "type": "gazebo_actor",
+      "type": "arenian",
       "waypoints": [],
       "waypoint_mode": 0
     },
@@ -52,7 +52,7 @@
       "name": "27",
       "id": 0,
       "pos": [11.32, 2.5],
-      "type": "gazebo_actor",
+      "type": "arenian",
       "waypoints": [],
       "waypoint_mode": 0
     },
@@ -60,7 +60,7 @@
       "name": "28",
       "id": 0,
       "pos": [10.18, 0.88],
-      "type": "gazebo_actor",
+      "type": "arenian",
       "waypoints": [],
       "waypoint_mode": 0
     }

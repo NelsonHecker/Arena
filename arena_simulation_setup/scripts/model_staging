@@ -6,9 +6,6 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from arena_robots.Robot import RobotIdentifier
 
-from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
-
 package_name = 'arena_simulation_setup'
 
 
@@ -49,12 +46,6 @@ def main(install_dir: str):
     handler = InstallStagingData(install_dir)
 
     base_dir = get_package_share_directory(package_name)
-
-    for ident in list(ObjectIdentifier.listall()):
-        handler.add_to_staging(ident.resolve_sync().name, ident.name)
-
-    for ident in list(PedestrianIdentifier.listall()):
-        handler.add_to_staging(ident.resolve_sync().name, ident.name)
 
     for ident in list(RobotIdentifier.listall()):
         handler.add_to_staging(ident.resolve_sync().name, ident.name)

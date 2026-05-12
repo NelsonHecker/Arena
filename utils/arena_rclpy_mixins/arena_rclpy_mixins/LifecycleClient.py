@@ -10,10 +10,10 @@ from arena_rclpy_mixins.Time import TimeNode
 
 
 class LifecycleClient(TimeNode, rclpy.node.Node):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_lifecycle_state(self, node_name: str, *, timeout: float | None = None, **kwargs) -> lifecycle_msgs.msg.State:
+    def get_lifecycle_state(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> lifecycle_msgs.msg.State:
         """
         Get state of lifecycle node
         """
@@ -26,7 +26,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
             raise RuntimeError(f'timed out waiting for {name} after {timeout} secs')
         return cli.call(lifecycle_msgs.srv.GetState.Request()).current_state
 
-    def get_available_lifecycle_states(self, node_name: str, *, timeout: float | None = None, **kwargs) -> list[lifecycle_msgs.msg.State]:
+    def get_available_lifecycle_states(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.State]:
         """
         Get available lifecycle states
         """
@@ -40,7 +40,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
             raise RuntimeError(f'timed out waiting for {name} after {timeout} secs')
         return cli.call(lifecycle_msgs.srv.GetAvailableStates.Request()).available_states
 
-    def get_available_lifecycle_transitions(self, node_name: str, *, timeout: float | None = None, **kwargs) -> list[lifecycle_msgs.msg.Transition]:
+    def get_available_lifecycle_transitions(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.Transition]:
         """
         Get available lifecycle transitions
         """
@@ -54,7 +54,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
             raise RuntimeError(f'timed out waiting for {name} after {timeout} secs')
         return cli.call(lifecycle_msgs.srv.GetAvailableTransitions.Request()).available_transitions
 
-    def change_lifecycle_state(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = None, **kwargs) -> bool:
+    def change_lifecycle_state(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = None, **kwargs: object) -> bool:
         """
         Set state of lifecycle node
         """
@@ -70,7 +70,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
             raise RuntimeError(f'timed out waiting for {name} after {timeout} secs')
         return cli.call(lifecycle_msgs.srv.ChangeState.Request(transition=transition)).success
 
-    async def wait_for_lifecycle_state(self, node_name: str, desired_state: lifecycle_msgs.msg.State | int, *, check_interval: float = 0.5, timeout: float | None = None, **kwargs) -> bool:
+    async def wait_for_lifecycle_state(self, node_name: str, desired_state: lifecycle_msgs.msg.State | int, *, check_interval: float = 0.5, timeout: float | None = None, **kwargs: object) -> bool:
         """
         Asynchronously wait for lifecycle node to reach desired state
         """
@@ -88,7 +88,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
 
 
 class AsyncLifecycleClient(AsyncNode):
-    async def get_lifecycle_state_async(self, node_name: str, *, timeout: float | None = None, **kwargs) -> lifecycle_msgs.msg.State:
+    async def get_lifecycle_state_async(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> lifecycle_msgs.msg.State:
         """
         Asynchronously get state of lifecycle node
         """
@@ -103,7 +103,7 @@ class AsyncLifecycleClient(AsyncNode):
         assert res is not None
         return res.current_state
 
-    async def get_available_lifecycle_states_async(self, node_name: str, *, timeout: float | None = None, **kwargs) -> list[lifecycle_msgs.msg.State]:
+    async def get_available_lifecycle_states_async(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.State]:
         """
         Asynchronously get available lifecycle states
         """
@@ -117,7 +117,7 @@ class AsyncLifecycleClient(AsyncNode):
         assert res is not None
         return res.available_states
 
-    async def get_available_lifecycle_transitions_async(self, node_name: str, *, timeout: float | None = None, **kwargs) -> list[lifecycle_msgs.msg.Transition]:
+    async def get_available_lifecycle_transitions_async(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.Transition]:
         """
         Asynchronously get available lifecycle transitions
         """
@@ -131,7 +131,7 @@ class AsyncLifecycleClient(AsyncNode):
         assert res is not None
         return res.available_transitions
 
-    async def change_lifecycle_state_async(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = None, **kwargs) -> bool:
+    async def change_lifecycle_state_async(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = None, **kwargs: object) -> bool:
         """
         Asynchronously set state of lifecycle node
         """
@@ -147,7 +147,7 @@ class AsyncLifecycleClient(AsyncNode):
         assert res is not None
         return res.success
 
-    async def wait_for_lifecycle_state_async(self, node_name: str, desired_state: lifecycle_msgs.msg.State | int, *, check_interval: float = 0.5, timeout: float | None = None, **kwargs) -> bool:
+    async def wait_for_lifecycle_state_async(self, node_name: str, desired_state: lifecycle_msgs.msg.State | int, *, check_interval: float = 0.5, timeout: float | None = None, **kwargs: object) -> bool:
         """
         Asynchronously wait for lifecycle node to reach desired state
         """
@@ -156,7 +156,6 @@ class AsyncLifecycleClient(AsyncNode):
             desired_state = lifecycle_msgs.msg.State(id=desired_state)
         start_time = self.wall_time
         while True:
-
             current_state = await self.get_lifecycle_state_async(node_name, timeout=timeout, **kwargs)
             if current_state.id == desired_state.id:
                 return True

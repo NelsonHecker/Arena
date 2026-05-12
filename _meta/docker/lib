@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+arena_docker_compose(){
+    local files="$ARENA_DIR/_meta/docker/docker-compose.yaml"
+    if [ -f "$ARENA_DIR/.installed" ]; then
+        local feature ov
+        while read -r feature; do
+            ov="$ARENA_DIR/_meta/docker/features/${feature}/docker-compose.yml"
+            [ -f "$ov" ] && files="${files}:${ov}"
+        done < "$ARENA_DIR/.installed"
+    fi
+    ${arena_compose_sudo} env ${docker_env} COMPOSE_FILE="$files" \
+        docker compose \
+        --project-directory "$ARENA_WS_DIR" \
+        --project-name "$ARENA_PROJECT_NAME" \
+        "$@"
+}
+export -f arena_docker_compose 2>/dev/null || true

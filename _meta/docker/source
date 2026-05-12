@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+ARENA_WS_DIR="${ARENA_WS_DIR:-$(pwd)}"
+
+export HOST_ARENA_WS_DIR="$ARENA_WS_DIR"
+export ARENA_DIR="$ARENA_WS_DIR/src/Arena"
+export ARENA_ROS_DISTRO=jazzy
+
+export ARENA_DATA_DIR="${ARENA_DATA_DIR:-$ARENA_WS_DIR/data}"
+mkdir -p "$ARENA_DATA_DIR"
+mkdir -p "$ARENA_DATA_DIR/benchmarks"
+mkdir -p "$ARENA_DATA_DIR/agents"
+export HOST_ARENA_DATA_DIR="$ARENA_DATA_DIR"
+export ROSNAV_AGENTS_DIR="${ROSNAV_AGENTS_DIR:-$ARENA_DATA_DIR/agents}"
+
+mkdir -p "$ARENA_DIR/.venv"
+mkdir -p "$ARENA_WS_DIR/build"
+mkdir -p "$ARENA_WS_DIR/install"
+mkdir -p "$ARENA_WS_DIR/log"
+
+HOST_UID=$(id -u)
+export HOST_UID
+HOST_GID=$(id -g)
+export HOST_GID
+export ARENA_PROJECT_NAME="arena-$(basename "$ARENA_WS_DIR")"
+export ARENA_IMAGE_TAG="$ARENA_PROJECT_NAME"
+export ARENA_IMAGE="arena:${ARENA_IMAGE_TAG}"
+
+if [ ! -f "$ARENA_WS_DIR/.env" ] ; then
+    touch "$ARENA_WS_DIR/.env"
+fi
+
+xhost +local:docker
+
+docker_env=""
+docker_env="${docker_env} ARENA_PROJECT_NAME=$ARENA_PROJECT_NAME"
+docker_env="${docker_env} ARENA_IMAGE=$ARENA_IMAGE"
+docker_env="${docker_env} ARENA_IMAGE_TAG=$ARENA_IMAGE_TAG"
+docker_env="${docker_env} ARENA_WS_DIR=$ARENA_WS_DIR"
+docker_env="${docker_env} HOST_UID=$HOST_UID"
+docker_env="${docker_env} HOST_GID=$HOST_GID"
+docker_env="${docker_env} ARENA_DATA_DIR=$ARENA_DATA_DIR"
+docker_env="${docker_env} ROSNAV_AGENTS_DIR=$ROSNAV_AGENTS_DIR"
+export docker_env
+
+export arena_compose_sudo=""
+source "$ARENA_DIR/_meta/docker/lib"
+
+arena_service="arena"
+
+do_run(){
+    arena_docker_compose \
+        up -d --remove-orphans --timeout 0 \
+        "$arena_service"
+
+    local ID
+    ID=$(arena_docker_compose ps -q "$arena_service")
+    if [ -z "$ID" ]; then
+        echo "Failed to find container for service '$arena_service'."
+        return 1
+    fi
+
+    local HEALTH_STATUS
+    HEALTH_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$ID" 2>/dev/null)
+    if [ "$HEALTH_STATUS" != "healthy" ] && [ "$HEALTH_STATUS" != "none" ]; then
+        (
+            arena_docker_compose attach --no-stdin "$arena_service" &
+            local LOGS_PID=$!
+            
+            trap 'kill "$LOGS_PID" 2>/dev/null' EXIT
+            trap 'kill "$LOGS_PID" 2>/dev/null; exit 130' INT TERM
+
+            while true; do
+                ID=$(arena_docker_compose ps -q "$arena_service")
+                if [ -z "$ID" ]; then
+                    sleep 1
+                    continue
+                fi
+
+                HEALTH_STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$ID" 2>/dev/null)
+                local RUN_STATUS
+                RUN_STATUS=$(docker inspect -f '{{.State.Status}}' "$ID" 2>/dev/null)
+
+                if [ "$HEALTH_STATUS" == "healthy" ] || { [ "$HEALTH_STATUS" == "none" ] && [ "$RUN_STATUS" == "running" ]; }; then
+                    break
+                fi
+
+                if [ -n "$RUN_STATUS" ] && [ "$RUN_STATUS" != "running" ] && [ "$RUN_STATUS" != "restarting" ]; then
+                    exit 1
+                fi
+                sleep 1
+            done
+        ) || return $?
+    fi
+
+    if [ -t 0 ] && [ -t 1 ]; then
+        arena_docker_compose exec "$arena_service" /entrypoint.sh \
+            bash --rcfile /opt/arena_ws/src/Arena/_meta/docker/features/docker/rcfile -i
+    else
+        arena_docker_compose exec -T "$arena_service" /entrypoint.sh bash --norc "$@"
+    fi
+    return $?
+}
+
+do_run "$@"

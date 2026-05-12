@@ -11,21 +11,19 @@
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-hypothesis</test_depend>
 
   <exec_depend>arena_bringup</exec_depend>
   <exec_depend>arena_rclpy_mixins</exec_depend>
-  
-  <depend>topic_tools</depend>
-  
+
   <depend>jackal_description</depend>
   <depend>realsense2_description</depend>
   <depend>lms1xx</depend>
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
-  <depend>tf2_ros</depend>
-  <depend>tf2_geometry_msgs</depend>
-  
+
   <export>
     <build_type>ament_python</build_type>
   </export>

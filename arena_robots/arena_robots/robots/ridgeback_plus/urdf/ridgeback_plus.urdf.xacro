@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<robot name="ridgeback_plus" xmlns:xacro="http://wiki.ros.org/xacro">
+
+  <xacro:arg name="ur_type" default="ur5e"/>
+
+  <!-- R100 base platform -->
+  <xacro:include filename="$(find clearpath_platform_description)/urdf/r100/r100.urdf.xacro"/>
+  <xacro:r100/>
+
+  <!-- UR arm mounted on chassis_link (top deck at z=0.280 per r100 deck_height) -->
+  <!-- TODO: verify arm mount pose against physical hardware -->
+  <xacro:include filename="$(find clearpath_manipulators_description)/urdf/arm/universal_robots.urdf.xacro"/>
+  <xacro:universal_robots name="arm" parent_link="chassis_link" ur_type="$(arg ur_type)">
+    <origin xyz="0 0 0.280" rpy="0 0 0"/>
+  </xacro:universal_robots>
+
+  <!-- Arm ros2_control interfaces -->
+  <xacro:include filename="$(find arena_robots)/robots/ridgeback_plus/urdf/base_hw/ridgeback_plus.ros2_control.urdf"/>
+
+</robot>

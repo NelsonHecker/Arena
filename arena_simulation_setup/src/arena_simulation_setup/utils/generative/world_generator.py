@@ -13,7 +13,7 @@ def test_generate(out: str, name: str, config: dict) -> Path:
     return WorldIdentifier(out).resolve_sync().save(gen.compute())
 
 
-def main(argv=sys.argv):
+def main(argv: list[str] = sys.argv) -> None:
     import json
     import os
 

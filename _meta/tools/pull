@@ -2,6 +2,8 @@
 
 set -e
 
+export GIT_TERMINAL_PROMPT=0
+
 pushd "$ARENA_DIR" > /dev/null
 trap 'popd > /dev/null' EXIT
 
@@ -11,6 +13,8 @@ _ROSDEP=${ROSDEP:-1}
 
 export ROSDEP_EXCLUDES='libignition-gazebo6-dev gazebo_dev gazebo_ros gazebo_plugins gazebo_ros2_control'
 
+sudo apt update
+
 # update vcstool
 echo updating vcstool...
 python -m pip install git+https://github.com/voshch/vcstool.git || echo 'failed vcstool upgrade, ignoring'
@@ -19,7 +23,6 @@ python -m pip install git+https://github.com/voshch/vcstool.git || echo 'failed 
 if [ $_GIT -eq 1 ] ; then
     echo updating Arena...
     git pull --ff-only --autostash && git submodule update --recursive
-    git submodule update --init --recursive arena_robots
 
     # re-source
     . "$ARENA_DIR/_meta/tools/source"
@@ -27,41 +30,23 @@ if [ $_GIT -eq 1 ] ; then
     vcs import --input "$ARENA_DIR/_meta/repos/arena.repos" --recursive --ff --add-existing "$ARENA_WS_DIR/src"\
         || echo "failed to pull all arena repos, ignoring"
 
-    if [ -f "$INSTALLED" ] ; then
-        while read -r name; do 
-            if [ -f "$ARENA_DIR/_meta/repos/${name}.repos" ] ; then
-                vcs import --input "$ARENA_DIR/_meta/repos/${name}.repos" --shallow --recursive --ff --add-existing "$ARENA_WS_DIR/src"  \
-                || echo "failed to pull all $name repos, ignoring"
-            fi
-            (arena feature "$name" update || echo "failed to update feature $name, ignoring")
-        done < "$INSTALLED"
-    fi
+    arena registry list | while read -r name; do
+        arena registry resolve "$name" >/dev/null 2>&1 || continue
+        arena registry pull "$name"
+        (arena feature "$name" update || echo "failed to update feature $name, ignoring")
+    done
 fi
 
 if [ $_ROSDEP -eq 1 ] ; then
     # shellcheck disable=SC2016
     rosdep update --rosdistro "$ARENA_ROS_DISTRO" \
-        && rosdep install --from-paths "$ARENA_WS_DIR/src" --ignore-src -r -y --skip-keys "$ROSDEP_EXCLUDES" \
+        && arena deps --skip-keys "$ROSDEP_EXCLUDES" \
     || echo "rosdep failed to install all dependencies"
 fi
 
 if [ $_PYTHON -eq 1 ] ; then
     echo updating python deps...
-    uv sync --inexact
-
-    echo removing incompatible torch companion packages...
-    uv pip uninstall --python "$ARENA_DIR/.venv/bin/python" torchvision torchaudio || true
-
-    if { [ -d "$ARENA_DIR/arena_training" ] && git submodule status arena_training 2>/dev/null | grep -qv '^-'; } || grep -qx 'training' "$INSTALLED" 2>/dev/null; then
-        echo updating training python deps...
-        pushd "$ARENA_DIR/arena_training" > /dev/null
-        uv pip install --python "$ARENA_DIR/.venv/bin/python" \
-            -e "." \
-            -e "./deps/rosnav_rl/rosnav_rl"
-        popd > /dev/null
-
-        "$ARENA_DIR/_meta/tools/install_torch_companions" "$ARENA_DIR/.venv/bin/python"
-    fi
+    uv sync --inexact --active
 fi
 
 # update links
@@ -74,3 +59,5 @@ echo -e '\033[0m'
 
 trap - EXIT
 popd > /dev/null
+
+unset GIT_TERMINAL_PROMPT

@@ -1,12 +1,11 @@
+from __future__ import annotations
 
 import collections.abc
 import importlib
-from typing import Sequence, Text
+from collections.abc import Sequence
 
 from launch import LaunchContext, SomeSubstitutionsType, Substitution
-from launch.utilities import (ensure_argument_type,
-                              normalize_to_list_of_substitutions,
-                              perform_substitutions)
+from launch.utilities import ensure_argument_type, normalize_to_list_of_substitutions, perform_substitutions
 from launch.utilities.type_utils import perform_typed_substitution
 
 
@@ -20,28 +19,19 @@ class PythonExpression(Substitution):
     It also may contain math symbols and functions.
     """
 
-    def __init__(self, expression: SomeSubstitutionsType,
-                 python_modules: SomeSubstitutionsType = ['math']) -> None:
+    def __init__(self, expression: SomeSubstitutionsType, python_modules: SomeSubstitutionsType = ['math']) -> None:  # noqa: B006
         """Create a PythonExpression substitution."""
         super().__init__()
 
-        ensure_argument_type(
-            expression,
-            (str, Substitution, collections.abc.Iterable),
-            'expression',
-            'PythonExpression')
+        ensure_argument_type(expression, (str, Substitution, collections.abc.Iterable), 'expression', 'PythonExpression')
 
-        ensure_argument_type(
-            python_modules,
-            (str, Substitution, collections.abc.Iterable),
-            'python_modules',
-            'PythonExpression')
+        ensure_argument_type(python_modules, (str, Substitution, collections.abc.Iterable), 'python_modules', 'PythonExpression')
 
         self.__expression = normalize_to_list_of_substitutions(expression)
         self.__python_modules = normalize_to_list_of_substitutions(python_modules)
 
     @classmethod
-    def parse(cls, data: Sequence[SomeSubstitutionsType]):
+    def parse(cls, data: Sequence[SomeSubstitutionsType]) -> tuple[type[PythonExpression], dict]:
         """Parse `PythonExpression` substitution."""
         if len(data) < 1 or len(data) > 2:
             raise TypeError('eval substitution expects 1 or 2 arguments')
@@ -77,13 +67,11 @@ class PythonExpression(Substitution):
         """Getter for python modules."""
         return self.__python_modules
 
-    def describe(self) -> Text:
+    def describe(self) -> str:
         """Return a description of this substitution as a string."""
-        return 'PythonExpr({}, [{}])'.format(
-            ' + '.join([sub.describe() for sub in self.expression]),
-            ', '.join([sub.describe() for sub in self.python_modules]))
+        return 'PythonExpr({}, [{}])'.format(' + '.join([sub.describe() for sub in self.expression]), ', '.join([sub.describe() for sub in self.python_modules]))
 
-    def perform(self, context: LaunchContext) -> Text:
+    def perform(self, context: LaunchContext) -> str:
         """Perform the substitution by evaluating the expression."""
         module_names = [context.perform_substitution(sub) for sub in self.python_modules]
         module_objects = [importlib.import_module(name) for name in module_names]
@@ -100,12 +88,7 @@ class PythonExpression(Substitution):
 
 
 class IfElseSubstitution(Substitution):
-    def __init__(
-        self,
-        condition,
-        if_value: SomeSubstitutionsType = '',
-        else_value: SomeSubstitutionsType = ''
-    ):
+    def __init__(self, condition: SomeSubstitutionsType, if_value: SomeSubstitutionsType = '', else_value: SomeSubstitutionsType = ''):
         super().__init__()
         if if_value == else_value == '':
             raise RuntimeError('One of if_value and else_value must be specified')
@@ -114,18 +97,18 @@ class IfElseSubstitution(Substitution):
         self._else_value = normalize_to_list_of_substitutions(else_value)
 
     @property
-    def condition(self):
+    def condition(self) -> list[Substitution]:
         return self._condition
 
     @property
-    def if_value(self):
+    def if_value(self) -> list[Substitution]:
         return self._if_value
 
     @property
-    def else_value(self):
+    def else_value(self) -> list[Substitution]:
         return self._else_value
 
-    def perform(self, context):
+    def perform(self, context: LaunchContext) -> str:
         try:
             condition = perform_typed_substitution(context, self.condition, bool)
         except (TypeError, ValueError) as e:

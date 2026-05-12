@@ -1,12 +1,13 @@
-import os
-
 import launch.actions
-import launch.launch_description_sources
 import launch.substitutions
-from ament_index_python.packages import get_package_share_directory
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 import launch
+import launch_ros.actions
 from arena_bringup.substitutions import LaunchArgument, SelectAction
+
+from arena_runtime.constants import SimSimulator
 
 
 def generate_launch_description():
@@ -23,25 +24,30 @@ def generate_launch_description():
         default_value='False',
     )
 
-    # TODO temporary
     world = LaunchArgument(
         name='world'
     )
 
-    launch_physics_simulator = SelectAction(launch.substitutions.LaunchConfiguration('simulator'))
+    launch_simulator = SelectAction(launch.substitutions.LaunchConfiguration('sim'))
 
-    launch_physics_simulator.add(
-        'dummy',
-        launch.actions.GroupAction([])
+    launch_simulator.add(
+        SimSimulator.DUMMY.value,
+        launch.actions.GroupAction([
+            launch_ros.actions.Node(
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                arguments=['--frame-id', 'map', '--child-frame-id', 'dummy'],
+            ),
+        ])
     )
 
-    launch_physics_simulator.add(
-        'gazebo',
+    launch_simulator.add(
+        SimSimulator.GAZEBO.value,
         launch.actions.IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory(
-                    'arena_bringup'), 'launch/simulator/sim/gazebo/gazebo.launch.py')
-            ),
+            PathJoinSubstitution([
+                FindPackageShare('arena_bringup'),
+                'launch', 'simulator', 'sim', 'gazebo', 'gazebo.launch.py',
+            ]),
             launch_arguments={
                 **use_sim_time.dict,
                 **headless.dict,
@@ -50,13 +56,13 @@ def generate_launch_description():
         )
     )
 
-    launch_physics_simulator.add(
-        'isaac',
+    launch_simulator.add(
+        SimSimulator.ISAAC.value,
         launch.actions.IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory(
-                    'arena_bringup'), 'launch/simulator/sim/isaac/isaac.launch.py')
-            ),
+            PathJoinSubstitution([
+                FindPackageShare('arena_bringup'),
+                'launch', 'simulator', 'sim', 'isaac', 'isaac.launch.py',
+            ]),
             launch_arguments={
                 'use_sim_time': use_sim_time.substitution,
                 # 'headless': headless.substitution
@@ -64,14 +70,14 @@ def generate_launch_description():
         )
     )
 
-    simulator = LaunchArgument(
-        name='simulator',
-        choices=launch_physics_simulator.keys,
+    sim = LaunchArgument(
+        name='sim',
+        choices=launch_simulator.keys,
     )
 
     ld = launch.LaunchDescription([
         *ld,
-        launch_physics_simulator,
+        launch_simulator,
     ])
     return ld
 

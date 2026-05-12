@@ -12,7 +12,7 @@ from . import Model, ModelProvider, ModelType
 
 class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
     @classmethod
-    async def load(cls, model_dir, model, loader_args) -> Model:
+    async def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
         model_paths = (
             model_dir / f"{model}.usdz",
             model_dir / f"{model}.usd",
@@ -27,7 +27,7 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
             type=ModelType.USD,
             name=model,
             description="",  # TODO add bytes compat
-            path=found
+            path=found,
         )
 
     @classmethod
@@ -35,13 +35,13 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
         return (ModelType.SDF,)
 
     @classmethod
-    async def convert(cls, model_dir, model, loader_args) -> Model | None:
+    async def convert(cls, model_dir: Path, model: Model, loader_args: dict | None) -> Model | None:
         if model.type is ModelType.SDF:
             try:
                 # print(model_dir)
                 model_path = model.path
                 model_dir = model_path.parent
-                async with aiofiles.open(model_path, 'r') as f:
+                async with aiofiles.open(model_path) as f:
                     tree = ET.ElementTree(ET.fromstring(await f.read()))
                 root = tree.getroot()
                 assert root is not None
@@ -83,6 +83,7 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                     model_path.unlink()
 
                 import arena_bringup
+
                 ARENA_DIR = arena_bringup.get_arena_dir()
 
                 env = os.environ.copy()
@@ -93,17 +94,13 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
                     await f.flush()
                     print("Temporary URDF file for converter:", f.name)
                     subprocess.check_output(
-
-                        [
-                            f'{ARENA_DIR}/_meta/tools/sdf2usd',
-                            f.name,
-                            model_path
-                        ],
+                        [f'{ARENA_DIR}/_meta/tools/sdf2usd', f.name, model_path],
                         env=env,
                         # shell=True,
                     )
 
                 from pxr import Usd
+
                 stage = Usd.Stage.Open(model_path)  # type: ignore
                 for prim in stage.Traverse():
                     if prim.GetTypeName() == "Xform":
@@ -124,13 +121,14 @@ class ModelProvider_USD(ModelProvider.provides(ModelType.USD)):
         return None
 
 
-async def process_dae(dae_file, package_dir) -> Path:
+async def process_dae(dae_file: Path, package_dir: Path) -> Path:
     """
     Load a .dae file, update its <init_from> elements by replacing any leading
     '../' with the package_dir, then write to a temporary file and return its path.
     """
     import collada
-    file = collada.Collada(dae_file)
+
+    file = collada.Collada(str(dae_file))
     tree = file.xmlnode
     root = tree.getroot()
     assert root is not None
@@ -156,7 +154,7 @@ async def process_dae(dae_file, package_dir) -> Path:
     # Write the updated .dae file to a temporary file
 
 
-async def process_obj(obj_file, package_dir) -> Path:
+async def process_obj(obj_file: Path, package_dir: Path) -> Path:
     """
     Read an .obj file as text and update any .png file references.
     For any found relative .png path (e.g. starting with "../"), remove the
@@ -164,7 +162,7 @@ async def process_obj(obj_file, package_dir) -> Path:
     to a temporary file whose path is returned.
     """
     try:
-        async with aiofiles.open(obj_file, 'r', encoding='utf-8') as f:
+        async with aiofiles.open(obj_file, encoding='utf-8') as f:
             content = await f.read()
     except Exception as e:
         print(f"Error reading {obj_file}: {e}")
@@ -174,7 +172,7 @@ async def process_obj(obj_file, package_dir) -> Path:
     png_pattern = re.compile(r'(?P<path>\S+\.png)')
     mtl_patter = re.compile(r'(?P<path>\S+\.mtl)')
 
-    def replace_png(match):
+    def replace_png(match: re.Match[str]) -> str:
         path = match.group("path")
         # If already absolute, do nothing.
         if os.path.isabs(path):

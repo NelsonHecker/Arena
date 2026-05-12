@@ -2,26 +2,24 @@
 
 import json
 import os
-from typing import Any, Callable, Optional
+from collections.abc import Callable
 
 import rospkg
+import watchdog.events
+import watchdog.observers
 import yaml
-
 from rosros import rospify as rospy
 
-import watchdog.observers
-import watchdog.events
 
-
-def observe(file: str, callback: watchdog.events.FileSystemEventHandler):
+def observe(file: str, callback: watchdog.events.FileSystemEventHandler) -> watchdog.observers.Observer:
     observer = watchdog.observers.Observer()
     observer.schedule(callback, path=file, recursive=False)
     observer.start()
     return observer
 
 
-def safe_callback(fn: Callable):
-    def wrapper(*args, **kwargs):
+def safe_callback(fn: Callable) -> Callable:
+    def wrapper(*args: object, **kwargs: object) -> object:
         try:
             return fn(*args, **kwargs)
         except KeyboardInterrupt as e:
@@ -32,7 +30,7 @@ def safe_callback(fn: Callable):
     return wrapper
 
 
-def recursive_get(obj: Any, property: list[str], fallback: Any = None) -> Any:
+def recursive_get(obj: object, property: list[str], fallback: object = None) -> object:
     if not len(property):
         return fallback if obj is None else obj
     try:
@@ -41,7 +39,7 @@ def recursive_get(obj: Any, property: list[str], fallback: Any = None) -> Any:
         return fallback
 
 
-def encode(var: Any):
+def encode(var: object) -> object:
     if isinstance(var, list):
         return ";".join(map(str, var))
     if isinstance(var, dict):
@@ -61,19 +59,14 @@ def set_ros_params(params: dict, prefix: str = ""):
             rospy.set_param(f"{prefix}{key}", value)
 
 
-def run(namespace: Optional[str] = None):
+def run(namespace: str | None = None):
 
     if namespace is None:
         namespace = rospy.get_namespace()
 
-    FILE_TASK_CONFIG = os.path.join(
-        rospkg.RosPack().get_path("arena_bringup"),
-        "configs",
-        "task_generator.yaml"
-    )
+    FILE_TASK_CONFIG = os.path.join(rospkg.RosPack().get_path("arena_bringup"), "configs", "task_generator.yaml")
 
     class TaskConfigHandler(watchdog.events.FileSystemEventHandler):
-
         def __init__(self) -> None:
             super().__init__()
             self.reconfigure()
@@ -88,15 +81,14 @@ def run(namespace: Optional[str] = None):
             if 'ros__parameters' in content:
                 set_ros_params(content['ros__parameters'])
 
-        def on_modified(self, event):
+        def on_modified(self, event: watchdog.events.FileSystemEvent) -> None:
             @safe_callback
             def callback():
                 self.reconfigure()
+
             callback()
 
-    observers = [
-        observe(FILE_TASK_CONFIG, TaskConfigHandler())
-    ]
+    observers = [observe(FILE_TASK_CONFIG, TaskConfigHandler())]
 
     def cleanup():
         for observer in observers:

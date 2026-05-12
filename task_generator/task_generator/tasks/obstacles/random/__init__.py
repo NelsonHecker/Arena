@@ -1,0 +1,28 @@
+import typing
+
+from arena_rclpy_mixins.shared import Namespace
+
+from task_generator.constants import Constants
+from task_generator.tasks.declarations import declare_catalog_array, declare_int_pair
+from task_generator.tasks.registry import _TaskRegistry
+
+if typing.TYPE_CHECKING:
+    from arena_rclpy_mixins.ROSParamServer import ROSParamServer
+
+    from task_generator.tasks.obstacles import TM_Obstacles
+
+
+def declare_schema(node: "ROSParamServer", ns: Namespace) -> None:
+    declare_int_pair(node, ns("static", "n"), [5, 15], label="Static count", description="[min, max] count of static obstacles.")
+    declare_int_pair(node, ns("interactive", "n"), [0, 0], label="Interactive count", description="[min, max] count of interactive obstacles.")
+    declare_int_pair(node, ns("dynamic", "n"), [1, 5], label="Dynamic count", description="[min, max] count of dynamic obstacles.")
+    declare_catalog_array(node, ns("static", "models"), [], catalog="objects", label="Static models", description="Allowed static obstacle models (empty = all).")
+    declare_catalog_array(node, ns("interactive", "models"), [], catalog="objects", label="Interactive models", description="Allowed interactive obstacle models (empty = all).")
+    declare_catalog_array(node, ns("dynamic", "models"), [], catalog="pedestrians", label="Dynamic models", description="Allowed dynamic obstacle models (empty = all).")
+
+
+@_TaskRegistry.register_obstacles(Constants.TaskMode.TM_Obstacles.RANDOM, schema=declare_schema)
+def _loader() -> "type[TM_Obstacles]":
+    from .impl import TM_Random
+
+    return TM_Random

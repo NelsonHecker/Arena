@@ -1,20 +1,23 @@
-from task_generator.tasks import TaskMode
 import typing
+
+from task_generator.tasks.mode import TaskMode
+
+from . import clear_forbidden_zones, rviz_ui, staged
 
 if typing.TYPE_CHECKING:
     from task_generator.tasks.task import Task
 
 
 class TM_Module(TaskMode):
+    _task: "Task"
 
-    _TASK: "Task"
+    def __init__(self, *args: object, task: "Task", **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        self._task = task
 
-    def __init__(self, *args, task: "Task", **kwargs):
-        super().__init__(*args, props=task, **kwargs)
-        self._TASK = task
+    def before_reset(self): ...
 
-    def before_reset(self):
-        ...
+    def after_reset(self): ...
 
-    def after_reset(self):
-        ...
+
+__all__ = ["TM_Module", "clear_forbidden_zones", "rviz_ui", "staged"]

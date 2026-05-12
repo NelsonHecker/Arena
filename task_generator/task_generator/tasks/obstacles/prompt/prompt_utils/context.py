@@ -70,7 +70,7 @@ WORLD_DESCRIPTION = """
     -   - `model`: the type of object (e.g., `shelf`).
     -   - `pose`: a list [x, y, yaw] representing the object's position and rotation.
     - `description`: a human-readable name of the zone.
-    The velocity of a pedestrian ranges between [0, 3.5], where [0, 0.3] is stationary, (0.3, 1.0] is idling, (1.0, 2.0] is normal walking and (2.0, 3.5] is running. 
+    The velocity of a pedestrian ranges between [0, 3.5], where [0, 0.3] is stationary, (0.3, 1.0] is idling, (1.0, 2.0] is normal walking and (2.0, 3.5] is running.
     The average crowd density ranges between [0.0, 1.0], where [0, 0.3] is sparse, (0.3, 0.6] is normal and (0.6, 1.0] is considered crowded. If the user doesn't specify the number of agent to be spawned explicitly, you must interpret the density and calculate the number of to be spawned pedestrians by <total number of generated agents> = <intepreted density>*<summation of the zones area>.
     Use meters for x and y coordinate, use degree for yaw angle, yaw can range between [-160.0, 160.0].
 """
@@ -124,7 +124,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "20",
                 "id": 0,
                 "pos": [21.02, 16.89, 75.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [18.42, 7.99, 76.6],
                     [0.8, 10.4, -23.6],
@@ -136,7 +136,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "23",
                 "id": 0,
                 "pos": [1.44, 8.61, 60.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [1.51, 3.68, 0.0],
                     [7.09, -3.0, 120.0],
@@ -148,7 +148,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "24",
                 "id": 0,
                 "pos": [0.33, 6.78, 30.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [],
                 "waypoint_mode": 0
             },
@@ -156,7 +156,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "25",
                 "id": 0,
                 "pos": [18.15, 11.52, -60.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [],
                 "waypoint_mode": 0
             },
@@ -164,7 +164,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "26",
                 "id": 0,
                 "pos": [17.0, 9.9, -120.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [18.42, 7.99, 76.6],
                     [0.8, 10.4, -23.6],
@@ -175,7 +175,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "27",
                 "id": 0,
                 "pos": [11.32, 2.5, 90.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [],
                 "waypoint_mode": 0
             },
@@ -183,7 +183,7 @@ ARENA_OUTPUT_FORMAT_EXAMPLE = """
                 "name": "28",
                 "id": 0,
                 "pos": [10.18, 0.88, 0.0],
-                "type": "gazebo_actor",
+                "type": "arenian",
                 "waypoints": [
                     [18.42, 15.03, 0.0],
                 ],

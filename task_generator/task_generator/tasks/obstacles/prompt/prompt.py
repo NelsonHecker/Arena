@@ -1,45 +1,40 @@
-from enum import Enum
 import json
 import math
 import os
 import pickle
 import tempfile
 import time
-from typing import Dict, List
 import xml.etree.ElementTree as ET
+from enum import Enum
 
 import attrs
-import yaml
-
 import numpy as np
-
-from google import genai
-
-from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+import yaml
 from ament_index_python.packages import get_package_share_directory
-
 from arena_hunav_sim_bridge.agent.llm_parser import Parser
+from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+
+from task_generator.utils.gpt import genai
 
 # Avoids errors related to cv2 + pyglet + X11 with arena_text_crowd
 os.environ["PYGLET_HEADLESS"] = "true"
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
+from arena_simulation_setup.tree.World import WorldDescription, WorldIdentifier
+from arena_simulation_setup.utils.cattrs import converter
+from arena_text_crowd.converters.arena_world_to_text_crowd_scenario import (
+    arena_world_to_text_crowd_scenario,
+)
 from arena_text_crowd.crowd_generation_pipeline.arena_text_crowd_generation_pipeline import (
     ArenaTextCrowdGenerationPipelineConfig as ATCPConfig,
+)
+from arena_text_crowd.crowd_generation_pipeline.arena_text_crowd_generation_pipeline import (
     CrowdGenerationPipeline,
 )
 from arena_text_crowd.crowd_generation_pipeline.velocity_field_generation.velocity_field_generation_pipeline import (
     VelocityFieldGenerationPipelineConfig as VFGPConfig,
 )
-from arena_text_crowd.converters.arena_world_to_text_crowd_scenario import (
-    arena_world_to_text_crowd_scenario,
-)
-
-from arena_rclpy_mixins.ROSParamServer import ROSParamT
-
-from arena_simulation_setup.tree.World import WorldDescription, WorldIdentifier
-from arena_simulation_setup.utils.cattrs import converter
-
-from hunav_msgs.srv import SetVelocityField, SetArenaWorldBounds
+from hunav_msgs.srv import SetArenaWorldBounds, SetVelocityField
 
 from task_generator.simulators.human.hunav.hunav import HunavDynamicObstacle
 from task_generator.tasks.obstacles import (
@@ -52,14 +47,14 @@ from task_generator.tasks.obstacles.prompt.velocity_field_marker import (
 )
 
 from .prompt_utils import (
-    SYSTEM_INSTRUCTION,
     ARENA_FORMAT,
     BEHAVIOR_TREE_FORMAT,
-    SPLIT_PROMPT_INSTRUCTION,
     BT_REF_DOC_PATH,
     CHROMA_DB_PATH,
     LOCAL_LM,
     REMOTE_LM,
+    SPLIT_PROMPT_INSTRUCTION,
+    SYSTEM_INSTRUCTION,
     create_chroma_db,
     get_chroma_collection,
     get_relevant_bt_nodes,
@@ -81,7 +76,7 @@ class GenerationMode(Enum):
     CROWDED_BT = "crowded_behavior_tree"
 
     @classmethod
-    def has_value(cls, value):
+    def has_value(cls, value: object) -> bool:
         return value in cls._value2member_map_
 
 
@@ -127,10 +122,7 @@ class TM_Prompt(TM_Obstacles):
             parsed_zone = {
                 "name": zone.name,
                 "corners": [[corner.x, corner.y] for corner in zone.corners],
-                "walls": [
-                    [[wall.start.x, wall.start.y], [wall.end.x, wall.end.y]]
-                    for wall in zone.walls
-                ],
+                "walls": [[[wall.start.x, wall.start.y], [wall.end.x, wall.end.y]] for wall in zone.walls],
                 "entities": [
                     {
                         "name": entity.name,
@@ -138,9 +130,7 @@ class TM_Prompt(TM_Obstacles):
                         "pose": [
                             entity.pose.position.x,
                             entity.pose.position.y,
-                            math.degrees(
-                                entity.pose.orientation.to_yaw()
-                            ),  # I use degree for yaw for now (look at `context.py``)
+                            math.degrees(entity.pose.orientation.to_yaw()),  # I use degree for yaw for now (look at `context.py``)
                         ],
                     }
                     for entity in zone.entities.static
@@ -155,15 +145,12 @@ class TM_Prompt(TM_Obstacles):
         llm_output: dict,
         generation_mode: str,
         *,
-        crowd_pedestrians: None | List[Dict],
+        crowd_pedestrians: None | list[dict],
     ) -> dict:
         if generation_mode == GenerationMode.ARENA.value:
             return llm_output
 
-        if (
-            generation_mode == GenerationMode.CROWDED_BT.value
-            and crowd_pedestrians is not None
-        ):  # TODO: Use scheme/class instead of Dict
+        if generation_mode == GenerationMode.CROWDED_BT.value and crowd_pedestrians is not None:  # TODO: Use scheme/class instead of Dict
             for ped in crowd_pedestrians:
                 llm_output["hunav_agents"].append(
                     {
@@ -200,9 +187,7 @@ class TM_Prompt(TM_Obstacles):
 
                 behavior_tree_xml = hunav_agent.to_xml()
 
-                tmp_xml_file = tempfile.NamedTemporaryFile(
-                    mode="w+t", suffix=".xml", dir=self.tmp_dir.name, delete=False
-                )
+                tmp_xml_file = tempfile.NamedTemporaryFile(mode="w+t", suffix=".xml", dir=self.tmp_dir.name, delete=False)
 
                 tmp_xml_file.write(
                     ET.tostring(
@@ -226,21 +211,17 @@ class TM_Prompt(TM_Obstacles):
 
     def setup_chroma(self):
         if os.path.isdir(CHROMA_DB_PATH):
-            self.chroma_collection = get_chroma_collection(
-                CHROMA_DB_PATH, self.inference_client
-            )
+            self.chroma_collection = get_chroma_collection(CHROMA_DB_PATH, self.inference_client)
         else:
             processed_doc = process_json_doc(BT_REF_DOC_PATH)
-            self._logger.info(
-                "Creating Chroma DB from Behavior Tree Nodes Reference..."
-            )
+            self._logger.info("Creating Chroma DB from Behavior Tree Nodes Reference...")
             self.chroma_collection = create_chroma_db(
                 documents=processed_doc,
                 db_path=CHROMA_DB_PATH,
                 client=self.inference_client,
             )
 
-    def send_velocity_msg(self, velocity_field: np.ndarray):
+    def send_velocity_msg(self, velocity_field: np.ndarray) -> "SetVelocityField.Response":
         n_groups, h, w, c = velocity_field.shape
         msg = Float32MultiArray()
         msg.data = velocity_field.astype(np.float32).flatten(order="C").tolist()
@@ -258,12 +239,12 @@ class TM_Prompt(TM_Obstacles):
 
         return response
 
-    def send_arena_world_bounds_msg(self):
+    def send_arena_world_bounds_msg(self) -> tuple["SetArenaWorldBounds.Response", float, float, float, float]:
         # TODO: Optimize
         # Get Arena World size
         x_min, y_min, x_max, y_max = np.inf, np.inf, -np.inf, -np.inf
 
-        for zones in self._PROPS.world_manager.world.zones:
+        for zones in self._ctx.world_manager.world.zones:
             x_min, y_min, x_max, y_max = (
                 min(x_min, *(corner.x for corner in zones.corners)),
                 min(y_min, *(corner.y for corner in zones.corners)),
@@ -281,16 +262,12 @@ class TM_Prompt(TM_Obstacles):
         req = SetArenaWorldBounds.Request()
         req.arena_world_bounds = msg
 
-        response: SetArenaWorldBounds.Response = self.arena_world_bounds_client.call(
-            req
-        )
+        response: SetArenaWorldBounds.Response = self.arena_world_bounds_client.call(req)
 
         return response, x_min, y_min, x_max, y_max
 
-    async def _prompt_to_config(
-        self, prompt: str, top_p: float, generation_mode: str, local: bool = False
-    ) -> dict:
-        world_info = self.preprocess_world_description(self._PROPS.world_manager.world)
+    async def _prompt_to_config(self, prompt: str, top_p: float, generation_mode: str, local: bool = False) -> dict:
+        world_info = self.preprocess_world_description(self._ctx.world_manager.world)
 
         messages = []
         crowd_pedestrians = None
@@ -359,27 +336,23 @@ class TM_Prompt(TM_Obstacles):
                     top_p=top_p,
                     temperature=0.2,
                     top_k=40,
-                    thinking_config=genai.types.ThinkingConfig(
-                        include_thoughts=False, thinking_level="low"
-                    ),
+                    thinking_config=genai.types.ThinkingConfig(include_thoughts=False, thinking_level="low"),
                 ),
             )
             split_prompt_answer = split_prompt_res.text
             assert split_prompt_answer is not None
-            if split_prompt_answer.startswith("```json"):
-                split_prompt_answer = (
-                    split_prompt_answer.strip("```json").strip("```").strip()
-                )
-            elif split_prompt_answer.startswith("```"):
-                split_prompt_answer = split_prompt_answer.strip("```").strip()
+            split_prompt_answer = split_prompt_answer.strip()
+            if split_prompt_answer.startswith("```"):
+                split_prompt_answer = split_prompt_answer.split("\n", 1)[1] if "\n" in split_prompt_answer else split_prompt_answer[3:]
+                if split_prompt_answer.endswith("```"):
+                    split_prompt_answer = split_prompt_answer[:-3]
+                split_prompt_answer = split_prompt_answer.strip()
             split_prompt_answer = json.loads(split_prompt_answer)
 
             prompt = split_prompt_answer["spotlight_agents_prompt"]
             ambient_agent_prompt = split_prompt_answer["ambient_agents_prompt"]
 
-            self._logger.info(
-                f"Spotlight Agents prompts: {prompt}\nAmbient_agents_prompt:{ambient_agent_prompt}"
-            )
+            self._logger.debug(f"Spotlight Agents prompts: {prompt}\nAmbient_agents_prompt:{ambient_agent_prompt}")
 
             bt_nodes = get_relevant_bt_nodes(
                 query=f'What are the nodes should be used for creating the behavior tree as described below: "{prompt}". Use GoTo node to guide agents to isolated places if needed.',
@@ -411,40 +384,27 @@ class TM_Prompt(TM_Obstacles):
             vfgp_config = VFGPConfig(unet_dir=text_crowd_unet_dir)
             cgp = CrowdGenerationPipeline(cgp_config, vfgp_config)
 
-            arena_world_bounds_res, x_min, y_min, x_max, y_max = (
-                self.send_arena_world_bounds_msg()
-            )
-            self._logger.info(
-                f"Set Arena World bounds response: {arena_world_bounds_res.success}, {arena_world_bounds_res.message}"
-            )
-            self.velocity_field_visualizer.update_world_bounds(
-                x_min, y_min, x_max, y_max
-            )
+            arena_world_bounds_res, x_min, y_min, x_max, y_max = self.send_arena_world_bounds_msg()
+            self._logger.debug(f"Set Arena World bounds response: {arena_world_bounds_res.success}, {arena_world_bounds_res.message}")
+            self.velocity_field_visualizer.update_world_bounds(x_min, y_min, x_max, y_max)
 
-            scenario, arena_entity_to_semantic_entity_map = (
-                arena_world_to_text_crowd_scenario(
-                    self._PROPS.world_manager.world, scenario_size=(1024, 1024)
-                )
-            )
+            scenario, arena_entity_to_semantic_entity_map = arena_world_to_text_crowd_scenario(self._ctx.world_manager.world, scenario_size=(1024, 1024))
 
             self._logger.info("Generating velocity field...")
             velocity_field, crowd_pedestrians, text_crowd_scenario = cgp.generate(
                 prompt=ambient_agent_prompt,
                 scenario=scenario,
-                arena_world_description=self._PROPS.world_manager.world,
+                arena_world_description=self._ctx.world_manager.world,
                 arena_entity_to_semantic_entity_map=arena_entity_to_semantic_entity_map,
             )  # (n_groups, 64, 64, 2) (g, y, x, 2)
 
             vel_res = self.send_velocity_msg(velocity_field)
-            self._logger.info(
-                f"Set velocity field response: {vel_res.success}, {vel_res.message}"
-            )
+            self._logger.debug(f"Set velocity field response: {vel_res.success}, {vel_res.message}")
 
             self.velocity_field_visualizer.publish_markers(velocity_field)
 
         if local:  # Currently not supported
             return {}
-            from huggingface_hub import InferenceClient
             from transformers import AutoModelForCausalLM, AutoTokenizer
 
             # Load tokenizer and model
@@ -492,16 +452,18 @@ class TM_Prompt(TM_Obstacles):
             )
 
             answer = response.text
-            self._logger.info(f"LLM raw output for the prompt: {prompt}")
-            self._logger.info(answer)
+            self._logger.debug(f"LLM raw output for the prompt: {prompt}")
+            self._logger.debug(answer)
             end = time.time()
             self._logger.info(f"Inference done, took: {end - start:.1f}s")
 
         assert answer is not None
-        if answer.startswith("```json"):
-            answer = answer.strip("```json").strip("```").strip()
-        elif answer.startswith("```"):
-            answer = answer.strip("```").strip()
+        answer = answer.strip()
+        if answer.startswith("```"):
+            answer = answer.split("\n", 1)[1] if "\n" in answer else answer[3:]
+            if answer.endswith("```"):
+                answer = answer[:-3]
+            answer = answer.strip()
 
         # Parse it into a Python dict
         config = self.llm_bt_output_to_config(
@@ -511,9 +473,7 @@ class TM_Prompt(TM_Obstacles):
         )
 
         pipeline_end = time.time()
-        self._logger.info(
-            f"Generation pipeline took: {pipeline_end - pipeline_start:.1f}s"
-        )
+        self._logger.info(f"Generation pipeline took: {pipeline_end - pipeline_start:.1f}s")
 
         if DEBUG:
             with tempfile.NamedTemporaryFile(
@@ -524,7 +484,7 @@ class TM_Prompt(TM_Obstacles):
                 mode="w",
             ) as file:
                 json.dump(config, file, indent=2)
-                self._logger.warning(f"Saved parsed prompt result to {file.name}")
+                self._logger.debug(f"Saved parsed prompt result to {file.name}")
 
             if generation_mode == GenerationMode.CROWDED_BT.value:
                 with tempfile.NamedTemporaryFile(
@@ -547,9 +507,7 @@ class TM_Prompt(TM_Obstacles):
 
         return config
 
-    async def _parse_prompt(
-        self, prompt: str, top_p: float, generation_mode: str
-    ) -> _ParsedConfig:
+    async def _parse_prompt(self, prompt: str, top_p: float, generation_mode: str) -> _ParsedConfig:
         """
         Parses the prompt to generate obstacles config.
 
@@ -575,17 +533,13 @@ class TM_Prompt(TM_Obstacles):
             # This causes bug so temporarily disabled
         ]
 
-        dynamic_obstacles = [
-            obs for obs in config.get("obstacles", {}).get("dynamic", [])
-        ]
+        dynamic_obstacles = [obs for obs in config.get("obstacles", {}).get("dynamic", [])]
 
-        result = converter.structure(
-            dict(static=static_obstacles, dynamic=dynamic_obstacles), _ParsedConfig
-        )
+        result = converter.structure(dict(static=static_obstacles, dynamic=dynamic_obstacles), _ParsedConfig)
 
         return result
 
-    async def reset(self, **kwargs):
+    async def reset(self, **kwargs: object) -> tuple[list[Obstacle], list[DynamicObstacle]]:
         parsed_config = await self._parse_prompt(
             self._config.user_prompt.value,
             self._config.top_p.value,
@@ -594,7 +548,7 @@ class TM_Prompt(TM_Obstacles):
 
         return parsed_config.static, parsed_config.dynamic
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         TM_Obstacles.__init__(self, **kwargs)
         # self.inference_client = InferenceClient(
         #     provider="together",
@@ -613,12 +567,10 @@ class TM_Prompt(TM_Obstacles):
             )
 
             try:
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     config = yaml.safe_load(f)
 
-                assert isinstance(config, dict), (
-                    "Config file is not properly formatted."
-                )
+                assert isinstance(config, dict), "Config file is not properly formatted."
                 agent_config = config["hunav_loader"]["ros__parameters"]["agent1"]
                 return agent_config
 
@@ -642,11 +594,7 @@ class TM_Prompt(TM_Obstacles):
             ),
         )
 
-        if "GEMINI_API_KEY" not in os.environ:
-            self._logger.error("GEMINI_API_KEY environment variable not set!")
-            raise OSError("GEMINI_API_KEY environment variable not set!")
-
-        self.inference_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        self.inference_client = genai.Client()
 
         try:
             caches = self.inference_client.caches.list()
@@ -656,40 +604,28 @@ class TM_Prompt(TM_Obstacles):
         except Exception as e:
             print(e)
 
-        self.cached_context_name: dict[
-            str, str
-        ] = {}  # Whether the prompt context need to be changed and fed into LLM model
+        self.cached_context_name: dict[str, str] = {}  # Whether the prompt context need to be changed and fed into LLM model
 
         self.setup_chroma()
 
         self.tmp_dir = tempfile.TemporaryDirectory(
             dir=os.path.join(
-                WorldIdentifier(self.node._world_manager.world_name)
-                .resolve_sync()
-                .path,
+                WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().path,
                 "scenarios",
             )
         )  # Temporary directory to store behavior tree XML files
 
-        # Velocity field generation
-        self.velocity_field_client = self.node.create_client(
-            SetVelocityField, "/task_generator_node/set_velocity_field"
-        )
+        node_fqn = self.node.get_fully_qualified_name()
+        self.velocity_field_client = self.node.create_client(SetVelocityField, f"{node_fqn}/set_velocity_field")
         while not self.velocity_field_client.wait_for_service(timeout_sec=1.0):
-            self.node.get_logger().info(
-                "Waiting for service /task_generator_node/set_velocity_field"
-            )
+            self.node.get_logger().info(f"Waiting for service {node_fqn}/set_velocity_field")
         self.velocity_field_visualizer = VelocityFieldVisualizer(
             self.node,
-            topic_name="/task_generator_node/velocity_field_marker",
+            topic_name=f"{node_fqn}/velocity_field_marker",
         )
-        self.arena_world_bounds_client = self.node.create_client(
-            SetArenaWorldBounds, "/task_generator_node/set_arena_world_bounds"
-        )
+        self.arena_world_bounds_client = self.node.create_client(SetArenaWorldBounds, f"{node_fqn}/set_arena_world_bounds")
         while not self.arena_world_bounds_client.wait_for_service(timeout_sec=1.0):
-            self.node.get_logger().info(
-                "Waiting for service /task_generator_node/set_arena_world_bounds"
-            )
+            self.node.get_logger().info(f"Waiting for service {node_fqn}/set_arena_world_bounds")
 
     def __del__(self):
         try:

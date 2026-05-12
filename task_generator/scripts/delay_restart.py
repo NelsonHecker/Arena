@@ -5,18 +5,12 @@ import sys
 import time
 
 
-def main(pid: int, *args):
+def main(pid: int, *args: str) -> None:
     while subprocess.Popen(["ps", "-p", f"{pid}"], stdout=subprocess.DEVNULL).wait() == 0:
         time.sleep(1)
         # print(f"waiting for {pid} to die")
 
-    subprocess.Popen(
-        [
-            "roslaunch",
-            *args
-        ],
-        start_new_session=True
-    )
+    subprocess.Popen(["roslaunch", *args], start_new_session=True)
     sys.exit()
 
 

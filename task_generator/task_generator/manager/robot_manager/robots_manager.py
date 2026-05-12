@@ -1,0 +1,276 @@
+import asyncio
+import contextlib
+import os
+import re
+import typing
+
+import arena_robots.SetupFile as robot_setup
+import attrs
+import rclpy
+import task_generator_msgs.msg
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
+from arena_rclpy_mixins.shared import Namespace
+from arena_runtime._node import NodeInterface
+
+from task_generator.manager.environment_manager import EnvironmentManager
+from task_generator.shared import Pose, Position, Robot
+
+from .robot_manager import RobotManager
+
+
+def _initialpose_generator(x: float, y: float, d: float):
+    """Generate initial poses for the robot.
+
+    Args:
+        x (float): The initial x position.
+        y (float): The initial y position.
+        d (float): The distance between poses.
+
+    Yields:
+        Pose: The initial pose for the robot.
+    """
+    while True:
+        yield Pose(Position(x=x, y=y))
+        y += d
+
+
+@attrs.frozen
+class _RobotDiff:
+    """Change to robot configurations to execute."""
+
+    to_remove: list[str] = attrs.field(factory=list)
+    to_add: dict[str, Robot] = attrs.field(factory=dict)
+    to_update: dict[str, Robot] = attrs.field(factory=dict)
+
+
+class RobotsManager(NodeInterface):
+    """Dynamically loads and manages multiple robots via ROS.
+
+    Args:
+        environment_manager (EnvironmentManager): The environment manager.
+    """
+
+    _initialpose: typing.Generator
+    _robot_configurations: ROSParamT[_RobotDiff]
+    _diff: _RobotDiff
+
+    @property
+    def managers(self) -> dict[str, RobotManager]:
+        """Get the robot managers.
+
+        Returns:
+            dict[str, RobotManager]: The robot managers.
+        """
+        return self._managers
+
+    @contextlib.contextmanager
+    def provide_node_paths(self, paths: set[str]):
+        """Context manager to provide node paths.
+
+        Args:
+            paths (set[str]): The set to populate with node paths.
+
+        Yields:
+            asyncio.Task: The task that populates the node paths.
+        """
+        t: asyncio.Task | None = None
+        try:
+
+            async def task():
+                while True:
+                    latest = self.node.get_node_names_and_namespaces()
+                    paths.update(os.path.join(ns, name) for name, ns in latest)
+                    await asyncio.sleep(1.0)
+
+            t = asyncio.create_task(task())
+            yield t
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            self._logger.error('Error while providing node paths {e}\n{traceback.format_exc()}')
+        finally:
+            if t and not t.done():
+                t.cancel()
+
+    def _parse_robot_configurations(self, v: object) -> _RobotDiff:
+        """Parse robot configurations from the given value.
+
+        Args:
+            v (typing.Any): The value to parse.
+
+        Raises:
+            RuntimeError: If the parsing fails.
+
+        Returns:
+            _RobotDiff: The RobotDiff to execute.
+        """
+
+        robot_arg: list[str] = list(filter(len, str(v).split(',')))
+
+        parsed_explicit: dict[str, Robot] = {}
+        parsed_anonymous: dict[str, list[Robot]] = {}
+
+        def add(base: robot_setup.Config):
+            name = base.name
+            config = Robot.from_setup(base, node=self.node)
+
+            if name is None:  # anon
+                parsed_anonymous.setdefault(config.model.name, []).append(config)
+
+            else:  # explicit name
+                if name in parsed_explicit:
+                    raise RuntimeError(f'naming conflict for robots with name {name}')
+
+                parsed_explicit[name] = config
+
+        for arg in robot_arg:
+            if arg.endswith('.yaml'):
+                for addition in robot_setup.RobotSetupIdentifier(arg).resolve_sync():
+                    add(addition)
+            elif match := re.match(r'(.*)\[(\d+)\]', arg):
+                # multi-instantiations via model[count]
+                for _ in range(int(match.group(2))):
+                    add(robot_setup.Config(robot=match.group(1)))
+            else:
+                # just robot
+                add(robot_setup.Config(robot=arg))
+
+        existing = {k: v.robot for k, v in self.managers.items()}
+
+        existing_keys = set(existing.keys())
+        matchable_keys = set(existing_keys)
+
+        to_add: dict[str, Robot] = {}
+        to_update: dict[str, Robot] = {}
+
+        # explicit naming first
+        for prefix, config in parsed_explicit.items():
+            match = next((key for key in matchable_keys if existing[key] == config), None)
+
+            if match is None:  # no matches
+                to_add[prefix] = config
+            else:  # exact match
+                matchable_keys.remove(match)
+
+        # anonymous naming
+        for prefix, configs in parsed_anonymous.items():
+            unassigned: list[Robot] = []
+
+            for config in configs:
+                match = next((key for key in matchable_keys if existing[key].compatible(config)), None)
+
+                if match is None:  # no similar robot found
+                    unassigned.append(config)
+                else:  # similar robot found, update
+                    to_update[match] = config
+                    matchable_keys.remove(match)
+
+            i: int = 0
+            for anon in unassigned:
+                suffixed_key = prefix
+
+                if len(configs) > 1:
+                    suffixed_key = f'{prefix}_{i}'
+
+                while suffixed_key in existing_keys:
+                    i += 1
+                    suffixed_key = f'{prefix}_{i}'
+
+                to_add[suffixed_key] = anon
+                existing_keys.add(suffixed_key)
+
+        self._diff = _RobotDiff(
+            to_remove=list(matchable_keys),
+            to_add=to_add,
+            to_update=to_update,
+        )
+        return self._diff
+
+    async def set_up(self):
+        """Set up the robot managers."""
+        futures: list[typing.Awaitable] = []
+        for robot_name in self._diff.to_remove:
+            futures.append(self.managers.pop(robot_name).destroy())
+        self._diff.to_remove.clear()
+
+        for robot_name in self._diff.to_update:
+            futures.append(self.managers[robot_name].update())
+            # TODO
+        self._diff.to_update.clear()
+
+        # Re-seed staging poses from the latest prespawn anchor; placement may
+        # have changed since the previous reset.
+        prespawn_x, prespawn_y = self.node._prespawn_offset
+        self._initialpose = _initialpose_generator(prespawn_x, prespawn_y, -5)
+
+        for robot_name, config in self._diff.to_add.items():
+            config = attrs.evolve(config)
+            config.name = robot_name
+            config.pose = next(self._initialpose)
+            manager = RobotManager(
+                node=self.node,
+                namespace=Namespace(self.node.get_namespace())(
+                    self.node.get_name(),
+                ),
+                environment_manager=self._environment_manager,
+                robot=config,
+            )
+            futures.append(manager.set_up_robot())
+            self.managers[robot_name] = manager
+            self._pending_launch.append(manager)
+
+        await asyncio.gather(*futures)
+        self._diff.to_add.clear()
+
+        self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
+
+        fleet = task_generator_msgs.msg.RobotFleet(
+            robots=[
+                task_generator_msgs.msg.RobotDescriptor(
+                    name=mgr.name,
+                    model=mgr.model_name,
+                    ns=str(mgr.namespace),
+                    frame=mgr.frame.raw().lstrip("/"),
+                )
+                for mgr in self.managers.values()
+            ]
+        )
+        self.node._pub_state_robots.publish(fleet)
+
+    def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        self._environment_manager: EnvironmentManager = environment_manager
+        self._managers: dict[str, RobotManager] = {}
+        self._initialpose = _initialpose_generator(0.0, 0.0, -5)
+        self._diff = _RobotDiff()
+        self._pending_launch: list[RobotManager] = []
+
+        self._robot_configurations = self.node.ROSParam[_RobotDiff](
+            'robot',
+            type_=rclpy.Parameter.Type.STRING,
+            parse=self._parse_robot_configurations,
+        )
+
+    async def launch_pending(self) -> None:
+        """Bring up navstacks for managers queued by set_up. Caller controls when this fires
+        so LaunchService.run_async()'s main-loop block doesn't starve concurrent work
+        (e.g. spawn_world_obstacles)."""
+        if not self._pending_launch:
+            return
+        pending = self._pending_launch
+        self._pending_launch = []
+        node_paths: set[str] = set()
+        with self.provide_node_paths(node_paths) as fetch_task:
+            await asyncio.wait(
+                (
+                    fetch_task,
+                    asyncio.gather(*(m.launch(node_paths) for m in pending)),
+                ),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+    def add_pending(self, name: str, robot: Robot) -> None:
+        """Queue a robot for full set_up_robot on the next reset_cycle."""
+        if name in self._managers or name in self._diff.to_add:
+            raise ValueError(f"robot {name!r} already exists")
+        self._diff.to_add[name] = robot

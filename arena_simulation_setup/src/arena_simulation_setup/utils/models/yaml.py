@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import aiofiles
 
 from . import Model, ModelProvider, ModelType
@@ -6,19 +8,13 @@ from . import Model, ModelProvider, ModelType
 
 
 class ModelProvider_YAML(ModelProvider.provides(ModelType.YAML)):
-
     @classmethod
-    async def load(cls, model_dir, model, loader_args) -> Model:
+    async def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
 
         model_path = model_dir / f"{model}.yaml"
 
-        async with aiofiles.open(model_path, 'r') as f:
+        async with aiofiles.open(model_path) as f:
             model_desc = await f.read()
 
-        model_obj = Model(
-            type=ModelType.YAML,
-            name=model,
-            description=model_desc,
-            path=model_path
-        )
+        model_obj = Model(type=ModelType.YAML, name=model, description=model_desc, path=model_path)
         return model_obj

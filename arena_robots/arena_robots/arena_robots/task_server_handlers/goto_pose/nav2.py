@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from action_msgs.msg import GoalStatus
+from arena_robots_msgs.action import GotoPose
+from geometry_msgs.msg import PoseStamped
+from nav2_msgs.action import NavigateToPose
+from rclpy.action import ActionClient
+
+from arena_robots.task_server_handlers import _executor_sleep
+
+if TYPE_CHECKING:
+    from arena_robots.bringup.nav2 import Nav2Bringup
+
+_NAV2_RETRY_BACKOFF_SEC = 0.5
+
+
+def _translate_nav2_status(nav2_status: int) -> int:
+    if nav2_status == GoalStatus.STATUS_SUCCEEDED:
+        return GotoPose.Result.STATUS_SUCCEEDED
+    if nav2_status == GoalStatus.STATUS_CANCELED:
+        return GotoPose.Result.STATUS_CANCELED
+    return GotoPose.Result.STATUS_ABORTED
+
+
+class GotoPoseHandlerNav2:
+    def __init__(self, bringup: Nav2Bringup, *, tf_buffer: object, node: object) -> None:
+        self._bringup = bringup
+        self._tf_buffer = tf_buffer
+        self._node = node
+        self._native_client = ActionClient(node, NavigateToPose, bringup.native_action_name)
+
+    async def execute(self, goal_handle: object) -> GotoPose.Result:
+        arena_goal: GotoPose.Goal = goal_handle.request
+        nav2_goal = NavigateToPose.Goal()
+        nav2_goal.pose = arena_goal.target
+
+        def _on_nav2_feedback(fb_msg: object) -> None:
+            fb = fb_msg.feedback
+            arena_fb = GotoPose.Feedback()
+            arena_fb.current_pose = fb.current_pose
+            arena_fb.distance_remaining = fb.distance_remaining
+            eta = fb.estimated_time_remaining
+            arena_fb.eta_seconds = eta.sec + eta.nanosec * 1e-9 if hasattr(eta, "sec") else float(getattr(eta, "seconds", 0.0))
+            goal_handle.publish_feedback(arena_fb)
+
+        result = GotoPose.Result()
+        result.final_pose = PoseStamped()
+
+        while not self._native_client.server_is_ready():
+            if not goal_handle.is_active:
+                result.status = GotoPose.Result.STATUS_CANCELED
+                return result
+            await _executor_sleep(self._node, 0.1, wall=True)
+
+        while True:
+            if not goal_handle.is_active:
+                result.status = GotoPose.Result.STATUS_CANCELED
+                return result
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.status = GotoPose.Result.STATUS_CANCELED
+                return result
+
+            send_future = self._native_client.send_goal_async(nav2_goal, feedback_callback=_on_nav2_feedback)
+            nav2_goal_handle = await send_future
+
+            if not nav2_goal_handle.accepted:
+                self._node.get_logger().info("nav2 rejected goal; retrying")
+                await _executor_sleep(self._node, _NAV2_RETRY_BACKOFF_SEC)
+                continue
+
+            wrapped = await nav2_goal_handle.get_result_async()
+            arena_status = _translate_nav2_status(wrapped.status)
+            nav2_result = wrapped.result
+            if nav2_result is not None and hasattr(nav2_result, "final_pose"):
+                result.final_pose = nav2_result.final_pose
+
+            if not goal_handle.is_active:
+                result.status = GotoPose.Result.STATUS_CANCELED
+                return result
+
+            if arena_status == GotoPose.Result.STATUS_SUCCEEDED:
+                goal_handle.succeed()
+                result.status = arena_status
+                return result
+
+            if arena_status == GotoPose.Result.STATUS_CANCELED:
+                goal_handle.canceled()
+                result.status = arena_status
+                return result
+
+            self._node.get_logger().info("nav2 aborted goal; replanning")
+            await _executor_sleep(self._node, _NAV2_RETRY_BACKOFF_SEC)

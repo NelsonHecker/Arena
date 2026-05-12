@@ -5,8 +5,8 @@ import typing
 import attrs
 import numpy as np
 
+from arena_simulation_setup.tree.assets.Material import Material, MaterialIdentifier
 from arena_simulation_setup.utils.geometry import Position
-from arena_simulation_setup.tree.assets.Material import MaterialIdentifier, Material
 
 from .entities import Named
 
@@ -17,11 +17,19 @@ class Elevator(Named):
     size: list[float] = attrs.field(factory=lambda: [2.0, 2.0, 0.2])
     height_min: float = 0.0
     height_max: float = 3.0
-    material: MaterialIdentifier = attrs.field(
-        converter=MaterialIdentifier.converter,
-        default=Material.default('elevator')
-    )
+    material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('elevator'))
     destination: str = attrs.field(default="")
+
+    @property
+    def corners(self) -> list[Position]:
+        half_width = Position(self.size[0] / 2, 0)
+        half_length = Position(0, self.size[1] / 2)
+        return [
+            self.position - half_width - half_length,
+            self.position - half_width + half_length,
+            self.position + half_width + half_length,
+            self.position + half_width - half_length
+        ]
 
 
 @attrs.define
@@ -31,10 +39,7 @@ class Door(Named):
     kind: typing.Literal['sliding'] = 'sliding'
     width: float = 0.1
     height: float = attrs.field(default=2.0)
-    material: MaterialIdentifier = attrs.field(
-        converter=MaterialIdentifier.converter,
-        default=Material.default('door')
-    )
+    material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('door'))
 
     @property
     def corners(self) -> list[Position]:
@@ -53,9 +58,6 @@ class Door(Named):
 @attrs.define
 class Floor(Named):
     pos: Position = attrs.field(converter=Position.converter)
-    x_length: float = attrs.field(converter=float, default=20.)
-    y_length: float = attrs.field(converter=float, default=20.)
-    material: MaterialIdentifier = attrs.field(
-        converter=MaterialIdentifier.converter,
-        default=Material.default('floor')
-    )
+    x_length: float = attrs.field(converter=float, default=20.0)
+    y_length: float = attrs.field(converter=float, default=20.0)
+    material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('floor'))

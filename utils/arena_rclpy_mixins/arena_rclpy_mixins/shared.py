@@ -1,11 +1,10 @@
 import os
 import re
-import typing
 
 import rclpy
 
 
-def DefaultParameter(value: typing.Any) -> rclpy.Parameter | None:
+def DefaultParameter(value: object) -> rclpy.Parameter | None:
     if value is None:
         return None
     # if isinstance(value, rclpy.Parameter.Type):
@@ -41,6 +40,9 @@ class FrameNamespace(Namespace):
     def __call__(self, *args: str) -> "FrameNamespace":
         return FrameNamespace(Namespace(self).__call__(*args))
 
+    def raw(self) -> str:
+        return str.__str__(self)
+
     def sanitize(self) -> str:
         return re.sub('[^A-Za-z0-9_]', '_', self)
 
@@ -51,12 +53,7 @@ class FrameNamespace(Namespace):
 
 class ParamNamespace(Namespace):
     def __call__(self, *args: str) -> "ParamNamespace":
-        return ParamNamespace(
-            '.'.join((
-                *((self,) if self else []),
-                *args)
-            )
-        )
+        return ParamNamespace('.'.join((*((self,) if self else []), *args)))
 
     def SlashNamespace(self) -> "Namespace":
         return Namespace('')(*self.split('.'))
@@ -65,10 +62,7 @@ class ParamNamespace(Namespace):
 # add representer if yaml is installed
 try:
     import yaml
-    yaml.add_representer(
-        Namespace,
-        lambda dumper,
-        data: dumper.represent_str(
-            str(data)))
+
+    yaml.add_representer(Namespace, lambda dumper, data: dumper.represent_str(str(data)))
 except ImportError:
     pass

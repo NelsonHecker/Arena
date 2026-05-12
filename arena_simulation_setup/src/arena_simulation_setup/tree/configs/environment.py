@@ -1,8 +1,7 @@
 from pathlib import Path
+from typing import Self
 
 import yaml
-from typing_extensions import Self
-
 from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.tree import Identifier, PathResolverBase
 
@@ -29,11 +28,12 @@ class EnvironmentIdentifier(Identifier[EnvironmentDescription]):
             return cls(name=str(relpath))
         raise FileNotFoundError(f"Invalid file {relpath} for environment identifier")
 
-    def load(self, path: Path, /, **kwargs) -> EnvironmentDescription:
+    def load(self, path: Path, /, **kwargs: object) -> EnvironmentDescription:
         del kwargs
-        with open(path, 'r') as f:
+        with open(path) as f:
             value = yaml.safe_load(f)
-        assert isinstance(value, dict)
+        if not isinstance(value, dict):
+            raise ValueError(f"Environment file {path} must contain a mapping at the top level")
         return EnvironmentDescription(value)
 
 

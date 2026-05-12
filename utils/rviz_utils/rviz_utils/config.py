@@ -2,7 +2,7 @@ class Config:
     """
     Configuration templates for RViz displays.
     """
-    
+
     # PedSim visualization configurations maintained from original but commented out
     """
     TRACKED_PERSONS = {
@@ -121,21 +121,11 @@ class Config:
     """
 
     @staticmethod
-    def create_model_display(robot_name, topic, color):
-        return {
-            "Class": "rviz_default_plugins/MarkerArray",
-            "Enabled": True,
-            "Marker Topic": topic,
-            "Name":  f"{robot_name} MarkerArray",
-            "Namespaces": {
-                "": True
-            },
-            "Queue Size": 100,
-            "Value": True
-        }
+    def create_model_display(robot_name: str, topic: str, color: str) -> dict[str, object]:
+        return {"Class": "rviz_default_plugins/MarkerArray", "Enabled": True, "Marker Topic": topic, "Name": f"{robot_name} MarkerArray", "Namespaces": {"": True}, "Queue Size": 100, "Value": True}
 
     @staticmethod
-    def create_pose_display(robot_name, topic, color):
+    def create_pose_display(robot_name: str, topic: str, color: str) -> dict[str, object]:
         return {
             "Alpha": 1,
             "Axes Length": 1,
@@ -152,34 +142,23 @@ class Config:
             "Shape": "Arrow",
             "Topic": topic,
             "Unreliable": False,
-            "Value": False
+            "Value": False,
         }
 
     @staticmethod
-    def create_global_map_display(robot_name, topic, _):
+    def create_global_map_display(robot_name: str, topic: str, _: object) -> dict[str, object]:
         return Config._create_map_display(robot_name, topic, 0.7, "Global Costmap")
 
     @staticmethod
-    def create_local_map_display(robot_name, topic, _):
+    def create_local_map_display(robot_name: str, topic: str, _: object) -> dict[str, object]:
         return Config._create_map_display(robot_name, topic, 0.3, "Local Costmap")
 
     @staticmethod
-    def _create_map_display(robot_name, topic, alpha, name):
-        return {
-            "Alpha": alpha,
-            "Class": "rviz_default_plugins/Map",
-            "Color Scheme": "map",
-            "Draw Behind": False,
-            "Enabled": False,
-            "Name": f"{robot_name} {name}",
-            "Topic": topic,
-            "Unreliable": False,
-            "Use Timestamp": False,
-            "Value": True
-        }
+    def _create_map_display(robot_name: str, topic: str, alpha: float, name: str) -> dict[str, object]:
+        return {"Alpha": alpha, "Class": "rviz_default_plugins/Map", "Color Scheme": "map", "Draw Behind": False, "Enabled": False, "Name": f"{robot_name} {name}", "Topic": topic, "Unreliable": False, "Use Timestamp": False, "Value": True}
 
     @staticmethod
-    def create_path_display(robot_name, topic, color):
+    def create_path_display(robot_name: str, topic: str, color: str) -> dict[str, object]:
         return {
             "Alpha": 1,
             "Buffer Length": 1,
@@ -209,15 +188,11 @@ class Config:
         }
 
     @staticmethod
-    def create_laser_scan_display(robot_name, topic, color):
+    def create_laser_scan_display(robot_name: str, topic: str, color: str) -> dict[str, object]:
         return {
             "Alpha": 1,
             "Autocompute Intensity Bounds": True,
-            "Autocompute Value Bounds": {
-                "Max Value": 0.3,
-                "Min Value": 0.3,
-                "Value": True
-            },
+            "Autocompute Value Bounds": {"Max Value": 0.3, "Min Value": 0.3, "Value": True},
             "Axis": "Z",
             "Channel Name": "intensity",
             "Class": "rviz_default_plugins/LaserScan",
@@ -239,22 +214,10 @@ class Config:
             "Unreliable": False,
             "Use Fixed Frame": True,
             "Use rainbow": True,
-            "Value": True
+            "Value": True,
         }
-        
+
     @staticmethod
-    def create_odometry_display(robot_name, topic, color):
+    def create_odometry_display(robot_name: str, topic: str, color: str) -> dict[str, object]:
         """Create an odometry display configuration."""
-        return {
-            "Angle Tolerance": 0.1,
-            "Class": "rviz_default_plugins/Odometry",
-            "Color": color,
-            "Enabled": True,
-            "Keep": 100,
-            "Length": 1.0,
-            "Name": f"{robot_name} Odometry",
-            "Position Tolerance": 0.1,
-            "Topic": topic,
-            "Shape": "Arrow",
-            "Value": True
-        }
+        return {"Angle Tolerance": 0.1, "Class": "rviz_default_plugins/Odometry", "Color": color, "Enabled": True, "Keep": 100, "Length": 1.0, "Name": f"{robot_name} Odometry", "Position Tolerance": 0.1, "Topic": topic, "Shape": "Arrow", "Value": True}

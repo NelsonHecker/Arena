@@ -65,6 +65,8 @@ __pycache__/
 
 # folders
 /_assets
+/.venv/.installed
+
 
 # agents
 /arena_training/agents/

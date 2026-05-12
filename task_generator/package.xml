@@ -6,20 +6,24 @@
   <maintainer email="dev@voshch.dev">voshch</maintainer>
   <license>TODO</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
-
   <depend>ros_gz_sim</depend>
   <depend>geometry_msgs</depend>
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
 
   <exec_depend>arena_bringup</exec_depend>
+  <exec_depend>arena_runtime</exec_depend>
+  <exec_depend>arena_runtime_msgs</exec_depend>
   <exec_depend>arena_robots</exec_depend>
   <exec_depend>arena_simulation_setup</exec_depend>
+  <exec_depend>task_generator_msgs</exec_depend>
 
-  <member_of_group>rosidl_interface_packages</member_of_group>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-hypothesis</test_depend>
+
   <export>
     <build_type>ament_python</build_type>
   </export>

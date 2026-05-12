@@ -54,7 +54,6 @@ zones:
       name: Plaster_Wall
       domain: Common
       _modifiers: null
-  
   - start:
       x: 9.0
       y: 0.0
@@ -91,7 +90,6 @@ zones:
       name: Aluminum_Anodized
       domain: Common
       _modifiers: null
-
   doors:
   - name: main_hallway_entrance
     start:
@@ -102,18 +100,17 @@ zones:
       x: 10.75
       y: 0.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
-  elevators: 
-  - name: "elevator_ground"
-    position: [10.0, -1.0, 0.0]
-    size: [2.0, 2.0, 0.02]
-    destination: "elevator_top"
-
+  elevators:
+  - name: elevator_ground
+    position:
+      x: 10.0
+      y: -1.0
+      z: 0.0
+    size:
+    - 2.0
+    - 2.0
+    - 0.02
+    destination: elevator_top
   entities:
     static: []
     dynamic: []
@@ -206,16 +203,11 @@ zones:
       x: 8.0
       y: 3.25
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: reception_counter_1
+      pose:
         position:
           x: 4.0
           y: 2.8
@@ -225,9 +217,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_counter_1
       model: Hospital/SM_ReceptionDesk_01a
-    - pose:
+    - name: reception_waiting_sofa_1
+      pose:
         position:
           x: 1.8
           y: 4.55
@@ -237,9 +229,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_waiting_sofa_1
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: reception_waiting_sofa_2
+      pose:
         position:
           x: 3.7
           y: 4.55
@@ -249,9 +241,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_waiting_sofa_2
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: reception_waiting_sofa_3
+      pose:
         position:
           x: 0.45
           y: 3.15
@@ -261,9 +253,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: reception_waiting_sofa_3
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: reception_waiting_chair_1
+      pose:
         position:
           x: 5.9
           y: 4.7
@@ -273,9 +265,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_waiting_chair_1
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: reception_display_board_1
+      pose:
         position:
           x: 0.4
           y: 0.5
@@ -285,9 +277,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: reception_display_board_1
       model: Hospital/Display_Board
-    - pose:
+    - name: reception_water_dispenser_1
+      pose:
         position:
           x: 7.7
           y: 0.2
@@ -297,9 +289,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: reception_water_dispenser_1
       model: Hospital/SM_WaterDispenser_01a
-    - pose:
+    - name: reception_trashcan_1
+      pose:
         position:
           x: 7.7
           y: 4.8
@@ -309,7 +301,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_trashcan_1
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: exam_room_1
@@ -401,16 +392,11 @@ zones:
       x: 8.0
       y: 8.3
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: exam_exam_table_1
+      pose:
         position:
           x: 5.0
           y: 7.55
@@ -420,9 +406,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_exam_table_1
       model: Hospital/Exam_Table
-    - pose:
+    - name: exam_medical_stool_1
+      pose:
         position:
           x: 5.1
           y: 7.1
@@ -432,9 +418,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_medical_stool_1
       model: Hospital/Medical_Stool
-    - pose:
+    - name: exam_instrument_table_1
+      pose:
         position:
           x: 5.9
           y: 7.0
@@ -444,9 +430,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_instrument_table_1
       model: Hospital/Instrument_Table
-    - pose:
+    - name: exam_vital_signal_station_1
+      pose:
         position:
           x: 4.85
           y: 8.2
@@ -456,9 +442,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_vital_signal_station_1
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: exam_exam_table_2
+      pose:
         position:
           x: 3.0
           y: 7.55
@@ -468,9 +454,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_exam_table_2
       model: Hospital/Exam_Table
-    - pose:
+    - name: exam_medical_stool_2
+      pose:
         position:
           x: 3.1
           y: 7.1
@@ -480,9 +466,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_medical_stool_2
       model: Hospital/Medical_Stool
-    - pose:
+    - name: exam_instrument_table_2
+      pose:
         position:
           x: 3.9
           y: 7.0
@@ -492,9 +478,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_instrument_table_2
       model: Hospital/Instrument_Table
-    - pose:
+    - name: exam_vital_signal_station_2
+      pose:
         position:
           x: 2.85
           y: 8.2
@@ -504,9 +490,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_vital_signal_station_2
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: exam_SM_MedicalCabinet_01a_1
+      pose:
         position:
           x: 0.65
           y: 9.2
@@ -516,9 +502,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_SM_MedicalCabinet_01a_1
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: exam_SM_MedicalCabinet_01a_2
+      pose:
         position:
           x: 0.65
           y: 8.325
@@ -528,9 +514,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_SM_MedicalCabinet_01a_2
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: exam_SM_MedicalCabinet_01a_3
+      pose:
         position:
           x: 0.65
           y: 7.45
@@ -540,9 +526,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_SM_MedicalCabinet_01a_3
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: exam_supply_cart_1
+      pose:
         position:
           x: 0.55
           y: 5.4
@@ -552,9 +538,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_supply_cart_1
       model: Hospital/SM_SupplyCart_01e
-    - pose:
+    - name: exam_supply_cart_2
+      pose:
         position:
           x: 1.7
           y: 5.4
@@ -564,9 +550,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_supply_cart_2
       model: Hospital/SM_SupplyCart_01e
-    - pose:
+    - name: exam_scale_1
+      pose:
         position:
           x: 7.6
           y: 5.5
@@ -576,9 +562,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: exam_scale_1
       model: Hospital/SM_Scale_01a
-    - pose:
+    - name: exam_trashcan_1
+      pose:
         position:
           x: 7.7
           y: 9.8
@@ -588,7 +574,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_trashcan_1
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: patient_ward
@@ -674,12 +659,6 @@ zones:
       x: 8.0
       y: 14.85
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: patient_ward_door_2
     start:
       x: 8.0
@@ -689,16 +668,11 @@ zones:
       x: 8.0
       y: 21.85
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: ward_bed_1
+      pose:
         position:
           x: 4.0
           y: 13.6
@@ -708,9 +682,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_bed_1
       model: Hospital/SM_HospitalBed_01b
-    - pose:
+    - name: ward_bedside_table_1
+      pose:
         position:
           x: 4.9
           y: 14.4
@@ -720,9 +694,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_bedside_table_1
       model: Hospital/SM_BedSideTable_01b
-    - pose:
+    - name: ward_iv_stand_1
+      pose:
         position:
           x: 2.8
           y: 14.5
@@ -732,9 +706,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_iv_stand_1
       model: Hospital/IV_Stand
-    - pose:
+    - name: ward_vital_signal_1
+      pose:
         position:
           x: 4.9
           y: 13.4
@@ -744,9 +718,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: ward_vital_signal_1
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: ward_privacy_curtain_1
+      pose:
         position:
           x: 4.0
           y: 15.1
@@ -756,9 +730,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_privacy_curtain_1
       model: Hospital/Privacy_Curtain_Rail
-    - pose:
+    - name: ward_armchair_1
+      pose:
         position:
           x: 2.2
           y: 13.5
@@ -768,9 +742,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_armchair_1
       model: Hospital/SM_Chair_04a
-    - pose:
+    - name: ward_biohazard_container_1
+      pose:
         position:
           x: 4.9
           y: 12.4
@@ -780,9 +754,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_biohazard_container_1
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: ward_bed_2
+      pose:
         position:
           x: 4.0
           y: 19.6
@@ -792,9 +766,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_bed_2
       model: Hospital/SM_HospitalBed_01b
-    - pose:
+    - name: ward_bedside_table_2
+      pose:
         position:
           x: 4.9
           y: 20.4
@@ -804,9 +778,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_bedside_table_2
       model: Hospital/SM_BedSideTable_01b
-    - pose:
+    - name: ward_iv_stand_2
+      pose:
         position:
           x: 2.8
           y: 20.5
@@ -816,9 +790,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_iv_stand_2
       model: Hospital/IV_Stand
-    - pose:
+    - name: ward_vital_signal_2
+      pose:
         position:
           x: 4.9
           y: 19.4
@@ -828,9 +802,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: ward_vital_signal_2
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: ward_privacy_curtain_2
+      pose:
         position:
           x: 4.0
           y: 21.1
@@ -840,9 +814,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_privacy_curtain_2
       model: Hospital/Privacy_Curtain_Rail
-    - pose:
+    - name: ward_armchair_2
+      pose:
         position:
           x: 2.2
           y: 19.5
@@ -852,9 +826,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_armchair_2
       model: Hospital/SM_Chair_04a
-    - pose:
+    - name: ward_biohazard_container_2
+      pose:
         position:
           x: 4.9
           y: 18.4
@@ -864,9 +838,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_biohazard_container_2
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: ward_SM_MedicalCabinet_01a_1
+      pose:
         position:
           x: 0.8
           y: 24.0
@@ -876,9 +850,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_SM_MedicalCabinet_01a_1
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: ward_SM_MedicalCabinet_01a_2
+      pose:
         position:
           x: 0.8
           y: 1.2
@@ -888,9 +862,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_SM_MedicalCabinet_01a_2
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: ward_supply_cart_1
+      pose:
         position:
           x: 2.3
           y: 12.0
@@ -900,9 +874,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_supply_cart_1
       model: Hospital/SM_SupplyCart_03a
-    - pose:
+    - name: ward_supply_cart_2
+      pose:
         position:
           x: 2.3
           y: 18.0
@@ -912,9 +886,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_supply_cart_2
       model: Hospital/SM_SupplyCart_03a
-    - pose:
+    - name: ward_gurney_1
+      pose:
         position:
           x: 6.5
           y: 11.6
@@ -924,9 +898,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_gurney_1
       model: Hospital/SM_Gurney_01b
-    - pose:
+    - name: ward_wheelchair_1
+      pose:
         position:
           x: 0.7
           y: 18.2
@@ -936,9 +910,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_wheelchair_1
       model: Hospital/SM_WheelChair_01a
-    - pose:
+    - name: ward_wheelchair_2
+      pose:
         position:
           x: 0.7
           y: 17.4
@@ -948,9 +922,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_wheelchair_2
       model: Hospital/SM_WheelChair_01a
-    - pose:
+    - name: ward_trashcan_1
+      pose:
         position:
           x: 7.7
           y: 10.3
@@ -960,7 +934,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_trashcan_1
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: pharmacy
@@ -1037,16 +1010,11 @@ zones:
       x: 8.0
       y: 28.4
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: pharmacy_desk_1
+      pose:
         position:
           x: 4.0
           y: 28.0
@@ -1056,9 +1024,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_desk_1
       model: Hospital/SM_ReceptionDesk_01a
-    - pose:
+    - name: pharmacy_chair_1
+      pose:
         position:
           x: 5.1
           y: 26.6
@@ -1068,9 +1036,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_chair_1
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: pharmacy_shelf_1
+      pose:
         position:
           x: 0.25
           y: 26.55
@@ -1080,9 +1048,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: pharmacy_shelf_1
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_shelf_2
+      pose:
         position:
           x: 0.25
           y: 28.5
@@ -1092,9 +1060,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: pharmacy_shelf_2
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_shelf_3
+      pose:
         position:
           x: 3.4
           y: 25.4
@@ -1104,9 +1072,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: pharmacy_shelf_3
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_shelf_4
+      pose:
         position:
           x: 1.4
           y: 25.4
@@ -1116,9 +1084,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: pharmacy_shelf_4
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_refrigerated_unit_1
+      pose:
         position:
           x: 3.2
           y: 29.6
@@ -1128,9 +1096,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_refrigerated_unit_1
       model: Hospital/Refrigerated_Medicine_Unit
-    - pose:
+    - name: pharmacy_SM_MedicalCabinet_01a_1
+      pose:
         position:
           x: 0.8
           y: 29.4
@@ -1140,9 +1108,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_SM_MedicalCabinet_01a_1
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: pharmacy_SM_MedicalCabinet_01a_2
+      pose:
         position:
           x: 1.7
           y: 29.4
@@ -1152,9 +1120,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_SM_MedicalCabinet_01a_2
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: pharmacy_med_shelf_1
+      pose:
         position:
           x: 4.3
           y: 29.6
@@ -1164,9 +1132,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_med_shelf_1
       model: Hospital/SM_MedShelf_01d
-    - pose:
+    - name: pharmacy_med_shelf_2
+      pose:
         position:
           x: 5.25
           y: 29.6
@@ -1176,9 +1144,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_med_shelf_2
       model: Hospital/SM_MedShelf_01d
-    - pose:
+    - name: pharmacy_supply_cart_1
+      pose:
         position:
           x: 1.3
           y: 28.8
@@ -1188,9 +1156,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_supply_cart_1
       model: Hospital/SM_SupplyCart_01e
-    - pose:
+    - name: pharmacy_supply_cart_2
+      pose:
         position:
           x: 7.5
           y: 25.8
@@ -1200,9 +1168,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_supply_cart_2
       model: Hospital/SM_SupplyCart_03a
-    - pose:
+    - name: pharmacy_biohazard_container_1
+      pose:
         position:
           x: 7.3
           y: 29.8
@@ -1212,9 +1180,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_biohazard_container_1
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: pharmacy_trashcan_1
+      pose:
         position:
           x: 7.7
           y: 29.8
@@ -1224,7 +1192,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_trashcan_1
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: nurse_resting_room
@@ -1316,16 +1283,11 @@ zones:
       x: 15.75
       y: 10.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: nurse_resting_bed_1
+      pose:
         position:
           x: 13.1
           y: 1.7
@@ -1335,9 +1297,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_bed_1
       model: Hospital/SM_HospitalBed_02d
-    - pose:
+    - name: nurse_resting_bed_2
+      pose:
         position:
           x: 13.1
           y: 3.4
@@ -1347,9 +1309,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_bed_2
       model: Hospital/SM_HospitalBed_02d
-    - pose:
+    - name: nurse_resting_desk_1
+      pose:
         position:
           x: 17.3
           y: 3.3
@@ -1359,9 +1321,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_desk_1
       model: Hospital/SM_Desk_04a
-    - pose:
+    - name: nurse_resting_desk_chair_1
+      pose:
         position:
           x: 17.9
           y: 3.1
@@ -1371,9 +1333,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_desk_chair_1
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: nurse_resting_computer_1
+      pose:
         position:
           x: 17.2
           y: 3.3
@@ -1383,9 +1345,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_computer_1
       model: Hospital/SM_Computer_02a
-    - pose:
+    - name: nurse_resting_desk_2
+      pose:
         position:
           x: 17.3
           y: 5.2
@@ -1395,9 +1357,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_desk_2
       model: Hospital/SM_Desk_04a
-    - pose:
+    - name: nurse_resting_desk_chair_2
+      pose:
         position:
           x: 17.9
           y: 5.0
@@ -1407,9 +1369,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_desk_chair_2
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: nurse_resting_computer_2
+      pose:
         position:
           x: 17.2
           y: 5.2
@@ -1419,9 +1381,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_computer_2
       model: Hospital/SM_Computer_02a
-    - pose:
+    - name: nurse_resting_chair_1
+      pose:
         position:
           x: 12.4
           y: 6.0
@@ -1431,9 +1393,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_chair_1
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: nurse_resting_chair_2
+      pose:
         position:
           x: 12.4
           y: 8.4
@@ -1443,9 +1405,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_chair_2
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: nurse_resting_chair_3
+      pose:
         position:
           x: 18.1
           y: 8.4
@@ -1455,9 +1417,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_chair_3
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: nurse_resting_sidetable_1
+      pose:
         position:
           x: 13.4
           y: 6.0
@@ -1467,9 +1429,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_sidetable_1
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: nurse_resting_sidetable_2
+      pose:
         position:
           x: 13.4
           y: 8.4
@@ -1479,9 +1441,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_sidetable_2
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: nurse_resting_sidetable_3
+      pose:
         position:
           x: 17.1
           y: 8.4
@@ -1491,9 +1453,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_sidetable_3
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: nurse_resting_cabinet_1
+      pose:
         position:
           x: 18.4
           y: 0.6
@@ -1503,9 +1465,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_1
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: nurse_resting_cabinet_2
+      pose:
         position:
           x: 17.5
           y: 0.6
@@ -1515,9 +1477,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_2
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: nurse_resting_cabinet_3
+      pose:
         position:
           x: 16.6
           y: 0.6
@@ -1527,9 +1489,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_3
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: nurse_resting_cabinet_4
+      pose:
         position:
           x: 15.7
           y: 0.6
@@ -1539,7 +1501,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_4
       model: Hospital/SM_MedicalCabinet_01a
     dynamic: []
 - name: waiting_area
@@ -1631,16 +1592,11 @@ zones:
       x: 22.75
       y: 10.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: waiting_sofa_3
+      pose:
         position:
           x: 20.3
           y: 8.5
@@ -1650,9 +1606,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_sofa_3
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: waiting_sofa_4
+      pose:
         position:
           x: 23.4
           y: 8.5
@@ -1662,9 +1618,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_sofa_4
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: waiting_chair_8
+      pose:
         position:
           x: 20.3
           y: 6.0
@@ -1674,9 +1630,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_chair_8
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_chair_9
+      pose:
         position:
           x: 20.3
           y: 5.2
@@ -1686,9 +1642,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_chair_9
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_chair_10
+      pose:
         position:
           x: 23.2
           y: 6.0
@@ -1698,9 +1654,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_chair_10
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_chair_11
+      pose:
         position:
           x: 23.2
           y: 5.2
@@ -1710,9 +1666,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_chair_11
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_bench_3
+      pose:
         position:
           x: 20.1
           y: 3.5
@@ -1722,9 +1678,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_bench_3
       model: Hospital/Waiting_Room_Bench
-    - pose:
+    - name: waiting_bench_4
+      pose:
         position:
           x: 23.5
           y: 3.5
@@ -1734,9 +1690,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_bench_4
       model: Hospital/Waiting_Room_Bench
-    - pose:
+    - name: waiting_side_table_1
+      pose:
         position:
           x: 19.6
           y: 4.2
@@ -1746,9 +1702,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_1
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_side_table_2
+      pose:
         position:
           x: 20.6
           y: 4.2
@@ -1758,9 +1714,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_2
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_side_table_3
+      pose:
         position:
           x: 23.0
           y: 4.2
@@ -1770,9 +1726,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_3
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_side_table_4
+      pose:
         position:
           x: 24.0
           y: 4.2
@@ -1782,9 +1738,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_4
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_trashcan_2
+      pose:
         position:
           x: 24.6
           y: 0.3
@@ -1794,9 +1750,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_trashcan_2
       model: Hospital/SM_TrashCan
-    - pose:
+    - name: waiting_mop_set_1
+      pose:
         position:
           x: 24.7
           y: 0.7
@@ -1806,9 +1762,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_mop_set_1
       model: Hospital/SM_MopSet_01a
-    - pose:
+    - name: waiting_mop_set_2
+      pose:
         position:
           x: 24.7
           y: 0.7
@@ -1818,7 +1774,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_mop_set_2
       model: Hospital/SM_MopSet_01b
     dynamic: []
 - name: sub_hallway
@@ -2006,16 +1961,11 @@ zones:
       x: 12.0
       y: 18.1
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: or_operating_table_1
+      pose:
         position:
           x: 15.0
           y: 19.0
@@ -2025,9 +1975,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_operating_table_1
       model: Hospital/Operating_Table
-    - pose:
+    - name: or_surgical_table_1
+      pose:
         position:
           x: 15.0
           y: 15.5
@@ -2037,9 +1987,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_surgical_table_1
       model: Hospital/Surgical_Table
-    - pose:
+    - name: or_anesthesia_machine_1
+      pose:
         position:
           x: 14.2
           y: 19.0
@@ -2049,9 +1999,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: or_anesthesia_machine_1
       model: Hospital/Anesthesia_Machine
-    - pose:
+    - name: or_instrument_table_1
+      pose:
         position:
           x: 15.8
           y: 17.7
@@ -2061,9 +2011,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: or_instrument_table_1
       model: Hospital/Instrument_Table
-    - pose:
+    - name: or_surgical_tray_1
+      pose:
         position:
           x: 15.8
           y: 17.7
@@ -2073,9 +2023,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_surgical_tray_1
       model: Hospital/SM_UtilitiesTray_01e
-    - pose:
+    - name: or_vital_monitor_1
+      pose:
         position:
           x: 15.8
           y: 19.0
@@ -2085,9 +2035,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: or_vital_monitor_1
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: or_defibrillator_1
+      pose:
         position:
           x: 15.8
           y: 17.6
@@ -2097,9 +2047,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_defibrillator_1
       model: Hospital/Defibrillator
-    - pose:
+    - name: or_ventilator_1
+      pose:
         position:
           x: 14.2
           y: 15.35
@@ -2109,9 +2059,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: or_ventilator_1
       model: Hospital/Ventilator
-    - pose:
+    - name: or_SM_MedicalCabinet_01a_1
+      pose:
         position:
           x: 12.7
           y: 20.7
@@ -2121,9 +2071,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: or_SM_MedicalCabinet_01a_1
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: or_supply_cabinet_1
+      pose:
         position:
           x: 17.05
           y: 21.0
@@ -2133,9 +2083,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: or_supply_cabinet_1
       model: Hospital/SM_SupplyCabinet_01c
-    - pose:
+    - name: or_biohazard_container_1
+      pose:
         position:
           x: 17.7
           y: 13.7
@@ -2145,9 +2095,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_biohazard_container_1
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: or_trashcan_1
+      pose:
         position:
           x: 17.7
           y: 13.3
@@ -2157,7 +2107,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_trashcan_1
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: laboratory
@@ -2249,16 +2198,11 @@ zones:
       x: 12.0
       y: 26.65
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: lab_bench_1
+      pose:
         position:
           x: 15.0
           y: 26.65
@@ -2268,9 +2212,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_bench_1
       model: Hospital/Lab_Bench
-    - pose:
+    - name: lab_bench_2
+      pose:
         position:
           x: 15.0
           y: 28.65
@@ -2280,9 +2224,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_bench_2
       model: Hospital/Lab_Bench
-    - pose:
+    - name: lab_microscope_1
+      pose:
         position:
           x: 14.4
           y: 26.4
@@ -2292,9 +2236,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_microscope_1
       model: Hospital/Microscope_Station
-    - pose:
+    - name: lab_microscope_2
+      pose:
         position:
           x: 14.4
           y: 28.4
@@ -2304,9 +2248,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_microscope_2
       model: Hospital/Microscope_Station
-    - pose:
+    - name: lab_stool_1
+      pose:
         position:
           x: 14.5
           y: 25.9
@@ -2316,9 +2260,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: lab_stool_1
       model: Hospital/Lab_Stool
-    - pose:
+    - name: lab_stool_2
+      pose:
         position:
           x: 14.5
           y: 27.9
@@ -2328,9 +2272,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: lab_stool_2
       model: Hospital/Lab_Stool
-    - pose:
+    - name: lab_stool_3
+      pose:
         position:
           x: 15.5
           y: 25.9
@@ -2340,9 +2284,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: lab_stool_3
       model: Hospital/Lab_Stool
-    - pose:
+    - name: lab_SM_MedicalCabinet_01a_1
+      pose:
         position:
           x: 12.7
           y: 29.2
@@ -2352,9 +2296,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: lab_SM_MedicalCabinet_01a_1
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: lab_refrigerated_unit_1
+      pose:
         position:
           x: 17.5
           y: 29.65
@@ -2364,9 +2308,9 @@ zones:
           x: -0.0
           y: 0.0
           z: 0.7079509086484321
-      name: lab_refrigerated_unit_1
       model: Hospital/Refrigerated_Medicine_Unit
-    - pose:
+    - name: lab_shelf_1
+      pose:
         position:
           x: 12.5
           y: 28.5
@@ -2376,9 +2320,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: lab_shelf_1
       model: Hospital/SM_Shelf_06f
-    - pose:
+    - name: lab_shelf_2
+      pose:
         position:
           x: 17.5
           y: 28.5
@@ -2388,9 +2332,9 @@ zones:
           x: -0.0
           y: 0.0
           z: 0.7079509086484321
-      name: lab_shelf_2
       model: Hospital/SM_Shelf_06f
-    - pose:
+    - name: lab_shelf_set_1
+      pose:
         position:
           x: 12.5
           y: 24.0
@@ -2400,9 +2344,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: lab_shelf_set_1
       model: Hospital/SM_ShelfSet_01a
-    - pose:
+    - name: lab_shelf_set_2
+      pose:
         position:
           x: 17.5
           y: 24.0
@@ -2412,9 +2356,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: lab_shelf_set_2
       model: Hospital/SM_ShelfSet_01a
-    - pose:
+    - name: lab_biohazard_container_1
+      pose:
         position:
           x: 16.0
           y: 26.5
@@ -2424,9 +2368,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_biohazard_container_1
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: lab_biohazard_container_2
+      pose:
         position:
           x: 16.0
           y: 28.5
@@ -2436,9 +2380,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_biohazard_container_2
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: lab_autoclave_1
+      pose:
         position:
           x: 17.5
           y: 27.5
@@ -2448,9 +2392,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: lab_autoclave_1
       model: Hospital/Autoclave
-    - pose:
+    - name: lab_trashcan_1
+      pose:
         position:
           x: 16.0
           y: 26.1
@@ -2460,9 +2404,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_trashcan_1
       model: Hospital/SM_TrashCan
-    - pose:
+    - name: lab_trashcan_2
+      pose:
         position:
           x: 16.0
           y: 28.1
@@ -2472,7 +2416,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_trashcan_2
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: wc_pharmacy
@@ -2636,12 +2579,6 @@ zones:
       x: 8.0
       y: 33.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_stall_1_door
     start:
       x: 2.0
@@ -2651,12 +2588,6 @@ zones:
       x: 2.0
       y: 31.2
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_stall_2_door
     start:
       x: 2.0
@@ -2666,12 +2597,6 @@ zones:
       x: 2.0
       y: 32.5
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_stall_3_door
     start:
       x: 2.0
@@ -2681,16 +2606,11 @@ zones:
       x: 2.0
       y: 33.8
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: wc_pharmacy_washbasin_1
+      pose:
         position:
           x: 4.6
           y: 34.2
@@ -2700,9 +2620,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: wc_pharmacy_washbasin_1
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_2
+      pose:
         position:
           x: 5.6
           y: 34.2
@@ -2712,9 +2632,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: wc_pharmacy_washbasin_2
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_3
+      pose:
         position:
           x: 6.6
           y: 34.2
@@ -2724,9 +2644,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: wc_pharmacy_washbasin_3
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_4
+      pose:
         position:
           x: 4.6
           y: 30.2
@@ -2736,9 +2656,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: wc_pharmacy_washbasin_4
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_5
+      pose:
         position:
           x: 5.6
           y: 30.2
@@ -2748,9 +2668,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: wc_pharmacy_washbasin_5
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_6
+      pose:
         position:
           x: 6.6
           y: 30.2
@@ -2760,9 +2680,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: wc_pharmacy_washbasin_6
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_toilet_1
+      pose:
         position:
           x: 0.5
           y: 30.85
@@ -2772,9 +2692,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_1
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_pharmacy_toilet_paper_1
+      pose:
         position:
           x: 0.5
           y: 31.4
@@ -2784,9 +2704,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_paper_1
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_pharmacy_toilet_2
+      pose:
         position:
           x: 0.5
           y: 32.15
@@ -2796,9 +2716,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_2
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_pharmacy_toilet_paper_2
+      pose:
         position:
           x: 0.5
           y: 32.7
@@ -2808,9 +2728,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_paper_2
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_pharmacy_toilet_3
+      pose:
         position:
           x: 0.5
           y: 33.5
@@ -2820,9 +2740,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_3
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_pharmacy_toilet_paper_3
+      pose:
         position:
           x: 0.5
           y: 34.1
@@ -2832,7 +2752,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_paper_3
       model: Hospital/SM_ToiletPaper
     dynamic: []
 - name: wc_waiting
@@ -3020,12 +2939,6 @@ zones:
       x: 20.75
       y: 13.1
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_waiting_stall_1_door
     start:
       x: 20.05
@@ -3035,12 +2948,6 @@ zones:
       x: 20.05
       y: 14.1
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_waiting_stall_2_door
     start:
       x: 20.05
@@ -3050,12 +2957,6 @@ zones:
       x: 20.05
       y: 15.43
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_waiting_stall_3_door
     start:
       x: 20.05
@@ -3065,16 +2966,11 @@ zones:
       x: 20.05
       y: 16.77
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: wc_waiting_washbasin_1
+      pose:
         position:
           x: 21.5
           y: 13.8
@@ -3084,9 +2980,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_washbasin_1
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_waiting_washbasin_2
+      pose:
         position:
           x: 21.5
           y: 15.1
@@ -3096,9 +2992,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_washbasin_2
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_waiting_washbasin_3
+      pose:
         position:
           x: 21.5
           y: 16.4
@@ -3108,9 +3004,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_washbasin_3
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_waiting_toilet_1
+      pose:
         position:
           x: 18.08
           y: 13.75
@@ -3120,9 +3016,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_1
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_waiting_toilet_paper_1
+      pose:
         position:
           x: 18.1
           y: 13.75
@@ -3132,9 +3028,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_paper_1
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_waiting_toilet_2
+      pose:
         position:
           x: 18.08
           y: 15.1
@@ -3144,9 +3040,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_2
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_waiting_toilet_paper_2
+      pose:
         position:
           x: 18.1
           y: 15.1
@@ -3156,9 +3052,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_paper_2
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_waiting_toilet_3
+      pose:
         position:
           x: 18.08
           y: 16.42
@@ -3168,9 +3064,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_3
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_waiting_toilet_paper_3
+      pose:
         position:
           x: 18.1
           y: 16.42
@@ -3180,7 +3076,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_paper_3
       model: Hospital/SM_ToiletPaper
     dynamic: []
 - name: doctors_resting_room
@@ -3272,16 +3167,11 @@ zones:
       x: 12.0
       y: 33.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: doctors_resting_room_bed_1
+      pose:
         position:
           x: 17.5
           y: 31.4
@@ -3291,9 +3181,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: doctors_resting_room_bed_1
       model: Hospital/SM_HospitalBed_02d
-    - pose:
+    - name: doctors_resting_room_desk_1
+      pose:
         position:
           x: 15.0
           y: 31.0
@@ -3303,9 +3193,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_desk_1
       model: Hospital/SM_Desk_04a
-    - pose:
+    - name: doctors_resting_room_desk_chair_1
+      pose:
         position:
           x: 14.6
           y: 30.5
@@ -3315,9 +3205,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: doctors_resting_room_desk_chair_1
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: doctors_resting_room_sidetable_1
+      pose:
         position:
           x: 15.0
           y: 33.0
@@ -3327,9 +3217,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_sidetable_1
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: doctors_resting_room_cabinet_1
+      pose:
         position:
           x: 17.1
           y: 33.6
@@ -3339,9 +3229,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_cabinet_1
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: doctors_resting_room_computer_1
+      pose:
         position:
           x: 15.0
           y: 31.2
@@ -3351,9 +3241,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_computer_1
       model: Hospital/SM_Computer_02a
-    - pose:
+    - name: doctors_resting_room_chair_1
+      pose:
         position:
           x: 15.0
           y: 33.8
@@ -3363,10 +3253,8 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_chair_1
       model: Hospital/SM_Chair_02a
     dynamic: []
-
 - name: central_hallway_left
   description: Main Central Hallway
   material:
@@ -3422,7 +3310,6 @@ zones:
       name: Plaster_Wall
       domain: Common
       _modifiers: null
-    
   - start:
       x: 36.0
       y: 0.0
@@ -3459,8 +3346,6 @@ zones:
       name: Aluminum_Anodized
       domain: Common
       _modifiers: null
-
-
   doors:
   - name: main_hallway_entrance_left
     start:
@@ -3471,17 +3356,17 @@ zones:
       x: 37.75
       y: 0.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators:
-  - name: "elevator_top"
-    position: [37.0, -1.0, 0.0]
-    size: [2.0, 2.0, 0.02]
-    destination: "elevator_ground"
+  - name: elevator_top
+    position:
+      x: 37.0
+      y: -1.0
+      z: 0.0
+    size:
+    - 2.0
+    - 2.0
+    - 0.02
+    destination: elevator_ground
   entities:
     static: []
     dynamic: []
@@ -3574,16 +3459,11 @@ zones:
       x: 35.0
       y: 3.25
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: reception_counter_1_left
+      pose:
         position:
           x: 31.0
           y: 2.8
@@ -3593,9 +3473,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_counter_1_left
       model: Hospital/SM_ReceptionDesk_01a
-    - pose:
+    - name: reception_waiting_sofa_1_left
+      pose:
         position:
           x: 28.8
           y: 4.55
@@ -3605,9 +3485,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_waiting_sofa_1_left
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: reception_waiting_sofa_2_left
+      pose:
         position:
           x: 30.7
           y: 4.55
@@ -3617,9 +3497,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_waiting_sofa_2_left
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: reception_waiting_sofa_3_left
+      pose:
         position:
           x: 27.45
           y: 3.15
@@ -3629,9 +3509,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: reception_waiting_sofa_3_left
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: reception_waiting_chair_1_left
+      pose:
         position:
           x: 32.9
           y: 4.7
@@ -3641,9 +3521,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_waiting_chair_1_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: reception_display_board_1_left
+      pose:
         position:
           x: 27.4
           y: 0.5
@@ -3653,9 +3533,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: reception_display_board_1_left
       model: Hospital/Display_Board
-    - pose:
+    - name: reception_water_dispenser_1_left
+      pose:
         position:
           x: 34.7
           y: 0.2
@@ -3665,9 +3545,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: reception_water_dispenser_1_left
       model: Hospital/SM_WaterDispenser_01a
-    - pose:
+    - name: reception_trashcan_1_left
+      pose:
         position:
           x: 34.7
           y: 4.8
@@ -3677,7 +3557,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: reception_trashcan_1_left
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: exam_room_1_left
@@ -3769,16 +3648,11 @@ zones:
       x: 35.0
       y: 8.3
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: exam_exam_table_1_left
+      pose:
         position:
           x: 32.0
           y: 7.55
@@ -3788,9 +3662,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_exam_table_1_left
       model: Hospital/Exam_Table
-    - pose:
+    - name: exam_medical_stool_1_left
+      pose:
         position:
           x: 32.1
           y: 7.1
@@ -3800,9 +3674,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_medical_stool_1_left
       model: Hospital/Medical_Stool
-    - pose:
+    - name: exam_instrument_table_1_left
+      pose:
         position:
           x: 32.9
           y: 7.0
@@ -3812,9 +3686,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_instrument_table_1_left
       model: Hospital/Instrument_Table
-    - pose:
+    - name: exam_vital_signal_station_1_left
+      pose:
         position:
           x: 31.85
           y: 8.2
@@ -3824,9 +3698,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_vital_signal_station_1_left
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: exam_exam_table_2_left
+      pose:
         position:
           x: 30.0
           y: 7.55
@@ -3836,9 +3710,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_exam_table_2_left
       model: Hospital/Exam_Table
-    - pose:
+    - name: exam_medical_stool_2_left
+      pose:
         position:
           x: 30.1
           y: 7.1
@@ -3848,9 +3722,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_medical_stool_2_left
       model: Hospital/Medical_Stool
-    - pose:
+    - name: exam_instrument_table_2_left
+      pose:
         position:
           x: 30.9
           y: 7.0
@@ -3860,9 +3734,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_instrument_table_2_left
       model: Hospital/Instrument_Table
-    - pose:
+    - name: exam_vital_signal_station_2_left
+      pose:
         position:
           x: 29.85
           y: 8.2
@@ -3872,9 +3746,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_vital_signal_station_2_left
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: exam_SM_MedicalCabinet_01a_1_left
+      pose:
         position:
           x: 27.65
           y: 9.2
@@ -3884,9 +3758,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_SM_MedicalCabinet_01a_1_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: exam_SM_MedicalCabinet_01a_2_left
+      pose:
         position:
           x: 27.65
           y: 8.325
@@ -3896,9 +3770,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_SM_MedicalCabinet_01a_2_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: exam_SM_MedicalCabinet_01a_3_left
+      pose:
         position:
           x: 27.65
           y: 7.45
@@ -3908,9 +3782,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: exam_SM_MedicalCabinet_01a_3_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: exam_supply_cart_1_left
+      pose:
         position:
           x: 27.55
           y: 5.4
@@ -3920,9 +3794,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_supply_cart_1_left
       model: Hospital/SM_SupplyCart_01e
-    - pose:
+    - name: exam_supply_cart_2_left
+      pose:
         position:
           x: 28.7
           y: 5.4
@@ -3932,9 +3806,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_supply_cart_2_left
       model: Hospital/SM_SupplyCart_01e
-    - pose:
+    - name: exam_scale_1_left
+      pose:
         position:
           x: 34.6
           y: 5.5
@@ -3944,9 +3818,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: exam_scale_1_left
       model: Hospital/SM_Scale_01a
-    - pose:
+    - name: exam_trashcan_1_left
+      pose:
         position:
           x: 34.7
           y: 9.8
@@ -3956,7 +3830,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: exam_trashcan_1_left
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: patient_ward_left
@@ -4042,12 +3915,6 @@ zones:
       x: 35.0
       y: 14.85
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: patient_ward_door_2_left
     start:
       x: 35.0
@@ -4057,16 +3924,11 @@ zones:
       x: 35.0
       y: 21.85
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: ward_bed_1_left
+      pose:
         position:
           x: 31.0
           y: 13.6
@@ -4076,9 +3938,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_bed_1_left
       model: Hospital/SM_HospitalBed_01b
-    - pose:
+    - name: ward_bedside_table_1_left
+      pose:
         position:
           x: 31.9
           y: 14.4
@@ -4088,9 +3950,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_bedside_table_1_left
       model: Hospital/SM_BedSideTable_01b
-    - pose:
+    - name: ward_iv_stand_1_left
+      pose:
         position:
           x: 29.8
           y: 14.5
@@ -4100,9 +3962,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_iv_stand_1_left
       model: Hospital/IV_Stand
-    - pose:
+    - name: ward_vital_signal_1_left
+      pose:
         position:
           x: 31.9
           y: 13.4
@@ -4112,9 +3974,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: ward_vital_signal_1_left
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: ward_privacy_curtain_1_left
+      pose:
         position:
           x: 31.0
           y: 15.1
@@ -4124,9 +3986,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_privacy_curtain_1_left
       model: Hospital/Privacy_Curtain_Rail
-    - pose:
+    - name: ward_armchair_1_left
+      pose:
         position:
           x: 29.2
           y: 13.5
@@ -4136,9 +3998,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_armchair_1_left
       model: Hospital/SM_Chair_04a
-    - pose:
+    - name: ward_biohazard_container_1_left
+      pose:
         position:
           x: 31.9
           y: 12.4
@@ -4148,9 +4010,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_biohazard_container_1_left
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: ward_bed_2_left
+      pose:
         position:
           x: 31.0
           y: 19.6
@@ -4160,9 +4022,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_bed_2_left
       model: Hospital/SM_HospitalBed_01b
-    - pose:
+    - name: ward_bedside_table_2_left
+      pose:
         position:
           x: 31.9
           y: 20.4
@@ -4172,9 +4034,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_bedside_table_2_left
       model: Hospital/SM_BedSideTable_01b
-    - pose:
+    - name: ward_iv_stand_2_left
+      pose:
         position:
           x: 29.8
           y: 20.5
@@ -4184,9 +4046,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_iv_stand_2_left
       model: Hospital/IV_Stand
-    - pose:
+    - name: ward_vital_signal_2_left
+      pose:
         position:
           x: 31.9
           y: 19.4
@@ -4196,9 +4058,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: ward_vital_signal_2_left
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: ward_privacy_curtain_2_left
+      pose:
         position:
           x: 31.0
           y: 21.1
@@ -4208,9 +4070,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_privacy_curtain_2_left
       model: Hospital/Privacy_Curtain_Rail
-    - pose:
+    - name: ward_armchair_2_left
+      pose:
         position:
           x: 29.2
           y: 19.5
@@ -4220,9 +4082,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_armchair_2_left
       model: Hospital/SM_Chair_04a
-    - pose:
+    - name: ward_biohazard_container_2_left
+      pose:
         position:
           x: 31.9
           y: 18.4
@@ -4232,9 +4094,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_biohazard_container_2_left
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: ward_SM_MedicalCabinet_01a_1_left
+      pose:
         position:
           x: 27.8
           y: 24.0
@@ -4244,9 +4106,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_SM_MedicalCabinet_01a_1_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: ward_SM_MedicalCabinet_01a_2_left
+      pose:
         position:
           x: 27.8
           y: 1.2
@@ -4256,9 +4118,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: ward_SM_MedicalCabinet_01a_2_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: ward_supply_cart_1_left
+      pose:
         position:
           x: 29.3
           y: 12.0
@@ -4268,9 +4130,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_supply_cart_1_left
       model: Hospital/SM_SupplyCart_03a
-    - pose:
+    - name: ward_supply_cart_2_left
+      pose:
         position:
           x: 29.3
           y: 18.0
@@ -4280,9 +4142,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_supply_cart_2_left
       model: Hospital/SM_SupplyCart_03a
-    - pose:
+    - name: ward_gurney_1_left
+      pose:
         position:
           x: 33.5
           y: 11.6
@@ -4292,9 +4154,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_gurney_1_left
       model: Hospital/SM_Gurney_01b
-    - pose:
+    - name: ward_wheelchair_1_left
+      pose:
         position:
           x: 27.7
           y: 18.2
@@ -4304,9 +4166,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_wheelchair_1_left
       model: Hospital/SM_WheelChair_01a
-    - pose:
+    - name: ward_wheelchair_2_left
+      pose:
         position:
           x: 27.7
           y: 17.4
@@ -4316,9 +4178,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_wheelchair_2_left
       model: Hospital/SM_WheelChair_01a
-    - pose:
+    - name: ward_trashcan_1_left
+      pose:
         position:
           x: 34.7
           y: 10.3
@@ -4328,7 +4190,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: ward_trashcan_1_left
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: pharmacy_left
@@ -4405,16 +4266,11 @@ zones:
       x: 35.0
       y: 28.4
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: pharmacy_desk_1_left
+      pose:
         position:
           x: 31.0
           y: 28.0
@@ -4424,9 +4280,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_desk_1_left
       model: Hospital/SM_ReceptionDesk_01a
-    - pose:
+    - name: pharmacy_chair_1_left
+      pose:
         position:
           x: 32.1
           y: 26.6
@@ -4436,9 +4292,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_chair_1_left
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: pharmacy_shelf_1_left
+      pose:
         position:
           x: 27.25
           y: 26.55
@@ -4448,9 +4304,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: pharmacy_shelf_1_left
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_shelf_2_left
+      pose:
         position:
           x: 27.25
           y: 28.5
@@ -4460,9 +4316,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: pharmacy_shelf_2_left
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_shelf_3_left
+      pose:
         position:
           x: 30.4
           y: 25.4
@@ -4472,9 +4328,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: pharmacy_shelf_3_left
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_shelf_4_left
+      pose:
         position:
           x: 28.4
           y: 25.4
@@ -4484,9 +4340,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: pharmacy_shelf_4_left
       model: Hospital/Pharmacy_Shelf
-    - pose:
+    - name: pharmacy_refrigerated_unit_1_left
+      pose:
         position:
           x: 30.2
           y: 29.6
@@ -4496,9 +4352,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_refrigerated_unit_1_left
       model: Hospital/Refrigerated_Medicine_Unit
-    - pose:
+    - name: pharmacy_SM_MedicalCabinet_01a_1_left
+      pose:
         position:
           x: 27.8
           y: 29.4
@@ -4508,9 +4364,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_SM_MedicalCabinet_01a_1_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: pharmacy_SM_MedicalCabinet_01a_2_left
+      pose:
         position:
           x: 28.7
           y: 29.4
@@ -4520,9 +4376,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_SM_MedicalCabinet_01a_2_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: pharmacy_med_shelf_1_left
+      pose:
         position:
           x: 31.3
           y: 29.6
@@ -4532,9 +4388,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_med_shelf_1_left
       model: Hospital/SM_MedShelf_01d
-    - pose:
+    - name: pharmacy_med_shelf_2_left
+      pose:
         position:
           x: 32.25
           y: 29.6
@@ -4544,9 +4400,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_med_shelf_2_left
       model: Hospital/SM_MedShelf_01d
-    - pose:
+    - name: pharmacy_supply_cart_1_left
+      pose:
         position:
           x: 28.3
           y: 28.8
@@ -4556,9 +4412,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_supply_cart_1_left
       model: Hospital/SM_SupplyCart_01e
-    - pose:
+    - name: pharmacy_supply_cart_2_left
+      pose:
         position:
           x: 34.5
           y: 25.8
@@ -4568,9 +4424,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_supply_cart_2_left
       model: Hospital/SM_SupplyCart_03a
-    - pose:
+    - name: pharmacy_biohazard_container_1_left
+      pose:
         position:
           x: 34.3
           y: 29.8
@@ -4580,9 +4436,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_biohazard_container_1_left
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: pharmacy_trashcan_1_left
+      pose:
         position:
           x: 34.7
           y: 29.8
@@ -4592,7 +4448,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: pharmacy_trashcan_1_left
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: nurse_resting_room_left
@@ -4684,16 +4539,11 @@ zones:
       x: 42.75
       y: 10.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: nurse_resting_bed_1_left
+      pose:
         position:
           x: 40.1
           y: 1.7
@@ -4703,9 +4553,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_bed_1_left
       model: Hospital/SM_HospitalBed_02d
-    - pose:
+    - name: nurse_resting_bed_2_left
+      pose:
         position:
           x: 40.1
           y: 3.4
@@ -4715,9 +4565,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_bed_2_left
       model: Hospital/SM_HospitalBed_02d
-    - pose:
+    - name: nurse_resting_desk_1_left
+      pose:
         position:
           x: 44.3
           y: 3.3
@@ -4727,9 +4577,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_desk_1_left
       model: Hospital/SM_Desk_04a
-    - pose:
+    - name: nurse_resting_desk_chair_1_left
+      pose:
         position:
           x: 44.9
           y: 3.1
@@ -4739,9 +4589,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_desk_chair_1_left
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: nurse_resting_computer_1_left
+      pose:
         position:
           x: 44.2
           y: 3.3
@@ -4751,9 +4601,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_computer_1_left
       model: Hospital/SM_Computer_02a
-    - pose:
+    - name: nurse_resting_desk_2_left
+      pose:
         position:
           x: 44.3
           y: 5.2
@@ -4763,9 +4613,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_desk_2_left
       model: Hospital/SM_Desk_04a
-    - pose:
+    - name: nurse_resting_desk_chair_2_left
+      pose:
         position:
           x: 44.9
           y: 5.0
@@ -4775,9 +4625,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_desk_chair_2_left
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: nurse_resting_computer_2_left
+      pose:
         position:
           x: 44.2
           y: 5.2
@@ -4787,9 +4637,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_computer_2_left
       model: Hospital/SM_Computer_02a
-    - pose:
+    - name: nurse_resting_chair_1_left
+      pose:
         position:
           x: 39.4
           y: 6.0
@@ -4799,9 +4649,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_chair_1_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: nurse_resting_chair_2_left
+      pose:
         position:
           x: 39.4
           y: 8.4
@@ -4811,9 +4661,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_chair_2_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: nurse_resting_chair_3_left
+      pose:
         position:
           x: 45.1
           y: 8.4
@@ -4823,9 +4673,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_chair_3_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: nurse_resting_sidetable_1_left
+      pose:
         position:
           x: 40.4
           y: 6.0
@@ -4835,9 +4685,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_sidetable_1_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: nurse_resting_sidetable_2_left
+      pose:
         position:
           x: 40.4
           y: 8.4
@@ -4847,9 +4697,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: nurse_resting_sidetable_2_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: nurse_resting_sidetable_3_left
+      pose:
         position:
           x: 44.1
           y: 8.4
@@ -4859,9 +4709,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: nurse_resting_sidetable_3_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: nurse_resting_cabinet_1_left
+      pose:
         position:
           x: 45.4
           y: 0.6
@@ -4871,9 +4721,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_1_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: nurse_resting_cabinet_2_left
+      pose:
         position:
           x: 44.5
           y: 0.6
@@ -4883,9 +4733,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_2_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: nurse_resting_cabinet_3_left
+      pose:
         position:
           x: 43.6
           y: 0.6
@@ -4895,9 +4745,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_3_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: nurse_resting_cabinet_4_left
+      pose:
         position:
           x: 42.7
           y: 0.6
@@ -4907,7 +4757,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: nurse_resting_cabinet_4_left
       model: Hospital/SM_MedicalCabinet_01a
     dynamic: []
 - name: waiting_area_left
@@ -4999,16 +4848,11 @@ zones:
       x: 49.75
       y: 10.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: waiting_sofa_3_left
+      pose:
         position:
           x: 47.3
           y: 8.5
@@ -5018,9 +4862,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_sofa_3_left
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: waiting_sofa_4_left
+      pose:
         position:
           x: 50.4
           y: 8.5
@@ -5030,9 +4874,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_sofa_4_left
       model: Hospital/Waiting_Room_Sofa
-    - pose:
+    - name: waiting_chair_8_left
+      pose:
         position:
           x: 47.3
           y: 6.0
@@ -5042,9 +4886,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_chair_8_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_chair_9_left
+      pose:
         position:
           x: 47.3
           y: 5.2
@@ -5054,9 +4898,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_chair_9_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_chair_10_left
+      pose:
         position:
           x: 50.2
           y: 6.0
@@ -5066,9 +4910,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_chair_10_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_chair_11_left
+      pose:
         position:
           x: 50.2
           y: 5.2
@@ -5078,9 +4922,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_chair_11_left
       model: Hospital/SM_Chair_02a
-    - pose:
+    - name: waiting_bench_3_left
+      pose:
         position:
           x: 47.1
           y: 3.5
@@ -5090,9 +4934,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_bench_3_left
       model: Hospital/Waiting_Room_Bench
-    - pose:
+    - name: waiting_bench_4_left
+      pose:
         position:
           x: 50.5
           y: 3.5
@@ -5102,9 +4946,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: waiting_bench_4_left
       model: Hospital/Waiting_Room_Bench
-    - pose:
+    - name: waiting_side_table_1_left
+      pose:
         position:
           x: 46.6
           y: 4.2
@@ -5114,9 +4958,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_1_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_side_table_2_left
+      pose:
         position:
           x: 47.6
           y: 4.2
@@ -5126,9 +4970,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_2_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_side_table_3_left
+      pose:
         position:
           x: 50.0
           y: 4.2
@@ -5138,9 +4982,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_3_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_side_table_4_left
+      pose:
         position:
           x: 51.0
           y: 4.2
@@ -5150,9 +4994,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_side_table_4_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: waiting_trashcan_2_left
+      pose:
         position:
           x: 51.6
           y: 0.3
@@ -5162,9 +5006,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_trashcan_2_left
       model: Hospital/SM_TrashCan
-    - pose:
+    - name: waiting_mop_set_1_left
+      pose:
         position:
           x: 51.7
           y: 0.7
@@ -5174,9 +5018,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_mop_set_1_left
       model: Hospital/SM_MopSet_01a
-    - pose:
+    - name: waiting_mop_set_2_left
+      pose:
         position:
           x: 51.7
           y: 0.7
@@ -5186,7 +5030,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: waiting_mop_set_2_left
       model: Hospital/SM_MopSet_01b
     dynamic: []
 - name: sub_hallway_left
@@ -5374,16 +5217,11 @@ zones:
       x: 39.0
       y: 18.1
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: or_operating_table_1_left
+      pose:
         position:
           x: 42.0
           y: 19.0
@@ -5393,9 +5231,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_operating_table_1_left
       model: Hospital/Operating_Table
-    - pose:
+    - name: or_surgical_table_1_left
+      pose:
         position:
           x: 42.0
           y: 15.5
@@ -5405,9 +5243,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_surgical_table_1_left
       model: Hospital/Surgical_Table
-    - pose:
+    - name: or_anesthesia_machine_1_left
+      pose:
         position:
           x: 41.2
           y: 19.0
@@ -5417,9 +5255,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: or_anesthesia_machine_1_left
       model: Hospital/Anesthesia_Machine
-    - pose:
+    - name: or_instrument_table_1_left
+      pose:
         position:
           x: 42.8
           y: 17.7
@@ -5429,9 +5267,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: or_instrument_table_1_left
       model: Hospital/Instrument_Table
-    - pose:
+    - name: or_surgical_tray_1_left
+      pose:
         position:
           x: 42.8
           y: 17.7
@@ -5441,9 +5279,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_surgical_tray_1_left
       model: Hospital/SM_UtilitiesTray_01e
-    - pose:
+    - name: or_vital_monitor_1_left
+      pose:
         position:
           x: 42.8
           y: 19.0
@@ -5453,9 +5291,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: or_vital_monitor_1_left
       model: Hospital/Vital_Signal_Station
-    - pose:
+    - name: or_defibrillator_1_left
+      pose:
         position:
           x: 42.8
           y: 17.6
@@ -5465,9 +5303,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_defibrillator_1_left
       model: Hospital/Defibrillator
-    - pose:
+    - name: or_ventilator_1_left
+      pose:
         position:
           x: 41.2
           y: 15.35
@@ -5477,9 +5315,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: or_ventilator_1_left
       model: Hospital/Ventilator
-    - pose:
+    - name: or_SM_MedicalCabinet_01a_1_left
+      pose:
         position:
           x: 39.7
           y: 20.7
@@ -5489,9 +5327,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: or_SM_MedicalCabinet_01a_1_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: or_supply_cabinet_1_left
+      pose:
         position:
           x: 44.05
           y: 21.0
@@ -5501,9 +5339,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: or_supply_cabinet_1_left
       model: Hospital/SM_SupplyCabinet_01c
-    - pose:
+    - name: or_biohazard_container_1_left
+      pose:
         position:
           x: 44.7
           y: 13.7
@@ -5513,9 +5351,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_biohazard_container_1_left
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: or_trashcan_1_left
+      pose:
         position:
           x: 44.7
           y: 13.3
@@ -5525,7 +5363,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: or_trashcan_1_left
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: laboratory_left
@@ -5617,16 +5454,11 @@ zones:
       x: 39.0
       y: 26.65
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: lab_bench_1_left
+      pose:
         position:
           x: 42.0
           y: 26.65
@@ -5636,9 +5468,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_bench_1_left
       model: Hospital/Lab_Bench
-    - pose:
+    - name: lab_bench_2_left
+      pose:
         position:
           x: 42.0
           y: 28.65
@@ -5648,9 +5480,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_bench_2_left
       model: Hospital/Lab_Bench
-    - pose:
+    - name: lab_microscope_1_left
+      pose:
         position:
           x: 41.4
           y: 26.4
@@ -5660,9 +5492,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_microscope_1_left
       model: Hospital/Microscope_Station
-    - pose:
+    - name: lab_microscope_2_left
+      pose:
         position:
           x: 41.4
           y: 28.4
@@ -5672,9 +5504,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_microscope_2_left
       model: Hospital/Microscope_Station
-    - pose:
+    - name: lab_stool_1_left
+      pose:
         position:
           x: 41.5
           y: 25.9
@@ -5684,9 +5516,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: lab_stool_1_left
       model: Hospital/Lab_Stool
-    - pose:
+    - name: lab_stool_2_left
+      pose:
         position:
           x: 41.5
           y: 27.9
@@ -5696,9 +5528,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: lab_stool_2_left
       model: Hospital/Lab_Stool
-    - pose:
+    - name: lab_stool_3_left
+      pose:
         position:
           x: 42.5
           y: 25.9
@@ -5708,9 +5540,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: lab_stool_3_left
       model: Hospital/Lab_Stool
-    - pose:
+    - name: lab_SM_MedicalCabinet_01a_1_left
+      pose:
         position:
           x: 39.7
           y: 29.2
@@ -5720,9 +5552,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: lab_SM_MedicalCabinet_01a_1_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: lab_refrigerated_unit_1_left
+      pose:
         position:
           x: 44.5
           y: 29.65
@@ -5732,9 +5564,9 @@ zones:
           x: -0.0
           y: 0.0
           z: 0.7079509086484321
-      name: lab_refrigerated_unit_1_left
       model: Hospital/Refrigerated_Medicine_Unit
-    - pose:
+    - name: lab_shelf_1_left
+      pose:
         position:
           x: 39.5
           y: 28.5
@@ -5744,9 +5576,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: lab_shelf_1_left
       model: Hospital/SM_Shelf_06f
-    - pose:
+    - name: lab_shelf_2_left
+      pose:
         position:
           x: 44.5
           y: 28.5
@@ -5756,9 +5588,9 @@ zones:
           x: -0.0
           y: 0.0
           z: 0.7079509086484321
-      name: lab_shelf_2_left
       model: Hospital/SM_Shelf_06f
-    - pose:
+    - name: lab_shelf_set_1_left
+      pose:
         position:
           x: 39.5
           y: 24.0
@@ -5768,9 +5600,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: lab_shelf_set_1_left
       model: Hospital/SM_ShelfSet_01a
-    - pose:
+    - name: lab_shelf_set_2_left
+      pose:
         position:
           x: 44.5
           y: 24.0
@@ -5780,9 +5612,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: lab_shelf_set_2_left
       model: Hospital/SM_ShelfSet_01a
-    - pose:
+    - name: lab_biohazard_container_1_left
+      pose:
         position:
           x: 43.0
           y: 26.5
@@ -5792,9 +5624,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_biohazard_container_1_left
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: lab_biohazard_container_2_left
+      pose:
         position:
           x: 43.0
           y: 28.5
@@ -5804,9 +5636,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_biohazard_container_2_left
       model: Hospital/Biohazard_Container
-    - pose:
+    - name: lab_autoclave_1_left
+      pose:
         position:
           x: 44.5
           y: 27.5
@@ -5816,9 +5648,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: lab_autoclave_1_left
       model: Hospital/Autoclave
-    - pose:
+    - name: lab_trashcan_1_left
+      pose:
         position:
           x: 43.0
           y: 26.1
@@ -5828,9 +5660,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_trashcan_1_left
       model: Hospital/SM_TrashCan
-    - pose:
+    - name: lab_trashcan_2_left
+      pose:
         position:
           x: 43.0
           y: 28.1
@@ -5840,7 +5672,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: lab_trashcan_2_left
       model: Hospital/SM_TrashCan
     dynamic: []
 - name: wc_pharmacy_left
@@ -6004,12 +5835,6 @@ zones:
       x: 35.0
       y: 33.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_stall_1_door_left
     start:
       x: 29.0
@@ -6019,12 +5844,6 @@ zones:
       x: 29.0
       y: 31.2
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_stall_2_door_left
     start:
       x: 29.0
@@ -6034,12 +5853,6 @@ zones:
       x: 29.0
       y: 32.5
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_stall_3_door_left
     start:
       x: 29.0
@@ -6049,16 +5862,11 @@ zones:
       x: 29.0
       y: 33.8
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: wc_pharmacy_washbasin_1_left
+      pose:
         position:
           x: 31.6
           y: 34.2
@@ -6068,9 +5876,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: wc_pharmacy_washbasin_1_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_2_left
+      pose:
         position:
           x: 32.6
           y: 34.2
@@ -6080,9 +5888,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: wc_pharmacy_washbasin_2_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_3_left
+      pose:
         position:
           x: 33.6
           y: 34.2
@@ -6092,9 +5900,9 @@ zones:
           x: 0.0
           y: 0.0
           z: -0.7071045443232221
-      name: wc_pharmacy_washbasin_3_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_4_left
+      pose:
         position:
           x: 31.6
           y: 30.2
@@ -6104,9 +5912,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: wc_pharmacy_washbasin_4_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_5_left
+      pose:
         position:
           x: 32.6
           y: 30.2
@@ -6116,9 +5924,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: wc_pharmacy_washbasin_5_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_washbasin_6_left
+      pose:
         position:
           x: 33.6
           y: 30.2
@@ -6128,9 +5936,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.7071045443232221
-      name: wc_pharmacy_washbasin_6_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_pharmacy_toilet_1_left
+      pose:
         position:
           x: 27.5
           y: 30.85
@@ -6140,9 +5948,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_1_left
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_pharmacy_toilet_paper_1_left
+      pose:
         position:
           x: 27.5
           y: 31.4
@@ -6152,9 +5960,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_paper_1_left
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_pharmacy_toilet_2_left
+      pose:
         position:
           x: 27.5
           y: 32.15
@@ -6164,9 +5972,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_2_left
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_pharmacy_toilet_paper_2_left
+      pose:
         position:
           x: 27.5
           y: 32.7
@@ -6176,9 +5984,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_paper_2_left
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_pharmacy_toilet_3_left
+      pose:
         position:
           x: 27.5
           y: 33.5
@@ -6188,9 +5996,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_3_left
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_pharmacy_toilet_paper_3_left
+      pose:
         position:
           x: 27.5
           y: 34.1
@@ -6200,7 +6008,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_pharmacy_toilet_paper_3_left
       model: Hospital/SM_ToiletPaper
     dynamic: []
 - name: wc_waiting_left
@@ -6388,12 +6195,6 @@ zones:
       x: 47.75
       y: 13.1
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_waiting_stall_1_door_left
     start:
       x: 47.05
@@ -6403,12 +6204,6 @@ zones:
       x: 47.05
       y: 14.1
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_waiting_stall_2_door_left
     start:
       x: 47.05
@@ -6418,12 +6213,6 @@ zones:
       x: 47.05
       y: 15.43
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   - name: wc_waiting_stall_3_door_left
     start:
       x: 47.05
@@ -6433,16 +6222,11 @@ zones:
       x: 47.05
       y: 16.77
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: wc_waiting_washbasin_1_left
+      pose:
         position:
           x: 48.5
           y: 13.8
@@ -6452,9 +6236,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_washbasin_1_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_waiting_washbasin_2_left
+      pose:
         position:
           x: 48.5
           y: 15.1
@@ -6464,9 +6248,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_washbasin_2_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_waiting_washbasin_3_left
+      pose:
         position:
           x: 48.5
           y: 16.4
@@ -6476,9 +6260,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_washbasin_3_left
       model: Hospital/SM_Washbasin
-    - pose:
+    - name: wc_waiting_toilet_1_left
+      pose:
         position:
           x: 45.08
           y: 13.75
@@ -6488,9 +6272,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_1_left
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_waiting_toilet_paper_1_left
+      pose:
         position:
           x: 45.1
           y: 13.75
@@ -6500,9 +6284,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_paper_1_left
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_waiting_toilet_2_left
+      pose:
         position:
           x: 45.08
           y: 15.1
@@ -6512,9 +6296,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_2_left
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_waiting_toilet_paper_2_left
+      pose:
         position:
           x: 45.1
           y: 15.1
@@ -6524,9 +6308,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_paper_2_left
       model: Hospital/SM_ToiletPaper
-    - pose:
+    - name: wc_waiting_toilet_3_left
+      pose:
         position:
           x: 45.08
           y: 16.42
@@ -6536,9 +6320,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_3_left
       model: Hospital/SM_Toilet
-    - pose:
+    - name: wc_waiting_toilet_paper_3_left
+      pose:
         position:
           x: 45.1
           y: 16.42
@@ -6548,7 +6332,6 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: wc_waiting_toilet_paper_3_left
       model: Hospital/SM_ToiletPaper
     dynamic: []
 - name: doctors_resting_room_left
@@ -6640,16 +6423,11 @@ zones:
       x: 39.0
       y: 33.0
       z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.0
-    material:
-    - Aluminum_Anodized
-    - {}
   elevators: []
   entities:
     static:
-    - pose:
+    - name: doctors_resting_room_bed_1_left
+      pose:
         position:
           x: 44.5
           y: 31.4
@@ -6659,9 +6437,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: doctors_resting_room_bed_1_left
       model: Hospital/SM_HospitalBed_02d
-    - pose:
+    - name: doctors_resting_room_desk_1_left
+      pose:
         position:
           x: 42.0
           y: 31.0
@@ -6671,9 +6449,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_desk_1_left
       model: Hospital/SM_Desk_04a
-    - pose:
+    - name: doctors_resting_room_desk_chair_1_left
+      pose:
         position:
           x: 41.6
           y: 30.5
@@ -6683,9 +6461,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.9999999999991198
-      name: doctors_resting_room_desk_chair_1_left
       model: Hospital/SM_Chair_01a
-    - pose:
+    - name: doctors_resting_room_sidetable_1_left
+      pose:
         position:
           x: 42.0
           y: 33.0
@@ -6695,9 +6473,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_sidetable_1_left
       model: Hospital/SM_SideTable_02a
-    - pose:
+    - name: doctors_resting_room_cabinet_1_left
+      pose:
         position:
           x: 44.1
           y: 33.6
@@ -6707,9 +6485,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_cabinet_1_left
       model: Hospital/SM_MedicalCabinet_01a
-    - pose:
+    - name: doctors_resting_room_computer_1_left
+      pose:
         position:
           x: 42.0
           y: 31.2
@@ -6719,9 +6497,9 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_computer_1_left
       model: Hospital/SM_Computer_02a
-    - pose:
+    - name: doctors_resting_room_chair_1_left
+      pose:
         position:
           x: 42.0
           y: 33.8
@@ -6731,6 +6509,5 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-      name: doctors_resting_room_chair_1_left
       model: Hospital/SM_Chair_02a
     dynamic: []

@@ -56,10 +56,12 @@
   <build_export_depend>rclpy</build_export_depend>
   <build_export_depend>sensor_msgs</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
+  <exec_depend>arena_rclpy_mixins</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>task_generator_msgs</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
