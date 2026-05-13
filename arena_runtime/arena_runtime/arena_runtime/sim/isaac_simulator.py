@@ -75,41 +75,20 @@ IsaacHost is constructed once by arena_node and owns process-singleton resources
 IsaacSimulator is per-env on task_generator_node and adapts env-namespace state (per-robot publishers, env-prefixed entity names) over those shared resources.
 """
 
-_NATIVE_CONTROLLER_TYPES: frozenset[str] = frozenset(
-    {
-        'diff_drive_controller/DiffDriveController',
-        'mecanum_drive_controller/MecanumDriveController',
-        'joint_state_broadcaster/JointStateBroadcaster',
-        'joint_trajectory_controller/JointTrajectoryController',
-        'position_controllers/JointGroupPositionController',
-        'forward_command_controller/ForwardCommandController',
-    }
-)
-
-
-def _find_bridge_controllers(control: dict) -> list[tuple[str, str]]:
-    """Return (name, type) pairs for controllers not handled by native Isaac graphs."""
-    result: list[tuple[str, str]] = []
-    params = control.get('controller_manager', {}).get('ros__parameters', {})
-    for name, cfg in params.items():
-        if not isinstance(cfg, dict):
-            continue
-        ctype = cfg.get('type')
-        if ctype is not None and ctype not in _NATIVE_CONTROLLER_TYPES:
-            result.append((name, ctype))
-    return result
-
-
 def _transform_urdf_for_bridge(
     urdf_path: str,
-    commands_topic: str,
+    commands_topics: dict[str, str],
     states_topic: str,
     out_path: str,
 ) -> None:
-    """Parse the robot URDF and swap gz_ros2_control/GazeboSimSystem to
-    joint_state_topic_hardware_interface/JointStateTopicSystem, adding the topic params.
-    Also add <state_interface name="effort"/> to every joint, since JointStateTopicSystem
-    unconditionally writes effort if the incoming JointState has it. Writes to out_path.
+    """Rewrite the URDF for the Isaac bridge.
+
+    - Swap gz_ros2_control/GazeboSimSystem to JointStateTopicSystem.
+    - Split each block into per-command-interface-kind blocks so JointStateTopicSystem
+      emits well-formed JointState messages (one kind per topic). Each kind goes to
+      its own commands_topics[kind].
+    - Add <state_interface name="effort"/> to every joint, because JointStateTopicSystem
+      unconditionally writes incoming effort and would otherwise crash.
     """
     bridge_plugin = 'joint_state_topic_hardware_interface/JointStateTopicSystem'
     tree = ET.parse(urdf_path)
@@ -119,26 +98,45 @@ def _transform_urdf_for_bridge(
         if plugin_el.text and plugin_el.text.strip() == 'gz_ros2_control/GazeboSimSystem':
             plugin_el.text = bridge_plugin
 
-    for ros2_control in root.iter('ros2_control'):
-        hardware = ros2_control.find('hardware')
-        if hardware is None:
-            continue
-        plugin_el = hardware.find('plugin')
-        if plugin_el is None or not plugin_el.text or plugin_el.text.strip() != bridge_plugin:
-            continue
-        cmd_param = ET.SubElement(hardware, 'param')
-        cmd_param.set('name', 'joint_commands_topic')
-        cmd_param.text = commands_topic
-        state_param = ET.SubElement(hardware, 'param')
-        state_param.set('name', 'joint_states_topic')
-        state_param.text = states_topic
-        for joint in ros2_control.findall('joint'):
-            if any(
-                si.get('name') == 'effort' for si in joint.findall('state_interface')
-            ):
+    originals = [
+        rc for rc in root.iter('ros2_control')
+        if (h := rc.find('hardware')) is not None
+        and (p := h.find('plugin')) is not None
+        and p.text and p.text.strip() == bridge_plugin
+    ]
+
+    for rc in originals:
+        parent = next(p for p in root.iter() if rc in list(p))
+        name = rc.get('name', 'bridge')
+        rc_type = rc.get('type', 'system')
+
+        by_kind: dict[str, list[ET.Element]] = {}
+        for joint in rc.findall('joint'):
+            cmd = joint.find('command_interface')
+            if cmd is None:
                 continue
-            effort = ET.SubElement(joint, 'state_interface')
-            effort.set('name', 'effort')
+            kind = cmd.get('name')
+            if kind not in commands_topics:
+                continue
+            by_kind.setdefault(kind, []).append(joint)
+
+        rc_idx = list(parent).index(rc)
+        parent.remove(rc)
+
+        for offset, (kind, joints) in enumerate(by_kind.items()):
+            block = ET.Element('ros2_control', {'name': f'{name}_{kind}', 'type': rc_type})
+            hw = ET.SubElement(block, 'hardware')
+            ET.SubElement(hw, 'plugin').text = bridge_plugin
+            ET.SubElement(hw, 'param', {'name': 'joint_commands_topic'}).text = commands_topics[kind]
+            ET.SubElement(hw, 'param', {'name': 'joint_states_topic'}).text = states_topic
+            # No anti-spam gating on a sim bridge: publish every CM tick so Isaac sees
+            # the very first non-zero command without waiting for state to diverge.
+            ET.SubElement(hw, 'param', {'name': 'trigger_joint_command_threshold'}).text = '0.0'
+            for joint in joints:
+                if not any(si.get('name') == 'effort' for si in joint.findall('state_interface')):
+                    ET.SubElement(joint, 'state_interface', {'name': 'effort'})
+                block.append(joint)
+            parent.insert(rc_idx + offset, block)
 
     tree.write(out_path, encoding='utf-8', xml_declaration=True)
 
@@ -274,26 +272,27 @@ class IsaacSimulator(BaseSim, NodeInterface):
                         self._logger.warning(f'Failed to publish robot registration: {e}\n{traceback.format_exc()}')
 
                     control_spec = robot_params.control
-                    bridge_controllers: list[tuple[str, str]] = []
-                    if control_spec is not None and control_spec.is_ros2_control:
-                        bridge_controllers = _find_bridge_controllers((await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).control)
+                    is_ros2_control = control_spec is not None and control_spec.is_ros2_control
 
                     # Jazzy controller_manager reads URDF from the robot_description topic, not
                     # its parameter; feed RSP the bridge URDF so the same topic serves both
                     # RViz/Nav2 (which only care about link/joint geometry) and the bridge
                     # controller_manager (which needs TopicBasedSystem as the hw plugin).
                     rsp_urdf_path = str(model.path)
-                    if bridge_controllers:
+                    if is_ros2_control:
                         rsp_urdf_path = os.path.join('/tmp', f"arena_bridge_{robot.frame.sanitize()}.urdf")
                         ns = str(self.node.service_namespace(robot.name))
                         _transform_urdf_for_bridge(
                             str(model.path),
-                            f"{ns}/isaac/joint_commands",
+                            {
+                                'velocity': f"{ns}/isaac/joint_commands_velocity",
+                                'position': f"{ns}/isaac/joint_commands_position",
+                            },
                             f"{ns}/isaac/joint_states",
                             rsp_urdf_path,
                         )
 
-                    await self._launch_robot_stack(robot, robot_params, rsp_urdf_path, bridge_controllers)
+                    await self._launch_robot_stack(robot, robot_params, rsp_urdf_path)
 
                     return True
 
@@ -311,9 +310,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         robot: Robot,
         robot_params: arena_robots.Robot.ModelParams,
         urdf_path: str,
-        bridge_controllers: list[tuple[str, str]],
     ) -> None:
-        """Launch RSP and (if bridge controllers exist) controller_manager + spawners + twist_stamper."""
+        """Launch RSP, and (if ros2_control) controller_manager + spawners + twist_stamper."""
         ns = str(self.node.service_namespace(robot.name))
         with open(urdf_path) as f:
             description = f.read()
@@ -335,9 +333,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
             )
         )
 
-        if bridge_controllers:
-            control_spec = robot_params.control
-            assert control_spec is not None
+        control_spec = robot_params.control
+        if control_spec is not None and control_spec.is_ros2_control:
+            if not control_spec.controllers:
+                raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
 
             rendered_yaml = (
                 render_ros2_control_yaml(
@@ -376,7 +375,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     )
                 )
             )
-            for controller_name, _ in bridge_controllers:
+            for controller_name in control_spec.controllers:
                 ld.add_action(controller_spawner_node(controller_name))
             ld.add_action(twist_stamper_node(
                 control_spec.cmd_vel_topic,
