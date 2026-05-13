@@ -111,7 +111,7 @@ def generate_launch_description():
     )
 
     sim = LaunchArgument(name="sim", default_value="dummy", description="[dummy, gazebo, isaac]")
-    # human/navigator defaults are derived from arena's authoritative `sim` (the value
+    # human/mobile defaults are derived from arena's authoritative `sim` (the value
     # arena_node actually configured), not from this launch's local `sim` arg, which only
     # affects how the env *requests* registration. Empty here means "use arena_sim".
     # User can still override by passing e.g. human:=hunav explicitly.
@@ -144,10 +144,15 @@ def generate_launch_description():
     inter_planner = LaunchArgument(name="inter_planner", default_value="navigate_w_replanning_time")
     local_planner = LaunchArgument(name="local_planner", default_value="dwb")
     global_planner = LaunchArgument(name="global_planner", default_value="navfn")
-    navigator = LaunchArgument(
-        name="navigator",
+    mobile = LaunchArgument(
+        name="mobile",
         default_value="",
-        description="empty = derive from arena_sim ({dummy: none, *: nav2})",
+        description="mobile adapter kind; empty = derive from arena_sim ({dummy: none, *: nav2})",
+    )
+    arm = LaunchArgument(
+        name="arm",
+        default_value="moveit",
+        description="arm adapter kind",
     )
     record_data_dir = LaunchArgument(name="record_data_dir", default_value="")
     headless = LaunchArgument(name="headless", default_value="False")
@@ -189,9 +194,12 @@ def generate_launch_description():
         human_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)
         ) or {"dummy": "dummy", "gazebo": "hunav", "isaac": "hunav"}.get(arena_sim, "dummy")
-        navigator_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(navigator.substitution)
+        mobile_val = launch.utilities.perform_substitutions(
+            context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)
         ) or {"dummy": "none"}.get(arena_sim, "nav2")
+        arm_val = launch.utilities.perform_substitutions(
+            context, launch.utilities.normalize_to_list_of_substitutions(arm.substitution)
+        )
 
         human_launch = IncludeLaunchDescription(
             PathJoinSubstitution([
@@ -202,12 +210,6 @@ def generate_launch_description():
                 "simulator": human_val,
                 "namespace": allocated_ns,
             }.items(),
-        )
-
-        map_server_node = IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, "launch", "utils", "map_server.launch.py")
-            )
         )
 
         pedestrian_marker_node = launch_ros.actions.Node(
@@ -252,7 +254,8 @@ def generate_launch_description():
                     "use_sim_time": True,
                     "sim": arena_sim,
                     "human": human_val,
-                    "navigator": navigator_val,
+                    "robot.mobile_adapter": mobile_val,
+                    "robot.arm_adapter": arm_val,
                     **robot.str_param,
                     **tm_robots.str_param,
                     **tm_obstacles.str_param,
@@ -294,7 +297,6 @@ def generate_launch_description():
 
         inner_group = launch.actions.GroupAction([
             PushRosNamespace(namespace=allocated_ns),
-            map_server_node,
             pedestrian_marker_node,
             rviz_node,
         ])

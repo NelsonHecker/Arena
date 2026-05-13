@@ -9,6 +9,7 @@
        is_sim stays false so r100's generic gazebo.urdf.xacro (with mismatched
        PosePublisher + legacy ign_ros2_control plugin) is skipped too. -->
   <xacro:arg name="use_platform_controllers" default="false"/>
+  <xacro:include filename="$(find clearpath_platform_description)/urdf/common.urdf.xacro"/>
   <xacro:include filename="$(find clearpath_platform_description)/urdf/r100/r100.urdf.xacro"/>
   <xacro:r100/>
 

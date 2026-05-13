@@ -6,3 +6,11 @@ sensors:
     type: laserscan
     topic: ${namespace}/scan
     frame: base_laser_link
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/rbvogui_plus/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - robotnik_base_controller
+    - arm_controller
+  cmd_vel_topic: robotnik_base_controller/cmd_vel

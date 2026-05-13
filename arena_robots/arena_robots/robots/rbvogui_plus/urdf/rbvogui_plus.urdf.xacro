@@ -1,4 +1,15 @@
 <?xml version="1.0"?>
 <robot name="rbvogui_plus" xmlns:xacro="http://wiki.ros.org/xacro">
+
+  <xacro:arg name="namespace" default=""/>
+  <xacro:arg name="prefix" default="robot_"/>
+  <xacro:arg name="gazebo_controllers" default=""/>
+
   <xacro:include filename="$(find robotnik_description)/robots/rbvogui/rbvogui_plus.urdf.xacro"/>
+
+  <xacro:include filename="$(find arena_robots)/robots/rbvogui_plus/urdf/base_hw/rbvogui_plus.ros2_control.urdf"/>
+
+  <!-- gz_ros2_control plugin (loads control.yaml; namespace + path set via xacro args) -->
+  <xacro:include filename="$(find arena_robots)/robots/rbvogui_plus/urdf/rbvogui_plus.gazebo"/>
+
 </robot>

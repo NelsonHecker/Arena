@@ -6,3 +6,10 @@ sensors:
     type: laserscan
     topic: ${namespace}/lidar
     frame: lidar
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/jackal/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - jackal_velocity_controller
+  cmd_vel_topic: jackal_velocity_controller/cmd_vel

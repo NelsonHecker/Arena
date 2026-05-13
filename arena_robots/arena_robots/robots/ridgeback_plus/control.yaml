@@ -9,6 +9,26 @@ controller_manager:
     platform_velocity_controller:
       type: mecanum_drive_controller/MecanumDriveController
 
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+arm_controller:
+  ros__parameters:
+    joints:
+      - arm_shoulder_pan_joint
+      - arm_shoulder_lift_joint
+      - arm_elbow_joint
+      - arm_wrist_1_joint
+      - arm_wrist_2_joint
+      - arm_wrist_3_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+
 platform_velocity_controller:
   ros__parameters:
     use_sim_time: true
@@ -26,7 +46,7 @@ platform_velocity_controller:
 
     kinematics.base_frame_offset: { x: 0.0, y: 0.0, theta: 0.0 }
     kinematics.wheels_radius: 0.0759
-    kinematics.sum_of_robot_center_projection_on_X_Y_axis: 0.59
+    kinematics.sum_of_robot_center_projection_on_X_Y_axis: 0.5945
     wheel_separation_multiplier: 1.0
     wheel_radius_multiplier: 1.0
 

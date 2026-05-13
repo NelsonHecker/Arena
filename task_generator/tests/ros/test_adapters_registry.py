@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from arena_rclpy_mixins.registry import ClassRegistry
 
 
@@ -66,3 +65,60 @@ def test_lazy_loading():
         return _Bar
 
     assert reg.get("_test_bar") is _Bar
+
+
+def test_adapter_kind_classvar_matches_registry_key():
+    """Convention guard: each adapter's `kind` ClassVar must equal its registry key."""
+    from task_generator.tasks.robots.adapters import ADAPTERS
+    for kind in ADAPTERS.keys():
+        cls = ADAPTERS.get(kind)
+        assert cls.kind == kind, f"{cls.__name__}.kind={cls.kind!r} != registry key {kind!r}"
+
+
+def test_adapter_meta_attached_on_every_adapter():
+    from task_generator.tasks.robots.adapters import ADAPTERS, AdapterMeta
+    for kind in ADAPTERS.keys():
+        cls = ADAPTERS.get(kind)
+        assert isinstance(cls._adapter_meta, AdapterMeta), f"{cls.__name__} missing _adapter_meta"
+
+
+class TestAdapterMetaConverters:
+    def test_accepts_set_coerces_to_frozenset(self):
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
+        from arena_robots.clients.goto_pose import GotoPoseClient
+        from arena_robots.task_kinds import TaskKind
+        from task_generator.tasks.robots.adapters import AdapterMeta
+        meta = AdapterMeta(
+            accepts={TaskKind.GOTO_POSE},
+            bringup=Nav2Bringup,
+            client=GotoPoseClient,
+        )
+        assert isinstance(meta.accepts, frozenset)
+        assert meta.accepts == frozenset({TaskKind.GOTO_POSE})
+
+    def test_displays_list_coerces_to_tuple(self):
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
+        from arena_robots.clients.goto_pose import GotoPoseClient
+        from arena_robots.task_kinds import TaskKind
+        from task_generator.tasks.robots.adapters import AdapterDisplayHint, AdapterMeta
+        hint = AdapterDisplayHint(name="X", topic="{ns}/x")
+        meta = AdapterMeta(
+            accepts={TaskKind.GOTO_POSE},
+            bringup=Nav2Bringup,
+            client=GotoPoseClient,
+            displays=[hint],
+        )
+        assert isinstance(meta.displays, tuple)
+        assert meta.displays == (hint,)
+
+    def test_displays_default_is_empty_tuple(self):
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
+        from arena_robots.clients.goto_pose import GotoPoseClient
+        from arena_robots.task_kinds import TaskKind
+        from task_generator.tasks.robots.adapters import AdapterMeta
+        meta = AdapterMeta(
+            accepts={TaskKind.GOTO_POSE},
+            bringup=Nav2Bringup,
+            client=GotoPoseClient,
+        )
+        assert meta.displays == ()

@@ -6,3 +6,10 @@ sensors:
     type: laserscan
     topic: ${namespace}/scan
     frame: base_scan
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/husky/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - husky_velocity_controller
+  cmd_vel_topic: husky_velocity_controller/cmd_vel

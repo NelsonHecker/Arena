@@ -67,7 +67,7 @@ def _make_scenario_tm(node, robots_dict, scenario_robots, world_name="test_world
         robots=robots_dict,
         environment_manager=SimpleNamespace(realize=lambda x: x),
         world_manager=SimpleNamespace(
-            world_name=world_name,
+            loaded_world=world_name,
             forbid=lambda poses: None,
         ),
     )
@@ -212,7 +212,7 @@ def test_parse_scenario_calls_world_identifier():
         ctx = SimpleNamespace(
             robots_manager=SimpleNamespace(managers=robots_dict),
             environment_manager=SimpleNamespace(realize=lambda x: x),
-            world_manager=SimpleNamespace(world_name="test_world", forbid=lambda x: None),
+            world_manager=SimpleNamespace(loaded_world="test_world", forbid=lambda x: None),
         )
 
         tm = TM_Scenario.__new__(TM_Scenario)

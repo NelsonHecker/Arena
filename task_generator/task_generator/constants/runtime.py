@@ -113,6 +113,16 @@ def Configuration(server: ROSParamServer) -> type:
                 'nav2',
             )
 
+            MOBILE_ADAPTER = server.ROSParam[str](
+                'robot.mobile_adapter',
+                'nav2',
+            )
+
+            ARM_ADAPTER = server.ROSParam[str](
+                'robot.arm_adapter',
+                'moveit',
+            )
+
         class TaskMode:
             TM_ROBOTS = server.ROSParam[Constants.TaskMode.TM_Robots](
                 'tm_robots',

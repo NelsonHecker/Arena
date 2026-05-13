@@ -131,10 +131,12 @@
   <!-- Include sub files -->
   <xacro:include filename="$(find arena_robots)/robots/boxer/urdf/include/sensors.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/boxer/urdf/include/wheels_and_casters.urdf.xacro" />
+  <xacro:include filename="$(find arena_robots)/robots/boxer/urdf/base_hw/boxer.ros2_control.urdf" />
+  <xacro:include filename="$(find arena_robots)/robots/boxer/urdf/boxer.gazebo" />
+
+  <xacro:boxer_base_hw_controller/>
 
   <!-- User extensions -->
   <xacro:include filename="$(optenv BOXER_URDF_EXTRAS empty.urdf)" />
 
-  <!-- Bring in simulation data for Gazebo. -->
-  <xacro:include filename="$(find arena_robots)/robots/boxer/urdf/boxer.gazebo" />
 </robot>

@@ -1,0 +1,20 @@
+geometry_msgs/PoseStamped target  # Cartesian target; ignored if named_target is set
+string named_target               # if non-empty, joint-space named pose from caps/arm.yaml.named_poses
+float32 position_tolerance        # m, 0.0 = adapter default
+float32 orientation_tolerance     # rad, 0.0 = adapter default
+float32 planning_time             # s, 0.0 = default
+---
+uint8 STATUS_SUCCEEDED = 0
+uint8 STATUS_CANCELED = 1
+uint8 STATUS_ABORTED = 2
+uint8 STATUS_NO_IK = 3
+uint8 STATUS_NO_PLAN = 4
+uint8 STATUS_TIMEOUT = 5
+uint8 STATUS_UNKNOWN_NAMED = 6
+uint8 STATUS_UNSUPPORTED_CAP = 7
+uint8 status
+string reason
+geometry_msgs/PoseStamped final_pose
+---
+string state            # "PLANNING" | "EXECUTING" | "DONE"
+float32 progress        # 0..1

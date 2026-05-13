@@ -10,7 +10,7 @@ in [`arena_runtime/`](../arena_runtime/README.md).
 ## Guides
 
 - [Task system](task_generator/tasks/README.md) — `Task`, `TaskMode` ABC,
-  `TaskContext`, `_TaskRegistry`, the three axes, reset semantics.
+  `TaskContext`, the three mode registries, reset semantics.
 - [Robot task modes](task_generator/tasks/robots/README.md) — `TM_Robots`
   subclasses, fleet manager, adapters.
 - [Robot adapters](task_generator/tasks/robots/adapters/README.md) — `Adapter`
@@ -44,11 +44,13 @@ in [`arena_runtime/`](../arena_runtime/README.md).
 | Cross-cutting modules | `TM_Module` | *(empty set)* |
 
 All three are wired at import time in
-[`tasks/registry.py`](task_generator/tasks/registry.py) via
-`_TaskRegistry.register_robots`, `register_obstacles`, and `register_module`.
-Each registration stores a lazy loader (a zero-argument callable that imports
-and returns the class) and a `Namespace` derived from the enum value, so
-dependencies are not imported until the mode is first selected.
+[`tasks/registry.py`](task_generator/tasks/registry.py) via three
+`TaskModeRegistry` instances: `ROBOTS_MODES`, `OBSTACLES_MODES`, and
+`MODULE_MODES`. Each registration stores a lazy loader (a zero-argument
+callable that imports and returns the class) plus a `TaskModeMeta` (namespace
++ optional schema) keyed by the mode enum. Metadata is available without
+invoking the loader, so the impl module is not imported until the mode is
+first selected.
 
 `Task.__init__` reads `tm_robots`, `tm_obstacles`, and `tm_modules` from the
 ROS parameter server (via `node.conf.TaskMode.*`) and calls the matching

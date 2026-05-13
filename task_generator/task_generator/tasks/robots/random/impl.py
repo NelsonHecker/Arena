@@ -2,11 +2,11 @@ import math
 
 from task_generator.shared import Orientation, Pose, PositionRadius
 from task_generator.tasks.robots import TM_Robots
-from task_generator.tasks.robots.request import GoToPhase, TaskRequest
+from task_generator.tasks.robots.request import GoToPhase, ReachPhase, TaskPhase, TaskRequest
 
 
 class TM_Random(TM_Robots):
-    """Random-goal task mode."""
+    """Cap-blind random-action task mode."""
 
     async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
@@ -33,5 +33,11 @@ class TM_Random(TM_Robots):
             ROBOT_POSITIONS += list(zip(generated_positions[::2], generated_positions[1::2], strict=False))
 
         for robot, pos in zip(self._ctx.robots.values(), ROBOT_POSITIONS, strict=False):
-            await robot.move(pos[0])
-            await robot.submit_task(TaskRequest(phases=[GoToPhase(pose=pos[1])]))
+            self._start_poses[robot.name] = pos[0]
+            phases: list[TaskPhase] = [
+                GoToPhase(pose=pos[1]),
+                ReachPhase(named_target="ready", planning_time=2.0),
+                ReachPhase(random=True, planning_time=2.0),
+                ReachPhase(named_target="stow", planning_time=2.0),
+            ]
+            await robot.submit_task(TaskRequest(phases=phases))

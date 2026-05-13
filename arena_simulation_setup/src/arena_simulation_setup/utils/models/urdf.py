@@ -67,20 +67,26 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                 original_path = elem.attrib['filename']
 
                 if original_path.startswith(_PACKAGE_URI):
-                    pkg, _, sub = original_path[len(_PACKAGE_URI):].partition('/')
+                    pkg, _, sub = original_path[len(_PACKAGE_URI) :].partition('/')
                     try:
                         share = get_package_share_directory(pkg)
                         abs_path = os.path.join(share, sub)
                     except PackageNotFoundError:
                         abs_path = os.path.abspath(os.path.join(base_dir, sub))
-                    elem.attrib['filename'] = abs_path
-                    print(f"Resolved {original_path} -> {abs_path}")
+                    elem.attrib['filename'] = f"file://{abs_path}"
+                    print(f"Resolved {original_path} -> file://{abs_path}")
+                    continue
+
+                if original_path.startswith("file://"):
                     continue
 
                 if not os.path.isabs(original_path):
                     abs_path = os.path.abspath(os.path.join(base_dir, original_path))
-                    elem.attrib['filename'] = abs_path
-                    print(f"Updated relative path to absolute: {original_path} -> {abs_path}")
+                    elem.attrib['filename'] = f"file://{abs_path}"
+                    print(f"Updated relative path to absolute: {original_path} -> file://{abs_path}")
+                    continue
+
+                elem.attrib['filename'] = f"file://{original_path}"
 
             ser = ET.tostring(root, encoding="utf-8", method="xml", xml_declaration=True)
             async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".urdf", mode="wb") as tmp:

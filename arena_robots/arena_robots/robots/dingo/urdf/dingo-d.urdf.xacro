@@ -242,6 +242,9 @@
   <xacro:include filename="$(find arena_robots)/robots/dingo/urdf/pacs.urdf.xacro"/>
   <xacro:pacs/>
 
+  <!-- ros2_control hardware block (diff drive, DINGO_OMNI=0 only). -->
+  <xacro:include filename="$(find arena_robots)/robots/dingo/urdf/base_hw/dingo.ros2_control.urdf" />
+
   <!-- Bring in simulation data for Gazebo. -->
   <xacro:include filename="$(find arena_robots)/robots/dingo/urdf/dingo.gazebo" />
 
@@ -252,4 +255,6 @@
 
   <!-- Optional custom includes. -->
   <xacro:include filename="$(optenv DINGO_URDF_EXTRAS empty.urdf)" />
+
+  <xacro:dingo_base_hw_controller/>
 </robot>

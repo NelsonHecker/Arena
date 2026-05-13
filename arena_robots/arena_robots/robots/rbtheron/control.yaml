@@ -1,66 +1,48 @@
-# Content is based on the official rbtheron Gazebo (Ignition) controller parameters
 controller_manager:
   ros__parameters:
-    update_rate: 100  # Hz
+    update_rate: 50  # Hz
+    use_sim_time: true
 
-    # --- Controller Loading ---
-    # 1. Publishes all joint states
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-    # 2. Robot base controller
-    rbtheron_controller:
-      type: robotnik_controllers/RBTheronController
+    rbtheron_velocity_controller:
+      type: diff_drive_controller/DiffDriveController
 
-# --- Joint State Broadcaster Parameters ---
-joint_state_broadcaster:
+rbtheron_velocity_controller:
   ros__parameters:
     use_sim_time: true
 
-# --- Base Controller Parameters ---
-rbtheron_controller:
-  ros__parameters:
-    use_sim_time: true
-    
-    # --- Key physical parameters (from official file) ---
+    left_wheel_names: ["robot_left_wheel_joint"]
+    right_wheel_names: ["robot_right_wheel_joint"]
+
+    wheel_separation: 0.5032
     wheel_radius: 0.0762
-    track_width:  0.5032
-    wheel_base: 0.458
-    
-    # --- Joint names (from official file) ---
-    # These joint names must exactly match the drive wheel joints in the URDF
-    base:
-      left:
-        traction:
-          joint_name: robot_left_wheel_joint
-      right:
-        traction:
-          joint_name: robot_right_wheel_joint
 
-    # --- Coordinate Frames ---
-    # Ensure these names are consistent with the odom definition in your URDF and mappings.yaml
+    wheel_separation_multiplier: 1.0
+
+    publish_rate: 50.0
     odom_frame_id: odom
     base_frame_id: robot_base_footprint
+    pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 0.03]
+    twist_covariance_diagonal: [0.001, 0.001, 0.03, 1000000.0, 1000000.0, 0.03]
 
-    # --- Other Parameters ---
-    open_loop: true
-    cmd_vel_timeout: 1.0
-    publish_rate: 100.0
+    open_loop: false
+    enable_odom_tf: false
 
-    # --- Velocity and acceleration limits (from official file) ---
-    linear:
-      x:
-        has_velocity_limits: true
-        has_acceleration_limits: true
-        max_velocity: 1.0
-        min_velocity: -1.0
-        max_acceleration: 5.0
-        min_acceleration: -5.0
-    angular:
-      z:
-        has_velocity_limits: true
-        has_acceleration_limits: true
-        max_velocity: 1.0
-        min_velocity: -1.0
-        max_acceleration: 5.0
-        min_acceleration: -5.0
+    cmd_vel_timeout: 0.25
+    use_stamped_vel: true
+
+    publish_cmd: true
+    publish_wheel_data: true
+
+    linear.x.has_velocity_limits: true
+    linear.x.has_acceleration_limits: true
+    linear.x.max_velocity: 1.0
+    linear.x.min_velocity: -1.0
+    linear.x.max_acceleration: 5.0
+
+    angular.z.has_velocity_limits: true
+    angular.z.has_acceleration_limits: true
+    angular.z.max_velocity: 1.0
+    angular.z.max_acceleration: 5.0

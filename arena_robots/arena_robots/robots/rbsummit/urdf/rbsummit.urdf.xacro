@@ -11,9 +11,8 @@
 	<!-- Import summit XL macro -->
 	<xacro:include filename="$(find arena_robots)/robots/rbsummit/urdf/bases/rbsummit/rbsummit_base.xacro"/>
 
-    <xacro:include filename="$(find arena_robots)/robots/rbsummit/urdf/base_hw/rbsummit.ros2_control.urdf" />
-	<xacro:include filename="$(find arena_robots)/robots/rbsummit/simulators/gazebo_classic/rbsummit/rbsummit_control.urdf.xacro"/>
-	<xacro:include filename="$(find arena_robots)/robots/rbsummit/simulators/gazebo_ignition/rbsummit/rbsummit_control.urdf.xacro"/>
+	<xacro:include filename="$(find arena_robots)/robots/rbsummit/urdf/base_hw/rbsummit.ros2_control.urdf" />
+	<xacro:include filename="$(find arena_robots)/robots/rbsummit/urdf/rbsummit.gazebo" />
 
 	<!-- Import all available sensors -->
 	<xacro:include filename="$(find arena_robots)/robots/rbsummit/urdf/all_sensors.urdf.xacro" />
@@ -107,15 +106,10 @@
 	<!-- Controllers -->
     <xacro:if value="$(arg gazebo_classic)">
       <xacro:rbsummit_gz_classic_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
-        <xacro:ros_planar_move_gazebo_classic/>
-    </xacro:if>
-    <xacro:if value="$(arg gazebo_ignition)">
-      <xacro:rbsummit_gz_ignition_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
+      <xacro:ros_planar_move_gazebo_classic/>
     </xacro:if>
     <xacro:unless value="$(arg gazebo_classic)">
-      <xacro:unless value="$(arg gazebo_ignition)">
-        <xacro:rbsummit_base_hw_controller/>
-      </xacro:unless>
+      <xacro:rbsummit_base_hw_controller/>
     </xacro:unless>
 
 	<gazebo>

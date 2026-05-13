@@ -6,3 +6,10 @@ sensors:
     type: laserscan
     topic: ${namespace}/lidar
     frame: robot_front_laser_link
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/rbsummit/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - rbsummit_velocity_controller
+  cmd_vel_topic: rbsummit_velocity_controller/cmd_vel

@@ -45,13 +45,15 @@ def generate_launch_description():
         name='sim',
         default_value='dummy',
     )
-    navigator = LaunchArgument(
-        name='navigator',
+    mobile = LaunchArgument(
+        name='mobile',
         default_value=PythonExpression([str({"dummy": "none"}), '.get("', sim.substitution, '", "nav2")']),
-        description=(
-            'default navstack adapter kind [nav2, none, ...]. '
-            'per-robot ``navigator:`` in robot_setup YAML wins.'
-        ),
+        description='mobile adapter kind [nav2, none, ...]',
+    )
+    arm = LaunchArgument(
+        name='arm',
+        default_value='moveit',
+        description='arm adapter kind',
     )
     headless = LaunchArgument(
         name='headless',
@@ -140,7 +142,7 @@ def generate_launch_description():
     # to its internal SpawnEnv calls. Kept in sync with task_generator.launch.py args.
     _env_arg_sources: list[LaunchArgument] = [
         sim, human, tm_obstacles, tm_robots, task_config, tm_modules,
-        robot, inter_planner, local_planner, global_planner, navigator,
+        robot, inter_planner, local_planner, global_planner, mobile, arm,
         world, record_data_dir, debug, auto_reset,
     ]
 

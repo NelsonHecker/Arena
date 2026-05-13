@@ -41,9 +41,7 @@ presence IS the advertisement**: `caps/arm.yaml` existing means this robot
 advertises `arm`. Derived at load time as `robot_view.caps.available` — a
 `frozenset[str]` of cap stems.
 
-Adapters declare `requires: set[str]`; the broker gates binding on
-`adapter.requires ⊆ robot.caps.available`. A cap must have a documented
-vocabulary entry before any adapter cites it in `requires`.
+Adapters declare `requires: frozenset[str]` via `@BringupMeta.attach(requires=frozenset({...}))` on the `Bringup` subclass; the broker gates binding on `adapter.requires ⊆ robot.caps.available`. A cap must have a documented vocabulary entry before any adapter cites it in `requires`.
 
 #### Active cap vocabulary
 

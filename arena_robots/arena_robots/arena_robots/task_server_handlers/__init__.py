@@ -59,4 +59,7 @@ async def _executor_sleep(node: object, seconds: float, *, wall: bool = False) -
         node.destroy_timer(timer)
 
 
-from . import goto_pose  # noqa: E402,F401
+from . import (
+    goto_pose,  # noqa: E402,F401
+    reach_pose,  # noqa: E402,F401
+)

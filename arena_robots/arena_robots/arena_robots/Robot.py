@@ -31,7 +31,6 @@ class ControlSpec:
     controllers: tuple[str, ...]
     config: str | None = None
     cmd_vel_topic: str = "cmd_vel"
-    xacro_args: typing.Mapping[str, str] = attrs.field(factory=dict)
 
     @classmethod
     def from_dict(cls, data: typing.Mapping[str, typing.Any]) -> "ControlSpec":
@@ -41,15 +40,11 @@ class ControlSpec:
             raise ValueError(f"control.controllers must be a list; got {type(controllers_raw).__name__}")
         controllers = tuple(str(c) for c in controllers_raw)
         config = data.get("config")
-        xacro_args_raw = data.get("xacro_args", {}) or {}
-        if not isinstance(xacro_args_raw, dict):
-            raise ValueError(f"control.xacro_args must be a mapping; got {type(xacro_args_raw).__name__}")
         return cls(
             mode=mode,
             controllers=controllers,
             config=str(config) if config is not None else None,
             cmd_vel_topic=str(data.get("cmd_vel_topic", "cmd_vel")),
-            xacro_args={str(k): str(v) for k, v in xacro_args_raw.items()},
         )
 
     @property

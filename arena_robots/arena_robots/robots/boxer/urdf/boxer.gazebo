@@ -1,23 +1,15 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://wiki.ros.org/xacro">
-  <xacro:arg name="robot_namespace" default="/" />
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:arg name="namespace" default=""/>
+  <xacro:arg name="gazebo_controllers" default=""/>
 
   <gazebo>
-    <!-- Plugin for ros_control (actuate drive motors, lift). -->
-    <!-- <plugin
-      filename="libgz_ros2_control-system.so"
-      name="gz_ros2_control::GazeboSystem">
-      <parameters>$(find arena_robots)/robots/boxer/control.yaml</parameters>
-    </plugin> -->
-
-    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
-      <left_joint>wheel_left_joint</left_joint>
-      <right_joint>wheel_right_joint</right_joint>
-      <wheel_separation>0.48</wheel_separation>
-      <wheel_radius>0.095</wheel_radius>
-      <odom_publish_frequency>50</odom_publish_frequency>
-      <!-- Suppress wheel-slip-polluted TF; pose_to_tf publishes odom→base_link from ground truth instead. -->
-      <tf_topic>/discard_tf</tf_topic>
+    <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg gazebo_controllers)</parameters>
+      <ros>
+        <namespace>$(arg namespace)</namespace>
+      </ros>
     </plugin>
   </gazebo>
 
@@ -52,4 +44,5 @@
     <mu2>100</mu2>
     <minDepth>0.0</minDepth>
   </gazebo>
+
 </robot>

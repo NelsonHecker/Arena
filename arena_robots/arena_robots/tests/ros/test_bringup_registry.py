@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from arena_rclpy_mixins.registry import ClassRegistry
 
 
@@ -57,80 +56,49 @@ class TestBringupsRegistry:
 
     def test_nav2_is_registered(self):
         from arena_robots.bringup import BRINGUPS
-        from arena_robots.bringup.nav2 import Nav2Bringup
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 
         assert "nav2" in BRINGUPS
         assert BRINGUPS.get("nav2") is Nav2Bringup
 
     def test_none_is_registered(self):
         from arena_robots.bringup import BRINGUPS
-        from arena_robots.bringup.none import NoneBringup
+        from arena_robots.bringup.mobile.none import NoneBringup
 
         assert "none" in BRINGUPS
         assert BRINGUPS.get("none") is NoneBringup
 
     def test_external_is_registered(self):
         from arena_robots.bringup import BRINGUPS
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         assert "external" in BRINGUPS
         assert BRINGUPS.get("external") is ExternalBringup
 
     def test_test_collision_is_registered(self):
         from arena_robots.bringup import BRINGUPS
-        from arena_robots.bringup.test_collision import TestCollisionBringup
+        from arena_robots.bringup.mobile.test_collision import TestCollisionBringup
 
         assert "test-collision" in BRINGUPS
         assert BRINGUPS.get("test-collision") is TestCollisionBringup
 
+    def test_bringup_kind_classvar_matches_registry_key(self):
+        """Convention guard: each bringup's `kind` ClassVar must equal its registry key."""
+        from arena_robots.bringup import BRINGUPS
+        for key in BRINGUPS.keys():
+            cls = BRINGUPS.get(key)
+            assert cls.kind == key, f"{cls.__name__}.kind={cls.kind!r} != registry key {key!r}"
 
-class TestCheckCaps:
-    def test_matching_caps_no_raise(self):
-        from arena_robots.bringup import check_caps
-
-        robot = _make_mock_robot(frozenset({"mobile"}))
-        mock_bringup = MagicMock()
-        mock_bringup.requires = frozenset({"mobile"})
-        mock_bringup.kind = "nav2"
-        mock_bringup.robot = robot
-        check_caps(mock_bringup)
-
-    def test_missing_cap_raises_adapter_cap_mismatch(self):
-        from arena_robots.bringup import AdapterCapMismatch, check_caps
-
-        robot = _make_mock_robot(frozenset())
-        mock_bringup = MagicMock()
-        mock_bringup.requires = frozenset({"mobile"})
-        mock_bringup.kind = "nav2"
-        mock_bringup.robot = robot
-        with pytest.raises(AdapterCapMismatch, match="mobile"):
-            check_caps(mock_bringup)
-
-    def test_superset_caps_no_raise(self):
-        from arena_robots.bringup import check_caps
-
-        robot = _make_mock_robot(frozenset({"mobile", "arm", "lift"}))
-        mock_bringup = MagicMock()
-        mock_bringup.requires = frozenset({"mobile"})
-        mock_bringup.kind = "nav2"
-        mock_bringup.robot = robot
-        check_caps(mock_bringup)
-
-    def test_partial_caps_raises(self):
-        from arena_robots.bringup import AdapterCapMismatch, check_caps
-
-        robot = _make_mock_robot(frozenset({"mobile"}))
-        mock_bringup = MagicMock()
-        mock_bringup.requires = frozenset({"mobile", "arm"})
-        mock_bringup.kind = "custom"
-        mock_bringup.robot = robot
-        with pytest.raises(AdapterCapMismatch):
-            check_caps(mock_bringup)
+    def test_bringup_meta_attached_on_every_bringup(self):
+        from arena_robots.bringup import BRINGUPS, BringupMeta
+        for key in BRINGUPS.keys():
+            cls = BRINGUPS.get(key)
+            assert isinstance(cls._bringup_meta, BringupMeta), f"{cls.__name__} missing _bringup_meta"
 
 
 class TestAcceptsTaskKinds:
     def test_nav2_bringup_accepts_goto_pose(self):
-        from arena_robots.bringup.nav2 import Nav2Bringup
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
         from arena_robots.task_kinds import TaskKind
 
         robot = _make_mock_robot(frozenset({"mobile"}))
@@ -138,7 +106,7 @@ class TestAcceptsTaskKinds:
         assert TaskKind.GOTO_POSE in b.accepts_task_kinds
 
     def test_none_bringup_accepts_goto_pose(self):
-        from arena_robots.bringup.none import NoneBringup
+        from arena_robots.bringup.mobile.none import NoneBringup
         from arena_robots.task_kinds import TaskKind
 
         robot = _make_mock_robot(frozenset({"mobile"}))

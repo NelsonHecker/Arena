@@ -16,7 +16,11 @@ class TM_Guided(TM_Random):
 
     async def set_position(self, pose: Pose):
         del pose
-        await self._reset_waypoints()
+        self._waypoints = []
+        for robot in self._ctx.robots.values():
+            await robot.move(robot.start_pos)
+            await robot.submit_task(TaskRequest(phases=[GoToPhase(pose=robot.start_pos)]))
+        self.node.rosparam[list[list[float]]].set(self.PARAM_WAYPOINTS, [])
 
     async def set_goal(self, pose: Pose):
         """Append a waypoint and re-submit the full sequence."""
@@ -32,10 +36,8 @@ class TM_Guided(TM_Random):
         del args, kwargs
         self._waypoints = []
 
-        # Stand each robot at its start pose by submitting a single-phase
-        # request there — clears any outstanding TaskRequest.
         for robot in self._ctx.robots.values():
-            await robot.move(robot.start_pos)
+            self._start_poses[robot.name] = robot.start_pos
             await robot.submit_task(TaskRequest(phases=[GoToPhase(pose=robot.start_pos)]))
 
         self.node.rosparam[list[list[float]]].set(self.PARAM_WAYPOINTS, [])

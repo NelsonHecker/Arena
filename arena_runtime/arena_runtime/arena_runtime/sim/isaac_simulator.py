@@ -5,12 +5,15 @@ import random
 import traceback
 import types
 import typing
+import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 
 import arena_people_msgs.msg
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Material
 import isaacsim_msgs.msg
+import launch
+import launch_ros
 import std_msgs.msg
 import std_srvs.srv
 from arena_people_msgs.msg import Pedestrian, SpawnPedestrian
@@ -61,11 +64,83 @@ from task_generator.shared import Wall as WallDefinition
 
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim, SimLifecycle
+from arena_runtime.sim._control import (
+    controller_spawner_node,
+    render_ros2_control_yaml,
+    twist_stamper_node,
+)
 
 """
 IsaacHost is constructed once by arena_node and owns process-singleton resources for Isaac: the lifecycle (pause/unpause/cleanup) and the pause/unpause/delete service clients.
 IsaacSimulator is per-env on task_generator_node and adapts env-namespace state (per-robot publishers, env-prefixed entity names) over those shared resources.
 """
+
+_NATIVE_CONTROLLER_TYPES: frozenset[str] = frozenset(
+    {
+        'diff_drive_controller/DiffDriveController',
+        'mecanum_drive_controller/MecanumDriveController',
+        'joint_state_broadcaster/JointStateBroadcaster',
+        'joint_trajectory_controller/JointTrajectoryController',
+        'position_controllers/JointGroupPositionController',
+        'forward_command_controller/ForwardCommandController',
+    }
+)
+
+
+def _find_bridge_controllers(control: dict) -> list[tuple[str, str]]:
+    """Return (name, type) pairs for controllers not handled by native Isaac graphs."""
+    result: list[tuple[str, str]] = []
+    params = control.get('controller_manager', {}).get('ros__parameters', {})
+    for name, cfg in params.items():
+        if not isinstance(cfg, dict):
+            continue
+        ctype = cfg.get('type')
+        if ctype is not None and ctype not in _NATIVE_CONTROLLER_TYPES:
+            result.append((name, ctype))
+    return result
+
+
+def _transform_urdf_for_bridge(
+    urdf_path: str,
+    commands_topic: str,
+    states_topic: str,
+    out_path: str,
+) -> None:
+    """Parse the robot URDF and swap gz_ros2_control/GazeboSimSystem to
+    joint_state_topic_hardware_interface/JointStateTopicSystem, adding the topic params.
+    Also add <state_interface name="effort"/> to every joint, since JointStateTopicSystem
+    unconditionally writes effort if the incoming JointState has it. Writes to out_path.
+    """
+    bridge_plugin = 'joint_state_topic_hardware_interface/JointStateTopicSystem'
+    tree = ET.parse(urdf_path)
+    root = tree.getroot()
+
+    for plugin_el in root.iter('plugin'):
+        if plugin_el.text and plugin_el.text.strip() == 'gz_ros2_control/GazeboSimSystem':
+            plugin_el.text = bridge_plugin
+
+    for ros2_control in root.iter('ros2_control'):
+        hardware = ros2_control.find('hardware')
+        if hardware is None:
+            continue
+        plugin_el = hardware.find('plugin')
+        if plugin_el is None or not plugin_el.text or plugin_el.text.strip() != bridge_plugin:
+            continue
+        cmd_param = ET.SubElement(hardware, 'param')
+        cmd_param.set('name', 'joint_commands_topic')
+        cmd_param.text = commands_topic
+        state_param = ET.SubElement(hardware, 'param')
+        state_param.set('name', 'joint_states_topic')
+        state_param.text = states_topic
+        for joint in ros2_control.findall('joint'):
+            if any(
+                si.get('name') == 'effort' for si in joint.findall('state_interface')
+            ):
+                continue
+            effort = ET.SubElement(joint, 'state_interface')
+            effort.set('name', 'effort')
+
+    tree.write(out_path, encoding='utf-8', xml_declaration=True)
 
 
 class IsaacHost(SimLifecycle):
@@ -150,6 +225,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         # can be informed about spawned entities in the IsaacSim process.
         self._reg_pub = self.node.create_publisher(StdString, '/isaac/register_entity', 10)
 
+
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
             try:
@@ -173,7 +249,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                             urdf_path=str(model.path),
                             robot_model=robot.model.name,
                             localization=True,
-                            tf_prefix=robot.frame.raw(),
+                            tf_prefix=robot.frame.tf(),
                             base_frame=robot_params.base_frame,
                             odom_frame=robot_params.odom_frame,
                             pose=robot.pose.to_msg(),
@@ -197,6 +273,28 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     except Exception as e:
                         self._logger.warning(f'Failed to publish robot registration: {e}\n{traceback.format_exc()}')
 
+                    control_spec = robot_params.control
+                    bridge_controllers: list[tuple[str, str]] = []
+                    if control_spec is not None and control_spec.is_ros2_control:
+                        bridge_controllers = _find_bridge_controllers((await arena_robots.Robot.RobotIdentifier(robot.model.name).resolve()).control)
+
+                    # Jazzy controller_manager reads URDF from the robot_description topic, not
+                    # its parameter; feed RSP the bridge URDF so the same topic serves both
+                    # RViz/Nav2 (which only care about link/joint geometry) and the bridge
+                    # controller_manager (which needs TopicBasedSystem as the hw plugin).
+                    rsp_urdf_path = str(model.path)
+                    if bridge_controllers:
+                        rsp_urdf_path = os.path.join('/tmp', f"arena_bridge_{robot.frame.sanitize()}.urdf")
+                        ns = str(self.node.service_namespace(robot.name))
+                        _transform_urdf_for_bridge(
+                            str(model.path),
+                            f"{ns}/isaac/joint_commands",
+                            f"{ns}/isaac/joint_states",
+                            rsp_urdf_path,
+                        )
+
+                    await self._launch_robot_stack(robot, robot_params, rsp_urdf_path, bridge_controllers)
+
                     return True
 
                 # TODO
@@ -207,6 +305,85 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 return False
 
         return await asyncio.gather(*map(impl, robots))
+
+    async def _launch_robot_stack(
+        self,
+        robot: Robot,
+        robot_params: arena_robots.Robot.ModelParams,
+        urdf_path: str,
+        bridge_controllers: list[tuple[str, str]],
+    ) -> None:
+        """Launch RSP and (if bridge controllers exist) controller_manager + spawners + twist_stamper."""
+        ns = str(self.node.service_namespace(robot.name))
+        with open(urdf_path) as f:
+            description = f.read()
+
+        ld = launch.LaunchDescription()
+        ld.add_action(launch_ros.actions.PushRosNamespace(namespace=ns))
+
+        ld.add_action(
+            launch_ros.actions.Node(
+                package='robot_state_publisher',
+                executable='robot_state_publisher',
+                name='robot_state_publisher',
+                output='screen',
+                parameters=[
+                    {'use_sim_time': True},
+                    {'robot_description': description},
+                    {'frame_prefix': robot.frame.tf()},
+                ],
+            )
+        )
+
+        if bridge_controllers:
+            control_spec = robot_params.control
+            assert control_spec is not None
+
+            rendered_yaml = (
+                render_ros2_control_yaml(
+                    control_spec.config,
+                    robot.sim_path,
+                    robot.frame.tf(),
+                )
+                if control_spec.config is not None
+                else None
+            )
+
+            cm_params: list[object] = [{'use_sim_time': True}]
+            if rendered_yaml is not None:
+                cm_params.append(rendered_yaml)
+
+            cm_node = launch_ros.actions.Node(
+                package='controller_manager',
+                executable='ros2_control_node',
+                name='controller_manager',
+                output='screen',
+                parameters=cm_params,
+            )
+            ld.add_action(cm_node)
+            urdf_pub_node = launch_ros.actions.Node(
+                package='arena_runtime',
+                executable='urdf_publisher',
+                name='urdf_publisher',
+                output='screen',
+                parameters=[{'robot_description': description}],
+            )
+            ld.add_action(
+                launch.actions.RegisterEventHandler(
+                    launch.event_handlers.OnProcessStart(
+                        target_action=cm_node,
+                        on_start=[urdf_pub_node],
+                    )
+                )
+            )
+            for controller_name, _ in bridge_controllers:
+                ld.add_action(controller_spawner_node(controller_name))
+            ld.add_action(twist_stamper_node(
+                control_spec.cmd_vel_topic,
+                robot.frame.tf(robot_params.base_frame),
+            ))
+
+        await self.node.do_launch(ld)
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
 

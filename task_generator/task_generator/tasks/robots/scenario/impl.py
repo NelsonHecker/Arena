@@ -13,7 +13,7 @@ class TM_Scenario(TM_Robots):
     _config: ROSParamT[list[RobotGoal]]
 
     def _parse_scenario(self, scenario: str) -> list[RobotGoal]:
-        return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
+        return WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario(scenario).resolve_sync().load().robots
 
     async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
@@ -34,7 +34,7 @@ class TM_Scenario(TM_Robots):
             self._logger.warn("Scenario file contains more robots than setup.", once=True)
 
         for robot, config in zip(managed_robots, SCENARIO_ROBOTS, strict=False):
-            await robot.move(config.start)
+            self._start_poses[robot.name] = config.start
             await robot.submit_task(TaskRequest(phases=[GoToPhase(pose=config.goal)]))
             self._ctx.world_manager.forbid(
                 [

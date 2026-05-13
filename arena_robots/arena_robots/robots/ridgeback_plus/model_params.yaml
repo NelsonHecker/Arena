@@ -12,4 +12,5 @@ control:
   controllers:
     - joint_state_broadcaster
     - platform_velocity_controller
+    - arm_controller
   cmd_vel_topic: platform_velocity_controller/reference

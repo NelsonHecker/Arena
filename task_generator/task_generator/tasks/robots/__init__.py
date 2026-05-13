@@ -23,9 +23,15 @@ class TM_Robots(TaskMode):
     """
 
     _last_reset: int
+    _start_poses: dict[str, Pose]
+
+    @property
+    def start_poses(self) -> dict[str, Pose]:
+        return self._start_poses
 
     async def reset(self, **kwargs: object) -> None:
         self._last_reset = self.node.sim_time.sec
+        self._start_poses = {}
 
     async def set_position(self, pose: Pose):
         """Teleport every robot to ``pose``."""

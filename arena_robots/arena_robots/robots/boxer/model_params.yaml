@@ -10,3 +10,10 @@ sensors:
     type: laserscan
     topic: ${namespace}/rear_laser
     frame: lidar
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/boxer/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - boxer_velocity_controller
+  cmd_vel_topic: boxer_velocity_controller/cmd_vel

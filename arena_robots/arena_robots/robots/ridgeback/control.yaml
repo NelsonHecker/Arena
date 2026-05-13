@@ -18,20 +18,21 @@ ridgeback_velocity_controller:
 
     wheel_separation: 0.551
     wheel_radius: 0.0759
-    wheel_separation_multiplier: 1.0
-    left_wheel_radius_multiplier: 1.0
-    right_wheel_radius_multiplier: 1.0
+
+    # 4-wheel skid scrubs during rotation; 1.5 is empirical for ridgeback.
+    wheel_separation_multiplier: 1.5
 
     publish_rate: 50.0
-    cmd_vel_timeout: 0.5
-    open_loop: false
-
-    base_frame_id: base_link
     odom_frame_id: odom
-    enable_odom_tf: false
-
+    base_frame_id: base_link
     pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 0.03]
     twist_covariance_diagonal: [0.001, 0.001, 0.001, 1000000.0, 1000000.0, 0.03]
+
+    open_loop: false
+    enable_odom_tf: false
+
+    cmd_vel_timeout: 0.5
+    use_stamped_vel: true
 
     linear.x.has_velocity_limits: true
     linear.x.has_acceleration_limits: true
