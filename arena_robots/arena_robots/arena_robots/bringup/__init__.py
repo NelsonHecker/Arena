@@ -44,9 +44,10 @@ class BringupMeta:
 class Bringup(ABC):
     kind: ClassVar[str]
 
-    def __init__(self, robot: RobotView, namespace: str) -> None:
+    def __init__(self, robot: RobotView, namespace: str, *, frame: str = "") -> None:
         self.robot = robot
         self.namespace = Namespace(namespace)
+        self.frame = frame
 
     @property
     def cap(self) -> str:

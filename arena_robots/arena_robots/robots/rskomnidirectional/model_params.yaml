@@ -6,3 +6,10 @@ sensors:
     type: laserscan
     topic: ${namespace}/lidar
     frame: lidar
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/rskomnidirectional/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - rskomni_velocity_controller
+  cmd_vel_topic: rskomni_velocity_controller/cmd_vel

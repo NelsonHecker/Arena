@@ -26,4 +26,8 @@
   <!-- gz_ros2_control plugin (loads control.yaml; namespace + path set via xacro args) -->
   <xacro:include filename="$(find arena_robots)/robots/ridgeback_plus/urdf/ridgeback_plus.gazebo"/>
 
+  <!-- r100 already provides imu_0_link, only the lidar half is needed -->
+  <xacro:include filename="$(find arena_robots)/config/urdf/sensors/default.xacro"/>
+  <xacro:arena_default_nav_sensors parent_link="base_link" with_imu="false"/>
+
 </robot>

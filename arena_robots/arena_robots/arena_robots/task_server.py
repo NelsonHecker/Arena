@@ -24,6 +24,7 @@ class TaskServerNode(Node):
         robot_name = self.declare_parameter("robot_name", "").value
         bringup_caps = cast(list[str], self.declare_parameter("bringup_caps", Parameter.Type.STRING_ARRAY).value)
         bringup_kinds = cast(list[str], self.declare_parameter("bringup_kinds", Parameter.Type.STRING_ARRAY).value)
+        frame = cast(str, self.declare_parameter("frame", "").value)
 
         if not robot_name:
             raise RuntimeError("Parameter 'robot_name' is required")
@@ -55,7 +56,7 @@ class TaskServerNode(Node):
                 continue
 
             try:
-                bringup = bringup_cls(robot, namespace)
+                bringup = bringup_cls(robot, namespace, frame=frame)
                 check_caps(bringup)
             except Exception as exc:
                 self.get_logger().error(f"bringup ({cap!r}, {kind!r}) init failed: {exc}; skipping")

@@ -24,6 +24,7 @@
 
   <xacro:arg name="namespace" default="robot"/>
   <xacro:arg name="prefix" default="robot_"/>
+  <xacro:arg name="sim_path" default=""/>
   <xacro:arg name="gazebo_classic" default="false"/>
   <xacro:arg name="gazebo_ignition" default="true"/>
   <!-- When true, fall back to legacy rbrobout_gz_ignition_control (its own ros2_control + plugin).
@@ -76,7 +77,8 @@
       physical_parameters_file="$(arg physical_params)"
       visual_parameters_file="$(arg visual_params)"
       sim_gazebo="$(arg gazebo_classic)"
-      sim_ignition="$(arg gazebo_ignition)">
+      sim_ignition="$(arg gazebo_ignition)"
+      generate_ros2_control_tag="false">
       <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:ur_robot>
 

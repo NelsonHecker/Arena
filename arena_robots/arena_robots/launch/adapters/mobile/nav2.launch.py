@@ -129,9 +129,12 @@ def generate_launch_description():
         bringup_cmd_group = GroupAction([
             *(SetRemap(src=r[0], dst=r[1]) for r in remappings),
             # nav2 nodes
+            # cmd_vel chain: controller -> cmd_vel_nav -> smoother -> cmd_vel_smoothed <- behaviors
+            #                cmd_vel_smoothed -> collision_monitor -> cmd_vel (-> twist_stamper)
             Node(
                 package='nav2_controller', executable='controller_server', name='controller_server',
-                output='screen', parameters=[nav2_configured_params]
+                output='screen', parameters=[nav2_configured_params],
+                remappings=[('cmd_vel', 'cmd_vel_nav')],
             ),
             Node(
                 package='nav2_smoother', executable='smoother_server', name='smoother_server',
@@ -143,7 +146,8 @@ def generate_launch_description():
             ),
             Node(
                 package='nav2_behaviors', executable='behavior_server', name='behavior_server',
-                output='screen', parameters=[nav2_configured_params]
+                output='screen', parameters=[nav2_configured_params],
+                remappings=[('cmd_vel', 'cmd_vel_smoothed')],
             ),
             Node(
                 package='nav2_bt_navigator', executable='bt_navigator', name='bt_navigator',
@@ -155,7 +159,8 @@ def generate_launch_description():
             ),
             Node(
                 package='nav2_velocity_smoother', executable='velocity_smoother', name='velocity_smoother',
-                output='screen', parameters=[nav2_configured_params]
+                output='screen', parameters=[nav2_configured_params],
+                remappings=[('cmd_vel', 'cmd_vel_nav'), ('smoothed_cmd_vel', 'cmd_vel_smoothed')],
             ),
             Node(
                 package='nav2_collision_monitor', executable='collision_monitor', name='collision_monitor',

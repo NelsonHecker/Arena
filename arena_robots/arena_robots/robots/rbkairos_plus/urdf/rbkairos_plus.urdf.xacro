@@ -23,6 +23,7 @@
   <xacro:arg name="gazebo_classic" default="false"/>
   <xacro:arg name="gazebo_ignition" default="true"/>
   <xacro:arg name="gazebo_controllers" default=""/>
+  <xacro:arg name="sim_path" default=""/>
 
   <xacro:arg name="ur_type" default="ur5e"/>
   <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
@@ -61,7 +62,8 @@
       physical_parameters_file="$(arg physical_params)"
       visual_parameters_file="$(arg visual_params)"
       sim_gazebo="$(arg gazebo_classic)"
-      sim_ignition="$(arg gazebo_ignition)">
+      sim_ignition="$(arg gazebo_ignition)"
+      generate_ros2_control_tag="false">
       <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:ur_robot>
 

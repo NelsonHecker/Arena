@@ -16,6 +16,7 @@ def generate_launch_description():
 
     robot = LaunchArgument("robot")
     namespace = LaunchArgument("namespace")
+    frame = LaunchArgument("frame")
     use_sim_time = LaunchArgument("use_sim_time")
     arm_controller = LaunchArgument("arm_controller")
     arm_joints_json = LaunchArgument("arm_joints_json")
@@ -27,7 +28,9 @@ def generate_launch_description():
         controller_name = arm_controller.substitution.perform(context)
         joints = json.loads(arm_joints_json.substitution.perform(context))
 
-        moveit_params = build_moveit_params(robot_name)
+        tf_prefix = frame.substitution.perform(context)
+
+        moveit_params = build_moveit_params(robot_name, tf_prefix=tf_prefix)
         if moveit_params is None:
             raise ValueError(f"{robot_name}: missing 'arm' cap or moveit.package; cannot launch moveit adapter")
 

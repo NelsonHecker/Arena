@@ -138,7 +138,9 @@ class ConfigFileGenerator(ArenaMixinNode):
         combined: dict[str, object] = {}
         arm_names: list[str] = []
         for robot in self.robots:
-            params = build_moveit_params(robot.model)
+            tf_prefix = FrameNamespace(robot.frame).raw()
+            tf_prefix = tf_prefix + "/" if tf_prefix else ""
+            params = build_moveit_params(robot.model, tf_prefix=tf_prefix)
             if params is None:
                 continue
             arm_names.append(robot.name)

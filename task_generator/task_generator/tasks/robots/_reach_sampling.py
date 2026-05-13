@@ -8,16 +8,15 @@ import geometry_msgs.msg
 
 if TYPE_CHECKING:
     import numpy.random
-    from arena_rclpy_mixins.shared import Namespace
+    from arena_rclpy_mixins.shared import FrameNamespace
     from arena_robots.caps import ArmSpec
 
 
-def sample_reach_target(arm: ArmSpec, robot_ns: Namespace, rng: numpy.random.Generator) -> geometry_msgs.msg.PoseStamped:
+def sample_reach_target(arm: ArmSpec, robot_frame: FrameNamespace, rng: numpy.random.Generator) -> geometry_msgs.msg.PoseStamped:
     """Uniform-in-box sample over ``arm.workspace`` (cap-file-declared).
 
-    Returns a PoseStamped with frame_id = ``<robot_ns>/<workspace.frame>``
-    and identity orientation. Caller is responsible for IK / collision rejection;
-    the MoveIt handler will return NO_IK / NO_PLAN for unreachable samples."""
+    Returns a PoseStamped with frame_id = ``<robot_frame>/<workspace.frame>`` (TF prefix,
+    matching robot_state_publisher) and identity orientation."""
     ws = arm.workspace
     if ws is None:
         raise ValueError(f"arm '{arm.name}' has no workspace declaration; cannot sample reach targets")
@@ -28,7 +27,7 @@ def sample_reach_target(arm: ArmSpec, robot_ns: Namespace, rng: numpy.random.Gen
     frame = ws.get("frame", "base_link")
 
     msg = geometry_msgs.msg.PoseStamped()
-    msg.header.frame_id = str(robot_ns(str(frame)))
+    msg.header.frame_id = robot_frame.tf(str(frame))
     msg.pose.position.x = float(rng.uniform(lo[0], hi[0]))
     msg.pose.position.y = float(rng.uniform(lo[1], hi[1]))
     msg.pose.position.z = float(rng.uniform(lo[2], hi[2]))

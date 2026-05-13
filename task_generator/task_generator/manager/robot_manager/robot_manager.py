@@ -513,6 +513,7 @@ class RobotManager(NodeInterface):
                                 "robot_name": self._robot.model.name,
                                 "bringup_caps": bringup_caps,
                                 "bringup_kinds": bringup_kinds,
+                                "frame": self._robot.frame.tf(),
                                 "use_sim_time": adapter_ctx.use_sim_time,
                             }
                         ],

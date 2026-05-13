@@ -56,7 +56,7 @@ class MoveItArmAdapter(Adapter):
                 raise ValueError(f"random ReachPhase requested but robot {robot.name!r} has no arm cap")
             (arm,) = arms.values()
             rng = robot.node.conf.General.RNG.value
-            goal.target = sample_reach_target(arm, robot.namespace, rng)
+            goal.target = sample_reach_target(arm, robot.frame, rng)
         elif phase.target is not None:
             goal.target = phase.target
         elif phase.named_target is not None:

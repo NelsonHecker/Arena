@@ -24,11 +24,28 @@
   </group_state>
 
   <disable_collisions link1="robot_top_cover" link2="robot_arm_base_link" reason="Adjacent"/>
+  <disable_collisions link1="robot_top_cover" link2="robot_arm_base_link_inertia" reason="Adjacent"/>
+  <disable_collisions link1="robot_arm_base_link" link2="robot_arm_base_link_inertia" reason="Adjacent"/>
   <disable_collisions link1="robot_arm_base_link" link2="robot_arm_shoulder_link" reason="Adjacent"/>
+  <disable_collisions link1="robot_arm_base_link_inertia" link2="robot_arm_shoulder_link" reason="Adjacent"/>
   <disable_collisions link1="robot_arm_shoulder_link" link2="robot_arm_upper_arm_link" reason="Adjacent"/>
   <disable_collisions link1="robot_arm_upper_arm_link" link2="robot_arm_forearm_link" reason="Adjacent"/>
   <disable_collisions link1="robot_arm_forearm_link" link2="robot_arm_wrist_1_link" reason="Adjacent"/>
   <disable_collisions link1="robot_arm_wrist_1_link" link2="robot_arm_wrist_2_link" reason="Adjacent"/>
   <disable_collisions link1="robot_arm_wrist_2_link" link2="robot_arm_wrist_3_link" reason="Adjacent"/>
+
+  <!-- chassis-mounted bodies (fixed-jointed off base_link) -->
+  <disable_collisions link1="robot_base_link" link2="robot_top_cover" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_base_logo_left" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_base_logo_right" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_base_logo_front" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_base_logo_rear" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_base_docking_contact" reason="Adjacent"/>
+
+  <!-- mecanum drive wheels (continuous wheel_joint off base_link) -->
+  <disable_collisions link1="robot_base_link" link2="robot_front_right_wheel_link" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_front_left_wheel_link" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_back_left_wheel_link" reason="Adjacent"/>
+  <disable_collisions link1="robot_base_link" link2="robot_back_right_wheel_link" reason="Adjacent"/>
 
 </robot>

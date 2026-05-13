@@ -115,3 +115,9 @@
 	branch = jazzy
 	update = none
 	robot = rbvogui rbvogui_plus
+[submodule "arena_robots/deps/arena_omni_drive_controller"]
+	path = arena_robots/deps/arena_omni_drive_controller
+	url = https://github.com/arena-robots/arena_omni_drive_controller.git
+	branch = jazzy
+	update = none
+	robot = rskomnidirectional

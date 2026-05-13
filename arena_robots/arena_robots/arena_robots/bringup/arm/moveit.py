@@ -16,7 +16,6 @@ class MoveItArmBringup(Bringup):
     kind = "moveit"
 
     def _launch_actions(self, *, use_sim_time: bool = True, frame: str = "", **launch_args: object) -> list[Action]:
-        del frame  # moveit_factory reads the URDF straight from arm.yaml
         arms = self.robot.caps.arm
         if arms is None:
             raise ValueError(f"{self.robot.name}: arm cap required but absent")
@@ -42,6 +41,7 @@ class MoveItArmBringup(Bringup):
                 launch_arguments={
                     "robot": self.robot.name,
                     "namespace": str(self.namespace),
+                    "frame": frame,
                     "use_sim_time": str(use_sim_time).lower(),
                     "arm_controller": arm.controller,
                     "arm_joints_json": json.dumps(list(arm.chain)),

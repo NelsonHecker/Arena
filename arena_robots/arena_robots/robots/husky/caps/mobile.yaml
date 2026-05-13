@@ -1,5 +1,5 @@
 odom_frame: odom
-sensor_frame: base_scan
+sensor_frame: lidar
 radius: 0.5
 is_holonomic: false
 

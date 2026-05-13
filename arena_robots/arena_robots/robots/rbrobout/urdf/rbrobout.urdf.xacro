@@ -16,6 +16,7 @@
 
   <xacro:arg name="namespace" default="robot"/>
   <xacro:arg name="prefix" default="robot_"/>
+  <xacro:arg name="sim_path" default=""/>
   <xacro:arg name="gazebo_ignition" default="true"/>
   <xacro:arg name="gazebo_controllers" default=""/>
 

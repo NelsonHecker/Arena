@@ -47,6 +47,7 @@ class ReachPoseHandlerMoveIt:
         self._node = node
         action_name = bringup.namespace("move_action")
         self._native_client = ActionClient(node, MoveGroup, str(action_name))
+        self._tf_prefix = bringup.frame
 
     async def execute(self, goal_handle: object) -> ReachPose.Result:
         arena_goal: ReachPose.Goal = goal_handle.request
@@ -136,7 +137,7 @@ class ReachPoseHandlerMoveIt:
 
             pc = PositionConstraint()
             pc.header = arena_goal.target.header
-            pc.link_name = arm.tip_link
+            pc.link_name = self._tf_prefix + arm.tip_link
             prim = SolidPrimitive()
             prim.type = SolidPrimitive.SPHERE
             prim.dimensions = [max(float(pos_tol), 0.001)]
@@ -147,7 +148,7 @@ class ReachPoseHandlerMoveIt:
 
             oc = OrientationConstraint()
             oc.header = arena_goal.target.header
-            oc.link_name = arm.tip_link
+            oc.link_name = self._tf_prefix + arm.tip_link
             oc.orientation = arena_goal.target.pose.orientation
             oc.absolute_x_axis_tolerance = float(ori_tol)
             oc.absolute_y_axis_tolerance = float(ori_tol)
@@ -168,7 +169,7 @@ class ReachPoseHandlerMoveIt:
         mg_goal.request.start_state.is_diff = True
         ws = arm.workspace
         if ws is not None and ws.get("type") == "box":
-            mg_goal.request.workspace_parameters.header.frame_id = str(ws.get("frame", "base_link"))
+            mg_goal.request.workspace_parameters.header.frame_id = self._tf_prefix + str(ws.get("frame", "base_link"))
             mg_goal.request.workspace_parameters.min_corner.x = float(ws["min"][0])
             mg_goal.request.workspace_parameters.min_corner.y = float(ws["min"][1])
             mg_goal.request.workspace_parameters.min_corner.z = float(ws["min"][2])
