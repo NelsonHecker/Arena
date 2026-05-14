@@ -410,8 +410,9 @@ class GazeboSimulator(BaseSim):
                 traceback.print_exc()
                 return False
 
-    async def spawn_walls(self, walls: Sequence[Wall]) -> bool:
-        await self.remove_world()
+    async def spawn_walls(self, walls: Sequence[Wall], clear_existing: bool = True) -> bool:
+        if clear_existing:
+            await self.remove_world()
         for wall in walls:
             wall_name = self._realizer.realize(f"wall_{next(self._wall_counter)}")
             wall_sdf = _generate_wall_sdf(

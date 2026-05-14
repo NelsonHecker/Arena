@@ -126,7 +126,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         """
         await asyncio.gather(
             self._simulator.spawn_doors(doors),
-            self._simulator.spawn_walls(walls),
+            self._simulator.spawn_walls(walls, clear_existing=False),
             self._spawn_walls_impl(walls),
             self._spawn_doors_impl(doors),
         )

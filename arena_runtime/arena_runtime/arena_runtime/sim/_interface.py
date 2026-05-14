@@ -103,7 +103,7 @@ class RobotITF(abc.ABC):
 
 class WorldITF(abc.ABC):
     @abc.abstractmethod
-    async def spawn_walls(self, walls: Sequence[Wall]) -> bool:
+    async def spawn_walls(self, walls: Sequence[Wall], clear_existing: bool = True) -> bool:
         """
         Add a list of walls to the simulator.
         """

@@ -286,7 +286,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         res = await self._clients.ResetWorld.call_timeout(ResetWorld.Request())
         return bool(res) and res.ret
 
-    async def spawn_walls(self, walls: Sequence[WallDefinition]) -> bool:
+    async def spawn_walls(self, walls: Sequence[WallDefinition], clear_existing: bool = True) -> bool:
         # return True
         self._logger.debug("Attempting to spawn walls")
 

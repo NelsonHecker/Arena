@@ -113,7 +113,15 @@ class EnvironmentManager(NodeInterface):
             line_strings.append(shapely.LineString([(w.start.x, w.start.y), (w.end.x, w.end.y)]))
         for d in doors:
             line_strings.append(shapely.LineString([(d.start.x, d.start.y), (d.end.x, d.end.y)]))
-        self._walls_geometry = shapely.MultiLineString(line_strings) if line_strings else shapely.MultiLineString()
+        if line_strings:
+            floor_walls = shapely.MultiLineString(line_strings)
+            if self._walls_geometry.is_empty:
+                self._walls_geometry = floor_walls
+            else:
+                self._walls_geometry = shapely.MultiLineString([
+                    *self._walls_geometry.geoms,
+                    *floor_walls.geoms,
+                ])
 
         await self._cache_polygons(statics)
 

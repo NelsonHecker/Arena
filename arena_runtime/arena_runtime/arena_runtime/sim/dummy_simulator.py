@@ -99,7 +99,7 @@ class DummySimulator(BaseSim):
         return tuple(True for _ in pedestrians.pedestrians)
 
     # world interface
-    async def spawn_walls(self, walls: Sequence[Wall]) -> bool:
+    async def spawn_walls(self, walls: Sequence[Wall], clear_existing: bool = True) -> bool:
         async def resolve(wall: Wall):
             sub_walls_iter, obs_iter = await wall.assets()
             sub_walls = tuple(sub_walls_iter)
