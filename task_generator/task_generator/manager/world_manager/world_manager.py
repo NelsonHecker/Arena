@@ -1,6 +1,6 @@
 import itertools
+import math
 from collections.abc import Collection
-from math import floor
 
 import arena_simulation_setup.tree.World as World
 import numpy as np
@@ -12,6 +12,67 @@ from task_generator.shared import Position, PositionRadius, Wall
 from .utils import WorldMap, WorldOccupancy
 
 
+def _disc_kernel(safe_dist_cells: float) -> np.ndarray:
+    """L2 disc of radius safe_dist_cells, normalised so sum == 1."""
+    r = max(1, int(math.ceil(safe_dist_cells)))
+    yy, xx = np.ogrid[-r : r + 1, -r : r + 1]
+    mask = (xx * xx + yy * yy) <= (safe_dist_cells * safe_dist_cells)
+    kernel = mask.astype(np.float32)
+    return kernel / kernel.sum()
+
+
+def _occupancy_to_available(occupancy: np.ndarray, safe_dist_cells: float) -> np.ndarray:
+    """Return (row, col) cells whose Euclidean safe_dist_cells neighbourhood is fully not-full. Off-map counts as full."""
+    kernel = _disc_kernel(safe_dist_cells)
+    free = WorldOccupancy.not_full(occupancy).astype(np.float32)
+    spread = scipy.signal.convolve2d(free, kernel, mode="same", boundary="fill", fillvalue=0.0)
+    available = np.isclose(spread, 1.0)
+    return np.transpose(np.where(available))
+
+
+def _sample_grid_positions(
+    occupancy: np.ndarray,
+    n: int,
+    safe_dist_cells: float,
+    rng: np.random.Generator,
+    *,
+    max_depth: int = 10,
+) -> np.ndarray:
+    """Pick n (row, col) cells with Euclidean safe_dist_cells clearance from non-empty cells and from each other.
+
+    Returns an (n, 2) int array. Raises RuntimeError if fewer than n cells satisfy the constraint.
+    """
+    if n <= 0:
+        return np.zeros((0, 2), dtype=np.int64)
+
+    available = _occupancy_to_available(occupancy, safe_dist_cells)
+    if len(available) < n:
+        raise RuntimeError(f"need {n} positions, only {len(available)} cells satisfy safe_dist={safe_dist_cells} cells")
+
+    accepted = np.zeros((n, 2), dtype=np.int64)
+    accepted_n = 0
+
+    for _ in range(max_depth):
+        need = n - accepted_n
+        if need <= 0:
+            break
+        if need > len(available):
+            raise RuntimeError(f"need {need} more positions, only {len(available)} candidate cells available")
+        for idx in rng.choice(len(available), need, replace=False):
+            candidate = available[idx]
+            if accepted_n and np.any(np.linalg.norm(accepted[:accepted_n] - candidate, axis=1) < safe_dist_cells):
+                continue
+            accepted[accepted_n] = candidate
+            accepted_n += 1
+            if accepted_n >= n:
+                break
+
+    if accepted_n < n:
+        raise RuntimeError(f"failed to find {n} positions with safe_dist={safe_dist_cells} cells after {max_depth} retries")
+
+    return accepted
+
+
 class WorldManager(NodeInterface):
     """
     The map manager manages the static map
@@ -21,12 +82,10 @@ class WorldManager(NodeInterface):
 
     _world: World.WorldDescription
     _map: WorldMap
-    _classic_forbidden_zones: list[PositionRadius]
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._detected_walls = None
-        self._classic_forbidden_zones = []
 
     @property
     def world(self) -> World.WorldDescription:
@@ -90,214 +149,37 @@ class WorldManager(NodeInterface):
     def forbid_clear(self):
         self._map.occupancy.forbidden_clear()
 
-    def _classic_get_random_pos_on_map(self, safe_dist: float, forbid: bool = True, forbidden_zones: list[PositionRadius] | None = None) -> Position:
+    def get_positions_on_map(
+        self,
+        n: int,
+        safe_dist: float,
+        forbidden_zones: list[PositionRadius] | None = None,
+        forbid: bool = True,
+    ) -> list[Position]:
+        """Sample n map positions with Euclidean safe_dist (metres) clearance from obstacles and from each other.
+
+        Raises RuntimeError if fewer than n positions fit.
         """
-        This function is used by the robot manager and
-        obstacles manager to get new positions for both
-        robot and obstalces.
-        The function will choose a position at random
-        and then validate the position. If the position
-        is not valid a new position is chosen. When
-        no valid position is found after 100 retries
-        an error is thrown.
-        Args:
-            safe_dist: minimal distance to the next
-                obstacles for calculated positons
-            forbid: add returned waypoint to forbidden zones
-            forbidden_zones: Array of (x, y, radius),
-                describing circles on the map. New
-                position should not lie on forbidden
-                zones e.g. the circles.
-                x, y and radius are in meters
-        Returns:
-            A tuple with three elements: x, y, theta
-        """
-        # safe_dist is in meters so at first calc safe dist to distance on
-        # map -> resolution of map is m / cell -> safe_dist in cells is
-        # safe_dist / resolution
-
-        import math
-
-        def is_pos_valid(x: float, y: float, safe_dist: float, forbidden_zones: list[PositionRadius]) -> bool:
-            """
-            @safe_dist: minimal distance to the next obstacles for calculated positions
-            """
-            for p in forbidden_zones:
-                # euklidian distance to the forbidden zone
-                dist = math.floor(np.linalg.norm(np.array([x, y]) - np.array([p.x, p.y]))) - p.radius
-
-                if dist <= safe_dist:
-                    return False
-
-            return True
-
-        safe_dist_in_cells = math.ceil(safe_dist / self.map.resolution) + 1
-
-        forbidden_zones_in_cells: list[PositionRadius] = [
-            PositionRadius(
-                x=math.ceil(point.x / self.map.resolution),
-                y=math.ceil(point.y / self.map.resolution),
-                radius=math.ceil(point.radius / self.map.resolution),
-            )
-            for point in self._classic_forbidden_zones + (forbidden_zones if forbidden_zones is not None else [])
-        ]
-
-        # Now get index of all cells were dist is > safe_dist_in_cells
-        possible_cells: list[tuple[np.intp, np.intp]] = np.array(np.where(self.map.occupancy.grid > safe_dist_in_cells)).transpose().tolist()
-
-        # return (random.randint(1,6), random.randint(1, 9), 0)
-        assert len(possible_cells) > 0, "No cells available"
-
-        # The position should not lie in the forbidden zones and keep the safe
-        # dist to these zones as well. We could remove all cells here but since
-        # we only need one position and the amount of cells can get very high
-        # we just pick positions at random and check if the distance to all
-        # forbidden zones is high enough
-
-        while len(possible_cells) > 0:
-            # Select a random cell
-            x, y = possible_cells.pop(self.node.conf.General.RNG.value.integers(len(possible_cells)))
-
-            # Check if valid
-            if is_pos_valid(float(x), float(y), safe_dist_in_cells, forbidden_zones_in_cells):
-                break
-
-        else:
-            raise RuntimeError("can't find any non-occupied spaces")
-
-        point = PositionRadius(
-            x=np.round(float(x) * self.map.resolution + self.map.origin.x, 3),
-            y=np.round(float(y) * self.map.resolution + self.map.origin.y, 3),
-            radius=safe_dist,
-        )
-
-        if forbid:
-            self._classic_forbidden_zones.append(point)
-
-        return Position(x=point.x, y=point.y)
-
-    def get_positions_on_map(self, n: int, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> list[Position]:
-        """
-        This function is used by the robot manager and
-        obstacles manager to get new positions for both
-        robot and obstalces.
-        The function will choose a position at random
-        and then validate the position. If the position
-        is not valid a new position is chosen. When
-        no valid position is found after 100 retries
-        an error is thrown.
-        Args:
-            safe_dist: minimal distance to the next
-                obstacles for calculated positons
-            forbid: add returned waypoint to forbidden zones
-            forbidden_zones: Array of (x, y, radius),
-                describing circles on the map. New
-                position should not lie on forbidden
-                zones e.g. the circles.
-                x, y and radius are in meters
-        """
-        # safe_dist is in meters so at first calc safe dist to distance on
-        # map -> resolution of map is m / cell -> safe_dist in cells is
-        # safe_dist / resolution
-
         if forbidden_zones is None:
             forbidden_zones = []
 
         fork = self._map.occupancy.fork()
+        for zone in forbidden_zones:
+            fork.occupy(*self.map.tf_posr2rect(zone))
 
-        points: list[Position] = []
-
-        if n < 0:  # TODO profile when this is faster
-            for _ in range(n):
-                pos = self._classic_get_random_pos_on_map(safe_dist=safe_dist, forbidden_zones=forbidden_zones)
-                posr = PositionRadius(x=pos.x, y=pos.y, radius=safe_dist)
-                fork.occupy(*self.map.tf_posr2rect(posr))
-                forbidden_zones.append(posr)
-                points.append(pos)
-
-            return points
-
-        else:
-            max_depth = 10
-
-            for zone in forbidden_zones:
-                fork.occupy(*self.map.tf_posr2rect(zone))
-
-            min_dist: float = safe_dist / self.resolution
-            available_positions = self._occupancy_to_available(occupancy=fork.grid, safe_dist=min_dist)
-
-            def sample(target: int) -> Collection[Position]:
-
-                all_banned: np.ndarray = np.zeros((target, 2))
-                banned_index: int = 0
-
-                result: list[Position] = list()
-                depth: int = 0
-
-                to_produce = target
-
-                try:
-                    while depth < max_depth:
-                        if to_produce > len(available_positions):
-                            raise RuntimeError()
-
-                        candidates = available_positions[self.node.conf.General.RNG.value.choice(len(available_positions), to_produce, replace=False), :]
-
-                        for candidate in candidates:
-                            banned = all_banned[:banned_index, :]
-
-                            if np.any(np.linalg.norm(banned - candidate, axis=1) < min_dist):
-                                continue
-
-                            all_banned[banned_index] = candidate
-                            banned_index += 1
-
-                            fork.occupy((candidate - min_dist), (candidate + min_dist))
-
-                            result.append(self._map.tf_grid2pos((candidate[0], candidate[1])))
-
-                        to_produce = target - len(result)
-                        if to_produce <= 0:
-                            break
-
-                        depth += 1
-
-                    else:
-                        raise RuntimeError(f"Failed to find free position after {depth} tries")
-
-                except RuntimeError:
-                    result += [self._map.tf_grid2pos(((-1 - floor(i / 5)) * int(self._shape[1] / 5), int((i % 5) * self._shape[0] / 5))) for i in range(to_produce)]
-                    self._logger.warn(f"Couldn't find enough empty cells for {to_produce} requests")
-
-                return result
-
-            points = list(sample(n))
+        safe_dist_cells = safe_dist / self.resolution
+        rng = self.node.conf.General.RNG.value
+        cells = _sample_grid_positions(fork.grid, n, safe_dist_cells, rng)
 
         if forbid:
+            halo = int(math.ceil(safe_dist_cells))
+            for row, col in cells:
+                fork.occupy((int(col) - halo, int(row) - halo), (int(col) + halo, int(row) + halo))
             fork.commit()
 
-        return points
+        return [self._map.tf_grid2pos((int(row), int(col))) for row, col in cells]
 
     def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> Position:
         return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid)[0]
 
     id_gen = itertools.count()
-
-    def _occupancy_to_available(self, occupancy: np.ndarray, safe_dist: float) -> np.ndarray:
-
-        filt_size = int(2 * safe_dist + 1)
-        filt = np.full((filt_size, filt_size), 1) / (filt_size**2)
-
-        spread = scipy.signal.convolve2d(WorldOccupancy.not_full(occupancy).astype(np.uint8) * np.iinfo(np.uint8).max, filt, mode="full", boundary="fill", fillvalue=int(WorldOccupancy.FULL))
-
-        # import cv2
-
-        # def visual(mat: np.ndarray) -> np.ndarray:
-        #     return (mat / mat.max()).astype(np.uint8) * np.iinfo(np.uint8).max
-
-        # cv2.imwrite("_debug1.png", visual(occupancy))
-        # cv2.imwrite("_debug2.png", visual(WorldOccupancy.not_full(occupancy)))
-        # cv2.imwrite("_debug3.png", visual(spread))
-        # cv2.imwrite("_debug4.png", visual(WorldOccupancy.empty(spread)))
-
-        return np.transpose(np.where(WorldOccupancy.empty(spread)))
