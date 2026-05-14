@@ -313,21 +313,37 @@ def _summarize(run_dir: Path) -> tuple[dict[str, tuple[int, int]], bool]:
 def cmd_drive(arena: Path, args) -> int:
     own: dict[str, str] = {}
     passthrough: list[str] = []
+    selected: list[str] = []
     for tok in args.kv:
         match = KV_RE.match(tok)
-        if not match:
-            print(f"robots: expected key:=value, got {tok!r}", file=sys.stderr)
-            return 2
-        key, value = match.group(1), match.group(2)
-        if key in DRIVE_OWN_KEYS:
-            own[key] = value
+        if match:
+            key, value = match.group(1), match.group(2)
+            if key in DRIVE_OWN_KEYS:
+                own[key] = value
+            else:
+                passthrough.append(tok)
         else:
-            passthrough.append(tok)
+            selected.append(tok)
 
-    robots = _ready_robots(arena)
-    if not robots:
+    ready = _ready_robots(arena)
+    if not ready:
         print("robots: no ready robots, run `arena feature robots add ...` first", file=sys.stderr)
         return 2
+    if selected:
+        ready_set = set(ready)
+        unknown = [r for r in selected if r not in ready_set]
+        if unknown:
+            print(
+                f"robots: not ready: {', '.join(unknown)}. ready: {', '.join(ready)}",
+                file=sys.stderr,
+            )
+            return 2
+        seen: dict[str, None] = {}
+        for r in selected:
+            seen.setdefault(r, None)
+        robots = list(seen)
+    else:
+        robots = ready
     suite = _drive_suite(
         robots,
         map_name=own.get("map", "map_empty"),
@@ -381,7 +397,8 @@ def main() -> int:
     p.add_argument("-q", "--quiet", action="store_true")
     p_drive = sub.add_parser("drive")
     p_drive.add_argument("kv", nargs="*",
-                         help="key:=value pairs; map/episodes/timeout consumed locally, "
+                         help="bare tokens select robots (default: all ready); "
+                              "key:=value pairs: map/episodes/timeout consumed locally, "
                               "rest forwarded to arena benchmark")
 
     args = ap.parse_args()
