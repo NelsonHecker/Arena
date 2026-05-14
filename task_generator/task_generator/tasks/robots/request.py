@@ -85,6 +85,15 @@ class ReachPhase(TaskPhase):
         return False
 
 
+@attrs.define
+class PlayGesturePhase(TaskPhase):
+    kind: ClassVar[TaskKind] = TaskKind.PLAY_GESTURE
+    gesture: str | None = None  # None means random; adapter expands before dispatch
+
+    def is_satisfied(self, robot_manager: RobotManager) -> bool:
+        return False  # client-driven completion
+
+
 DonePredicate = Callable[
     ["RobotManager", TaskPhase],
     bool | None,
@@ -115,6 +124,7 @@ __all__ = [
     "TaskPhase",
     "GoToPhase",
     "ReachPhase",
+    "PlayGesturePhase",
     "TaskRequest",
     "DonePredicate",
 ]

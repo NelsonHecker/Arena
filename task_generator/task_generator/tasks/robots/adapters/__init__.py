@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import enum
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -72,14 +73,29 @@ class AdapterDisplayHint:
 
 @attrs.frozen
 class AdapterMeta:
-    """Canonical metadata block for an adapter class."""
+    """Canonical metadata block for an adapter class.
+
+    Supply exactly one of `client` (shorthand for single-accept adapters) or
+    `clients` (explicit per-TaskKind map for multi-accept adapters).  The
+    constructor normalizes `client` into `clients` immediately via
+    `__attrs_post_init__`, so callers can always read `meta.clients`.
+    """
 
     accepts: frozenset[TaskKind] = attrs.field(converter=frozenset)
     bringup: type[Bringup]
-    client: type[Client]
     cap: str
     republishes_goal: bool = True
     displays: tuple[AdapterDisplayHint, ...] = attrs.field(default=(), converter=tuple)
+    client: type[Client] | None = None
+    clients: dict[TaskKind, type[Client]] | None = None
+
+    def __attrs_post_init__(self) -> None:
+        if (self.client is None) == (self.clients is None):
+            raise ValueError("AdapterMeta: supply exactly one of 'client' or 'clients'")
+        if self.client is not None:
+            normalized: dict[TaskKind, type[Client]] = {tk: self.client for tk in self.accepts}
+            object.__setattr__(self, "clients", normalized)
+            object.__setattr__(self, "client", None)
 
     @classmethod
     def attach(cls, **kwargs: object) -> Callable[[type], type]:
@@ -110,12 +126,17 @@ class Adapter(ABC):
             robot_manager.robot_view,
             str(robot_manager.namespace),
         )
-        self.client = self.client_cls(
-            robot_manager.robot_view,
-            str(robot_manager.namespace),
-            node=robot_manager.node,
-            tf_buffer=robot_manager.tf_buffer,
-        )
+        meta = self._meta()
+        assert meta.clients is not None
+        self._clients: dict[TaskKind, Client] = {
+            tk: cls(
+                robot_manager.robot_view,
+                str(robot_manager.namespace),
+                node=robot_manager.node,
+                tf_buffer=robot_manager.tf_buffer,
+            )
+            for tk, cls in meta.clients.items()
+        }
 
     @classmethod
     def _meta(cls) -> AdapterMeta:
@@ -131,7 +152,20 @@ class Adapter(ABC):
 
     @property
     def client_cls(self) -> type[Client]:
-        return self._meta().client
+        meta = self._meta()
+        assert meta.clients is not None
+        if len(meta.clients) == 1:
+            return next(iter(meta.clients.values()))
+        raise RuntimeError("multi-kind adapter; use client_for(tk)")
+
+    @property
+    def client(self) -> Client:
+        if len(self._clients) == 1:
+            return next(iter(self._clients.values()))
+        raise RuntimeError("multi-kind adapter; use client_for(tk)")
+
+    def client_for(self, tk: TaskKind) -> Client:
+        return self._clients[tk]
 
     @property
     def republishes_goal(self) -> bool:
@@ -166,7 +200,7 @@ class Adapter(ABC):
         robot: RobotManager,
         node_paths: set[str],
     ) -> None:
-        await self.client.wait_ready()
+        await asyncio.gather(*(c.wait_ready() for c in self._clients.values()))
 
     @abstractmethod
     async def dispatch_phase(
@@ -180,13 +214,14 @@ class Adapter(ABC):
         phase: TaskPhase,
         robot: RobotManager,
     ) -> bool | None:
-        return self.client.is_done()
+        return self.client_for(phase.kind).is_done()
 
     def on_episode_start(self) -> None:
         return None
 
     def on_episode_end(self) -> None:
-        self.client.cancel()
+        for c in self._clients.values():
+            c.cancel()
 
     async def on_move(
         self,

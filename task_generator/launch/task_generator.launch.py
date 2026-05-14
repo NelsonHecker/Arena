@@ -140,7 +140,7 @@ def generate_launch_description():
     )
     tm_obstacles = LaunchArgument(name="tm_obstacles", default_value="random")
     tm_modules = LaunchArgument(name="tm_modules", default_value="rviz_ui")
-    optim = LaunchArgument(name="optim", default_value="")
+    optim = LaunchArgument(name="optim", default_value=os.environ.get("ARENA_OPTIM", ""))
     world = LaunchArgument(name="world", default_value="map_empty")
     inter_planner = LaunchArgument(name="inter_planner", default_value="navigate_w_replanning_time")
     local_planner = LaunchArgument(name="local_planner", default_value="dwb")

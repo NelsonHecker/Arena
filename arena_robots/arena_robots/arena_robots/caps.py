@@ -24,6 +24,7 @@ from typing import Literal
 
 import attrs
 import yaml
+from arena_simulation_setup.tree.Gesture import GestureSpec
 
 _POLYGON_TYPES: frozenset[str] = frozenset({'polygon', 'circle'})
 _ACTION_TYPES: frozenset[str] = frozenset({'stop', 'slowdown', 'approach', 'limit'})
@@ -452,6 +453,16 @@ class ArmSpec(InstanceSpec):
                 raise ValueError(f"{self.path}: named_pose '{name}' missing 'joints' mapping")
             out[str(name)] = {str(j): float(v) for j, v in joints.items()}
         return out
+
+    @property
+    def gestures(self) -> dict[str, GestureSpec]:
+        """Per-robot gesture overrides. Empty dict if absent."""
+        raw = self.raw.get("gestures")
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError(f"{self.path}: arm '{self.name}' 'gestures' must be a mapping; got {type(raw).__name__}")
+        return {str(k): GestureSpec.parse(v) for k, v in raw.items()}
 
 
 @attrs.define(slots=False)

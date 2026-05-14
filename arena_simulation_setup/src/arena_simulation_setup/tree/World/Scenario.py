@@ -1,8 +1,10 @@
+import abc
 import functools
 import itertools
 import os
 import traceback
 import typing
+import warnings
 from collections.abc import Iterable
 
 import attrs
@@ -10,20 +12,75 @@ import yaml
 
 from arena_simulation_setup.shared import DynamicObstacle, Obstacle, Pose
 from arena_simulation_setup.tree import PathView
-from arena_simulation_setup.utils.cattrs import converter
+from arena_simulation_setup.utils.cattrs import Parseable, converter
 
 
 @attrs.define
-class RobotGoal:
+class ScenarioGotoPhase:
+    goto: Pose = attrs.field(converter=Pose.converter)
+
+
+@attrs.define
+class ScenarioGesturePhase:
+    gesture: str
+
+
+class ScenarioPhase(abc.ABC):
+    """Discriminated union of scenario phases. Dispatch on key presence."""
+
+    @classmethod
+    @abc.abstractmethod
+    def parse(cls, value: dict) -> "ScenarioPhase":
+        if "goto" in value:
+            return ScenarioGotoPhase(goto=Pose.parse(value["goto"]))
+        if "gesture" in value:
+            return ScenarioGesturePhase(gesture=str(value["gesture"]))
+        raise ValueError(
+            f"ScenarioPhase requires 'goto' or 'gesture' key; got {list(value.keys())}"
+        )
+
+
+converter.register_structure_hook(
+    ScenarioPhase, lambda v, _t: ScenarioPhase.parse(v)
+)
+
+
+@attrs.define
+class RobotGoal(Parseable):
     start: Pose = attrs.field(converter=Pose.converter)
-    goal: Pose = attrs.field(converter=Pose.converter)
+    goal: Pose | None = attrs.field(default=None)
+    phases: list[ScenarioPhase] | None = attrs.field(default=None)
 
     @classmethod
     def parse(cls, obj: dict) -> "RobotGoal":
+        if "start" not in obj:
+            raise ValueError("RobotGoal requires 'start' field")
+
+        raw_phases = obj.get("phases")
+        phases: list[ScenarioPhase] | None = None
+        if raw_phases is not None:
+            phases = [ScenarioPhase.parse(p) for p in raw_phases]
+
+        raw_goal = obj.get("goal")
+        goal: Pose | None = Pose.parse(raw_goal) if raw_goal is not None else None
+
         return cls(
-            start=Pose.parse(obj.get("start", [])),
-            goal=Pose.parse(obj.get("goal", [])),
+            start=Pose.parse(obj["start"]),
+            goal=goal,
+            phases=phases,
         )
+
+    def phase_list(self) -> list[ScenarioPhase]:
+        if self.phases is not None and len(self.phases) > 0:
+            return self.phases
+        if self.goal is not None:
+            warnings.warn(
+                "scenario.yaml: 'goal:' on a robot is deprecated; use 'phases: [{goto: ...}]'",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return [ScenarioGotoPhase(goto=self.goal)]
+        return []
 
 
 @attrs.define
@@ -58,16 +115,17 @@ class ScenarioView(PathView):
         return Scenario(
             static=[converter.structure({**obs, **dict(included_from=self.path)}, Obstacle) for obs in itertools.chain(scenario.get("obstacles", {}).get("static", []), scenario.get("obstacles", {}).get("interactive", []))],
             dynamic=[converter.structure({**obs, **dict(included_from=self.path)}, DynamicObstacle) for obs in scenario.get("obstacles", {}).get("dynamic", [])],
-            robots=[converter.structure({**robot}, RobotGoal) for robot in scenario.get("robots", [])],
+            robots=[RobotGoal.parse(robot) for robot in scenario.get("robots", [])],
         )
 
     def load(self) -> Scenario:
         load_exc: Exception
         try:
             with open(self.scenario_path) as f:
-                scenario = converter.structure(yaml.safe_load(f), Scenario)
-                for obj in itertools.chain(scenario.static, scenario.dynamic):
-                    obj.included_from = self.path
+                raw = yaml.safe_load(f)
+            scenario = converter.structure(raw, Scenario)
+            for obj in itertools.chain(scenario.static, scenario.dynamic):
+                obj.included_from = self.path
             return scenario
         except Exception as e:
             load_exc = e
@@ -75,8 +133,6 @@ class ScenarioView(PathView):
         legacy_exc: Exception
         try:
             scenario = self.load_legacy()
-            import warnings
-
             warnings.warn("Loading Scenario in legacy format.", DeprecationWarning, stacklevel=2)
             return scenario
         except Exception as e:

@@ -43,3 +43,27 @@ arm:
         arm_wrist_1_joint: -1.5
         arm_wrist_2_joint: -1.57
         arm_wrist_3_joint: 0.0
+    wave_up:
+      joints:
+        arm_shoulder_pan_joint: 0.0
+        arm_shoulder_lift_joint: -0.5
+        arm_elbow_joint: 1.2
+        arm_wrist_1_joint: -2.3
+        arm_wrist_2_joint: -1.57
+        arm_wrist_3_joint: 0.0
+    wave_l:
+      joints:
+        arm_shoulder_pan_joint: 0.0
+        arm_shoulder_lift_joint: -0.5
+        arm_elbow_joint: 1.2
+        arm_wrist_1_joint: -2.3
+        arm_wrist_2_joint: -1.57
+        arm_wrist_3_joint: -0.6
+    wave_r:
+      joints:
+        arm_shoulder_pan_joint: 0.0
+        arm_shoulder_lift_joint: -0.5
+        arm_elbow_joint: 1.2
+        arm_wrist_1_joint: -2.3
+        arm_wrist_2_joint: -1.57
+        arm_wrist_3_joint: 0.6

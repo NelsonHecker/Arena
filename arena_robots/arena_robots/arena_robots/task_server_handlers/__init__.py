@@ -61,5 +61,6 @@ async def _executor_sleep(node: object, seconds: float, *, wall: bool = False) -
 
 from . import (
     goto_pose,  # noqa: E402,F401
+    play_gesture,  # noqa: E402,F401
     reach_pose,  # noqa: E402,F401
 )

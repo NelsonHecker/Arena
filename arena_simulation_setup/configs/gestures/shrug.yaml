@@ -1,0 +1,8 @@
+interp: linear
+keyframes:
+  - {pose: ready,   t: 0.0}
+  - {pose: shrug_l, t: 0.5}
+  - {pose: shrug_n, t: 0.7}
+  - {pose: shrug_r, t: 1.0}
+  - {pose: shrug_n, t: 1.2}
+  - {pose: ready,   t: 1.6}

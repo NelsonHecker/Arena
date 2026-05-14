@@ -89,3 +89,10 @@ def _load_reach_pose() -> type[Client]:
     from .reach_pose import ReachPoseClient
 
     return ReachPoseClient
+
+
+@CLIENTS.register(TaskKind.PLAY_GESTURE)
+def _load_play_gesture() -> type[Client]:
+    from .play_gesture import PlayGestureClient
+
+    return PlayGestureClient

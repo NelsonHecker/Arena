@@ -272,19 +272,20 @@ class RobotManager(NodeInterface):
         """Return (status, reason) for the phase that just completed."""
         adapter = self._adapters.get(phase.kind)
         if adapter is None:
-            from arena_robots_msgs.action import GotoPose, ReachPose
+            from arena_robots_msgs.action import GotoPose, PlayGesture, ReachPose
 
             from task_generator.tasks.robots.request import TaskKind
 
             _UNSUPPORTED_CAP: dict[TaskKind, int] = {
                 TaskKind.GOTO_POSE: GotoPose.Result.STATUS_UNSUPPORTED_CAP,
                 TaskKind.REACH_POSE: ReachPose.Result.STATUS_UNSUPPORTED_CAP,
+                TaskKind.PLAY_GESTURE: PlayGesture.Result.STATUS_UNSUPPORTED_CAP,
             }
             status = _UNSUPPORTED_CAP.get(phase.kind)
             reason = f"no adapter for {phase.kind.name} on robot {self.name}"
             return status, reason
-        status = adapter.client.status
-        reason = adapter.client.reason
+        status = adapter.client_for(phase.kind).status
+        reason = adapter.client_for(phase.kind).reason
         return status, reason
 
     async def _advance_to_next_phase(self, request: TaskRequest) -> bool:
