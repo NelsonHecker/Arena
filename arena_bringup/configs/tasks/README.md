@@ -43,7 +43,7 @@ for the full description. Summary:
 
 ## Legacy shorthand
 
-When `task_config` is empty (the default), `arena.launch.py` synthesizes a
+When `task_config` is empty (the default), `task_generator.launch.py` synthesizes a
 single-entry config from the `tm_robots` arg:
 
 ```yaml

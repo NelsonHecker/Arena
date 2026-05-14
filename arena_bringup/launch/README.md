@@ -1,12 +1,16 @@
 # arena_bringup launch
 
-Entry point: [`arena.launch.py`](arena.launch.py).
+Entry point: [`arena_runtime.launch.py`](arena_runtime.launch.py) (runtime: sim + `arena_node`). Task-generator envs are attached via `task_generator.launch.py`; the `arena launch` bash composite orchestrates both.
 
 ## Arguments
 
 All arguments are declared with `LaunchArgument` (a thin wrapper around
 `DeclareLaunchArgument` that also auto-appends to the description list and
 exposes `.substitution` / `.dict` / `.param`).
+
+The table below covers the combined argument surface of `arena launch`. Runtime
+args (`sim`, `headless`, `world`, `use_sim_time`, `log_level`) go to
+`arena_runtime.launch.py`; the rest go to `task_generator.launch.py` per env.
 
 | Name | Type / choices | Default | Meaning |
 |---|---|---|---|
@@ -17,7 +21,8 @@ exposes `.substitution` / `.dict` / `.param`).
 | `global_planner` | string | `navfn` | Global planner |
 | `sim` | string | `dummy` | Physics simulator: `dummy`, `gazebo`, or `isaac` |
 | `navigator` | string | `none` for `dummy`, `nav2` otherwise | Nav-stack adapter kind; per-robot `navigator:` in `robot_setup.yaml` wins |
-| `headless` | `-1`\|`0`\|`1`\|`2` | `0` | `-1` show all, `0` show all, `1` rviz only, `2` nothing |
+| `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses rviz unless `rviz:=true` is explicit. |
+| `rviz` | bool string | `true` | `arena launch` only: run `arena viz --all` after envs are up. Forced `false` when `headless:=true` unless overridden. |
 | `human` | string | `dummy` for `dummy` sim, `hunav` for `gazebo`/`isaac` | Human-simulator backend |
 | `complexity` | string | `1` | `1` map+position known; `2` map known AMCL; `3` SLAM |
 | `agent_name` | string | value of `robot` | DRL agent name |
@@ -28,11 +33,10 @@ exposes `.substitution` / `.dict` / `.param`).
 | `tm_modules` | string | `rviz_ui` | Comma-separated task modules to load |
 | `world` | string | `map_empty` | World name; resolved under `arena_simulation_setup/worlds/` |
 | `use_sim_time` | bool string | `true` | Use sim clock instead of wall clock |
-| `env_n` | int string | `1` | Number of parallel task-generator environments |
+| `env_n` | int string | `1` | Number of task-generator environments `arena launch` will spawn this invocation. Additive: if the runtime already has envs, these add to them rather than replace. |
 | `env_d` | float string | `50` | Spacing (metres) between environments on the snail grid |
 | `debug` | bool string | `False` | Enable debug features |
-| `train_config` | string | `` (empty) | Path to RL training config YAML; non-empty forces `auto_reset=false` and starts `train_agent.py` |
-| `auto_reset` | bool expression | `true` (or `false` when `train_config` set) | `true` = standalone: node auto-advances episodes; `false` = managed: external controller drives resets via `lifecycle/reset_episode` |
+| `auto_reset` | bool expression | `true` | `true` = standalone: node auto-advances episodes; `false` = managed: external controller drives resets via `lifecycle/reset_episode` |
 | `optim` | comma-separated tokens | `$ARENA_OPTIM` or `` (empty) | Strip matching `<sensor>` blocks from each robot's URDF after xacro expansion (affects both Gazebo and Isaac via [`urdf.py`](../../arena_simulation_setup/src/arena_simulation_setup/utils/models/urdf.py)). Tokens: `no_camera` (strips `camera`/`depth`/`rgbd_camera`), `no_lidar` (strips `ray`/`gpu_lidar`). Unknown tokens warn and are ignored. Default reads `$ARENA_OPTIM` so you can set `export ARENA_OPTIM=no_camera,no_lidar` once per shell; CLI `optim:=...` overrides. |
 
 ## Log level
@@ -67,24 +71,22 @@ without clobbering it.
 
 ## Top-level composition
 
-`generate_launch_description()` assembles the following in order:
+`arena_runtime.launch.py` assembles the following in order:
 
 1. **`SetGlobalLogLevelAction`** — stores `log_level` in the launch context so
    `NodeLogLevelExtension` can inject `--log-level` into every subsequent `Node`
    action.
-2. **`OpaqueFunction` → `create_task_generators`** — resolves `env_n` and
-   `env_d` at launch time, then spawns one `IsolatedGroupAction` per
-   environment. Each group contains:
-   - `human.launch.py` — starts the human simulator (if any) for that
-     environment.
-   - `task_generator.launch.py` — starts the task-generator node with all
-     forwarded args plus `namespace`, `reference`, and `prefix`.
-3. **`IsolatedGroupAction` → `sim.launch.py`** — the physics simulator
-   (shared across all environments).
-4. **`world_generator`** node (`arena_simulation_setup`) — generates world
+2. **`IsolatedGroupAction` → `sim.launch.py`** — the physics simulator.
+3. **`world_generator`** node (`arena_simulation_setup`) — generates world
    assets.
-5. **`train_agent.py`** (conditional) — started only when `train_config` is
-   non-empty.
+4. **`arena_node`** (`LifecycleNode`) — the multi-env orchestrator.
+
+Task-generator envs are not included here. Each env is started separately via
+`task_generator.launch.py` (either manually via `arena env` or orchestrated by
+`arena launch`). Each env includes:
+
+- `human.launch.py` — starts the human simulator (if any) for that environment.
+- The `task_generator_node` with all forwarded args plus `namespace` and `prefix`.
 
 Environments are positioned on a *snail grid* (`snail_grid(d)`) that spirals
 outward from the origin with spacing `d`, so multiple parallel environments do

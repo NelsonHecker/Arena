@@ -227,22 +227,126 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 _arena_heal_pip
             ;;
             launch)
-                killall -s 9 task_generator_node arena_node world_generator 2>/dev/null
-                sleep 1
-                ros2 launch arena_bringup arena.launch.py "$@"
+                python3 -m arena_bringup.supervisor "$@"
                 result=$?
             ;;
             runtime)
-                # `arena runtime` brings up just the arena_node + simulator, no task envs.
-                # Use `arena launch` (or supply env_n:= explicitly) when you want envs.
-                killall -s 9 task_generator_node arena_node world_generator 2>/dev/null
-                sleep 1
                 ros2 launch arena_bringup arena_runtime.launch.py "$@"
                 result=$?
             ;;
             env)
                 ros2 launch task_generator task_generator.launch.py "$@"
                 result=$?
+            ;;
+            viz)
+                local _rc=0
+                local _target=""
+                local _all=false
+                if [ $# -eq 0 ]; then
+                    :
+                elif [ "$1" = "--all" ]; then
+                    _all=true
+                elif [ "$1" = "--ns" ]; then
+                    if [ $# -lt 2 ]; then
+                        echo "arena viz: --ns requires a namespace argument" >&2
+                        _rc=1
+                    else
+                        _target="$2"
+                    fi
+                else
+                    _target="$1"
+                fi
+
+                if [ "$_rc" -eq 0 ]; then
+                    local -a _nodes=()
+                    local _waited=0
+                    local _done=false
+                    while ! $_done; do
+                        mapfile -t _nodes < <(ros2 topic list 2>/dev/null | grep -E '/state/viz_manifest$' | sed 's|/state/viz_manifest$||')
+                        if [ "${#_nodes[@]}" -ge 1 ]; then
+                            if [ -n "$_target" ]; then
+                                local _n
+                                for _n in "${_nodes[@]}"; do
+                                    if [ "$_n" = "$_target" ] || [ "$_n" = "/$_target" ] || [ "$(basename "$_n")" = "$_target" ]; then
+                                        _done=true
+                                        break
+                                    fi
+                                done
+                                unset _n
+                            else
+                                _done=true
+                            fi
+                        fi
+                        if ! $_done; then
+                            sleep 1
+                            _waited=$((_waited + 1))
+                            if [ $((_waited % 10)) -eq 0 ]; then
+                                if [ -n "$_target" ]; then
+                                    echo "arena viz: waiting for env '${_target}' (${_waited}s elapsed)" >&2
+                                else
+                                    echo "arena viz: waiting for an env (${_waited}s elapsed)" >&2
+                                fi
+                            fi
+                        fi
+                    done
+                    unset _waited _done
+                    if $_all; then
+                        local -a _viz_pids=()
+                        local _ns
+                        for _ns in "${_nodes[@]}"; do
+                            echo "arena viz: attaching to ${_ns}" >&2
+                            ros2 run rviz_utils rviz_config "${_ns}" &
+                            _viz_pids+=($!)
+                        done
+                        unset _ns
+                        _arena_viz_cleanup(){
+                            local _p
+                            for _p in "${_viz_pids[@]}"; do
+                                kill -SIGINT "$_p" 2>/dev/null || true
+                            done
+                            wait 2>/dev/null
+                        }
+                        trap _arena_viz_cleanup SIGINT SIGTERM
+                        wait
+                        trap - SIGINT SIGTERM
+                        unset -f _arena_viz_cleanup
+                        unset _viz_pids
+                        _rc=0
+                    elif [ -z "$_target" ]; then
+                        if [ "${#_nodes[@]}" -gt 1 ]; then
+                            echo "arena viz: multiple envs running, pass <env_id> or --all:" >&2
+                            printf '  %s\n' "${_nodes[@]}" >&2
+                            _rc=1
+                        else
+                            echo "arena viz: attaching to ${_nodes[0]}" >&2
+                            ros2 run rviz_utils rviz_config "${_nodes[0]}"
+                            _rc=$?
+                        fi
+                    else
+                        local _match=""
+                        local _ns
+                        for _ns in "${_nodes[@]}"; do
+                            if [ "$_ns" = "$_target" ] || [ "$_ns" = "/$_target" ] || [ "$(basename "$_ns")" = "$_target" ]; then
+                                _match="$_ns"
+                                break
+                            fi
+                        done
+                        unset _ns
+                        if [ -z "$_match" ]; then
+                            echo "arena viz: no env matching '$_target'; available:" >&2
+                            printf '  %s\n' "${_nodes[@]}" >&2
+                            _rc=1
+                        else
+                            echo "arena viz: attaching to ${_match}" >&2
+                            ros2 run rviz_utils rviz_config "${_match}"
+                            _rc=$?
+                        fi
+                        unset _match
+                    fi
+                    unset _nodes
+                fi
+                result=$_rc
+                unset _target _all _rc
             ;;
             cleanup)
                 if [ $# -lt 1 ]; then

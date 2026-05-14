@@ -15,8 +15,7 @@ A `GroupAction` subclass that wraps its children with
 `PushEnvironment` / `PopEnvironment`. Any launch configuration or environment
 variable set inside the group does not leak to the parent scope.
 
-Typical use in `arena.launch.py` — each task-generator environment and the
-simulator are wrapped so their arg mutations are scoped:
+Typical use in `arena_runtime.launch.py` — the simulator is wrapped so its arg mutations are scoped:
 
 ```python
 IsolatedGroupAction([launch_simulator])
@@ -93,7 +92,7 @@ evaluates an arbitrary Python expression string (with `math` symbols available
 by default). Accepts a list of mixed `str` / `Substitution` fragments that
 are concatenated before `eval`.
 
-Typical use in `arena.launch.py` for derived defaults:
+Typical use in launch files for derived defaults:
 
 ```python
 navigator = LaunchArgument(
@@ -134,7 +133,7 @@ replaces the rules currently in the launch context, and writes them back as
 JSON. See the [launch README](../launch/README.md#log-level) for the full
 input grammar.
 
-Typical use in `arena.launch.py`:
+Typical use in `arena_runtime.launch.py`:
 
 ```python
 SetGlobalLogLevelAction(log_level.substitution)

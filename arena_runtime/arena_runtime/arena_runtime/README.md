@@ -91,8 +91,7 @@ stale envs). A periodic timer evicts any bootstrapped env whose heartbeat exceed
 `heartbeat_timeout_sec` (default 5 s).
 
 When `env_n > 0` at startup the node self-orchestrates an initial fleet via
-`_spawn_initial_envs`, applying the `headless_mode` convention from
-`arena.launch.py` (`-1` show all, `0` show env 0, `1` rviz only, `2` hide all).
+`_spawn_initial_envs`; each spawned env has `headless=false` (stdout visible).
 
 ## Env lifecycle sequence
 

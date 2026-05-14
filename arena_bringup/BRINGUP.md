@@ -1,17 +1,36 @@
 # Arena bringup usage
 
-Most Arena sessions start with `arena.launch.py`. It brings up the simulator,
-one or more task-generator nodes, and (optionally) a human simulator.
-Navigation stacks and robot spawning are handled by
-`task_generator.launch.py`, which `arena.launch.py` includes automatically.
+Most Arena sessions start with `arena launch`. It is a bash composite that
+either:
 
-For the decoupled flow (runtime stays up, envs come and go),
-`arena_runtime.launch.py` brings up just the simulator and the `arena_node`
-runtime; clients then attach task-generator envs dynamically via
-`task_generator.launch.py`. See [Runtime / client mode](#runtime--client-mode-dynamic-envs)
-below.
+- **brings up a fresh runtime** if none exists (sim + `arena_node` via
+  `arena_runtime.launch.py`, then waits for `/arena/register_env`), or
+- **attaches additively** to an already-running runtime, with a sim-mismatch
+  check on `sim:=`.
 
-The full argument surface is in [launch/README.md](launch/README.md).
+Either way it then spawns `env_n` task-generator envs and, unless
+`headless:=true` (or explicit `rviz:=false`), runs `arena viz --all` so each
+env gets a rviz window.
+
+For the decoupled flow (runtime stays up, envs and viz come and go), the
+three underlying verbs can be used independently. See
+[CLI verbs](#cli-verbs) below.
+
+The full argument surface for `arena_runtime.launch.py` and
+`task_generator.launch.py` is in [launch/README.md](launch/README.md).
+
+---
+
+## Three-verb model
+
+| Verb | Launch file | What it starts |
+|---|---|---|
+| `arena runtime [args]` | `arena_runtime.launch.py` | Sim + `arena_node`, no envs |
+| `arena env [args]` | `task_generator.launch.py` | One task-generator env; waits for `/arena/register_env` (10s warning cadence if runtime is absent) |
+| `arena viz [target]` | (ros2 run) | Attaches rviz to a running env; see [arena viz](#arena-viz) |
+
+`arena launch` orchestrates all three (skipping the runtime step if one is
+already up) and is the canonical entry point for most sessions.
 
 ---
 
@@ -23,7 +42,7 @@ No physics engine. Useful for verifying that the ROS graph comes up without
 hardware or GPU.
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
+arena launch \
     sim:=dummy \
     world:=map_empty \
     robot:=jackal \
@@ -47,7 +66,7 @@ is started.
 ### 2. Gazebo + jackal + random obstacles
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
+arena launch \
     sim:=gazebo \
     world:=map_empty \
     robot:=jackal \
@@ -61,7 +80,7 @@ ros2 launch arena_bringup arena.launch.py \
 | `sim:=gazebo` | Starts gz-sim 8 (dart physics, ogre renderer). `human` defaults to `hunav` |
 | `world:=map_empty` | Resolved to `arena_simulation_setup/worlds/map_empty/worlds/map_empty.world`; falls back to `configs/gazebo/empty.sdf` if absent |
 | `local_planner:=teb` | TEB local planner in nav2; `navigator` defaults to `nav2` for gazebo |
-| `headless` | Omitted → `0` (GUI visible). Pass `headless:=1` for rviz-only, `headless:=2` for no GUI |
+| `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (rviz also suppressed unless `rviz:=true` is set explicitly) |
 
 To suppress the HuNavSim agent manager when no human obstacles are needed,
 add `human:=dummy` to the command above.
@@ -71,7 +90,7 @@ add `human:=dummy` to the command above.
 ### 3. Gazebo + jackal + HuNavSim
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
+arena launch \
     sim:=gazebo \
     world:=map_empty \
     robot:=jackal \
@@ -91,19 +110,19 @@ Human pedestrian models are managed by the HuNavSim plugin; the
 Isaac must be installed and `arena feature isaac` must be set up before launch.
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
+arena launch \
     sim:=isaac \
     world:=map_empty \
     task_config:=$(ros2 pkg prefix arena_bringup)/share/arena_bringup/configs/tasks/default.yaml \
     tm_obstacles:=random \
-    headless:=2
+    headless:=true
 ```
 
 | Arg | Implication |
 |---|---|
 | `sim:=isaac` | Runs `arena feature isaac launch` via bash. `navigator` defaults to `nav2` |
 | `task_config:=<path>` | Structured `TaskModeSpec` YAML; overrides `tm_robots`. Use to split a fleet across multiple task modes |
-| `headless:=2` | No GUI (server-only mode) |
+| `headless:=true` | Sim GUI hidden; rviz suppressed (no GUI at all) |
 
 Multi-robot fleet with two modes:
 
@@ -120,13 +139,13 @@ task_modes:
     config: {}
 EOF
 
-ros2 launch arena_bringup arena.launch.py \
+arena launch \
     sim:=isaac \
     world:=map_empty \
     robot:=jackal \
     task_config:=/tmp/fleet.yaml \
     tm_obstacles:=random \
-    headless:=2
+    headless:=true
 ```
 
 `jackal_0` follows a scenario; every other jackal explores. See
@@ -137,18 +156,16 @@ ros2 launch arena_bringup arena.launch.py \
 ### 5. Multiple parallel environments
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
+arena launch \
     sim:=gazebo \
     world:=map_empty \
     robot:=jackal \
-    env_n:=3 \
-    headless:=1
+    env_n:=3
 ```
 
 | Arg | Implication |
 |---|---|
 | `env_n:=3` | Three task-generator instances under `arena/env_0/task_generator_node`, `arena/env_1/...`, `arena/env_2/...`. `arena_node` self-orchestrates the fleet via `/arena/spawn_env`. |
-| `headless:=1` | Only rviz is shown (no per-env Gazebo GUIs). `headless:=-1` shows all envs, `0` shows env 0 only, `2` hides everything. |
 
 Slot positions are placed by the shelf packer in `arena_node` based on each env's `WorldExtent`; spacing is governed by the `slot_buffer` ROS parameter on `arena_node` (default 5 m).
 
@@ -157,32 +174,31 @@ Slot positions are placed by the shelf packer in `arena_node` based on each env'
 ### 6. Runtime / client mode (dynamic envs)
 
 The runtime (`arena_node`) and the simulator can be launched without any
-task-generator envs, then envs can be added or removed at runtime.
+task-generator envs, then envs and viz can be added or removed at will.
 
 ```bash
-# Runtime: sim + arena_node only, no envs.
-ros2 launch arena_bringup arena_runtime.launch.py \
-    sim:=gazebo \
-    world:=map_empty \
-    headless:=1
+# Terminal 1: runtime only.
+arena runtime sim:=gazebo world:=map_empty
 ```
 
-`arena.launch.py env_n:=0` reaches the same state via the all-in-one
-launcher; `arena_runtime.launch.py` is the leaner direct entry.
-
-Once the runtime is up, attach an env with `task_generator.launch.py`:
+Then attach pieces from other terminals:
 
 ```bash
-ros2 launch task_generator task_generator.launch.py \
-    robot:=jackal \
-    tm_robots:=explore \
-    tm_obstacles:=random
+# Add an env. Multiple invocations stack (different robot/task each).
+arena env robot:=jackal tm_robots:=explore tm_obstacles:=random
+
+# Or use arena launch, which detects the existing runtime and attaches
+# additively rather than bringing up a fresh one. Errors on sim:= mismatch.
+arena launch sim:=gazebo env_n:=1 robot:=burger tm_robots:=random
+
+# Attach rviz to an existing env (auto-pick, by id, or all).
+arena viz
+arena viz 0
+arena viz --all
 ```
 
-The env registers with `arena_node` (`/arena/register_env`), is placed on the
-shelf-packed grid, and runs its task loop until despawned. See
-[arena_runtime/arena_runtime/README.md](../arena_runtime/arena_runtime/README.md)
-for the simulator interface and registry primitives.
+`arena env` and `arena viz` both wait forever (10s warning cadence) if the
+runtime or env isn't up yet, so terminal ordering doesn't matter.
 
 To tear an env down by id, call the cleanup service (or use
 `arena cleanup <env_id>`, see [CLI verbs](#cli-verbs)).
@@ -192,17 +208,56 @@ To tear an env down by id, call the cleanup service (or use
 ### 7. RL training mode
 
 ```bash
-ros2 launch arena_bringup arena.launch.py \
-    sim:=gazebo \
-    world:=map_empty \
-    robot:=jackal \
+arena train sim:=gazebo world:=map_empty robot:=jackal \
     train_config:=/path/to/train_config.yaml
 ```
 
-When `train_config` is non-empty:
-- `auto_reset` is forced `false` — managed mode; the RL training loop drives
-  resets via `lifecycle/reset_episode`.
-- `train_agent.py` is started automatically with `--config <train_config>`.
+Training includes `arena_runtime.launch.py` directly (runtime-only, no
+auto-spawn). `train_agent.py` reads `n_envs` from the YAML and spawns envs
+via `/arena/spawn_env`.
+
+---
+
+## headless and rviz
+
+| Arg | Default | Meaning |
+|---|---|---|
+| `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `rviz:=false` unless `rviz:=true` is explicit. |
+| `rviz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
+
+Examples:
+
+```bash
+# Sim GUI visible, rviz shown (default)
+arena launch sim:=gazebo
+
+# Sim GUI hidden, no rviz
+arena launch sim:=gazebo headless:=true
+
+# Sim GUI hidden, rviz shown (explicit override)
+arena launch sim:=gazebo headless:=true rviz:=true
+
+# Sim GUI visible, no rviz
+arena launch sim:=gazebo rviz:=false
+```
+
+---
+
+## arena viz
+
+Attaches rviz to one or more running envs after launch (out-of-band).
+
+```bash
+arena viz               # auto-pick if exactly one env is running
+arena viz <env_id>      # match by env id (last path component)
+arena viz --ns <ns>     # explicit namespace
+arena viz --all         # one rviz window per running env
+```
+
+Waits forever for a matching env to appear (10s warning cadence), mirroring
+`arena env`'s wait for the runtime. Once at least one env is up: a single
+match with no arg auto-picks; multiple matches with no arg print the list
+and exit non-zero with a hint to use `--all` or `<env_id>`.
 
 ---
 
@@ -222,14 +277,20 @@ common entry points. Verbs relevant to bringup:
 
 | Verb | Wraps | Purpose |
 |---|---|---|
-| `arena launch [args]` | `arena.launch.py` | All-in-one launch (sim + runtime + envs). |
+| `arena launch [args]` | bash composite | All-in-one: `arena runtime` + N × `arena env` + optional `arena viz --all`. |
 | `arena runtime [args]` | `arena_runtime.launch.py` | Runtime-only launch (sim + `arena_node`, no envs). |
 | `arena env [args]` | `task_generator.launch.py` | Attach one task-generator env to a running runtime. |
+| `arena viz [target]` | `ros2 run rviz_utils rviz_config` | Attach rviz to a running env; see [arena viz](#arena-viz). |
 | `arena cleanup <env_id>` | `/arena/cleanup_namespace` service | Force-clean an env's namespace by id (calls the service for both the `env_<id>_` and `env_<id>/` prefixes, covering gazebo and isaac layouts). |
-| `arena train [args]` | `arena_training` feature launcher | RL training entry, see section 7 below. |
+| `arena train [args]` | `arena_training` feature launcher | RL training entry, see section 7 above. |
 
-`arena launch` and `arena runtime` both kill any prior `task_generator_node`,
-`arena_node`, and `world_generator` processes before relaunching.
+None of these verbs killall anything. `arena launch` checks for an existing
+runtime via `/arena/register_env`: if present, it attaches additively
+(spawning `env_n` more envs against the existing runtime) and errors out
+only if `sim:=` on the command line mismatches the running runtime's `sim`
+parameter. `arena runtime` will fail if another `/arena` node is already
+registered (ROS doesn't allow duplicate node names); kill the prior one
+manually or call `arena cleanup` on its envs first.
 
 ## Benchmark mode
 
@@ -238,7 +299,7 @@ Benchmark runs are driven by the `arena benchmark` CLI verb, which launches
 [arena_evaluation/configs/benchmark/](../arena_evaluation/configs/benchmark/README.md).
 
 ```bash
-arena benchmark sim:=gazebo headless:=2 suite:=basic contest:=basic
+arena benchmark sim:=gazebo headless:=true suite:=basic contest:=basic
 ```
 
 The runner groups steps by `(contestant, robot, simulator)`. One env is

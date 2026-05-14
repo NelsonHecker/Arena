@@ -34,7 +34,7 @@ def generate_launch_description():
 
     headless = LaunchArgument(
         name='headless',
-        default_value='0',
+        default_value='False',
     )
 
     launch_sim = launch.actions.IncludeLaunchDescription(
@@ -50,6 +50,13 @@ def generate_launch_description():
         }.items(),
     )
 
+    world_generator_node = launch_ros.actions.Node(
+        package='arena_simulation_setup',
+        executable='world_generator',
+        name='world_generator',
+        output='screen',
+    )
+
     arena_node = launch_ros.actions.LifecycleNode(
         package='arena_runtime',
         executable='arena_node',
@@ -63,6 +70,7 @@ def generate_launch_description():
         *ld_items,
         SetGlobalLogLevelAction(log_level.substitution),
         IsolatedGroupAction([launch_sim]),
+        world_generator_node,
         arena_node,
     ])
 

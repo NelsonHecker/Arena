@@ -31,8 +31,8 @@ _AUTO_ENV_ID = 0xFFFF
 
 def _allocate_env(env_id: int, ns: str) -> tuple[int, str, str]:
     import rclpy
-    from rclpy.node import Node
     from arena_runtime_msgs.srv import RegisterEnv
+    from rclpy.node import Node
 
     if not rclpy.ok():
         rclpy.init(args=[])
@@ -156,7 +156,6 @@ def generate_launch_description():
         description="arm adapter kind",
     )
     record_data_dir = LaunchArgument(name="record_data_dir", default_value="")
-    headless = LaunchArgument(name="headless", default_value="False")
     debug = LaunchArgument(name="debug", default_value="False")
     auto_reset = LaunchArgument(
         name="auto_reset",
@@ -234,16 +233,6 @@ def generate_launch_description():
             ),
         )
 
-        rviz_node = launch_ros.actions.Node(
-            package="rviz_utils",
-            executable="rviz_config",
-            name="rviz_config_generator",
-            arguments=[fqn],
-            parameters=[{"use_sim_time": True}],
-            output="screen",
-            condition=launch.conditions.UnlessCondition(headless.substitution),
-        )
-
         task_generator_node = launch_ros.actions.Node(
             package="task_generator",
             executable="task_generator_node",
@@ -300,7 +289,6 @@ def generate_launch_description():
         inner_group = launch.actions.GroupAction([
             PushRosNamespace(namespace=allocated_ns),
             pedestrian_marker_node,
-            rviz_node,
         ])
 
         shutdown_on_node_exit = RegisterEventHandler(OnProcessExit(

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import signal
 import sys
 import tempfile
 import typing
@@ -114,7 +115,7 @@ class ConfigFileGenerator(ArenaMixinNode):
         if arm_params:
             rviz_parameters.append(arm_params)
 
-        await self.do_launch(
+        launch_task = await self._launch_manager.launch_description(
             launch.LaunchDescription(
                 [
                     NodeLogLevelExtension.SetGlobalLogLevelAction(rclpy.logging.get_logger_effective_level(self.get_logger().name).name.lower()),
@@ -129,6 +130,9 @@ class ConfigFileGenerator(ArenaMixinNode):
                 ]
             )
         )
+        await launch_task
+        self.get_logger().info('rviz2 exited, shutting down supervisor')
+        os.kill(os.getpid(), signal.SIGINT)
 
     def _collect_moveit_params(self) -> dict[str, object]:
         """Mirror each arm robot's MoveIt config into rviz2 under a robot-named
