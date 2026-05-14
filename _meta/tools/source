@@ -400,7 +400,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 unset -f arena
                 result=0
             ;;
-            feature)
+            ft|feature)
                 features=""
                 for entry in "$ARENA_FEATURES_DIR"/*; do
                     [ -e "$entry" ] || continue
