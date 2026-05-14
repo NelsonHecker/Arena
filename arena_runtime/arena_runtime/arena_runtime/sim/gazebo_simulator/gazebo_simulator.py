@@ -123,9 +123,6 @@ class GazeboHost(SimLifecycle):
                 traceback.print_exc()
                 return False
 
-    def env_prefix(self, env_id: int) -> str:
-        return f"env_{env_id}_"
-
     async def cleanup_namespace(self, prefix: str) -> int:
         names = await self._list_models()
         targets = [n for n in names if n.startswith(prefix)]
