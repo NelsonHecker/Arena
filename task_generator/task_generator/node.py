@@ -908,10 +908,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         if merged:
             batch = [Parameter.from_parameter_msg(RclParameter(name=n, value=pv)) for n, (pv, _) in merged.items()]
-            results = self.set_parameters(batch)
-            for name, result in zip(merged.keys(), results, strict=True):
-                if not result.successful:
-                    log.warning(f"staged param {name!r} rejected: {result.reason}")
+            result = self.set_parameters_atomically(batch)
+            if not result.successful:
+                log.warning(f"staged params {list(merged)} rejected: {result.reason}")
 
     async def _cb_get_task_modes(
         self,
