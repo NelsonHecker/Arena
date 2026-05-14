@@ -224,6 +224,12 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._reg_pub = self.node.create_publisher(StdString, '/isaac/register_entity', 10)
 
 
+    def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
+        return {
+            **robot.asdict(),
+            'optim': self.node.rosparam[str].get('optim', ''),
+        }
+
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
             try:
@@ -232,7 +238,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                         ModelType.URDF,
                         # ModelType.USD
                     ),
-                    loader_args=robot.asdict(),
+                    loader_args=self._robot_loader_args(robot),
                 )
 
                 if model.type == ModelType.URDF:

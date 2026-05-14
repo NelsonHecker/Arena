@@ -1,3 +1,5 @@
+import os
+
 import launch
 import launch.utilities
 import launch.utilities.type_utils
@@ -90,6 +92,11 @@ def generate_launch_description():
         name='tm_modules',
         default_value='rviz_ui'
     )
+    optim = LaunchArgument(
+        name='optim',
+        default_value=os.environ.get('ARENA_OPTIM', ''),
+        description='comma-separated optimization tokens (e.g. no_camera,no_lidar), strip matching <sensor> blocks from URDFs. Defaults to $ARENA_OPTIM if set; CLI value wins.',
+    )
     world = LaunchArgument(
         name='world',
         default_value='map_empty',
@@ -143,7 +150,7 @@ def generate_launch_description():
     _env_arg_sources: list[LaunchArgument] = [
         sim, human, tm_obstacles, tm_robots, task_config, tm_modules,
         robot, inter_planner, local_planner, global_planner, mobile, arm,
-        world, record_data_dir, debug, auto_reset,
+        world, record_data_dir, debug, auto_reset, optim,
     ]
 
     def _build_arena_node(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:

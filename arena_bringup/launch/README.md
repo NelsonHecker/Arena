@@ -33,6 +33,7 @@ exposes `.substitution` / `.dict` / `.param`).
 | `debug` | bool string | `False` | Enable debug features |
 | `train_config` | string | `` (empty) | Path to RL training config YAML; non-empty forces `auto_reset=false` and starts `train_agent.py` |
 | `auto_reset` | bool expression | `true` (or `false` when `train_config` set) | `true` = standalone: node auto-advances episodes; `false` = managed: external controller drives resets via `lifecycle/reset_episode` |
+| `optim` | comma-separated tokens | `$ARENA_OPTIM` or `` (empty) | Strip matching `<sensor>` blocks from each robot's URDF after xacro expansion (affects both Gazebo and Isaac via [`urdf.py`](../../arena_simulation_setup/src/arena_simulation_setup/utils/models/urdf.py)). Tokens: `no_camera` (strips `camera`/`depth`/`rgbd_camera`), `no_lidar` (strips `ray`/`gpu_lidar`). Unknown tokens warn and are ignored. Default reads `$ARENA_OPTIM` so you can set `export ARENA_OPTIM=no_camera,no_lidar` once per shell; CLI `optim:=...` overrides. |
 
 ## Log level
 

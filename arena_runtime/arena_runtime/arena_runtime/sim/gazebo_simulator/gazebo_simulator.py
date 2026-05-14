@@ -186,7 +186,11 @@ class GazeboSimulator(BaseSim):
         return True
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
-        args: dict[str, object] = {**robot.asdict(), 'sim_path': robot.sim_path}
+        args: dict[str, object] = {
+            **robot.asdict(),
+            'sim_path': robot.sim_path,
+            'optim': self.node.rosparam[str].get('optim', ''),
+        }
         robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
         control_spec = robot_config.model_params.control
         if control_spec is None or not control_spec.is_ros2_control:
