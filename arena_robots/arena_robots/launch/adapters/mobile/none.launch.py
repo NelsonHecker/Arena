@@ -1,4 +1,4 @@
-"""No-op adapter launch (navigator: none)."""
+"""No-op adapter launch (mobile: none)."""
 
 from launch import LaunchDescription
 

@@ -1,7 +1,6 @@
 import launch_ros
 from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import LaunchArgument
-from launch.conditions import IfCondition
 from launch_ros.actions import PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 
@@ -26,20 +25,6 @@ def generate_launch_description():
     frame = LaunchArgument("frame")
 
     record_data_dir = LaunchArgument('record_data_dir', default_value='')
-    train_mode = LaunchArgument('train_mode', default_value='false')
-
-    # `local_planner` is read only for the rosnav_rl action-server condition
-    # below; the adapter navstack dispatch lives in RobotManager Python.
-    local_planner = LaunchArgument("local_planner", default_value='')
-    agents_dir = LaunchArgument(
-        'agents_dir',
-        default_value=launch.substitutions.EnvironmentVariable('ROSNAV_AGENTS_DIR', default_value=''),
-        description=(
-            'Base directory for agent artifacts. '
-            'Forwarded as ROSNAV_AGENTS_DIR to the action server. '
-            'Defaults to the ROSNAV_AGENTS_DIR env var.'
-        ),
-    )
 
     # launch robot control
     state_pub_launch = launch.actions.IncludeLaunchDescription(
@@ -69,40 +54,11 @@ def generate_launch_description():
         condition=launch.conditions.IfCondition(PythonExpression(['bool("', record_data_dir.substitution, '")'])),
     )
 
-    # Launch the rosnav_rl action server when using DRL local planner
-    rosnav_rl_action_server = launch.actions.IncludeLaunchDescription(
-        launch.launch_description_sources.PythonLaunchDescriptionSource(
-            launch.substitutions.PathJoinSubstitution([
-                FindPackageShare('rosnav_rl'),
-                'launch',
-                'action_server.launch.py',
-            ])
-        ),
-        launch_arguments={
-            'agent_name': launch.substitutions.LaunchConfiguration('agent_name'),
-            'namespace': namespace.substitution,
-            'agents_dir': agents_dir.substitution,
-        }.items(),
-        condition=IfCondition(
-            PythonExpression(["'", local_planner.substitution, "' == 'rosnav_rl' and '", train_mode.substitution, "' == 'false'"])
-        ),
-    )
-
     ld = launch.LaunchDescription([
         *ld_items,
-        launch.actions.DeclareLaunchArgument(
-            name='agent_name',
-            default_value='',
-            description='DRL agent name to be deployed'
-        ),
-        launch.actions.DeclareLaunchArgument(
-            name='complexity',
-            default_value='1'
-        ),
         PushRosNamespace(namespace=namespace.substitution),
         # robot_localization_node,
         # state_pub_launch,
-        rosnav_rl_action_server,
         data_recorder,
     ])
     return ld

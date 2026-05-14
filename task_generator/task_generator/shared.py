@@ -32,15 +32,11 @@ if TYPE_CHECKING:
 @attrs.define
 class Robot(Entity):
     model: RobotIdentifier  # type: ignore
-    inter_planner: str
-    local_planner: str
-    global_planner: str
-    agent: str
     adapter_overrides: dict[str, str] = attrs.field(factory=dict)
     record_data_dir: str | None = None
 
     def compatible(self, value: Robot) -> bool:
-        return self.model.name == value.model.name and self.local_planner == value.local_planner and self.global_planner == value.global_planner and self.agent == value.agent and self.adapter_overrides == value.adapter_overrides
+        return self.model.name == value.model.name and self.adapter_overrides == value.adapter_overrides
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Robot):
@@ -58,16 +54,11 @@ class Robot(Entity):
 
     @classmethod
     def from_setup(cls, setup: RobotSetupConfig, *, node: TaskGenerator) -> Robot:
-        dict_value = {}
-        dict_value['model'] = setup.robot
-        if setup.behavior is not None:
-            dict_value['inter_planner'] = setup.behavior
-        if setup.controller is not None:
-            dict_value['local_planner'] = setup.controller
-        if setup.planner is not None:
-            dict_value['global_planner'] = setup.planner
-        if setup.navigator is not None:
-            dict_value['navigator'] = setup.navigator  # consumed by parse
+        dict_value: dict = {'model': setup.robot}
+        if setup.mobile is not None:
+            dict_value['mobile'] = setup.mobile  # consumed by parse
+        if setup.arm is not None:
+            dict_value['arm'] = setup.arm  # consumed by parse
         dict_value.update(setup.extra)
         dict_value['name'] = setup.name or ''
         return cls.parse(dict_value, node=node)
@@ -77,32 +68,23 @@ class Robot(Entity):
         name = str(value['name'])
         model = str(value['model'])
         pose = Pose.parse(value.get("pos", (0, 0, 0)))
-        inter_planner = str(value.get("inter_planner", node.conf.Robot.BEHAVIOR.value))
-        local_planner = str(value.get("local_planner", node.conf.Robot.CONTROLLER.value))
-        global_planner = str(value.get("global_planner", node.conf.Robot.PLANNER.value))
-        agent = str(value.get("agent", node.conf.Robot.AGENT.value))
 
         overrides: dict[str, str] = {}
         adapters_block = value.get("adapters")
         if isinstance(adapters_block, dict):
             overrides.update({str(k): str(v) for k, v in adapters_block.items()})
-        legacy = value.get("navigator")
-        if isinstance(legacy, str) and legacy:
-            # Legacy single-string sugar maps to the mobile slot.
-            overrides.setdefault("mobile", legacy)
-        if "mobile" not in overrides:
-            overrides["mobile"] = node.conf.Robot.NAVIGATOR.value
+        # Flat per-cap sugar: top-level `mobile:` / `arm:` keys override the adapters block.
+        for cap in ("mobile", "arm"):
+            flat = value.get(cap)
+            if isinstance(flat, str) and flat:
+                overrides[cap] = flat
 
         record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
         return cls(
             name=name,
             pose=pose,
-            inter_planner=inter_planner,
-            local_planner=local_planner,
-            global_planner=global_planner,
             model=RobotIdentifier.parse(model),
-            agent=agent,
             adapter_overrides=overrides,
             record_data_dir=record_data,
             extra=value,

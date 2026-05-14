@@ -27,3 +27,10 @@ def _load_external() -> type[Bringup]:
     from .external import ExternalBringup
 
     return ExternalBringup
+
+
+@BRINGUPS["mobile"].register("rosnav_rl")
+def _load_rosnav_rl() -> type[Bringup]:
+    from .rosnav_rl import RosnavRlBringup
+
+    return RosnavRlBringup

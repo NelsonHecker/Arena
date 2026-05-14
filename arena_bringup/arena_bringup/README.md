@@ -95,8 +95,8 @@ are concatenated before `eval`.
 Typical use in launch files for derived defaults:
 
 ```python
-navigator = LaunchArgument(
-    name='navigator',
+mobile = LaunchArgument(
+    name='mobile',
     default_value=PythonExpression(
         [str({"dummy": "none"}), '.get("', sim.substitution, '", "nav2")']
     ),

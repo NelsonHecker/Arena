@@ -154,6 +154,10 @@ class _rosparam[T]:
     @classmethod
     def declare_safe(cls, param_name: str, value: object = None, *, descriptor: rcl_interfaces.msg.ParameterDescriptor | None = None, **kwargs: object) -> None:
         if cls._node.has_parameter(param_name):
+            if descriptor is not None:
+                if descriptor.type == rclpy.Parameter.Type.NOT_SET.value:
+                    descriptor.type = cls._node.get_parameter(param_name).type_.value
+                cls._node.set_descriptor(param_name, descriptor)
             return
 
         try:

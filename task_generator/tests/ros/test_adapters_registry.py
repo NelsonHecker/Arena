@@ -84,6 +84,14 @@ def test_adapter_meta_attached_on_every_adapter():
             assert isinstance(cls._adapter_meta, AdapterMeta), f"{cls.__name__} missing _adapter_meta"
 
 
+def test_every_mobile_adapter_subclasses_mobile_adapter():
+    from task_generator.tasks.robots.adapters import ADAPTERS
+    from task_generator.tasks.robots.adapters.mobile import MobileAdapter
+    for kind in ADAPTERS["mobile"].keys():
+        cls = ADAPTERS["mobile"].get(kind)
+        assert issubclass(cls, MobileAdapter), f"{cls.__name__} (cap=mobile) must inherit MobileAdapter"
+
+
 class TestAdapterMetaConverters:
     def test_accepts_set_coerces_to_frozenset(self):
         from arena_robots.bringup.mobile.nav2 import Nav2Bringup

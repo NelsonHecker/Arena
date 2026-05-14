@@ -68,11 +68,10 @@ Config.General.RNG.value      # numpy Generator
 | `SPAWN_ROBOT_SAFE_DIST` | `robot_safe_dist` | `0.25` | metres |
 | `TIMEOUT` | `timeout` | `-1` | parsed to `inf` when negative |
 | `RECORD_DATA_DIR` | `record_data_dir` | `''` | `None` when empty |
-| `AGENT` | `agent_name` | `''` | RL agent name |
-| `PLANNER` | `global_planner` | `''` | |
-| `CONTROLLER` | `local_planner` | `''` | |
-| `BEHAVIOR` | `inter_planner` | `''` | |
-| `NAVIGATOR` | `navigator` | `'nav2'` | adapter kind |
+| `MOBILE_ADAPTER` | `robot.mobile_adapter` | `'nav2'` | default mobile-cap adapter kind, overridden per robot via scenario `mobile:` |
+| `ARM_ADAPTER` | `robot.arm_adapter` | `'moveit'` | default arm-cap adapter kind, overridden per robot via scenario `arm:` |
+
+Adapter-specific tunables (planners, RL agent, …) live in `caps/<cap>.yaml` and can be overridden at launch time via `<cap>.<key>:=<val>` flags. Each `<cap>.<key>:=<val>` lands on the task-generator node as ROS param `robot.<cap>.<key>` and is merged into the adapter's kwargs on top of the cap-file YAML.
 
 ### Node-level runtime params (declared with `ParameterDescriptor`)
 

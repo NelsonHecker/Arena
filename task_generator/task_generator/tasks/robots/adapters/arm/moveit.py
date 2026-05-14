@@ -78,9 +78,9 @@ class MoveItArmAdapter(Adapter):
         else:
             raise TypeError(f"MoveItArmAdapter: unsupported phase type {type(phase).__name__} (kind={phase.kind!r})")
 
-    async def reset_to(self, robot: RobotManager, ctx: ResetContext) -> None:
-        # MoveIt cannot plan while sim is paused (no /joint_states -> no current state).
-        # The TM is responsible for emitting a stow phase if it wants the arm parked.
+    async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
+        # MoveIt cannot plan while sim is paused (no /joint_states, no current state),
+        # the TM is responsible for emitting a stow phase if it wants the arm parked.
         del robot, ctx
 
     async def wait_until_ready(self, robot: RobotManager, node_paths: set[str]) -> None:

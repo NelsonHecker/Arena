@@ -8,7 +8,7 @@ files, and the `arena feature robots` CLI all look robots up by this name.
 
 ```
 <robot>/
-├── model_params.yaml    # robot-wide identity (robot_model + optional navigator)
+├── model_params.yaml    # robot-wide identity (robot_model, base_frame, z_offset, sensors)
 ├── control.yaml         # ros2_control configuration
 ├── mappings.yaml        # sim ⇄ ROS2 topic bridge
 └── caps/
@@ -28,7 +28,6 @@ base_frame: base_link       # required; TF frame of the robot's base link
 z_offset: 0.37              # optional; metres to lift the robot above the ground plane at spawn
 sensors:                    # optional; declared sensors parsed into SensorSpec entries
   - {name: lidar, type: laserscan, topic: ${namespace}/scan, frame: base_scan}
-navigator: nav2             # optional; default adapter kind for the navigator (overridable at runtime)
 ```
 
 Parsed by [`arena_robots.Robot.ModelParams`](../arena_robots/Robot.py). Additional keys pass

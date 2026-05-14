@@ -14,7 +14,8 @@ from arena_robots_msgs.action import GotoPose
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
 
 from task_generator.manager.world_manager.shims import requires_map_server
-from task_generator.tasks.robots.adapters import Adapter, AdapterDisplayHint, AdapterMeta
+from task_generator.tasks.robots.adapters import AdapterDisplayHint, AdapterMeta
+from task_generator.tasks.robots.adapters.mobile import MobileAdapter
 from task_generator.tasks.robots.request import GoToPhase, TaskPhase
 
 if TYPE_CHECKING:
@@ -46,10 +47,38 @@ if TYPE_CHECKING:
             rviz_class="rviz_default_plugins/Pose",
             config_json="",
         ),
+        AdapterDisplayHint(
+            name="Local Costmap",
+            topic="{ns}/local_costmap/costmap",
+            topic_type="nav_msgs/OccupancyGrid",
+            rviz_class="rviz_default_plugins/Map",
+            config_json=('{"Color Scheme": "costmap", "Draw Behind": false, "Alpha": 0.7, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}'),
+        ),
+        AdapterDisplayHint(
+            name="Global Costmap",
+            topic="{ns}/global_costmap/costmap",
+            topic_type="nav_msgs/OccupancyGrid",
+            rviz_class="rviz_default_plugins/Map",
+            config_json=('{"Color Scheme": "costmap", "Draw Behind": false, "Alpha": 0.7, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}'),
+        ),
+        AdapterDisplayHint(
+            name="Local Plan",
+            topic="{ns}/local_plan",
+            topic_type="nav_msgs/Path",
+            rviz_class="rviz_default_plugins/Path",
+            config_json='{"Color": "255; 0; 0", "Line Width": 0.05}',
+        ),
+        AdapterDisplayHint(
+            name="Robot Footprint",
+            topic="{ns}/local_costmap/published_footprint",
+            topic_type="geometry_msgs/PolygonStamped",
+            rviz_class="rviz_default_plugins/Polygon",
+            config_json='{"Alpha": 1.0}',
+        ),
     ],
 )
 @requires_map_server
-class Nav2Adapter(Adapter):
+class Nav2Adapter(MobileAdapter):
     kind: ClassVar[str] = "nav2"
 
     async def dispatch_phase(
@@ -92,9 +121,8 @@ class Nav2Adapter(Adapter):
             await asyncio.sleep(0.01)
         await super().wait_until_ready(robot, node_paths)
 
-    async def reset_to(self, robot: RobotManager, ctx: ResetContext) -> None:
-        if ctx.start_pose is not None:
-            await robot.move(ctx.start_pose)
+    async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
+        await super().on_reset(robot, ctx)
         await self._clear_local_costmap(robot)
 
     async def on_move(

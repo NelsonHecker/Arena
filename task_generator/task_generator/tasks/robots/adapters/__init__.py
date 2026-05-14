@@ -216,13 +216,6 @@ class Adapter(ABC):
     ) -> bool | None:
         return self.client_for(phase.kind).is_done()
 
-    def on_episode_start(self) -> None:
-        return None
-
-    def on_episode_end(self) -> None:
-        for c in self._clients.values():
-            c.cancel()
-
     async def on_move(
         self,
         pose: Pose,
@@ -230,8 +223,7 @@ class Adapter(ABC):
     ) -> None:
         return None
 
-    async def reset_to(self, robot: RobotManager, ctx: ResetContext) -> None:
-        """Bring this adapter to a baseline state for a new episode."""
+    async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
         return None
 
 

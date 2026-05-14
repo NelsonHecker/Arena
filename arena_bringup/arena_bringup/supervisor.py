@@ -118,7 +118,7 @@ class Supervisor:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    """Mirror the bash launch verb's argument routing."""
+    """Forward every k:=v to both runtime and env; supervisor-only knobs are env_n / rviz."""
     env_n = 1
     headless = False
     rviz = True
@@ -134,21 +134,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         key, _, value = arg.partition(':=')
         if key == 'env_n':
             env_n = int(value)
-        elif key == 'sim':
-            sim = value
-            runtime_args.append(arg)
-            env_args.append(arg)
-        elif key == 'headless':
-            headless = value.lower() in ('true', '1')
-            runtime_args.append(arg)
-        elif key == 'rviz':
+            continue
+        if key == 'rviz':
             rviz_set = True
             rviz = value.lower() in ('true', '1')
-        elif key in ('world', 'use_sim_time', 'log_level'):
-            runtime_args.append(arg)
-            env_args.append(arg)
-        else:
-            env_args.append(arg)
+            continue
+        if key == 'sim':
+            sim = value
+        elif key == 'headless':
+            headless = value.lower() in ('true', '1')
+        runtime_args.append(arg)
+        env_args.append(arg)
 
     if headless and not rviz_set:
         rviz = False

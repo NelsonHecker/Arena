@@ -102,11 +102,6 @@ class ModelParams(dict[str, typing.Any]):
         return float(self.get('z_offset', 0.0))
 
     @property
-    def navigator(self) -> str:
-        """Default navstack adapter kind baked into the robot model; precedence: robot_setup YAML > CLI > model_params."""
-        return str(self.get('navigator', 'nav2'))
-
-    @property
     def control(self) -> ControlSpec | None:
         """Typed view of the ``control:`` block in model_params.yaml. ``None``
         when absent (legacy gazebo_native pipeline)."""

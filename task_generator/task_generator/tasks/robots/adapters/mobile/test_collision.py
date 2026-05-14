@@ -15,7 +15,8 @@ from arena_robots.task_kinds import TaskKind
 
 from task_generator.manager.robot_manager.collision_tracker import CollisionTrackerNode
 from task_generator.manager.world_manager.shims import requires_map_server
-from task_generator.tasks.robots.adapters import Adapter, AdapterMeta
+from task_generator.tasks.robots.adapters import AdapterMeta
+from task_generator.tasks.robots.adapters.mobile import MobileAdapter
 
 if TYPE_CHECKING:
     from task_generator.manager.robot_manager.robot_manager import RobotManager
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
     republishes_goal=True,
 )
 @requires_map_server
-class TestCollisionAdapter(Adapter):
+class TestCollisionAdapter(MobileAdapter):
     kind: ClassVar[str] = "test-collision"
 
     def __init__(self, *args: object, **kwargs: object):

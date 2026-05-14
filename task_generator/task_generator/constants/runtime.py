@@ -88,31 +88,6 @@ def Configuration(server: ROSParamServer) -> type:
                 parse=lambda x: x if bool(x) else None,
             )
 
-            AGENT = server.ROSParam[str](
-                'agent_name',
-                '',
-            )
-
-            PLANNER = server.ROSParam[str](
-                'global_planner',
-                '',
-            )
-
-            CONTROLLER = server.ROSParam[str](
-                'local_planner',
-                '',
-            )
-
-            BEHAVIOR = server.ROSParam[str](
-                'inter_planner',
-                '',
-            )
-
-            NAVIGATOR = server.ROSParam[str](
-                'navigator',
-                'nav2',
-            )
-
             MOBILE_ADAPTER = server.ROSParam[str](
                 'robot.mobile_adapter',
                 'nav2',

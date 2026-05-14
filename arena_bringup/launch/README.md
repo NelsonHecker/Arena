@@ -16,16 +16,15 @@ args (`sim`, `headless`, `world`, `use_sim_time`, `log_level`) go to
 |---|---|---|---|
 | `log_level` | level / `{glob:lvl,…,default}` / yaml path | `warn` | Per-node log level via `NodeLogLevelExtension`. See [Log level](#log-level) below. |
 | `robot` | string | `jackal` | Robot model; must match a directory under `arena_robots/robots/` |
-| `inter_planner` | string | `navigate_w_replanning_time` | Behavior-Tree inter-planner (nav2) |
-| `local_planner` | string | `dwb` | Local planner (`teb`, `dwa`, `mpc`, `rlca`, `arena`, `rosnav`, `cohan`, …) |
-| `global_planner` | string | `navfn` | Global planner |
+| `mobile` | string | derived from `sim` | Mobile adapter kind: `nav2`, `rosnav_rl`, `external`, `none`. Empty = `none` for dummy, `nav2` otherwise. |
+| `arm` | string | `moveit` | Arm adapter kind |
+| `mobile.<key>:=<val>` | adapter-scoped | — | Override any kwarg the bound mobile adapter accepts. Lands as ROS param `robot.mobile.<key>` and overlays the cap-file YAML. Examples: `mobile.local_planner:=teb`, `mobile.global_planner:=smac`, `mobile.agent:=jackal_pretrained`. |
+| `arm.<key>:=<val>` | adapter-scoped | — | Same shape for the arm cap. |
 | `sim` | string | `dummy` | Physics simulator: `dummy`, `gazebo`, or `isaac` |
-| `navigator` | string | `none` for `dummy`, `nav2` otherwise | Nav-stack adapter kind; per-robot `navigator:` in `robot_setup.yaml` wins |
 | `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses rviz unless `rviz:=true` is explicit. |
 | `rviz` | bool string | `true` | `arena launch` only: run `arena viz --all` after envs are up. Forced `false` when `headless:=true` unless overridden. |
 | `human` | string | `dummy` for `dummy` sim, `hunav` for `gazebo`/`isaac` | Human-simulator backend |
 | `complexity` | string | `1` | `1` map+position known; `2` map known AMCL; `3` SLAM |
-| `agent_name` | string | value of `robot` | DRL agent name |
 | `record_data_dir` | string | `` (empty) | Directory for data recording; empty disables |
 | `tm_robots` | string | `explore` | Robot task mode (legacy single-kind shorthand) |
 | `task_config` | string | `` (empty) | Path to a [TaskModeSpec YAML](../configs/tasks/README.md); empty → synthesize from `tm_robots` (wins if both set) |

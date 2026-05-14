@@ -47,14 +47,19 @@ class TestConfigParse:
 
         configs = Config.parse({"robot": "tb3", "planner": "NavFn", "controller": "DWB"})
         assert len(configs) == 1
-        assert configs[0].planner == "NavFn"
-        assert configs[0].controller == "DWB"
+        assert configs[0].extra == {"planner": "NavFn", "controller": "DWB"}
 
-    def test_parse_dict_navigator_field(self):
+    def test_parse_dict_mobile_field(self):
         from arena_robots.SetupFile import Config
 
-        configs = Config.parse({"robot": "tb3", "navigator": "rl"})
-        assert configs[0].navigator == "rl"
+        configs = Config.parse({"robot": "tb3", "mobile": "rl"})
+        assert configs[0].mobile == "rl"
+
+    def test_parse_dict_arm_field(self):
+        from arena_robots.SetupFile import Config
+
+        configs = Config.parse({"robot": "tb3", "arm": "moveit"})
+        assert configs[0].arm == "moveit"
 
     def test_parse_dict_defaults(self):
         from arena_robots.SetupFile import Config
@@ -62,10 +67,8 @@ class TestConfigParse:
         configs = Config.parse({"robot": "tb3"})
         c = configs[0]
         assert c.name is None
-        assert c.planner is None
-        assert c.controller is None
-        assert c.behavior is None
-        assert c.navigator is None
+        assert c.mobile is None
+        assert c.arm is None
         assert c.extra == {}
 
     def test_parse_deepcopy_count_isolation(self):

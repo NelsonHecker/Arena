@@ -318,22 +318,6 @@ class ConfigFileGenerator(ArenaMixinNode):
         odom_topic = f'{robot_ns}/odom'
         robot_group['Displays'].append(Utils.Displays.odom(odom_topic, color))
 
-        # Add local costmap
-        local_costmap_topic = f'{robot_ns}/local_costmap/costmap'
-        robot_group['Displays'].append(Utils.Displays.local_costmap(local_costmap_topic))
-
-        # Add global costmap
-        global_costmap_topic = f'{robot_ns}/global_costmap/costmap'
-        robot_group['Displays'].append(Utils.Displays.global_costmap(global_costmap_topic))
-
-        # Add local path visualization
-        local_path_topic = f'{robot_ns}/local_plan'
-        robot_group['Displays'].append(Utils.Displays.local_path(local_path_topic))
-
-        # Add robot footprint
-        footprint_topic = f'{robot_ns}/local_costmap/published_footprint'
-        robot_group['Displays'].append(Utils.Displays.robot_footprint(footprint_topic, color))
-
         # adapter-declared displays for this robot
         for entry in self.viz_manifest.entries:
             if entry.robot_ns != robot_ns:
@@ -342,11 +326,15 @@ class ConfigFileGenerator(ArenaMixinNode):
                 display: dict[str, object] = {
                     'Class': entry_display.rviz_class,
                     'Name': entry_display.name,
-                    'Topic': {'Value': entry_display.topic},
                     'Enabled': True,
                 }
                 if entry_display.config_json:
                     display.update(json.loads(entry_display.config_json))
+                topic = display.get('Topic')
+                if isinstance(topic, dict):
+                    topic['Value'] = entry_display.topic
+                else:
+                    display['Topic'] = {'Value': entry_display.topic}
                 robot_group['Displays'].append(display)
 
         # SENSORS

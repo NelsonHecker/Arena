@@ -27,8 +27,10 @@ class MyAdapter(Adapter):
 The base class constructor builds `self.bringup` and `self.client` from
 `bringup_cls` / `client_cls`; subclasses only implement `dispatch_phase`.
 
-`is_phase_done` polls `self.client.is_done()`. `on_episode_end` calls
-`self.client.cancel()`. Override only when the default is wrong for your stack.
+`is_phase_done` polls `self.client.is_done()`. Mobile adapters inherit
+[`MobileAdapter`](mobile/__init__.py), whose `on_reset` teleports the robot
+to `ctx.start_pose`. Subclass overrides chain `super().on_reset(...)` before
+any post-teleport work.
 
 ## Existing kinds
 
@@ -56,7 +58,7 @@ there, not as constructor arguments.
    `dispatch_phase`.
 4. Eager-import the new module from `RobotManager.__init__` so registration
    fires before `get_adapter` runs.
-5. Set `navigator: <kind>` in a robot's `model_params.yaml`.
+5. Set `mobile: <kind>` (or `adapters: {mobile: <kind>}`) in the scenario robot entry or `robot_setup.yaml`.
 
 ## Opting into the collision tracker
 

@@ -133,18 +133,10 @@ def generate_launch_description():
         default_value='',
         description='Sets task.scenario.file ROS param (empty = use parameter_file default).',
     )
-    agent_name = LaunchArgument(
-        name='agent_name',
-        default_value='',
-        description='RL agent name; sets agent_name ROS param.',
-    )
     tm_obstacles = LaunchArgument(name="tm_obstacles", default_value="random")
     tm_modules = LaunchArgument(name="tm_modules", default_value="rviz_ui")
     optim = LaunchArgument(name="optim", default_value=os.environ.get("ARENA_OPTIM", ""))
     world = LaunchArgument(name="world", default_value="map_empty")
-    inter_planner = LaunchArgument(name="inter_planner", default_value="navigate_w_replanning_time")
-    local_planner = LaunchArgument(name="local_planner", default_value="dwb")
-    global_planner = LaunchArgument(name="global_planner", default_value="navfn")
     mobile = LaunchArgument(
         name="mobile",
         default_value="",
@@ -233,11 +225,15 @@ def generate_launch_description():
             ),
         )
 
-        dotted_overrides = {
-            k: v
-            for k, v in context.launch_configurations.items()
-            if k.startswith("task.")
-        }
+        dotted_overrides: dict[str, str] = {}
+        for k, v in context.launch_configurations.items():
+            if k.startswith("task."):
+                dotted_overrides[k] = v
+            elif k.startswith("mobile.") or k.startswith("arm."):
+                # `<cap>.<key>:=<val>` becomes `robot.<cap>.<key>` and lands as a
+                # kwarg in RobotManager._adapter_kwargs_for, overlaying the
+                # cap-file YAML for the bound adapter.
+                dotted_overrides[f"robot.{k}"] = v
 
         task_generator_node = launch_ros.actions.Node(
             package="task_generator",
@@ -258,9 +254,6 @@ def generate_launch_description():
                     **tm_modules.str_param,
                     **optim.str_param,
                     **world.str_param,
-                    **inter_planner.str_param,
-                    **local_planner.str_param,
-                    **global_planner.str_param,
                     **record_data_dir.str_param,
                     **debug.param(bool),
                     **auto_reset.param(bool),
@@ -272,7 +265,6 @@ def generate_launch_description():
                 {
                     **episodes.param(int),
                     'task.scenario.file': scenario_file.substitution,
-                    **agent_name.str_param,
                 },
                 dotted_overrides,
             ],

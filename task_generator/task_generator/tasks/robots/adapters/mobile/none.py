@@ -1,4 +1,4 @@
-"""No-op navstack adapter (navigator: none, mobile cap)."""
+"""No-op navstack adapter (mobile: none, mobile cap)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ from arena_robots.clients.goto_pose import GotoPoseClient
 from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import GotoPose
 
-from task_generator.tasks.robots.adapters import Adapter, AdapterMeta
+from task_generator.tasks.robots.adapters import AdapterMeta
+from task_generator.tasks.robots.adapters.mobile import MobileAdapter
 from task_generator.tasks.robots.request import GoToPhase, TaskPhase
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
     cap="mobile",
     republishes_goal=True,
 )
-class NoneAdapter(Adapter):
+class NoneAdapter(MobileAdapter):
     kind: ClassVar[str] = "none"
 
     def is_phase_done(self, phase: TaskPhase, robot: RobotManager) -> bool | None:

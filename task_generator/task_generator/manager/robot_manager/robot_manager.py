@@ -199,11 +199,13 @@ class RobotManager(NodeInterface):
 
     def _adapter_kwargs_for(self, cap: str, kind: str) -> dict[str, typing.Any]:
         cap_raw = self._config.caps._load_cap_file(cap)
-        kwargs: dict[str, typing.Any] = dict(cap_raw.get(kind, {}) if isinstance(cap_raw.get(kind), dict) else {})
-        if cap == 'mobile' and kind == 'nav2':
-            kwargs.setdefault('global_planner', self._robot.global_planner)
-            kwargs.setdefault('local_planner', self._robot.local_planner)
-            kwargs.setdefault('inter_planner', self._robot.inter_planner)
+        sub = cap_raw.get(kind, {})
+        kwargs: dict[str, typing.Any] = dict(sub) if isinstance(sub, dict) else {}
+        # CLI overrides land as `robot.<cap>.<key>` ROS params; they overlay the
+        # cap-file YAML so the bound adapter sees flag-level user intent.
+        for key, param in self.node.get_parameters_by_prefix(f"robot.{cap}").items():
+            kwargs[key] = param.value
+        if cap == 'mobile':
             kwargs.setdefault('train_mode', self.node.rosparam[bool].get('train_mode', False))
         return kwargs
 
@@ -387,15 +389,15 @@ class RobotManager(NodeInterface):
             self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("goal"), [self.goal_pos.position.x, self.goal_pos.position.y, self.goal_pos.orientation.to_yaw()])
 
     async def reset(self, ctx: ResetContext) -> dict[str, BaseException | None]:
-        """Run all adapter reset_to calls concurrently; return per-kind outcomes."""
+        """Fan out adapter on_reset hooks concurrently, return per-kind outcomes."""
         results = await asyncio.gather(
-            *(a.reset_to(self, ctx) for a in self._adapter_instances),
+            *(a.on_reset(self, ctx) for a in self._adapter_instances),
             return_exceptions=True,
         )
         outcomes: dict[str, BaseException | None] = {}
         for adapter, result in zip(self._adapter_instances, results, strict=True):
             if isinstance(result, BaseException):
-                self._logger.warning(f"adapter {adapter.kind!r} reset_to failed: {result!r}")
+                self._logger.warning(f"adapter {adapter.kind!r} on_reset failed: {result!r}")
                 outcomes[adapter.kind] = result
             else:
                 outcomes[adapter.kind] = None
@@ -462,11 +464,7 @@ class RobotManager(NodeInterface):
                 'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
                 'namespace': self.namespace,
                 'frame': self._robot.frame.tf(),
-                'train_mode': str(self.node.rosparam[bool].get('train_mode', False)).lower(),
-                'agent_name': self._robot.agent,
                 'use_sim_time': 'True',
-                # Read by robot.launch.py to gate the rosnav_rl action server.
-                'local_planner': self._robot.local_planner,
             }
 
             if self._robot.record_data_dir:

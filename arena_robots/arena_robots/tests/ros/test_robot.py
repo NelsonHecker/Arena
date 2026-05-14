@@ -52,17 +52,6 @@ class TestModelParamsDefaults:
         mp = ModelParams.from_yaml(_write(tmp_path, {"z_offset": 0.15}))
         assert mp.z_offset == pytest.approx(0.15)
 
-    def test_navigator_default(self, tmp_path: Path):
-        from arena_robots.Robot import ModelParams
-
-        mp = ModelParams.from_yaml(_write(tmp_path, {}))
-        assert mp.navigator == "nav2"
-
-    def test_navigator_explicit(self, tmp_path: Path):
-        from arena_robots.Robot import ModelParams
-
-        mp = ModelParams.from_yaml(_write(tmp_path, {"navigator": "rl"}))
-        assert mp.navigator == "rl"
 
 
 class TestModelParamsFromYaml:

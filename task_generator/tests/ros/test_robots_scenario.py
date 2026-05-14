@@ -38,8 +38,6 @@ class _FakeConf:
             value = "navfn"
         class AGENT:
             value = "rosnav"
-        class NAVIGATOR:
-            value = "nav2"
         class RECORD_DATA_DIR:
             value = None
         class TIMEOUT:

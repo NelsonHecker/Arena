@@ -10,7 +10,8 @@ from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import GotoPose
 
 from task_generator.manager.world_manager.shims import requires_map_server
-from task_generator.tasks.robots.adapters import Adapter, AdapterMeta
+from task_generator.tasks.robots.adapters import AdapterMeta
+from task_generator.tasks.robots.adapters.mobile import MobileAdapter
 from task_generator.tasks.robots.request import GoToPhase, TaskPhase
 
 if TYPE_CHECKING:
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     cap="mobile",
 )
 @requires_map_server
-class ExternalAdapter(Adapter):
+class ExternalAdapter(MobileAdapter):
     kind: ClassVar[str] = "external"
 
     def is_phase_done(self, phase: TaskPhase, robot: RobotManager) -> bool | None:

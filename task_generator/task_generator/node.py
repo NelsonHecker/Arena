@@ -135,7 +135,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self,
         namespace: str = "task_generator_node",
     ):
-        super().__init__("task_generator")
+        super().__init__("task_generator", automatically_declare_parameters_from_overrides=True)
         self.conf = Configuration(self)
 
         self._namespace = Namespace(namespace)

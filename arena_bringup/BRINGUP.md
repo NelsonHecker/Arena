@@ -54,7 +54,7 @@ arena launch \
 |---|---|
 | `sim:=dummy` | No physics engine; a `map→dummy` static TF is published instead |
 | `world:=map_empty` | Loads the empty map from `arena_simulation_setup` |
-| `robot:=jackal` | Single jackal; `navigator` defaults to `none` (dummy sim has no nav2) |
+| `robot:=jackal` | Single jackal; `mobile` adapter defaults to `none` (dummy sim has no nav2) |
 | `tm_robots:=explore` | Robot gets fresh random goals continuously |
 | `tm_obstacles:=random` | Random static/dynamic obstacles placed each episode |
 
@@ -70,7 +70,7 @@ arena launch \
     sim:=gazebo \
     world:=map_empty \
     robot:=jackal \
-    local_planner:=teb \
+    mobile.local_planner:=teb \
     tm_robots:=explore \
     tm_obstacles:=random
 ```
@@ -79,7 +79,7 @@ arena launch \
 |---|---|
 | `sim:=gazebo` | Starts gz-sim 8 (dart physics, ogre renderer). `human` defaults to `hunav` |
 | `world:=map_empty` | Resolved to `arena_simulation_setup/worlds/map_empty/worlds/map_empty.world`; falls back to `configs/gazebo/empty.sdf` if absent |
-| `local_planner:=teb` | TEB local planner in nav2; `navigator` defaults to `nav2` for gazebo |
+| `mobile.local_planner:=teb` | TEB local planner; `mobile` adapter defaults to `nav2` for gazebo, the override lands as `robot.mobile.local_planner` and is forwarded to nav2's bringup |
 | `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (rviz also suppressed unless `rviz:=true` is set explicitly) |
 
 To suppress the HuNavSim agent manager when no human obstacles are needed,
@@ -120,7 +120,7 @@ arena launch \
 
 | Arg | Implication |
 |---|---|
-| `sim:=isaac` | Runs `arena feature isaac launch` via bash. `navigator` defaults to `nav2` |
+| `sim:=isaac` | Runs `arena feature isaac launch` via bash. `mobile` adapter defaults to `nav2` |
 | `task_config:=<path>` | Structured `TaskModeSpec` YAML; overrides `tm_robots`. Use to split a fleet across multiple task modes |
 | `headless:=true` | Sim GUI hidden; rviz suppressed (no GUI at all) |
 
@@ -265,10 +265,30 @@ and exit non-zero with a hint to use `--all` or `<env_id>`.
 
 ```bash
 log_level:=debug     # verbose output from all nodes
-use_sim_time:=false  # real-time clock (unusual — only for real robots)
+use_sim_time:=false  # real-time clock (unusual, only for real robots)
 complexity:=2        # AMCL (position unknown); 3 = SLAM
 record_data_dir:=/tmp/arena_run  # enable data recording
 ```
+
+## Cap-scoped overrides
+
+Per-robot caps (`mobile`, `arm`, `lift`) are configured at launch via three
+shapes of argument:
+
+| Shape | Example | Lands as | Purpose |
+|---|---|---|---|
+| `<cap>:=<kind>` | `mobile:=rosnav_rl` | `robot.<cap>_adapter` | Pick which `Bringup` runs for the cap. |
+| `<cap>.<key>:=<val>` | `mobile.local_planner:=teb` | `robot.<cap>.<key>` | Override a value from `caps/<cap>.yaml`. |
+| `<adapter-kwarg>:=<val>` | `global_planner:=smac` | `robot.<cap>.<key>` (via the adapter's launch file) | Adapter-internal launch kwargs (e.g. nav2's planner names). |
+
+The cap-scoped form is the recommended style because it's self-documenting and
+maps unambiguously to a single cap. To discover what `<key>`s a cap accepts,
+read the robot's `arena_robots/.../robots/<name>/caps/<cap>.yaml`: every
+top-level key there is overridable by the same name with the cap prefix.
+
+Contestant args in benchmark YAMLs use the same shapes and the same forwarding
+rules (see
+[benchmark README](../arena_evaluation/arena_evaluation/configs/benchmark/README.md#contestant-args)).
 
 ## CLI verbs
 
