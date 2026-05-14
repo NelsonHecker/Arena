@@ -35,8 +35,7 @@ def _strip_sensors(root: ET.Element, tokens: set[str]) -> None:
         return
     for parent in root.iter():
         for child in list(parent):
-            if child.tag.rpartition('}')[-1] == 'sensor' \
-               and child.attrib.get('type') in disabled_types:
+            if child.tag.rpartition('}')[-1] == 'sensor' and child.attrib.get('type') in disabled_types:
                 parent.remove(child)
 
 

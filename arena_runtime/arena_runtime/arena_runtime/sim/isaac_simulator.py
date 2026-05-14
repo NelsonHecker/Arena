@@ -75,6 +75,7 @@ IsaacHost is constructed once by arena_node and owns process-singleton resources
 IsaacSimulator is per-env on task_generator_node and adapts env-namespace state (per-robot publishers, env-prefixed entity names) over those shared resources.
 """
 
+
 def _transform_urdf_for_bridge(
     urdf_path: str,
     commands_topics: dict[str, str],
@@ -98,12 +99,7 @@ def _transform_urdf_for_bridge(
         if plugin_el.text and plugin_el.text.strip() == 'gz_ros2_control/GazeboSimSystem':
             plugin_el.text = bridge_plugin
 
-    originals = [
-        rc for rc in root.iter('ros2_control')
-        if (h := rc.find('hardware')) is not None
-        and (p := h.find('plugin')) is not None
-        and p.text and p.text.strip() == bridge_plugin
-    ]
+    originals = [rc for rc in root.iter('ros2_control') if (h := rc.find('hardware')) is not None and (p := h.find('plugin')) is not None and p.text and p.text.strip() == bridge_plugin]
 
     for rc in originals:
         parent = next(p for p in root.iter() if rc in list(p))
@@ -222,7 +218,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
         # Publisher for external registration messages so IsaacSim's DoorManager
         # can be informed about spawned entities in the IsaacSim process.
         self._reg_pub = self.node.create_publisher(StdString, '/isaac/register_entity', 10)
-
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
         return {
@@ -383,10 +378,12 @@ class IsaacSimulator(BaseSim, NodeInterface):
             )
             for controller_name in control_spec.controllers:
                 ld.add_action(controller_spawner_node(controller_name))
-            ld.add_action(twist_stamper_node(
-                control_spec.cmd_vel_topic,
-                robot.frame.tf(robot_params.base_frame),
-            ))
+            ld.add_action(
+                twist_stamper_node(
+                    control_spec.cmd_vel_topic,
+                    robot.frame.tf(robot_params.base_frame),
+                )
+            )
 
         await self.node.do_launch(ld)
 

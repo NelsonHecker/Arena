@@ -19,7 +19,7 @@ def render_ros2_control_yaml(
     the result to a deterministic temp path. Returns the absolute output path.
     """
     if config_uri.startswith("package://"):
-        pkg, _, sub = config_uri[len("package://"):].partition('/')
+        pkg, _, sub = config_uri[len("package://") :].partition('/')
         try:
             src_path = os.path.join(get_package_share_directory(pkg), sub)
         except PackageNotFoundError as e:
@@ -61,9 +61,12 @@ def controller_spawner_node(controller_name: str) -> launch_ros.actions.Node:
         output='screen',
         arguments=[
             controller_name,
-            '--controller-manager', 'controller_manager',
-            '--controller-manager-timeout', '0',
-            '--switch-timeout', '600',
+            '--controller-manager',
+            'controller_manager',
+            '--controller-manager-timeout',
+            '0',
+            '--switch-timeout',
+            '600',
         ],
         parameters=[{'use_sim_time': True}],
     )
@@ -80,8 +83,10 @@ def twist_stamper_node(cmd_vel_topic: str, frame_id: str) -> launch_ros.actions.
             ('cmd_vel_in', 'cmd_vel'),
             ('cmd_vel_out', cmd_vel_topic),
         ],
-        parameters=[{
-            'use_sim_time': True,
-            'frame_id': frame_id,
-        }],
+        parameters=[
+            {
+                'use_sim_time': True,
+                'frame_id': frame_id,
+            }
+        ],
     )

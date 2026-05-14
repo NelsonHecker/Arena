@@ -30,7 +30,8 @@ class UrdfPublisher(Node):
         self._msg = String(data=urdf)
         self._pub = self.create_publisher(String, 'robot_description', qos)
         self._cm_probe = self.create_client(
-            ListControllers, 'controller_manager/list_controllers',
+            ListControllers,
+            'controller_manager/list_controllers',
         )
         self._pub.publish(self._msg)
         self._timer = self.create_timer(1.0, self._tick)

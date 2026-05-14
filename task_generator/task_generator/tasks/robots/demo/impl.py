@@ -18,9 +18,7 @@ def _parse_gesture(value: str) -> str:
         return "<random>"
     available = {p.stem for p in (ASS_DIR / "configs" / "gestures").glob("*.yaml")}
     if value not in available:
-        raise ValueError(
-            f"unknown gesture {value!r}; available: {sorted(available | {'<random>'})}"
-        )
+        raise ValueError(f"unknown gesture {value!r}; available: {sorted(available | {'<random>'})}")
     return value
 
 
@@ -38,11 +36,7 @@ def _vertices(center: Position, n: int, radius: float, orientation: _Orientation
     if not isinstance(orientation, _Orientation):
         raise ValueError(f"TM_Demo.ORIENTATION must be one of {[o.value for o in _Orientation]}; got {orientation!r}")
     phase = -math.pi / 2 + math.pi / n
-    pts = [
-        (center.x + radius * math.cos(phase + 2 * math.pi * i / n),
-         center.y + radius * math.sin(phase + 2 * math.pi * i / n))
-        for i in range(n)
-    ]
+    pts = [(center.x + radius * math.cos(phase + 2 * math.pi * i / n), center.y + radius * math.sin(phase + 2 * math.pi * i / n)) for i in range(n)]
     out: list[Pose] = []
     for i, (x, y) in enumerate(pts):
         nx, ny = pts[(i + 1) % n]
@@ -111,8 +105,7 @@ class TM_Demo(TM_Robots):
         )
         if len(centers) < len(robots):
             self._logger.warn(
-                f"TM_Demo: only {len(centers)} safe centers for {len(robots)} robots; "
-                f"unassigned robots will idle this episode.",
+                f"TM_Demo: only {len(centers)} safe centers for {len(robots)} robots; unassigned robots will idle this episode.",
                 once=True,
             )
         for robot, center in zip(robots, centers, strict=False):
@@ -127,7 +120,9 @@ class TM_Demo(TM_Robots):
                 phases.append(PlayGesturePhase(gesture=_pick_gesture(gesture_name)))
             phases.append(GoToPhase(pose=center_pose))
             await robot.submit_task(TaskRequest(phases=phases))
-            self._ctx.world_manager.forbid([
-                PositionRadius(center.x, center.y, biggest_robot),
-                *(PositionRadius(v.position.x, v.position.y, biggest_robot) for v in vertices),
-            ])
+            self._ctx.world_manager.forbid(
+                [
+                    PositionRadius(center.x, center.y, biggest_robot),
+                    *(PositionRadius(v.position.x, v.position.y, biggest_robot) for v in vertices),
+                ]
+            )

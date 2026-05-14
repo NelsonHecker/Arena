@@ -35,14 +35,10 @@ class ScenarioPhase(abc.ABC):
             return ScenarioGotoPhase(goto=Pose.parse(value["goto"]))
         if "gesture" in value:
             return ScenarioGesturePhase(gesture=str(value["gesture"]))
-        raise ValueError(
-            f"ScenarioPhase requires 'goto' or 'gesture' key; got {list(value.keys())}"
-        )
+        raise ValueError(f"ScenarioPhase requires 'goto' or 'gesture' key; got {list(value.keys())}")
 
 
-converter.register_structure_hook(
-    ScenarioPhase, lambda v, _t: ScenarioPhase.parse(v)
-)
+converter.register_structure_hook(ScenarioPhase, lambda v, _t: ScenarioPhase.parse(v))
 
 
 @attrs.define
