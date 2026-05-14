@@ -58,42 +58,44 @@ class TestBringupsRegistry:
         from arena_robots.bringup import BRINGUPS
         from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 
-        assert "nav2" in BRINGUPS
-        assert BRINGUPS.get("nav2") is Nav2Bringup
+        assert "nav2" in BRINGUPS["mobile"]
+        assert BRINGUPS["mobile"].get("nav2") is Nav2Bringup
 
     def test_none_is_registered(self):
         from arena_robots.bringup import BRINGUPS
         from arena_robots.bringup.mobile.none import NoneBringup
 
-        assert "none" in BRINGUPS
-        assert BRINGUPS.get("none") is NoneBringup
+        assert "none" in BRINGUPS["mobile"]
+        assert BRINGUPS["mobile"].get("none") is NoneBringup
 
     def test_external_is_registered(self):
         from arena_robots.bringup import BRINGUPS
         from arena_robots.bringup.mobile.external import ExternalBringup
 
-        assert "external" in BRINGUPS
-        assert BRINGUPS.get("external") is ExternalBringup
+        assert "external" in BRINGUPS["mobile"]
+        assert BRINGUPS["mobile"].get("external") is ExternalBringup
 
     def test_test_collision_is_registered(self):
         from arena_robots.bringup import BRINGUPS
         from arena_robots.bringup.mobile.test_collision import TestCollisionBringup
 
-        assert "test-collision" in BRINGUPS
-        assert BRINGUPS.get("test-collision") is TestCollisionBringup
+        assert "test-collision" in BRINGUPS["mobile"]
+        assert BRINGUPS["mobile"].get("test-collision") is TestCollisionBringup
 
     def test_bringup_kind_classvar_matches_registry_key(self):
         """Convention guard: each bringup's `kind` ClassVar must equal its registry key."""
         from arena_robots.bringup import BRINGUPS
-        for key in BRINGUPS.keys():
-            cls = BRINGUPS.get(key)
-            assert cls.kind == key, f"{cls.__name__}.kind={cls.kind!r} != registry key {key!r}"
+        for cap, reg in BRINGUPS.items():
+            for key in reg.keys():
+                cls = reg.get(key)
+                assert cls.kind == key, f"{cls.__name__}.kind={cls.kind!r} != registry key {key!r} (cap={cap!r})"
 
     def test_bringup_meta_attached_on_every_bringup(self):
         from arena_robots.bringup import BRINGUPS, BringupMeta
-        for key in BRINGUPS.keys():
-            cls = BRINGUPS.get(key)
-            assert isinstance(cls._bringup_meta, BringupMeta), f"{cls.__name__} missing _bringup_meta"
+        for reg in BRINGUPS.values():
+            for key in reg.keys():
+                cls = reg.get(key)
+                assert isinstance(cls._bringup_meta, BringupMeta), f"{cls.__name__} missing _bringup_meta"
 
 
 class TestAcceptsTaskKinds:

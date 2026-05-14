@@ -70,16 +70,18 @@ def test_lazy_loading():
 def test_adapter_kind_classvar_matches_registry_key():
     """Convention guard: each adapter's `kind` ClassVar must equal its registry key."""
     from task_generator.tasks.robots.adapters import ADAPTERS
-    for kind in ADAPTERS.keys():
-        cls = ADAPTERS.get(kind)
-        assert cls.kind == kind, f"{cls.__name__}.kind={cls.kind!r} != registry key {kind!r}"
+    for cap, reg in ADAPTERS.items():
+        for kind in reg.keys():
+            cls = reg.get(kind)
+            assert cls.kind == kind, f"{cls.__name__}.kind={cls.kind!r} != registry key {kind!r} (cap={cap!r})"
 
 
 def test_adapter_meta_attached_on_every_adapter():
     from task_generator.tasks.robots.adapters import ADAPTERS, AdapterMeta
-    for kind in ADAPTERS.keys():
-        cls = ADAPTERS.get(kind)
-        assert isinstance(cls._adapter_meta, AdapterMeta), f"{cls.__name__} missing _adapter_meta"
+    for reg in ADAPTERS.values():
+        for kind in reg.keys():
+            cls = reg.get(kind)
+            assert isinstance(cls._adapter_meta, AdapterMeta), f"{cls.__name__} missing _adapter_meta"
 
 
 class TestAdapterMetaConverters:
@@ -91,6 +93,7 @@ class TestAdapterMetaConverters:
         meta = AdapterMeta(
             accepts={TaskKind.GOTO_POSE},
             bringup=Nav2Bringup,
+            cap="mobile",
             client=GotoPoseClient,
         )
         assert isinstance(meta.accepts, frozenset)
@@ -105,6 +108,7 @@ class TestAdapterMetaConverters:
         meta = AdapterMeta(
             accepts={TaskKind.GOTO_POSE},
             bringup=Nav2Bringup,
+            cap="mobile",
             client=GotoPoseClient,
             displays=[hint],
         )
@@ -119,6 +123,7 @@ class TestAdapterMetaConverters:
         meta = AdapterMeta(
             accepts={TaskKind.GOTO_POSE},
             bringup=Nav2Bringup,
+            cap="mobile",
             client=GotoPoseClient,
         )
         assert meta.displays == ()
