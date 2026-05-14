@@ -291,27 +291,8 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     done
                     unset _waited _done
                     if $_all; then
-                        local -a _viz_pids=()
-                        local _ns
-                        for _ns in "${_nodes[@]}"; do
-                            echo "arena viz: attaching to ${_ns}" >&2
-                            ros2 run rviz_utils rviz_config "${_ns}" &
-                            _viz_pids+=($!)
-                        done
-                        unset _ns
-                        _arena_viz_cleanup(){
-                            local _p
-                            for _p in "${_viz_pids[@]}"; do
-                                kill -SIGINT "$_p" 2>/dev/null || true
-                            done
-                            wait 2>/dev/null
-                        }
-                        trap _arena_viz_cleanup SIGINT SIGTERM
-                        wait
-                        trap - SIGINT SIGTERM
-                        unset -f _arena_viz_cleanup
-                        unset _viz_pids
-                        _rc=0
+                        "${TOOLS_DIR}/viz_all" "${_nodes[@]}"
+                        _rc=$?
                     elif [ -z "$_target" ]; then
                         if [ "${#_nodes[@]}" -gt 1 ]; then
                             echo "arena viz: multiple envs running, pass <env_id> or --all:" >&2
