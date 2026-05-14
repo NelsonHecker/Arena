@@ -49,7 +49,6 @@ from isaacsim_msgs.srv import (
     SpawnUsd,
     SpawnWalls,
 )
-from std_msgs.msg import String as StdString
 from task_generator.shared import Door as DoorDefinition
 from task_generator.shared import (
     DynamicObstacle,
@@ -215,10 +214,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
             SpawnElevators=self.node.create_client_wrapper(SpawnElevators, "/isaac/SpawnElevators"),
         )
 
-        # Publisher for external registration messages so IsaacSim's DoorManager
-        # can be informed about spawned entities in the IsaacSim process.
-        self._reg_pub = self.node.create_publisher(StdString, '/isaac/register_entity', 10)
-
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
         return {
             **robot.asdict(),
@@ -257,20 +252,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
                             odom_topic=self.node.service_namespace(robot.name, 'odom'),
                         )
                     )
-
-                    base_frame = robot_params.base_frame
-                    robot_prim_path = os.path.join("/World", fq_name, base_frame)
-
-                    # Publish registration message so DoorManager in IsaacSim process
-                    # registers the robot. This avoids cross-process direct calls.
-                    try:
-                        if self._reg_pub:
-                            self._reg_pub.publish(StdString(data=f"robot|{robot_prim_path}"))
-                            self._logger.debug(f"Published registration for robot: {robot_prim_path}")
-                        else:
-                            self._logger.warning('Registration publisher not available; robot not registered with IsaacSim DoorManager')
-                    except Exception as e:
-                        self._logger.warning(f'Failed to publish robot registration: {e}\n{traceback.format_exc()}')
 
                     control_spec = robot_params.control
                     is_ros2_control = control_spec is not None and control_spec.is_ros2_control
