@@ -59,10 +59,7 @@ class Supervisor:
             sig, label = signal.SIGKILL, 'SIGKILL'
         else:
             os._exit(130)
-        sys.stderr.write(
-            f'arena launch: {label} -> {len(snap)} child(ren) '
-            '(Ctrl-C again to escalate)\n'
-        )
+        sys.stderr.write(f'arena launch: {label} -> {len(snap)} child(ren) (Ctrl-C again to escalate)\n')
         self._signal_pgs(snap, sig)
 
     def cleanup(self) -> None:
@@ -101,11 +98,7 @@ class Supervisor:
         return any(name == service for name, _ in self._node.get_service_names_and_types())
 
     def viz_namespaces(self) -> set[str]:
-        return {
-            name[: -len(VIZ_MANIFEST_SUFFIX)]
-            for name, _ in self._node.get_topic_names_and_types()
-            if name.endswith(VIZ_MANIFEST_SUFFIX)
-        }
+        return {name[: -len(VIZ_MANIFEST_SUFFIX)] for name, _ in self._node.get_topic_names_and_types() if name.endswith(VIZ_MANIFEST_SUFFIX)}
 
     def get_param_string(self, node_name: str, param: str, timeout_s: float = 5.0) -> str | None:
         cli = self._node.create_client(GetParameters, f'{node_name}/get_parameters')
@@ -161,8 +154,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         rviz = False
 
     return argparse.Namespace(
-        env_n=env_n, headless=headless, rviz=rviz, sim=sim,
-        runtime_args=runtime_args, env_args=env_args,
+        env_n=env_n,
+        headless=headless,
+        rviz=rviz,
+        sim=sim,
+        runtime_args=runtime_args,
+        env_args=env_args,
     )
 
 
@@ -176,10 +173,7 @@ def wait_until(
     waited = 0
     while not predicate():
         if runtime_proc is not None and runtime_proc.poll() is not None:
-            sys.stderr.write(
-                f'arena launch: runtime exited before {label} '
-                f'(rc={runtime_proc.returncode})\n'
-            )
+            sys.stderr.write(f'arena launch: runtime exited before {label} (rc={runtime_proc.returncode})\n')
             return False
         time.sleep(period_s)
         waited += 1
@@ -193,22 +187,26 @@ def run(args: argparse.Namespace, sup: Supervisor) -> int:
         if args.sim is not None:
             existing = sup.get_param_string('/arena', 'sim')
             if existing and existing != args.sim:
-                sys.stderr.write(
-                    f'arena launch: sim mismatch (running: {existing}, '
-                    f'requested: {args.sim}); shut down the runtime first\n'
-                )
+                sys.stderr.write(f'arena launch: sim mismatch (running: {existing}, requested: {args.sim}); shut down the runtime first\n')
                 return 1
         sys.stderr.write('arena launch: attaching to existing runtime\n')
         runtime = None
     else:
-        sup.spawn('runtime', [
-            'ros2', 'launch', 'arena_bringup', 'arena_runtime.launch.py',
-            *args.runtime_args,
-        ])
+        sup.spawn(
+            'runtime',
+            [
+                'ros2',
+                'launch',
+                'arena_bringup',
+                'arena_runtime.launch.py',
+                *args.runtime_args,
+            ],
+        )
         runtime = sup.runtime()
         if not wait_until(
             lambda: sup.has_service(REGISTER_ENV_SERVICE),
-            runtime_proc=runtime, label='/arena/register_env',
+            runtime_proc=runtime,
+            label='/arena/register_env',
         ):
             return 1
 
@@ -216,15 +214,22 @@ def run(args: argparse.Namespace, sup: Supervisor) -> int:
     target_count = len(existing_ns) + args.env_n
 
     for i in range(args.env_n):
-        sup.spawn(f'env_{i}', [
-            'ros2', 'launch', 'task_generator', 'task_generator.launch.py',
-            *args.env_args,
-        ])
+        sup.spawn(
+            f'env_{i}',
+            [
+                'ros2',
+                'launch',
+                'task_generator',
+                'task_generator.launch.py',
+                *args.env_args,
+            ],
+        )
 
     if args.rviz:
         if not wait_until(
             lambda: len(sup.viz_namespaces()) >= target_count,
-            runtime_proc=runtime, label=f'{target_count} env(s)',
+            runtime_proc=runtime,
+            label=f'{target_count} env(s)',
         ):
             return 1
         for ns in sorted(sup.viz_namespaces() - existing_ns):
