@@ -6,8 +6,8 @@ from arena_robots_msgs.action import GotoPose
 from geometry_msgs.msg import PoseStamped
 
 if TYPE_CHECKING:
-    from arena_robots.bringup.external import ExternalBringup
-    from arena_robots.bringup.none import NoneBringup
+    from arena_robots.bringup.mobile.external import ExternalBringup
+    from arena_robots.bringup.mobile.none import NoneBringup
 
 
 class _PassthroughHandler:
@@ -25,6 +25,7 @@ class _PassthroughHandler:
         goal_handle.succeed()
         result = GotoPose.Result()
         result.status = GotoPose.Result.STATUS_SUCCEEDED
+        result.reason = ""
         result.final_pose = arena_goal.target
         return result
 

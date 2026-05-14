@@ -1,15 +1,17 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <!-- Existing Plugins -->
-  <plugin
-    filename="gz-sim-joint-state-publisher-system"
-    name="gz::sim::systems::JointStatePublisher">
-    <topic>joint_states</topic>
-    <joint_name>front_left_wheel_joint</joint_name>
-    <joint_name>rear_left_wheel_joint</joint_name>
-    <joint_name>front_right_wheel_joint</joint_name>
-    <joint_name>rear_right_wheel_joint</joint_name>
-  </plugin>
+
+  <xacro:arg name="namespace" default=""/>
+  <xacro:arg name="gazebo_controllers" default=""/>
+
+  <gazebo>
+    <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg gazebo_controllers)</parameters>
+      <ros>
+        <namespace>$(arg namespace)</namespace>
+      </ros>
+    </plugin>
+  </gazebo>
 
   <gazebo>
     <plugin
@@ -25,8 +27,7 @@
     </plugin>
   </gazebo>
 
-
-  <!-- IMU Sensor Configuration (existing) -->
+  <!-- IMU Sensor Configuration -->
   <gazebo reference="imu_link">
     <sensor name="imu_sensor" type="imu">
       <plugin filename="libgz-sim-imu-system" name="gz::sim::systems::Imu">
@@ -95,26 +96,6 @@
     <material>Gazebo/Grey</material>
   </gazebo>
 
-  <!-- Differential Drive System (existing) -->
-  <gazebo>
-    <plugin
-      filename="gz-sim-diff-drive-system"
-      name="gz::sim::systems::DiffDrive">
-      <!-- https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1systems_1_1DiffDrive.html -->
-      <!-- you can add as many joints as you want apparently -->
-      <left_joint>front_left_wheel_joint</left_joint>
-      <left_joint>rear_left_wheel_joint</left_joint>
-      <right_joint>front_right_wheel_joint</right_joint>
-      <right_joint>rear_right_wheel_joint</right_joint>
-      <wheel_separation>${track}</wheel_separation>
-      <wheel_radius>${wheel_radius}</wheel_radius>
-      <odom_publish_frequency>50</odom_publish_frequency>
-      <!-- Suppress wheel-slip-polluted TF; pose_to_tf publishes odom→base_link from ground truth instead. -->
-      <tf_topic>/discard_tf</tf_topic>
-    </plugin>
-  </gazebo>
-
-
   <gazebo reference="lidar_link">
     <sensor name="gpu_lidar" type="gpu_lidar">
       <gz_frame_id>$(arg sim_path)/lidar_link</gz_frame_id>
@@ -152,7 +133,6 @@
     </sensor>
   </gazebo>
 
-  <!-- Material and Gravity Settings -->
   <gazebo reference="navsat_link">
     <sensor name="navsat" type="navsat">
       <always_on>1</always_on>
@@ -164,10 +144,10 @@
   </gazebo>
 
   <gazebo reference="base_link">
-      <material>Gazebo/DarkGrey</material>
-      <turnGravityOff>false</turnGravityOff>
+    <material>Gazebo/DarkGrey</material>
+    <turnGravityOff>false</turnGravityOff>
   </gazebo>
-  
+
   <gazebo reference="chassis_link">
     <material>Gazebo/DarkGrey</material>
     <turnGravityOff>false</turnGravityOff>
@@ -183,7 +163,7 @@
     <turnGravityOff>false</turnGravityOff>
   </gazebo>
 
-  <!-- Wheel Friction and Dynamics -->
+  <!-- Wheel friction -->
   <gazebo reference="front_left_wheel_link">
     <mu1>0.8</mu1>
     <mu2>0.8</mu2>
@@ -215,4 +195,5 @@
     <kp>1000000.0</kp>
     <kd>100.0</kd>
   </gazebo>
+
 </robot>

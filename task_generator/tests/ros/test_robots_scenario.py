@@ -67,7 +67,7 @@ def _make_scenario_tm(node, robots_dict, scenario_robots, world_name="test_world
         robots=robots_dict,
         environment_manager=SimpleNamespace(realize=lambda x: x),
         world_manager=SimpleNamespace(
-            world_name=world_name,
+            loaded_world=world_name,
             forbid=lambda poses: None,
         ),
     )
@@ -88,7 +88,6 @@ def _make_robot_manager_stub(name="robot1", safe_distance=0.5):
     return SimpleNamespace(
         name=name,
         safe_distance=safe_distance,
-        move=AsyncMock(return_value=None),
         submit_task=AsyncMock(return_value=None),
     )
 
@@ -109,10 +108,10 @@ def test_reset_zip_alignment_preserved():
     tm, logger, ctx = _make_scenario_tm(node, robots_dict, [rg1, rg2])
     asyncio.run(tm.reset())
 
-    rm1.move.assert_called_once()
-    rm2.move.assert_called_once()
     rm1.submit_task.assert_called_once()
     rm2.submit_task.assert_called_once()
+    assert tm._start_poses["r1"] == rg1.start
+    assert tm._start_poses["r2"] == rg2.start
 
 
 def test_reset_more_setup_than_scenario_warns_and_truncates():
@@ -130,8 +129,10 @@ def test_reset_more_setup_than_scenario_warns_and_truncates():
     asyncio.run(tm.reset())
 
     assert any("more robots" in w.lower() for w in logger.warns)
-    rm1.move.assert_called_once()
-    rm2.move.assert_not_called()
+    rm1.submit_task.assert_called_once()
+    rm2.submit_task.assert_not_called()
+    assert "r1" in tm._start_poses
+    assert "r2" not in tm._start_poses
 
 
 def test_reset_more_scenario_than_setup_warns_and_truncates():
@@ -149,7 +150,8 @@ def test_reset_more_scenario_than_setup_warns_and_truncates():
     asyncio.run(tm.reset())
 
     assert any("more robots" in w.lower() for w in logger.warns)
-    rm1.move.assert_called_once()
+    rm1.submit_task.assert_called_once()
+    assert tm._start_poses["r1"] == rg1.start
 
 
 def test_reset_equal_counts_no_warn():
@@ -212,7 +214,7 @@ def test_parse_scenario_calls_world_identifier():
         ctx = SimpleNamespace(
             robots_manager=SimpleNamespace(managers=robots_dict),
             environment_manager=SimpleNamespace(realize=lambda x: x),
-            world_manager=SimpleNamespace(world_name="test_world", forbid=lambda x: None),
+            world_manager=SimpleNamespace(loaded_world="test_world", forbid=lambda x: None),
         )
 
         tm = TM_Scenario.__new__(TM_Scenario)

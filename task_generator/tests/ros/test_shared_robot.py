@@ -58,7 +58,7 @@ def _make_robot(name, model_name, lp="dwa", gp="navfn", agent="rosnav", navigato
         local_planner=lp,
         global_planner=gp,
         agent=agent,
-        navigator=navigator,
+        adapter_overrides={"mobile": navigator},
         extra={},
     )
 
@@ -106,7 +106,7 @@ def test_parse_uses_conf_defaults_when_keys_missing(stub_node):
     assert robot.local_planner == "dwa"
     assert robot.global_planner == "navfn"
     assert robot.agent == "rosnav"
-    assert robot.navigator == "nav2"
+    assert robot.adapter_overrides["mobile"] == "nav2"
     assert robot.record_data_dir is None
 
 
@@ -124,7 +124,7 @@ def test_parse_explicit_values_override_conf(stub_node):
     assert robot.local_planner == "teb"
     assert robot.global_planner == "smac"
     assert robot.agent == "custom_agent"
-    assert robot.navigator == "none"
+    assert robot.adapter_overrides["mobile"] == "none"
 
 
 def test_parse_extra_dict_preserved(stub_node):
@@ -223,7 +223,7 @@ def test_eq_not_equal_when_record_data_dir_differs():
         local_planner="dwa",
         global_planner="navfn",
         agent="rosnav",
-        navigator="nav2",
+        adapter_overrides={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/a",
     )
@@ -235,7 +235,7 @@ def test_eq_not_equal_when_record_data_dir_differs():
         local_planner="dwa",
         global_planner="navfn",
         agent="rosnav",
-        navigator="nav2",
+        adapter_overrides={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/b",
     )

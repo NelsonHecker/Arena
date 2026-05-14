@@ -28,6 +28,7 @@ def test_task_context_robots_property_returns_managers_dict():
         environment_manager=env_manager,
         robots_manager=robots_manager,
         world_manager=world_manager,
+        abort_episode=lambda _: None,
     )
 
     assert ctx.robots is managers_dict
@@ -46,6 +47,7 @@ def test_task_context_robots_empty():
         environment_manager=env_manager,
         robots_manager=robots_manager,
         world_manager=world_manager,
+        abort_episode=lambda _: None,
     )
 
     assert ctx.robots == {}
@@ -58,7 +60,7 @@ def test_task_context_attributes_accessible():
     rm = SimpleNamespace(managers={"r": SimpleNamespace()})
     wm = SimpleNamespace(test_attr="world")
 
-    ctx = TaskContext(environment_manager=env, robots_manager=rm, world_manager=wm)
+    ctx = TaskContext(environment_manager=env, robots_manager=rm, world_manager=wm, abort_episode=lambda _: None)
 
     assert ctx.environment_manager is env
     assert ctx.robots_manager is rm

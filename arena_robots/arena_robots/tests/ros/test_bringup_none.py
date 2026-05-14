@@ -1,4 +1,4 @@
-"""Tests for arena_robots.bringup.none — NoneBringup."""
+"""Tests for arena_robots.bringup.mobile.none - NoneBringup."""
 
 from __future__ import annotations
 
@@ -13,24 +13,24 @@ def _make_mock_robot(name: str = "test_robot") -> object:
 
 class TestNoneBringupAttributes:
     def test_kind_value(self):
-        from arena_robots.bringup.none import NoneBringup
+        from arena_robots.bringup.mobile.none import NoneBringup
 
         assert NoneBringup.kind == "none"
 
     def test_requires_contains_mobile(self):
-        from arena_robots.bringup.none import NoneBringup
+        from arena_robots.bringup.mobile.none import NoneBringup
 
-        assert "mobile" in NoneBringup.requires
+        assert "mobile" in NoneBringup._bringup_meta.requires
 
     def test_requires_frozenset(self):
-        from arena_robots.bringup.none import NoneBringup
+        from arena_robots.bringup.mobile.none import NoneBringup
 
-        assert isinstance(NoneBringup.requires, frozenset)
+        assert isinstance(NoneBringup._bringup_meta.requires, frozenset)
 
 
 class TestNoneBringupProperties:
     def _make(self, namespace: str = "/robot1") -> object:
-        from arena_robots.bringup.none import NoneBringup
+        from arena_robots.bringup.mobile.none import NoneBringup
 
         return NoneBringup(robot=_make_mock_robot(), namespace=namespace)
 
@@ -45,7 +45,7 @@ class TestNoneBringupProperties:
 
 class TestNoneBringupLaunchActions:
     def _make(self) -> object:
-        from arena_robots.bringup.none import NoneBringup
+        from arena_robots.bringup.mobile.none import NoneBringup
 
         return NoneBringup(robot=_make_mock_robot(), namespace="/robot1")
 

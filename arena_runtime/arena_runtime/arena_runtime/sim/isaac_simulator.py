@@ -5,12 +5,15 @@ import random
 import traceback
 import types
 import typing
+import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 
 import arena_people_msgs.msg
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Material
 import isaacsim_msgs.msg
+import launch
+import launch_ros
 import std_msgs.msg
 import std_srvs.srv
 from arena_people_msgs.msg import Pedestrian, SpawnPedestrian
@@ -61,11 +64,77 @@ from task_generator.shared import Wall as WallDefinition
 
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim, SimLifecycle
+from arena_runtime.sim._control import (
+    controller_spawner_node,
+    render_ros2_control_yaml,
+    twist_stamper_node,
+)
 
 """
 IsaacHost is constructed once by arena_node and owns process-singleton resources for Isaac: the lifecycle (pause/unpause/cleanup) and the pause/unpause/delete service clients.
 IsaacSimulator is per-env on task_generator_node and adapts env-namespace state (per-robot publishers, env-prefixed entity names) over those shared resources.
 """
+
+
+def _transform_urdf_for_bridge(
+    urdf_path: str,
+    commands_topics: dict[str, str],
+    states_topic: str,
+    out_path: str,
+) -> None:
+    """Rewrite the URDF for the Isaac bridge.
+
+    - Swap gz_ros2_control/GazeboSimSystem to JointStateTopicSystem.
+    - Split each block into per-command-interface-kind blocks so JointStateTopicSystem
+      emits well-formed JointState messages (one kind per topic). Each kind goes to
+      its own commands_topics[kind].
+    - Add <state_interface name="effort"/> to every joint, because JointStateTopicSystem
+      unconditionally writes incoming effort and would otherwise crash.
+    """
+    bridge_plugin = 'joint_state_topic_hardware_interface/JointStateTopicSystem'
+    tree = ET.parse(urdf_path)
+    root = tree.getroot()
+
+    for plugin_el in root.iter('plugin'):
+        if plugin_el.text and plugin_el.text.strip() == 'gz_ros2_control/GazeboSimSystem':
+            plugin_el.text = bridge_plugin
+
+    originals = [rc for rc in root.iter('ros2_control') if (h := rc.find('hardware')) is not None and (p := h.find('plugin')) is not None and p.text and p.text.strip() == bridge_plugin]
+
+    for rc in originals:
+        parent = next(p for p in root.iter() if rc in list(p))
+        name = rc.get('name', 'bridge')
+        rc_type = rc.get('type', 'system')
+
+        by_kind: dict[str, list[ET.Element]] = {}
+        for joint in rc.findall('joint'):
+            cmd = joint.find('command_interface')
+            if cmd is None:
+                continue
+            kind = cmd.get('name')
+            if kind not in commands_topics:
+                continue
+            by_kind.setdefault(kind, []).append(joint)
+
+        rc_idx = list(parent).index(rc)
+        parent.remove(rc)
+
+        for offset, (kind, joints) in enumerate(by_kind.items()):
+            block = ET.Element('ros2_control', {'name': f'{name}_{kind}', 'type': rc_type})
+            hw = ET.SubElement(block, 'hardware')
+            ET.SubElement(hw, 'plugin').text = bridge_plugin
+            ET.SubElement(hw, 'param', {'name': 'joint_commands_topic'}).text = commands_topics[kind]
+            ET.SubElement(hw, 'param', {'name': 'joint_states_topic'}).text = states_topic
+            # No anti-spam gating on a sim bridge: publish every CM tick so Isaac sees
+            # the very first non-zero command without waiting for state to diverge.
+            ET.SubElement(hw, 'param', {'name': 'trigger_joint_command_threshold'}).text = '0.0'
+            for joint in joints:
+                if not any(si.get('name') == 'effort' for si in joint.findall('state_interface')):
+                    ET.SubElement(joint, 'state_interface', {'name': 'effort'})
+                block.append(joint)
+            parent.insert(rc_idx + offset, block)
+
+    tree.write(out_path, encoding='utf-8', xml_declaration=True)
 
 
 class IsaacHost(SimLifecycle):
@@ -150,6 +219,12 @@ class IsaacSimulator(BaseSim, NodeInterface):
         # can be informed about spawned entities in the IsaacSim process.
         self._reg_pub = self.node.create_publisher(StdString, '/isaac/register_entity', 10)
 
+    def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
+        return {
+            **robot.asdict(),
+            'optim': self.node.rosparam[str].get('optim', ''),
+        }
+
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
             try:
@@ -158,7 +233,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                         ModelType.URDF,
                         # ModelType.USD
                     ),
-                    loader_args=robot.asdict(),
+                    loader_args=self._robot_loader_args(robot),
                 )
 
                 if model.type == ModelType.URDF:
@@ -173,7 +248,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                             urdf_path=str(model.path),
                             robot_model=robot.model.name,
                             localization=True,
-                            tf_prefix=robot.frame.raw(),
+                            tf_prefix=robot.frame.tf(),
                             base_frame=robot_params.base_frame,
                             odom_frame=robot_params.odom_frame,
                             pose=robot.pose.to_msg(),
@@ -197,6 +272,29 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     except Exception as e:
                         self._logger.warning(f'Failed to publish robot registration: {e}\n{traceback.format_exc()}')
 
+                    control_spec = robot_params.control
+                    is_ros2_control = control_spec is not None and control_spec.is_ros2_control
+
+                    # Jazzy controller_manager reads URDF from the robot_description topic, not
+                    # its parameter; feed RSP the bridge URDF so the same topic serves both
+                    # RViz/Nav2 (which only care about link/joint geometry) and the bridge
+                    # controller_manager (which needs TopicBasedSystem as the hw plugin).
+                    rsp_urdf_path = str(model.path)
+                    if is_ros2_control:
+                        rsp_urdf_path = os.path.join('/tmp', f"arena_bridge_{robot.frame.sanitize()}.urdf")
+                        ns = str(self.node.service_namespace(robot.name))
+                        _transform_urdf_for_bridge(
+                            str(model.path),
+                            {
+                                'velocity': f"{ns}/isaac/joint_commands_velocity",
+                                'position': f"{ns}/isaac/joint_commands_position",
+                            },
+                            f"{ns}/isaac/joint_states",
+                            rsp_urdf_path,
+                        )
+
+                    await self._launch_robot_stack(robot, robot_params, rsp_urdf_path)
+
                     return True
 
                 # TODO
@@ -207,6 +305,87 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 return False
 
         return await asyncio.gather(*map(impl, robots))
+
+    async def _launch_robot_stack(
+        self,
+        robot: Robot,
+        robot_params: arena_robots.Robot.ModelParams,
+        urdf_path: str,
+    ) -> None:
+        """Launch RSP, and (if ros2_control) controller_manager + spawners + twist_stamper."""
+        ns = str(self.node.service_namespace(robot.name))
+        with open(urdf_path) as f:
+            description = f.read()
+
+        ld = launch.LaunchDescription()
+        ld.add_action(launch_ros.actions.PushRosNamespace(namespace=ns))
+
+        ld.add_action(
+            launch_ros.actions.Node(
+                package='robot_state_publisher',
+                executable='robot_state_publisher',
+                name='robot_state_publisher',
+                output='screen',
+                parameters=[
+                    {'use_sim_time': True},
+                    {'robot_description': description},
+                    {'frame_prefix': robot.frame.tf()},
+                ],
+            )
+        )
+
+        control_spec = robot_params.control
+        if control_spec is not None and control_spec.is_ros2_control:
+            if not control_spec.controllers:
+                raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
+
+            rendered_yaml = (
+                render_ros2_control_yaml(
+                    control_spec.config,
+                    robot.sim_path,
+                    robot.frame.tf(),
+                )
+                if control_spec.config is not None
+                else None
+            )
+
+            cm_params: list[object] = [{'use_sim_time': True}]
+            if rendered_yaml is not None:
+                cm_params.append(rendered_yaml)
+
+            cm_node = launch_ros.actions.Node(
+                package='controller_manager',
+                executable='ros2_control_node',
+                name='controller_manager',
+                output='screen',
+                parameters=cm_params,
+            )
+            ld.add_action(cm_node)
+            urdf_pub_node = launch_ros.actions.Node(
+                package='arena_runtime',
+                executable='urdf_publisher',
+                name='urdf_publisher',
+                output='screen',
+                parameters=[{'robot_description': description}],
+            )
+            ld.add_action(
+                launch.actions.RegisterEventHandler(
+                    launch.event_handlers.OnProcessStart(
+                        target_action=cm_node,
+                        on_start=[urdf_pub_node],
+                    )
+                )
+            )
+            for controller_name in control_spec.controllers:
+                ld.add_action(controller_spawner_node(controller_name))
+            ld.add_action(
+                twist_stamper_node(
+                    control_spec.cmd_vel_topic,
+                    robot.frame.tf(robot_params.base_frame),
+                )
+            )
+
+        await self.node.do_launch(ld)
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
 

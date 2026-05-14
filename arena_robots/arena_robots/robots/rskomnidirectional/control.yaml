@@ -1,63 +1,37 @@
 controller_manager:
   ros__parameters:
+    use_sim_time: true
     update_rate: 50
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
     rskomni_velocity_controller:
-      type: diff_drive_controller/DiffDriveController
+      type: arena_omni_drive_controller/OmniDriveController
+
 rskomni_velocity_controller:
   ros__parameters:
-    left_wheel_names:
-    - front_left_wheel_joint
-    - rear_left_wheel_joint
-    right_wheel_names:
-    - front_right_wheel_joint
-    - rear_right_wheel_joint
-    wheel_separation: 0.36
-    wheels_per_side: 1
-    wheel_radius: 0.098
-    wheel_separation_multiplier: 1.5
-    left_wheel_radius_multiplier: 1.0
-    right_wheel_radius_multiplier: 1.0
-    publish_rate: 50.0
-    odom_frame_id: odom
-    base_frame_id: base_link
-    pose_covariance_diagonal:
-    - 0.001
-    - 0.001
-    - 1000000.0
-    - 1000000.0
-    - 1000000.0
-    - 0.03
-    twist_covariance_diagonal:
-    - 1000000.0
-    - 1000000.0
-    - 0.03
-    - 1000000.0
-    - 1000000.0
-    - 0.03
-    open_loop: false
-    enable_odom_tf: false
-    cmd_vel_timeout: 0.25
-    use_stamped_vel: false
-    preserve_turning_radius: true
-    publish_cmd: true
-    publish_wheel_data: true
-    linear.x.has_velocity_limits: true
-    linear.x.has_acceleration_limits: true
-    linear.x.has_jerk_limits: false
-    linear.x.max_velocity: 2.0
-    linear.x.min_velocity: -2.0
-    linear.x.max_acceleration: 20.0
-    linear.x.min_acceleration: -20.0
-    linear.x.max_jerk: 0.0
-    linear.x.min_jerk: 0.0
-    angular.z.has_velocity_limits: true
-    angular.z.has_acceleration_limits: true
-    angular.z.has_jerk_limits: false
-    angular.z.max_velocity: 4.0
-    angular.z.min_velocity: -4.0
-    angular.z.max_acceleration: 25.0
-    angular.z.min_acceleration: -25.0
-    angular.z.max_jerk: 0.0
-    angular.z.min_jerk: 0.0
+    use_sim_time: true
+    # 3-wheel omni at 120 deg spacing, wheel joints defined in rskomnidirectional.urdf.xacro
+    wheel_joint_names: [wheel1_speed, wheel2_speed, wheel3_speed]
+
+    # Wheel hub positions from URDF joint origins.
+    wheel_positions_x: [ 0.0236,  0.0236, -0.0472]
+    wheel_positions_y: [ 0.0409, -0.0409,  0.0000]
+
+    # Rolling-axis angle in body frame (rad). theta_i = (body angle of wheel) + pi/2 for
+    # kiwi-drive rolling tangent to radial. If observed motion is inverted, switch
+    # direction to 'cw' below instead of negating all entries here.
+    wheel_angles:      [2.6180, 0.5236, 4.7124]
+    direction:         ccw
+
+    # Effective rolling radius (m), pin_bearing_oring offset + roller radius. Estimate;
+    # calibrate against measured odom drift.
+    wheel_radius:      0.030
+
+    cmd_vel_timeout:   0.5
+    use_stamped_vel:   true
+    publish_odom:      true
+    publish_tf:        false
+    odom_frame_id:     odom
+    base_frame_id:     base
+    pose_covariance_diagonal:  [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 0.03]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001,     1000000.0, 1000000.0, 0.03]

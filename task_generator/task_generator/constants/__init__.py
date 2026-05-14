@@ -40,6 +40,7 @@ class Constants:
             EXPLORE = "explore"
             RANDOM = "random"
             SCENARIO = "scenario"
+            DEMO = "demo"
 
             @classmethod
             def prefix(cls, *args: object) -> Namespace:

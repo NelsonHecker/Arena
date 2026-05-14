@@ -1,8 +1,15 @@
 robot_model: turtlebot
 base_frame: base_link
-z_offset: 0.37
+z_offset: 0.04
 sensors:
   - name: lidar
     type: laserscan
     topic: ${namespace}/lidar
     frame: rplidar_link
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/turtlebot/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - turtlebot_velocity_controller
+  cmd_vel_topic: turtlebot_velocity_controller/cmd_vel

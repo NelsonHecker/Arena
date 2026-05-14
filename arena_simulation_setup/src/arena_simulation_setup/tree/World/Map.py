@@ -6,6 +6,7 @@ import typing
 from collections.abc import Iterable
 from pathlib import Path
 
+import numpy as np
 import PIL.Image
 import PIL.ImageDraw
 import shapely
@@ -25,23 +26,9 @@ class Map(PathView):
         return self.path / 'map.png'
 
     @classmethod
-    def generate_png(
+    def _render_image(
         cls, rooms: shapely.MultiPolygon, doors: shapely.MultiPolygon, walls: shapely.MultiLineString, resolution: float = 0.01, padding: int = 5, *, static_objects: Iterable[tuple[str, shapely.Polygon]] = (), asset_color: str | None = "grey", asset_name_color: str | None = "blue"
-    ) -> tuple[bytes, tuple[float, float]]:
-        """
-        Generate a PNG image of the map with the given elements.
-
-        Args:
-            rooms (shapely.MultiPolygon): MultiPolygon representing the rooms in the map.
-            doors (shapely.MultiPolygon): MultiPolygon representing the doors in the map.
-            walls (shapely.MultiLineString): MultiLineString representing the walls in the map.
-            resolution (float): Size of each pixel in meters.
-            padding (int): Number of pixels to pad around the map.
-            show_obj_name (bool): Whether to display object names on the map.
-            static_objects (Optional[List[Tuple[str, shapely.Polygon]]]): Optional list of (name, Polygon) tuples for static objects to draw.
-            asset_color (str | None): Color used to fill static objects.
-            asset_name_color (str | None): Color used for static object names.
-        """
+    ) -> tuple[PIL.Image.Image, tuple[float, float]]:
         min_x, min_y, max_x, max_y = rooms.bounds
 
         width = max_x - min_x
@@ -92,10 +79,57 @@ class Map(PathView):
                     logging.debug(f"Drawing name for asset '{name}' at ({int(_max_x)}, {int(_max_y)}) color {asset_name_color}")
                     draw.text((int(_max_x), int(_max_y)), name, fill=asset_name_color)
 
+        return img, (min_x - padding * resolution, min_y - padding * resolution)
+
+    @classmethod
+    def generate_png(
+        cls, rooms: shapely.MultiPolygon, doors: shapely.MultiPolygon, walls: shapely.MultiLineString, resolution: float = 0.01, padding: int = 5, *, static_objects: Iterable[tuple[str, shapely.Polygon]] = (), asset_color: str | None = "grey", asset_name_color: str | None = "blue"
+    ) -> tuple[bytes, tuple[float, float]]:
+        """
+        Generate a PNG image of the map with the given elements.
+
+        Args:
+            rooms (shapely.MultiPolygon): MultiPolygon representing the rooms in the map.
+            doors (shapely.MultiPolygon): MultiPolygon representing the doors in the map.
+            walls (shapely.MultiLineString): MultiLineString representing the walls in the map.
+            resolution (float): Size of each pixel in meters.
+            padding (int): Number of pixels to pad around the map.
+            show_obj_name (bool): Whether to display object names on the map.
+            static_objects (Optional[List[Tuple[str, shapely.Polygon]]]): Optional list of (name, Polygon) tuples for static objects to draw.
+            asset_color (str | None): Color used to fill static objects.
+            asset_name_color (str | None): Color used for static object names.
+        """
+        img, origin = cls._render_image(
+            rooms,
+            doors,
+            walls,
+            resolution=resolution,
+            padding=padding,
+            static_objects=static_objects,
+            asset_color=asset_color,
+            asset_name_color=asset_name_color,
+        )
+
         img_bytes = io.BytesIO()
         img.save(img_bytes, format='PNG')
-        img_bytes.seek(0)
-        return img_bytes.getvalue(), (min_x - padding * resolution, min_y - padding * resolution)
+        return img_bytes.getvalue(), origin
+
+    @classmethod
+    def rasterize(
+        cls, rooms: shapely.MultiPolygon, doors: shapely.MultiPolygon, walls: shapely.MultiLineString, resolution: float = 0.01, padding: int = 5, *, static_objects: Iterable[tuple[str, shapely.Polygon]] = (), asset_color: str | None = "grey", asset_name_color: str | None = "blue"
+    ) -> tuple[np.ndarray, tuple[float, float]]:
+        """Like `generate_png` but returns a uint8 grayscale array (255=free, 0=occupied)."""
+        img, origin = cls._render_image(
+            rooms,
+            doors,
+            walls,
+            resolution=resolution,
+            padding=padding,
+            static_objects=static_objects,
+            asset_color=asset_color,
+            asset_name_color=asset_name_color,
+        )
+        return np.asarray(img.convert('L'), dtype=np.uint8), origin
 
     @classmethod
     def generate_map_yaml(cls, resolution: float, filename: str, origin: tuple[float, float]) -> str:

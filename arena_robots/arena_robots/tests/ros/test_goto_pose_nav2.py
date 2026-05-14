@@ -28,7 +28,9 @@ class TestTranslateNav2Status:
         from arena_robots.task_server_handlers.goto_pose.nav2 import _translate_nav2_status
         from arena_robots_msgs.action import GotoPose
 
-        assert _translate_nav2_status(GoalStatus.STATUS_SUCCEEDED) == GotoPose.Result.STATUS_SUCCEEDED
+        status, reason = _translate_nav2_status(GoalStatus.STATUS_SUCCEEDED)
+        assert status == GotoPose.Result.STATUS_SUCCEEDED
+        assert reason == ""
 
     def test_canceled(self):
         from action_msgs.msg import GoalStatus
@@ -36,13 +38,17 @@ class TestTranslateNav2Status:
         from arena_robots.task_server_handlers.goto_pose.nav2 import _translate_nav2_status
         from arena_robots_msgs.action import GotoPose
 
-        assert _translate_nav2_status(GoalStatus.STATUS_CANCELED) == GotoPose.Result.STATUS_CANCELED
+        status, reason = _translate_nav2_status(GoalStatus.STATUS_CANCELED)
+        assert status == GotoPose.Result.STATUS_CANCELED
+        assert reason
 
     def test_aborted_on_unknown(self):
         from arena_robots.task_server_handlers.goto_pose.nav2 import _translate_nav2_status
         from arena_robots_msgs.action import GotoPose
 
-        assert _translate_nav2_status(99) == GotoPose.Result.STATUS_ABORTED
+        status, reason = _translate_nav2_status(99)
+        assert status == GotoPose.Result.STATUS_ABORTED
+        assert reason
 
     def test_aborted_on_executing(self):
         from action_msgs.msg import GoalStatus
@@ -50,7 +56,9 @@ class TestTranslateNav2Status:
         from arena_robots.task_server_handlers.goto_pose.nav2 import _translate_nav2_status
         from arena_robots_msgs.action import GotoPose
 
-        assert _translate_nav2_status(GoalStatus.STATUS_EXECUTING) == GotoPose.Result.STATUS_ABORTED
+        status, reason = _translate_nav2_status(GoalStatus.STATUS_EXECUTING)
+        assert status == GotoPose.Result.STATUS_ABORTED
+        assert reason
 
 
 class TestGotoPoseHandlerNav2Init:

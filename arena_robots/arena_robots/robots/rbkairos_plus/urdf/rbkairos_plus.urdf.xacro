@@ -10,8 +10,7 @@
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/bases/rbkairos/rbkairos_base.urdf.xacro" />
 
   <xacro:include filename="$(find arena_robots)/robots/rbkairos_plus/urdf/base_hw/rbkairos_plus.ros2_control.urdf" />
-  <xacro:include filename="$(find arena_robots)/robots/rbkairos/simulators/gazebo_classic/rbkairos/rbkairos_control.urdf.xacro" />
-  <xacro:include filename="$(find arena_robots)/robots/rbkairos/simulators/gazebo_ignition/rbkairos/rbkairos_control.urdf.xacro" />
+  <xacro:include filename="$(find arena_robots)/robots/rbkairos_plus/urdf/rbkairos_plus.gazebo" />
 
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/all_sensors.urdf.xacro" />
 
@@ -22,7 +21,9 @@
   <xacro:arg name="namespace" default="robot"/>
   <xacro:arg name="prefix" default="robot_"/>
   <xacro:arg name="gazebo_classic" default="false"/>
-  <xacro:arg name="gazebo_ignition" default="false"/>
+  <xacro:arg name="gazebo_ignition" default="true"/>
+  <xacro:arg name="gazebo_controllers" default=""/>
+  <xacro:arg name="sim_path" default=""/>
 
   <xacro:arg name="ur_type" default="ur5e"/>
   <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
@@ -61,7 +62,8 @@
       physical_parameters_file="$(arg physical_params)"
       visual_parameters_file="$(arg visual_params)"
       sim_gazebo="$(arg gazebo_classic)"
-      sim_ignition="$(arg gazebo_ignition)">
+      sim_ignition="$(arg gazebo_ignition)"
+      generate_ros2_control_tag="false">
       <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:ur_robot>
 
@@ -115,13 +117,8 @@
     <xacro:rbkairos_gz_classic_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
     <xacro:ros_planar_move_gazebo_classic/>
   </xacro:if>
-  <xacro:if value="$(arg gazebo_ignition)">
-    <xacro:rbkairos_gz_ignition_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
-  </xacro:if>
   <xacro:unless value="$(arg gazebo_classic)">
-    <xacro:unless value="$(arg gazebo_ignition)">
-      <xacro:rbkairos_base_hw_controller/>
-    </xacro:unless>
+    <xacro:rbkairos_plus_arm_hw_controller/>
   </xacro:unless>
 
 </robot>

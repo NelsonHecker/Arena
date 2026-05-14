@@ -9,6 +9,8 @@ find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/GotoPose.action"
+  "action/PlayGesture.action"
+  "action/ReachPose.action"
   "msg/CollisionEvent.msg"
   "msg/CollisionEvents.msg"
   DEPENDENCIES geometry_msgs action_msgs std_msgs

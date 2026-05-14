@@ -76,7 +76,7 @@ def _build_tm_scenario(fake_scenario, world_name="test_world"):
     ctx = SimpleNamespace(
         robots_manager=SimpleNamespace(managers={}),
         environment_manager=SimpleNamespace(realize=lambda x: x),
-        world_manager=SimpleNamespace(world_name=world_name),
+        world_manager=SimpleNamespace(loaded_world=world_name),
     )
 
     tm = TM_Scenario.__new__(TM_Scenario)
@@ -125,7 +125,7 @@ def test_parse_scenario_calls_world_identifier():
         ctx = SimpleNamespace(
             robots_manager=SimpleNamespace(managers={}),
             environment_manager=SimpleNamespace(realize=lambda x: x),
-            world_manager=SimpleNamespace(world_name="test_world"),
+            world_manager=SimpleNamespace(loaded_world="test_world"),
         )
         tm = TM_Scenario.__new__(TM_Scenario)
         tm._NodeInterface__node = node
@@ -167,7 +167,7 @@ def test_init_default_scenario_exists():
             ctx = SimpleNamespace(
                 robots_manager=SimpleNamespace(managers={}),
                 environment_manager=SimpleNamespace(realize=lambda x: x),
-                world_manager=SimpleNamespace(world_name="test_world"),
+                world_manager=SimpleNamespace(loaded_world="test_world"),
             )
 
             mock_wi.return_value.resolve_sync.return_value.scenario.return_value.resolve_sync.return_value.load.return_value = fake_scenario
@@ -195,7 +195,7 @@ def test_init_no_scenarios_raises():
             ctx = SimpleNamespace(
                 robots_manager=SimpleNamespace(managers={}),
                 environment_manager=SimpleNamespace(realize=lambda x: x),
-                world_manager=SimpleNamespace(world_name="empty_world"),
+                world_manager=SimpleNamespace(loaded_world="empty_world"),
             )
 
             with pytest.raises(ValueError, match="No scenarios found"):

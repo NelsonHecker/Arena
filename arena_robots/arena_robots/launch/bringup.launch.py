@@ -17,6 +17,7 @@ def generate_launch_description():
     robot_arg = LaunchArgument('robot')
     namespace_arg = LaunchArgument('namespace')
     bringup_arg = LaunchArgument('bringup', default_value='nav2')
+    cap_arg = LaunchArgument('cap', default_value='mobile')
     use_sim_time_arg = LaunchArgument('use_sim_time', default_value='true')
     frame_arg = LaunchArgument('frame', default_value='')
 
@@ -24,13 +25,14 @@ def generate_launch_description():
         name = robot_arg.substitution.perform(context)
         ns = namespace_arg.substitution.perform(context)
         kind = bringup_arg.substitution.perform(context)
+        cap = cap_arg.substitution.perform(context)
         use_sim_time_str = use_sim_time_arg.substitution.perform(context)
         frame = frame_arg.substitution.perform(context)
 
         use_sim_time = use_sim_time_str.lower() in ('true', '1', 'yes')
 
         view = RobotIdentifier(name).resolve_sync()
-        bringup = BRINGUPS.get(kind)(robot=view, namespace=ns)
+        bringup = BRINGUPS[cap].get(kind)(robot=view, namespace=ns)
         check_caps(bringup)
 
         simulation_setup_root = FindPackageShare('arena_simulation_setup')
@@ -45,8 +47,8 @@ def generate_launch_description():
             }.items(),
         )
 
-        bringup_ld = bringup.launch_description(use_sim_time=use_sim_time, frame=frame)
+        bringup_actions = bringup._launch_actions(use_sim_time=use_sim_time, frame=frame)
 
-        return [state_publisher, bringup_ld]
+        return [state_publisher, *bringup_actions]
 
     return LaunchDescription([*ld_items, OpaqueFunction(function=_compose)])

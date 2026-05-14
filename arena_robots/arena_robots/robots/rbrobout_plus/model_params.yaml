@@ -6,3 +6,12 @@ sensors:
     type: laserscan
     topic: ${namespace}/lidar
     frame: robot_front_laser_link
+control:
+  mode: ros2_control
+  config: package://arena_robots/robots/rbrobout_plus/control.yaml
+  controllers:
+    - joint_state_broadcaster
+    - rbrobout_velocity_controller
+    - arm_controller
+    - lift_controller
+  cmd_vel_topic: rbrobout_velocity_controller/reference

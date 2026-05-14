@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <robot name="jackal" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:arg name="is_sim" default="false" />
   <xacro:arg name="prefix" default="" />
   <xacro:arg name="sim_path" default="" />
-  <xacro:arg name="gazebo_controllers" default="$(find jackal_control)/config/control.yaml" />
+  <xacro:arg name="namespace" default="" />
+  <xacro:arg name="gazebo_controllers" default="" />
   <xacro:property name="PI" value="3.1415926535897931" />
 
   <xacro:property name="wheelbase" value="0.262" />
@@ -285,38 +285,8 @@
     <origin xyz="${mount_spacing} 0 0" />
   </joint>
 
-  <!-- ROS2 controls -->
-  <ros2_control name="jackal_hardware" type="system">
-    <hardware>
-      <xacro:if value="$(arg is_sim)">
-        <plugin>gazebo_ros2_control/GazeboSystem</plugin>
-      </xacro:if>
-      <xacro:unless value="$(arg is_sim)">
-        <plugin>jackal_hardware/JackalHardware</plugin>
-        <plugin>fake_components/GenericSystem</plugin>
-      </xacro:unless>
-    </hardware>
-    <joint name="front_left_wheel_joint">
-      <command_interface name="velocity"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="rear_left_wheel_joint">
-      <command_interface name="velocity"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="front_right_wheel_joint">
-      <command_interface name="velocity"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="rear_right_wheel_joint">
-      <command_interface name="velocity"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-  </ros2_control>
+  <xacro:include filename="$(find arena_robots)/robots/jackal/urdf/base_hw/jackal.ros2_control.urdf" />
+  <xacro:jackal_base_hw_controller/>
 
   <!-- Bring in simulation data for Gazebo. -->
   <xacro:include filename="./jackal.gazebo" />

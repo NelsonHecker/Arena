@@ -8,7 +8,7 @@
   <xacro:property name="link_name" value="${name}"/>
   <xacro:property name="joint_name" value="${name}_joint"/>
 
-  <xacro:property name="mass" value="0.260"/>
+  <xacro:property name="mass" value="0.026"/>
 
   <joint name="${joint_name}" type="fixed">
     <parent link="${parent_link}"/>

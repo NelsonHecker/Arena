@@ -1,7 +1,24 @@
 <?xml version="1.0" ?>
 <!-- Generated using onshape-to-robot -->
 <!-- Onshape https://cad.onshape.com/documents/81e7adfaf4d8d74f2936fbd5/w/97141f458dee8c3b80cbf3d2/e/5e1ff591ff562de3da8ed2af -->
-<robot name="urdf">
+<robot name="urdf" xmlns:xacro="http://wiki.ros.org/xacro">
+  <xacro:arg name="namespace" default=""/>
+  <xacro:arg name="gazebo_controllers" default=""/>
+  <xacro:include filename="$(find arena_robots)/config/urdf/sensors/default.xacro"/>
+  <xacro:arena_default_nav_sensors parent_link="base"/>
+
+  <xacro:include filename="$(find arena_robots)/robots/rskomnidirectional/urdf/base_hw/rskomnidirectional.ros2_control.urdf"/>
+  <xacro:rskomnidirectional_base_hw_controller/>
+
+  <gazebo>
+    <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg gazebo_controllers)</parameters>
+      <ros>
+        <namespace>$(arg namespace)</namespace>
+      </ros>
+    </plugin>
+  </gazebo>
+
   <!-- Link base -->
   <link name="base">
     <inertial>

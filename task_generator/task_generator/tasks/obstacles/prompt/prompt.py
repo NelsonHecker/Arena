@@ -610,7 +610,7 @@ class TM_Prompt(TM_Obstacles):
 
         self.tmp_dir = tempfile.TemporaryDirectory(
             dir=os.path.join(
-                WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().path,
+                WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().path,
                 "scenarios",
             )
         )  # Temporary directory to store behavior tree XML files

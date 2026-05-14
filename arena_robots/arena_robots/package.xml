@@ -32,6 +32,16 @@
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>topic_tools</exec_depend>
 
+  <exec_depend>arena_swerve_controller</exec_depend>
+  <exec_depend>arena_omni_drive_controller</exec_depend>
+
+  <exec_depend>ur_moveit_config</exec_depend>
+  <exec_depend>ur_robot_driver</exec_depend>
+  <exec_depend>moveit_msgs</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend>
+  <exec_depend>shape_msgs</exec_depend>
+
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
   <test_depend>python3-hypothesis</test_depend>

@@ -46,9 +46,9 @@ class FrameNamespace(Namespace):
     def sanitize(self) -> str:
         return re.sub('[^A-Za-z0-9_]', '_', self)
 
-    @classmethod
-    def auto_sanitize(cls):
-        cls.__str__ = cls.sanitize
+    def tf(self, *parts: str) -> str:
+        """Scope joined to ``parts`` by `/`. No args -> trailing `/`."""
+        return f'{self.raw()}/' + '/'.join(parts)
 
 
 class ParamNamespace(Namespace):

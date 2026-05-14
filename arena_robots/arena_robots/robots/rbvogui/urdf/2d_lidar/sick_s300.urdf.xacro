@@ -12,7 +12,9 @@
                        node_name:=sick_s300
                        node_namespace:=${None}
                        topic_prefix:=~/
-                       gpu:=false">
+                       gpu:=false
+                       min_angle:=${-radians(130)}
+                       max_angle:=${radians(130)}">
     <!-- node_namespace is used from node_name if not set -->
     <xacro:if value="${node_namespace == None}">
       <xacro:property name="node_namespace" value="${node_name}"/>
@@ -59,8 +61,8 @@
       gazebo_ignition="${gazebo_ignition}"
       min_range="0.05"
       max_range="10.0"
-      min_angle="${-radians(130)}"
-      max_angle="${radians(130)}"
+      min_angle="${min_angle}"
+      max_angle="${max_angle}"
       frame_link="${frame_prefix}link"
       rate="25.0"
       resolution="0.00575"

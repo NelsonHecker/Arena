@@ -14,13 +14,38 @@ from . import Model, ModelProvider, ModelType
 
 _PACKAGE_URI = "package://"
 
+_OPTIM_MAP: dict[str, frozenset[str]] = {
+    'no_camera': frozenset({'camera', 'depth', 'rgbd_camera'}),
+    'no_lidar': frozenset({'ray', 'gpu_lidar'}),
+}
+
+
+def _strip_sensors(root: ET.Element, tokens: set[str]) -> None:
+    disabled_types: set[str] = set()
+    unknown: set[str] = set()
+    for tok in tokens:
+        m = _OPTIM_MAP.get(tok)
+        if m is None:
+            unknown.add(tok)
+        else:
+            disabled_types |= m
+    if unknown:
+        print(f"[urdf.optim] ignoring unknown token(s): {sorted(unknown)}", file=sys.stderr)
+    if not disabled_types:
+        return
+    for parent in root.iter():
+        for child in list(parent):
+            if child.tag.rpartition('}')[-1] == 'sensor' and child.attrib.get('type') in disabled_types:
+                parent.remove(child)
+
 
 class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
     @classmethod
     async def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
 
-        if loader_args is None:
-            loader_args = {}
+        loader_args = dict(loader_args) if loader_args else {}
+        optim_raw = loader_args.pop('optim', '') or ''
+        optim_tokens: set[str] = {t.strip() for t in optim_raw.split(',') if t.strip()}
 
         base_path = model_dir / "urdf"
         xacro_path = base_path / f"{model}.urdf.xacro"
@@ -67,20 +92,29 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                 original_path = elem.attrib['filename']
 
                 if original_path.startswith(_PACKAGE_URI):
-                    pkg, _, sub = original_path[len(_PACKAGE_URI):].partition('/')
+                    pkg, _, sub = original_path[len(_PACKAGE_URI) :].partition('/')
                     try:
                         share = get_package_share_directory(pkg)
                         abs_path = os.path.join(share, sub)
                     except PackageNotFoundError:
                         abs_path = os.path.abspath(os.path.join(base_dir, sub))
-                    elem.attrib['filename'] = abs_path
-                    print(f"Resolved {original_path} -> {abs_path}")
+                    elem.attrib['filename'] = f"file://{abs_path}"
+                    print(f"Resolved {original_path} -> file://{abs_path}")
+                    continue
+
+                if original_path.startswith("file://"):
                     continue
 
                 if not os.path.isabs(original_path):
                     abs_path = os.path.abspath(os.path.join(base_dir, original_path))
-                    elem.attrib['filename'] = abs_path
-                    print(f"Updated relative path to absolute: {original_path} -> {abs_path}")
+                    elem.attrib['filename'] = f"file://{abs_path}"
+                    print(f"Updated relative path to absolute: {original_path} -> file://{abs_path}")
+                    continue
+
+                elem.attrib['filename'] = f"file://{original_path}"
+
+            if optim_tokens:
+                _strip_sensors(root, optim_tokens)
 
             ser = ET.tostring(root, encoding="utf-8", method="xml", xml_declaration=True)
             async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".urdf", mode="wb") as tmp:

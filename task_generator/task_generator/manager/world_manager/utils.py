@@ -4,15 +4,17 @@ This file exists to make world_manager more readable
 
 import collections.abc
 from collections.abc import Callable, Collection
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 import attrs
-import nav_msgs.msg
 import numpy as np
 import scipy.interpolate
 from arena_rclpy_mixins.Time import Time
 
 from task_generator.shared import Position, PositionRadius, Wall
+
+if TYPE_CHECKING:
+    from arena_simulation_setup.tree.World.World import WorldDescription
 
 # CONVERTERS
 
@@ -180,14 +182,15 @@ class WorldMap:
     time: Time
 
     @staticmethod
-    def from_costmap(occupancy_grid: nav_msgs.msg.OccupancyGrid) -> "WorldMap":
-        # Convert occupancy grid data to numpy array
-        grid_data = np.array(occupancy_grid.data).reshape((occupancy_grid.info.height, occupancy_grid.info.width))
-
-        # Normalize data to 0-255 range (0 = occupied, 255 = free)
-        normalized_data = np.interp(grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)).astype(np.uint8)
-
-        return WorldMap(occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)), origin=Position(x=occupancy_grid.info.origin.position.y, y=occupancy_grid.info.origin.position.x), resolution=occupancy_grid.info.resolution, time=Time.from_msg(occupancy_grid.info.map_load_time))
+    def from_world_description(description: "WorldDescription", resolution: float, time: Time) -> "WorldMap":
+        """Rasterize a WorldDescription into a WorldMap. PIL grayscale matches WorldOccupancy (255=EMPTY, 0=FULL)."""
+        grid, origin = description.render_grid(resolution=resolution)
+        return WorldMap(
+            occupancy=WorldLayers(walls=WorldOccupancy(grid.copy())),
+            origin=Position(x=origin[0], y=origin[1]),
+            resolution=resolution,
+            time=time,
+        )
 
     @property
     def shape(self) -> tuple[int, ...]:
