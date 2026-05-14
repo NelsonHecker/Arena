@@ -27,7 +27,7 @@ from arena_simulation_setup.tree import DynamicPaths
 
 from task_generator.manager.environment_manager import EnvironmentManager
 
-from .utils import WorldMap
+from .utils import MultiLevelMap, WorldMap
 from .world_manager import WorldManager
 
 _DUMMY_MAP_SHAPE = (1, 1)
@@ -127,6 +127,25 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         origin[0] = shifted_origin.x
         origin[1] = shifted_origin.y
         map_yaml['origin'] = origin
+        floor_origins = map_yaml.get('origins')
+        if isinstance(floor_origins, dict):
+            realizer = getattr(self.node, '_realizer', None)
+            if realizer is not None:
+                base_config = realizer.get_config()
+                shifted_floor_origins: dict[str, list[float]] = {}
+                for floor_id, offset in floor_origins.items():
+                    if not isinstance(offset, (list, tuple)) or len(offset) < 2:
+                        self._logger.warn(f"Skipping invalid floor origin for {floor_id!r}: {offset!r}")
+                        continue
+                    try:
+                        realizer.register_floor(str(floor_id), x=float(offset[0]), y=float(offset[1]))
+                    except RuntimeError:
+                        realizer.set_origin(float(offset[0]), float(offset[1]), floor_id=str(floor_id))
+                    ox = float(offset[0]) + base_config.x
+                    oy = float(offset[1]) + base_config.y
+                    shifted_floor_origins[str(floor_id)] = [ox, oy]
+                if shifted_floor_origins:
+                    map_yaml['origins'] = shifted_floor_origins
         with open(Path(map_tmpdir.name) / 'map.yaml', 'w') as f:
             yaml.safe_dump(map_yaml, f)
 
@@ -152,6 +171,23 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         t.transform.rotation.w = 1.0
         self.node._static_tf_broadcaster.sendTransform(t)
 
+    def _ensure_realizer_floors(self, world: World.MultiLevelWorld) -> None:
+        """Ensure the Realizer has a zero-origin entry for every floor id.
+
+        Single-floor worlds often use a floor id like "0"; register it so
+        `get_level_origin()` does not raise before explicit origins are loaded.
+        """
+        realizer = getattr(self.node, '_realizer', None)
+        if realizer is None:
+            return
+        for floor_id in world.floor_ids:
+            if floor_id == "":
+                continue
+            try:
+                realizer.register_floor(str(floor_id), x=0.0, y=0.0)
+            except RuntimeError:
+                pass
+
     async def apply_world(self, world_name: str) -> bool:
         """Load `world_name` if different from the current world.
 
@@ -162,9 +198,10 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if world_name == self._world_name:
             return True
 
-        world = await World.WorldIdentifier(world_name).resolve()
-        description = world.load()
-        floors = list(description.all_floors)
+        world_view = await World.MultiLevelWorldIdentifier(world_name).resolve()
+        world = world_view.load()
+        self._ensure_realizer_floors(world)
+        floors = [floor for level in world.all_levels for floor in level.all_floors]
         extent = arena_runtime_msgs.msg.WorldExtent()
         if floors:
             extent.x_min = float(min(f.pos.x - f.x_length / 2 for f in floors))
@@ -197,7 +234,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._logger.warn(f'Loading World {world_name}')
         self._world_name = world_name
 
-        tmp_map = self._shift_map(world.map.path)
+        tmp_map = self._shift_map(world_view.map.path)
         map_yaml = os.path.join(
             tmp_map.name,
             'map.yaml',
@@ -224,15 +261,37 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             costmap (nav_msgs.msg.OccupancyGrid): The updated costmap.
         """
         if self._map.time <= costmap.info.map_load_time:
-            world = await World.WorldIdentifier(self.world_name).resolve()
+            world_view = await World.MultiLevelWorldIdentifier(self.world_name).resolve()
+            world = world_view.load()
             world_map = WorldMap.from_costmap(costmap)
 
             if self._origin is not None:
                 world_map.origin = self._origin
                 self._origin = None
 
-            DynamicPaths.WORLD.path = world.path
-            self.update_world(world_map=world_map, world_description=world.load())
+            DynamicPaths.WORLD.path = world_view.path
+
+            # Per-floor maps are static artifacts from export; rebuild from disk for placement.
+            multi_map = None
+            floors_dir = world_view.map.path / 'floors'
+            if floors_dir.is_dir():
+                multi_map = MultiLevelMap()
+                realizer = getattr(self.node, '_realizer', None)
+                base_config = realizer.get_config() if realizer is not None else None
+                for floor_id in world.floor_ids:
+                    map_yaml_path = floors_dir / f"{floor_id}.yaml"
+                    if not map_yaml_path.exists():
+                        continue
+                    floor_map = WorldMap.from_map_files(map_yaml_path)
+                    if realizer is not None and base_config is not None:
+                        level_x, level_y = realizer.get_level_origin(floor_id)
+                        floor_map.origin = Position(
+                            x=floor_map.origin.x + base_config.x + level_x,
+                            y=floor_map.origin.y + base_config.y + level_y,
+                        )
+                    multi_map.set_map(floor_id, floor_map)
+
+            self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_map)
 
             self._map_name = self.world_name
             try:
@@ -253,7 +312,9 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._environment_manager = environment_manager
 
         self._callbacks = []
-        self.update_world(world_map=WorldMap.from_costmap(_DUMMY_MAP), world_description=World.WorldDescription())
+        dummy_world = World.MultiLevelWorld.from_world_description(World.WorldDescription())
+        dummy_map = WorldMap.from_costmap(_DUMMY_MAP)
+        self.update_world(world_map=dummy_map, world_description=dummy_world, multi_level_map=MultiLevelMap.from_single(dummy_map))
         self._world_name = ''
         self._origin = None
         self._map_name = None

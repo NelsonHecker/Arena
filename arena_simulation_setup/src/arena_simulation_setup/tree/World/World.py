@@ -357,6 +357,12 @@ class MultiLevelWorld:
     def get_level(self, floor_id: str) -> Level | None:
         return self.levels.get(floor_id, None)
 
+    def as_world_description(self) -> WorldDescription | None:
+        """Return a single-floor WorldDescription if this world has exactly one level."""
+        if len(self.levels) != 1:
+            return None
+        return next(iter(self.levels.values()))
+
     def validate(self):
         elevator_floors: dict[str, str] = {}
         for floor_id, level in self.levels.items():
@@ -617,31 +623,27 @@ class MultiLevelWorld:
             max(height for _, height in bboxes),
         )
 
-    def render_whole(
-            self,
-            resolution: float = 0.05,
-            preferred_pixel_width: int = 500,
-            margin_width_in_meter: float = 5,
-            margin_height_in_meter: float = 5,
-            *,
-            default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
-            asset_color: str | None = None,
-            asset_name_color: str | None = None,
-    ) -> bytes:
-        """Render all of the floors at once to a PNG image
-        In the rendered image, Floor coordinates are slided so that they are configured left-to-right, top-to-bottom
+    def _render_whole_with_origins(
+        self,
+        resolution: float = 0.05,
+        preferred_pixel_width: int = 500,
+        margin_width_in_meter: float = 5,
+        margin_height_in_meter: float = 5,
+        *,
+        default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
+        asset_color: str | None = None,
+        asset_name_color: str | None = None,
+    ) -> tuple[bytes, dict[str, tuple[float, float]]]:
+        """Render all floors into a single PNG and return per-floor offsets.
 
-        Args:
-            resolution (float): The resolution of the rendered image [m/px]
-
-        Returns:
-            bytes: The rendered image
+        The returned offsets map each floor_id to the (x, y) shift applied
+        when flattening into the shared map frame.
         """
 
         if not self.levels:
             raise RuntimeError('Cannot render an empty MultiLevelWorld')
 
-        def _regularize_world_origin_then_apply_shift(world: WorldDescription, dx: float, dy: float) -> WorldDescription:
+        def _regularize_world_origin_then_apply_shift(world: WorldDescription, dx: float, dy: float) -> tuple[WorldDescription, tuple[float, float]]:
             shifted_world = deepcopy(world)
 
             corners = [corner for zone in shifted_world.zones for corner in zone.corners]
@@ -657,7 +659,7 @@ class MultiLevelWorld:
 
             shifted_world.shift_all_positions(offset_x, offset_y)
 
-            return shifted_world
+            return shifted_world, (offset_x, offset_y)
 
         max_bbox_width, max_bbox_height = self.max_floor_bbox_dim()
 
@@ -668,21 +670,56 @@ class MultiLevelWorld:
         floor_counts_per_row = 0
         row_count = 0
         flattened_world = WorldDescription()
-        for floor in self.levels.values():
-            shifted_floor = _regularize_world_origin_then_apply_shift(
+        floor_origins: dict[str, tuple[float, float]] = {}
+        for floor_id, floor in self.levels.items():
+            shifted_floor, offset = _regularize_world_origin_then_apply_shift(
                 floor,
                 floor_counts_per_row * (max_bbox_width + margin_width_in_meter),
                 -1 * row_count * (max_bbox_height + margin_height_in_meter)
             )
 
             flattened_world.zones.extend(shifted_floor.zones)
+            floor_origins[floor_id] = offset
 
             floor_counts_per_row += 1
             if floor_counts_per_row >= max_floor_counts_per_row:
                 row_count += 1
                 floor_counts_per_row = 0
 
-        return flattened_world.render(resolution, default_asset_bbox=default_asset_bbox, asset_color=asset_color, asset_name_color=asset_name_color)[0]
+        png = flattened_world.render(
+            resolution,
+            default_asset_bbox=default_asset_bbox,
+            asset_color=asset_color,
+            asset_name_color=asset_name_color,
+        )[0]
+        return png, floor_origins
+
+    def render_whole(
+            self,
+            resolution: float = 0.05,
+            preferred_pixel_width: int = 500,
+            margin_width_in_meter: float = 5,
+            margin_height_in_meter: float = 5,
+            *,
+            default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
+            asset_color: str | None = None,
+            asset_name_color: str | None = None,
+    ) -> bytes:
+        """Render all of the floors at once to a PNG image.
+
+        In the rendered image, floor coordinates are shifted to lay out
+        left-to-right, top-to-bottom.
+        """
+        png, _ = self._render_whole_with_origins(
+            resolution=resolution,
+            preferred_pixel_width=preferred_pixel_width,
+            margin_width_in_meter=margin_width_in_meter,
+            margin_height_in_meter=margin_height_in_meter,
+            default_asset_bbox=default_asset_bbox,
+            asset_color=asset_color,
+            asset_name_color=asset_name_color,
+        )
+        return png
 
     def render_individually(
         self,
@@ -710,14 +747,18 @@ class MultiLevelWorld:
         if "asset_name_color" in kwargs:
             render_args["asset_name_color"] = kwargs["asset_name_color"]
 
-        files['map/map.png'] = self.render_whole(**render_args)
+        whole_png, floor_origins = self._render_whole_with_origins(**render_args)
+        files['map/map.png'] = whole_png
         whole_origin = (0, 0)
-        files['map/map.yaml'] = Map.generate_map_yaml(
+        map_yaml = yaml.safe_load(Map.generate_map_yaml(
             resolution=resolution,
             filename='map.png',
             origin=whole_origin,
-        ).encode('utf-8')
+        ))
+        map_yaml['origins'] = {floor_id: [x, y] for floor_id, (x, y) in floor_origins.items()}
+        files['map/map.yaml'] = yaml.safe_dump(map_yaml, sort_keys=False).encode('utf-8')
 
+        files['map/map.yaml'] = yaml.safe_dump(map_yaml).encode('utf-8')
         for floor_id, (png, origin) in self.render_individually(**render_args):
             files[f'map/floors/{floor_id}.png'] = png
             files[f'map/floors/{floor_id}.yaml'] = Map.generate_map_yaml(
@@ -814,17 +855,8 @@ class MultiLevelWorldView(PathView):
         return self.path / 'world.yaml'
 
     def load(self, validate: bool = True) -> MultiLevelWorld:
-        yaml_files = sorted(
-            path
-            for path in self.path.iterdir()
-            if path.is_file()
-            and path.suffix in {'.yaml', '.yml'}
-            and 'world' in path.name.lower()
-        )
 
-        if len(yaml_files) > 1 or (yaml_files and not self.world_path.exists()):
-            multi_level_world = MultiLevelWorld.from_yaml_files(yaml_files)
-        elif self.world_path.exists():
+        if self.world_path.exists():
             with open(self.world_path, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
 
@@ -834,7 +866,15 @@ class MultiLevelWorldView(PathView):
                 multi_level_world = MultiLevelWorld.from_list([world_desc])
             else:
                 multi_level_world = converter.structure(data, MultiLevelWorld)
+        
         else:
+            yaml_files = sorted(
+                path
+                for path in self.path.iterdir()
+                if path.is_file()
+                and path.suffix in {'.yaml', '.yml'}
+                and 'world' in path.name.lower()
+            )
             if not yaml_files:
                 raise FileNotFoundError(
                     f'could not find world.yaml or any world-related yaml files in {self.path}'

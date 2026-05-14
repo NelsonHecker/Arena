@@ -1,0 +1,1178 @@
+levels:
+  '1':
+    zones:
+    - name: 1_living_room
+      description: ''
+      material:
+      - Common/Material/Oak_Planks
+      - {}
+      corners:
+      - x: 0.0
+        y: 0.0
+        z: 0.0
+      - x: 8.0
+        y: 0.0
+        z: 0.0
+      - x: 8.0
+        y: 8.0
+        z: 0.0
+      - x: 0.0
+        y: 8.0
+        z: 0.0
+      - x: 0.0
+        y: 0.0
+        z: 0.0
+      walls:
+      - start:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 3.5
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 4.4
+          z: 0.0
+        end:
+          x: 8.0
+          y: 8.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 8.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 8.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 0.0
+          y: 8.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      doors:
+      - name: door_edge_1_2
+        start:
+          x: 8.0
+          y: 3.5
+          z: 0.0
+        end:
+          x: 8.0
+          y: 4.4
+          z: 0.0
+        width: 0.1999999999999993
+      elevators:
+      - name: 1_elevator
+        position:
+          x: 0.0
+          y: 4.0
+          z: 0.0
+      entities:
+        static:
+        - name: Table_Television_0
+          pose:
+            position:
+              x: 4.0
+              y: 7.6
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Table_Television
+        - name: Coffee_Table_B_0
+          pose:
+            position:
+              x: 4.0
+              y: 6.1
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: 0.7071080798594735
+          model: Residential/Object/Coffee_Table_B
+        - name: Sofa_B_0
+          pose:
+            position:
+              x: 4.0
+              y: 4.0
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Sofa_B
+        - name: Closet_0
+          pose:
+            position:
+              x: 1.5
+              y: 0.4
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Closet
+        - name: Closet_1
+          pose:
+            position:
+              x: 6.5
+              y: 0.4
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Closet
+        dynamic: []
+    - name: 1_kitchen
+      description: ''
+      material:
+      - Common/Material/Ceramic_Tile_18
+      - {}
+      corners:
+      - x: 8.0
+        y: 0.0
+        z: 0.0
+      - x: 12.0
+        y: 0.0
+        z: 0.0
+      - x: 12.0
+        y: 8.0
+        z: 0.0
+      - x: 8.0
+        y: 8.0
+        z: 0.0
+      - x: 8.0
+        y: 0.0
+        z: 0.0
+      walls:
+      - start:
+          x: 8.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 12.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Ceramic_Tile_18
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 12.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 12.0
+          y: 8.0
+          z: 0.0
+        material:
+          name: Ceramic_Tile_18
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 12.0
+          y: 8.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 8.0
+          z: 0.0
+        material:
+          name: Ceramic_Tile_18
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 8.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 4.4
+          z: 0.0
+        material:
+          name: Ceramic_Tile_18
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 3.5
+          z: 0.0
+        end:
+          x: 8.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Ceramic_Tile_18
+          domain: Common
+          _modifiers: null
+      doors: []
+      elevators: []
+      entities:
+        static:
+        - name: Refrigerators_0
+          pose:
+            position:
+              x: 8.35
+              y: 1.5
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: -0.7071080798594735
+          model: Residential/Object/Refrigerators
+        - name: Cabinet_Base_Sink_2
+          pose:
+            position:
+              x: 8.29
+              y: 3.2
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: 0.7071080798594735
+          model: Residential/Object/Cabinet_Base_Sink
+        - name: Stove_0
+          pose:
+            position:
+              x: 10.5
+              y: 4.5
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: 0.7071080798594735
+          model: Residential/Object/Stove
+        - name: Cabinet_Base_Sink_3
+          pose:
+            position:
+              x: 8.29
+              y: 6.0
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: 0.7071080798594735
+          model: Residential/Object/Cabinet_Base_Sink
+        - name: Dressing_Table_0
+          pose:
+            position:
+              x: 8.42
+              y: 7.26
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: 0.7071080798594735
+          model: Residential/Object/Dressing_Table
+        dynamic: []
+    - name: 1_bathroom
+      description: ''
+      material:
+      - Common/Material/Ceramic_Tile_18
+      - {}
+      corners:
+      - x: 0.0
+        y: 8.0
+        z: 0.0
+      - x: 4.0
+        y: 8.0
+        z: 0.0
+      - x: 4.0
+        y: 12.0
+        z: 0.0
+      - x: 0.0
+        y: 12.0
+        z: 0.0
+      - x: 0.0
+        y: 8.0
+        z: 0.0
+      walls:
+      - start:
+          x: 0.0
+          y: 8.0
+          z: 0.0
+        end:
+          x: 4.0
+          y: 8.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 4.0
+          y: 8.0
+          z: 0.0
+        end:
+          x: 4.0
+          y: 12.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 4.0
+          y: 12.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 12.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 0.0
+          y: 12.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 8.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      doors: []
+      elevators: []
+      entities:
+        static:
+        - name: Toilet_0
+          pose:
+            position:
+              x: 0.31
+              y: 9.5
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Toilet
+        - name: Washbasin_0
+          pose:
+            position:
+              x: 0.275
+              y: 11.0
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Washbasin
+        dynamic: []
+    levelElevators:
+    - name: 1_elevator
+      destinations_dict: {}
+  '2':
+    zones:
+    - name: 2_master_bedroom
+      description: ''
+      material:
+      - Common/Material/Carpet_Cream
+      - {}
+      corners:
+      - x: 0.0
+        y: 0.0
+        z: 0.0
+      - x: 8.0
+        y: 0.0
+        z: 0.0
+      - x: 8.0
+        y: 6.0
+        z: 0.0
+      - x: 0.0
+        y: 6.0
+        z: 0.0
+      - x: 0.0
+        y: 0.0
+        z: 0.0
+      walls:
+      - start:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 2.4
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 1.5
+          y: 6.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      doors:
+      - name: door_edge_2_2
+        start:
+          x: 2.4
+          y: 6.0
+          z: 0.0
+        end:
+          x: 1.5
+          y: 6.0
+          z: 0.0
+        width: 0.1999999999999993
+      elevators:
+      - name: 2_elevator
+        position:
+          x: 0.0
+          y: 4.0
+          z: 0.0
+      entities:
+        static:
+        - name: Bed_A_2
+          pose:
+            position:
+              x: 4.0
+              y: 1.0056
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Bed_A
+        - name: Dresser_A_1
+          pose:
+            position:
+              x: 0.2379
+              y: 1.5
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: 0.7071080798594735
+          model: Residential/Object/Dresser_A
+        - name: Dresser_B_3
+          pose:
+            position:
+              x: 6.0
+              y: 5.696
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Dresser_B
+        dynamic: []
+    - name: 2_bathroom
+      description: ''
+      material:
+      - Common/Material/Ceramic_Tile_18
+      - {}
+      corners:
+      - x: 0.0
+        y: 6.0
+        z: 0.0
+      - x: 4.0
+        y: 6.0
+        z: 0.0
+      - x: 4.0
+        y: 10.0
+        z: 0.0
+      - x: 0.0
+        y: 10.0
+        z: 0.0
+      - x: 0.0
+        y: 6.0
+        z: 0.0
+      walls:
+      - start:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 1.5
+          y: 6.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 2.4
+          y: 6.0
+          z: 0.0
+        end:
+          x: 4.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 4.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 4.0
+          y: 10.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 4.0
+          y: 10.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 10.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 0.0
+          y: 10.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      doors: []
+      elevators: []
+      entities:
+        static:
+        - name: Toilet_1
+          pose:
+            position:
+              x: 0.31
+              y: 7.0
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Toilet
+        - name: Cabinet_Base_Sink_0
+          pose:
+            position:
+              x: 1.6
+              y: 9.7112
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Cabinet_Base_Sink
+        - name: Cabinet_Base_Sink_1
+          pose:
+            position:
+              x: 2.4
+              y: 9.7112
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Cabinet_Base_Sink
+        dynamic: []
+    - name: 2_kids_room
+      description: ''
+      material:
+      - Common/Material/Oak_Planks
+      - {}
+      corners:
+      - x: 4.0
+        y: 6.0
+        z: 0.0
+      - x: 8.0
+        y: 6.0
+        z: 0.0
+      - x: 8.0
+        y: 10.0
+        z: 0.0
+      - x: 4.0
+        y: 10.0
+        z: 0.0
+      - x: 4.0
+        y: 6.0
+        z: 0.0
+      walls:
+      - start:
+          x: 4.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 8.0
+          y: 10.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 8.0
+          y: 10.0
+          z: 0.0
+        end:
+          x: 4.0
+          y: 10.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 4.0
+          y: 10.0
+          z: 0.0
+        end:
+          x: 4.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      doors: []
+      elevators: []
+      entities:
+        static:
+        - name: Bed_A_0
+          pose:
+            position:
+              x: 7.06
+              y: 9.0
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Bed_A
+        - name: Dresser_A_0
+          pose:
+            position:
+              x: 4.235
+              y: 7.3
+              z: 0.0
+            orientation:
+              w: 0.7071054825112363
+              x: 0.0
+              y: 0.0
+              z: 0.7071080798594735
+          model: Residential/Object/Dresser_A
+        - name: Dresser_B_0
+          pose:
+            position:
+              x: 7.5
+              y: 6.3
+              z: 0.0
+            orientation:
+              w: -3.673205103346574e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999932537
+          model: Residential/Object/Dresser_B
+        dynamic: []
+    levelElevators:
+    - name: 2_elevator
+      destinations_dict: {}
+  '3':
+    zones:
+    - name: 3_bedroom_1
+      description: ''
+      material:
+      - Common/Material/Carpet_Cream
+      - {}
+      corners:
+      - x: 0.0
+        y: 0.0
+        z: 0.0
+      - x: 6.0
+        y: 0.0
+        z: 0.0
+      - x: 6.0
+        y: 6.0
+        z: 0.0
+      - x: 0.0
+        y: 6.0
+        z: 0.0
+      - x: 0.0
+        y: 0.0
+        z: 0.0
+      walls:
+      - start:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 6.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 6.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 6.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 6.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      doors: []
+      elevators:
+      - name: 3_elevator
+        position:
+          x: 0.0
+          y: 4.0
+          z: 0.0
+      entities:
+        static:
+        - name: Bed_A_3
+          pose:
+            position:
+              x: 3.0
+              y: 4.99
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Bed_A
+        - name: Night_Table_A_0
+          pose:
+            position:
+              x: 1.5
+              y: 5.77
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Night_Table_A
+        - name: Closet_2
+          pose:
+            position:
+              x: 5.65
+              y: 3.0
+              z: 0.0
+            orientation:
+              w: -0.7071106771981701
+              x: 0.0
+              y: 0.0
+              z: 0.7071028851534585
+          model: Residential/Object/Closet
+        dynamic: []
+    - name: 3_bedroom_2
+      description: ''
+      material:
+      - Common/Material/Carpet_Cream
+      - {}
+      corners:
+      - x: 6.0
+        y: 0.0
+        z: 0.0
+      - x: 12.0
+        y: 0.0
+        z: 0.0
+      - x: 12.0
+        y: 6.0
+        z: 0.0
+      - x: 6.0
+        y: 6.0
+        z: 0.0
+      - x: 6.0
+        y: 0.0
+        z: 0.0
+      walls:
+      - start:
+          x: 6.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 12.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 12.0
+          y: 0.0
+          z: 0.0
+        end:
+          x: 12.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 12.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 6.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 6.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 6.0
+          y: 0.0
+          z: 0.0
+        material:
+          name: Paint_Matte
+          domain: Common
+          _modifiers: null
+      doors: []
+      elevators: []
+      entities:
+        static:
+        - name: Bed_A_1
+          pose:
+            position:
+              x: 9.0
+              y: 4.9944
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Bed_A
+        - name: Dresser_B_1
+          pose:
+            position:
+              x: 11.1
+              y: 5.6966
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Dresser_B
+        - name: Dresser_B_2
+          pose:
+            position:
+              x: 9.0
+              y: 0.3034
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Dresser_B
+        dynamic: []
+    - name: 3_laundry_room
+      description: ''
+      material:
+      - Common/Material/Oak_Planks
+      - {}
+      corners:
+      - x: 0.0
+        y: 6.0
+        z: 0.0
+      - x: 6.0
+        y: 6.0
+        z: 0.0
+      - x: 6.0
+        y: 10.0
+        z: 0.0
+      - x: 0.0
+        y: 10.0
+        z: 0.0
+      - x: 0.0
+        y: 6.0
+        z: 0.0
+      walls:
+      - start:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 6.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 6.0
+          y: 6.0
+          z: 0.0
+        end:
+          x: 6.0
+          y: 10.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 6.0
+          y: 10.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 10.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      - start:
+          x: 0.0
+          y: 10.0
+          z: 0.0
+        end:
+          x: 0.0
+          y: 6.0
+          z: 0.0
+        material:
+          name: Plaster_Wall
+          domain: Common
+          _modifiers: null
+      doors: []
+      elevators: []
+      entities:
+        static:
+        - name: Dishwashers_0
+          pose:
+            position:
+              x: 2.7
+              y: 9.68
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Dishwashers
+        - name: Dishwashers_1
+          pose:
+            position:
+              x: 3.3
+              y: 9.68
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Dishwashers
+        - name: Towel_Dispenser_0
+          pose:
+            position:
+              x: 0.05
+              y: 8.0
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Towel_Dispenser
+        - name: Towel_Dispenser_1
+          pose:
+            position:
+              x: 5.95
+              y: 8.0
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Towel_Dispenser
+        - name: Towel_Dispenser_2
+          pose:
+            position:
+              x: 0.05
+              y: 7.0
+              z: 0.0
+            orientation:
+              w: 1.0
+              x: 0.0
+              y: 0.0
+              z: 0.0
+          model: Residential/Object/Towel_Dispenser
+        - name: Towel_Dispenser_3
+          pose:
+            position:
+              x: 5.95
+              y: 7.0
+              z: 0.0
+            orientation:
+              w: 1.3267948966775328e-06
+              x: 0.0
+              y: 0.0
+              z: 0.9999999999991198
+          model: Residential/Object/Towel_Dispenser
+        dynamic: []
+    levelElevators:
+    - name: 3_elevator
+      destinations_dict: {}
+shafts:
+  shaft_0:
+    id: shaft_0
+    position: null
+    elevators:
+      '1': 1_elevator
+      '2': 2_elevator
+      '3': 3_elevator

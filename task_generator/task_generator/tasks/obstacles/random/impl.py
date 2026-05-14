@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import itertools
+import typing
 from collections.abc import Callable, Iterator
 from typing import Self
 
@@ -128,8 +129,13 @@ class TM_Random(TM_Obstacles):
 
             return index
 
+        floor_id = self._resolve_floor_id(typing.cast(str, kwargs.get("floor_id", "")))
         waypoints_per_ped = 2
-        points = self._ctx.world_manager.get_positions_on_map(n=N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES * (1 + waypoints_per_ped), safe_dist=1)
+        points = self._ctx.world_manager.get_positions_on_map(
+            n=N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES * (1 + waypoints_per_ped),
+            safe_dist=1,
+            floor_id=floor_id,
+        )
 
         positions = map(lambda pos: Pose(pos, orientation=Orientation.from_yaw(2 * np.pi * self.node.conf.General.RNG.value.random())), points[: (N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES)])
         waypoints = iter(points[(N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES) :])

@@ -5,13 +5,16 @@ This file exists to make world_manager more readable
 import collections.abc
 from collections.abc import Callable, Collection
 import typing
+from pathlib import Path
 from typing import TypeVar
 
 import attrs
 import nav_msgs.msg
 import numpy as np
 import scipy.interpolate
+import yaml
 from arena_rclpy_mixins.Time import Time
+from PIL import Image
 
 from task_generator.shared import Position, PositionRadius, Wall
 
@@ -188,7 +191,53 @@ class WorldMap:
         # Normalize data to 0-255 range (0 = occupied, 255 = free)
         normalized_data = np.interp(grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)).astype(np.uint8)
 
-        return WorldMap(occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)), origin=Position(x=occupancy_grid.info.origin.position.y, y=occupancy_grid.info.origin.position.x), resolution=occupancy_grid.info.resolution, time=Time.from_msg(occupancy_grid.info.map_load_time))
+        return WorldMap(
+            occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
+            origin=Position(x=occupancy_grid.info.origin.position.y, y=occupancy_grid.info.origin.position.x),
+            resolution=occupancy_grid.info.resolution,
+            time=Time.from_msg(occupancy_grid.info.map_load_time),
+        )
+
+    @staticmethod
+    def from_map_files(map_yaml_path: str | Path) -> "WorldMap":
+        map_yaml_path = Path(map_yaml_path)
+        with open(map_yaml_path, encoding='utf-8') as f:
+            map_yaml = yaml.safe_load(f)
+        if not isinstance(map_yaml, dict):
+            raise ValueError(f"map.yaml must be a dictionary: {map_yaml_path}")
+
+        image_path = map_yaml.get('image', '')
+        if not image_path:
+            raise ValueError(f"map.yaml missing image field: {map_yaml_path}")
+        image_path = str(image_path)
+        if not image_path.startswith('/'):
+            image_path = str(map_yaml_path.parent / image_path)
+
+        img = Image.open(image_path).convert('L')
+        img_data = np.array(img, dtype=np.float32) / 255.0
+
+        negate = int(map_yaml.get('negate', 0))
+        if negate:
+            img_data = 1.0 - img_data
+
+        occupied_thresh = float(map_yaml.get('occupied_thresh', 0.9))
+        free_thresh = float(map_yaml.get('free_thresh', 0.1))
+
+        grid_data = np.full(img_data.shape, 50.0, dtype=np.float32)
+        grid_data[img_data > free_thresh] = 0.0
+        grid_data[img_data < occupied_thresh] = 100.0
+
+        normalized_data = np.interp(grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)).astype(np.uint8)
+
+        origin = map_yaml.get('origin', [0, 0, 0])
+        resolution = float(map_yaml.get('resolution', 0.05))
+
+        return WorldMap(
+            occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
+            origin=Position(x=float(origin[0]), y=float(origin[1])),
+            resolution=resolution,
+            time=Time(-1, 0),
+        )
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -222,6 +271,9 @@ class WorldMap:
 class MultiLevelMap:
     _maps: dict[str, WorldMap] = attrs.field(factory=dict)
 
+    def __init__(self, maps: dict[str, WorldMap] | None = None):
+        self._maps = maps if maps is not None else {}
+
     @property
     def floor_ids(self) -> typing.Iterable[str]:
         return self._maps.keys()
@@ -232,6 +284,13 @@ class MultiLevelMap:
 
     def get_map(self, floor_id: str) -> WorldMap | None:
         return self._maps.get(floor_id, None)
+
+    def set_map(self, floor_id: str, world_map: WorldMap) -> None:
+        self._maps[floor_id] = world_map
+
+    @classmethod
+    def from_single(cls, world_map: WorldMap, floor_id: str = "") -> "MultiLevelMap":
+        return cls(maps={floor_id: world_map})
 
 
 # END TYPES

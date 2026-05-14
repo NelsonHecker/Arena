@@ -1,4 +1,5 @@
 import asyncio
+import typing
 import uuid
 
 from task_generator.shared import Pose
@@ -6,6 +7,7 @@ from task_generator.shared import Robot as RobotEntity
 from task_generator.tasks.mode import TaskMode
 from task_generator.tasks.robots._placement import random_placement
 from task_generator.tasks.robots.request import GoToPhase, TaskRequest
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
 
 from . import explore, guided, random, scenario
 
@@ -23,6 +25,26 @@ class TM_Robots(TaskMode):
     """
 
     _last_reset: int
+    _floor_id: ROSParamT[str]
+    _floor_id_mode: ROSParamT[str]
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        self._floor_id = self.node.ROSParam[str](self.namespace('floor_id'), "")
+        self._floor_id_mode = self.node.ROSParam[str](self.namespace('floor_id_mode'), "default")
+
+    def _resolve_floor_id(self, floor_id: str | None = None) -> str:
+        if floor_id:
+            return floor_id
+        mode = (self._floor_id_mode.value or "default").lower()
+        if mode == "random":
+            floor_ids = list(self._ctx.world_manager.world.floor_ids)
+            if not floor_ids:
+                return ""
+            return str(self.node.conf.General.RNG.value.choice(floor_ids))
+        if mode == "explicit":
+            return self._floor_id.value or ""
+        return self._floor_id.value or ""
 
     async def reset(self, **kwargs: object) -> None:
         self._last_reset = self.node.sim_time.sec

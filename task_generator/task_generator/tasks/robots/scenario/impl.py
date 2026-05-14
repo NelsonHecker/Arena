@@ -1,5 +1,7 @@
+import typing
+
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.tree.World import WorldIdentifier
+from arena_simulation_setup.tree.World import MultiLevelWorldIdentifier
 from arena_simulation_setup.tree.World.Scenario import RobotGoal
 
 from task_generator.shared import PositionRadius
@@ -13,7 +15,7 @@ class TM_Scenario(TM_Robots):
     _config: ROSParamT[list[RobotGoal]]
 
     def _parse_scenario(self, scenario: str) -> list[RobotGoal]:
-        return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
+        return MultiLevelWorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
 
     async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
@@ -39,8 +41,14 @@ class TM_Scenario(TM_Robots):
             self._ctx.world_manager.forbid(
                 [
                     PositionRadius(x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance),
+                ],
+                floor_id=config.start_floor or self._resolve_floor_id(typing.cast(str, kwargs.get("floor_id", ""))),
+            )
+            self._ctx.world_manager.forbid(
+                [
                     PositionRadius(x=config.goal.position.x, y=config.goal.position.y, radius=robot.safe_distance),
-                ]
+                ],
+                floor_id=config.goal_floor or self._resolve_floor_id(typing.cast(str, kwargs.get("floor_id", ""))),
             )
 
     def __init__(self, **kwargs: object) -> None:

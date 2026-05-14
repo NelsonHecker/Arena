@@ -1,0 +1,176 @@
+edges:
+- attributes:
+  - 'position: right of'
+  - 'floor_id: 1'
+  id: edge_1_1
+  source: 1_living_room
+  target: 1_elevator
+- attributes:
+  - 'position: below'
+  - 'floor_id: 1'
+  id: edge_1_2
+  source: 1_kitchen
+  target: 1_living_room
+- attributes:
+  - 'position: left of'
+  - 'floor_id: 1'
+  id: edge_1_3
+  source: 1_bathroom
+  target: 1_elevator
+- attributes:
+  - 'position: right of'
+  - 'floor_id: 2'
+  id: edge_2_1
+  source: 2_master_bedroom
+  target: 2_elevator
+- attributes:
+  - 'position: above'
+  - 'floor_id: 2'
+  id: edge_2_2
+  source: 2_bathroom
+  target: 2_master_bedroom
+- attributes:
+  - 'position: left of'
+  - 'floor_id: 2'
+  id: edge_2_3
+  source: 2_kids_room
+  target: 2_elevator
+- attributes:
+  - 'position: right of'
+  - 'floor_id: 3'
+  id: edge_3_1
+  source: 3_bedroom_1
+  target: 3_elevator
+- attributes:
+  - 'position: left of'
+  - 'floor_id: 3'
+  id: edge_3_2
+  source: 3_bedroom_2
+  target: 3_elevator
+- attributes:
+  - 'position: above'
+  - 'floor_id: 3'
+  id: edge_3_3
+  source: 3_laundry_room
+  target: 3_elevator
+nodes:
+- assets: []
+  attributes:
+  - 'shape: square'
+  - 'floor_id: 1'
+  description: elevator
+  id: 1_elevator
+  room_type: Elevator
+- assets:
+  - Sofa
+  - Coffee Table
+  - TV
+  - Rug
+  attributes:
+  - 'shape: rectangular'
+  - 'floor_id: 1'
+  description: A spacious and bright living room with a large sectional sofa facing
+    a wall-mounted television. A large area rug defines the seating area.
+  id: 1_living_room
+  room_type: Living Room
+- assets:
+  - Stove
+  - Refrigerator
+  - Sink
+  - Dining Table
+  attributes:
+  - 'shape: L-shaped'
+  - 'floor_id: 1'
+  description: A modern kitchen featuring an island with a built-in stove and bar
+    seating. Stainless steel appliances are set against dark wood cabinets.
+  id: 1_kitchen
+  room_type: Kitchen
+- assets:
+  - Toilet
+  - Sink
+  - Shower
+  attributes:
+  - 'shape: square'
+  - 'floor_id: 1'
+  description: A compact guest bathroom with a corner shower and a pedestal sink.
+    The walls are tiled in a clean, white subway tile.
+  id: 1_bathroom
+  room_type: Bathroom
+- assets: []
+  attributes:
+  - 'shape: square'
+  - 'floor_id: 2'
+  description: elevator
+  id: 2_elevator
+  room_type: Elevator
+- assets:
+  - King Bed
+  - Dresser
+  - Wardrobe
+  attributes:
+  - 'shape: rectangular'
+  - 'floor_id: 2'
+  description: A luxurious master bedroom with a king-sized bed as the centerpiece.
+    A large wardrobe and a matching dresser provide ample storage.
+  id: 2_master_bedroom
+  room_type: Master Bedroom
+- assets:
+  - Bunk Bed
+  - Desk
+  - Bookshelf
+  attributes:
+  - 'shape: rectangular'
+  - 'floor_id: 2'
+  description: A fun and colorful kids' room with a sturdy bunk bed and a small desk
+    for studying. A bookshelf is filled with books and toys.
+  id: 2_kids_room
+  room_type: Kids' Room
+- assets:
+  - Toilet
+  - Sink
+  - Bathtub
+  attributes:
+  - 'shape: rectangular'
+  - 'floor_id: 2'
+  description: A shared family bathroom featuring a bathtub with an overhead shower
+    and a long vanity with two sinks.
+  id: 2_bathroom
+  room_type: Bathroom
+- assets: []
+  attributes:
+  - 'shape: square'
+  - 'floor_id: 3'
+  description: elevator
+  id: 3_elevator
+  room_type: Elevator
+- assets:
+  - Queen Bed
+  - Nightstand
+  - Closet
+  attributes:
+  - 'shape: rectangular'
+  - 'floor_id: 3'
+  description: A serene bedroom with a queen bed and a single nightstand. A large
+    window offers a view of the city.
+  id: 3_bedroom_1
+  room_type: Bedroom
+- assets:
+  - Double Bed
+  - Desk
+  attributes:
+  - 'shape: rectangular'
+  - 'floor_id: 3'
+  description: A cozy second bedroom that doubles as a home office, with a double
+    bed against one wall and a desk under the window.
+  id: 3_bedroom_2
+  room_type: Bedroom
+- assets:
+  - Washing Machine
+  - Dryer
+  attributes:
+  - 'shape: square'
+  - 'floor_id: 3'
+  description: A small, practical laundry room with a stacked washer and dryer unit
+    to save space.
+  id: 3_laundry_room
+  room_type: Laundry Room

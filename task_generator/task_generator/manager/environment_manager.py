@@ -7,7 +7,7 @@ import shapely
 import shapely.affinity
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
-from arena_simulation_setup.tree.World import WorldDescription
+from arena_simulation_setup.tree.World import MultiLevelWorld, WorldDescription
 
 from task_generator.manager.realizer import Realizer
 from task_generator.shared import (
@@ -92,11 +92,21 @@ class EnvironmentManager(NodeInterface):
         Loads given obstacles into the simulator,
         the map file is retrieved from launch parameter "world"
         """
-        walls = tuple(map(self.realize, world.all_walls))
-        doors = tuple(map(self.realize, world.all_doors))
-        floors = tuple(map(self.realize, world.all_floors))
-        elevators = tuple(map(self.realize, world.all_elevators))
-        statics = tuple(map(self.realize, world.all_static_entities))
+        await self._spawn_world_obstacles(world, floor_id="")
+
+    async def spawn_world_obstacles_for_floor(self, world: MultiLevelWorld, floor_id: str) -> None:
+        """Spawn a single floor of a multi-level world using the given floor_id."""
+        level = world.get_level(floor_id)
+        if level is None:
+            raise KeyError(f"floor_id {floor_id} is not registered in the multi-level world")
+        await self._spawn_world_obstacles(level, floor_id=floor_id)
+
+    async def _spawn_world_obstacles(self, world: WorldDescription, floor_id: str) -> None:
+        walls = tuple(self._realizer.realize(w, floor_id) for w in world.all_walls)
+        doors = tuple(self._realizer.realize(d, floor_id) for d in world.all_doors)
+        floors = tuple(self._realizer.realize(f, floor_id) for f in world.all_floors)
+        elevators = tuple(self._realizer.realize(e, floor_id) for e in world.all_elevators)
+        statics = tuple(self._realizer.realize(s, floor_id) for s in world.all_static_entities)
 
         line_strings: list[shapely.LineString] = []
         for w in walls:
@@ -122,14 +132,20 @@ class EnvironmentManager(NodeInterface):
         """
         Loads given dynamic obstacles into the simulator.
         """
-
-        await self._human_simulator.spawn_dynamic_obstacles(tuple(map(self.realize, setups)))
+        realized = tuple(
+            self._realizer.realize(obstacle, getattr(obstacle, "floor_id", "") or "")
+            for obstacle in setups
+        )
+        await self._human_simulator.spawn_dynamic_obstacles(realized)
 
     async def spawn_obstacles(self, setups: Collection[Obstacle]):
         """
         Loads given obstacles into the simulator.
         """
-        realized = tuple(map(self.realize, setups))
+        realized = tuple(
+            self._realizer.realize(obstacle, obstacle.floor_id or "")
+            for obstacle in setups
+        )
         await self._cache_polygons(realized)
         await self._human_simulator.spawn_obstacles(realized)
 

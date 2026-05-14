@@ -22,22 +22,43 @@ class WorldManager(NodeInterface):
     obstacle positions.
     """
 
-    _world: World.WorldDescription
+    _world: World.MultiLevelWorld
     _map: WorldMap
+    _multi_map: MultiLevelMap | None
     _classic_forbidden_zones: list[PositionRadius]
+    _default_floor_id: str
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._detected_walls = None
         self._classic_forbidden_zones = []
+        self._multi_map = None
+        self._default_floor_id = ""
 
     @property
-    def world(self) -> World.WorldDescription:
+    def world(self) -> World.MultiLevelWorld:
         return self._world
 
+    def world_description(self) -> World.WorldDescription | None:
+        return self._world.as_world_description()
+
+    def world_default_level(self) -> World.WorldDescription:
+        single = self._world.as_world_description()
+        if single is not None:
+            return single
+        level = self._world.get_level(self._default_floor_id)
+        if level is None:
+            level = next(iter(self._world.all_levels))
+        return level
+
     @property
-    def map(self) -> WorldMap:
-        return self._map
+    def map(self) -> MultiLevelMap:
+        return self._multi_map if self._multi_map is not None else MultiLevelMap.from_single(self._map)
+
+    def map_for_floor(self, floor_id: str = "") -> WorldMap:
+        if self._multi_map is None:
+            return self._map
+        return self._multi_map.get_map(floor_id) or self._map
 
     @property
     def _shape(self) -> tuple[int, int]:
@@ -62,10 +83,13 @@ class WorldManager(NodeInterface):
     def update_world(
         self,
         world_map: WorldMap,
-        world_description: World.WorldDescription,
+        world_description: World.MultiLevelWorld,
+        multi_level_map: MultiLevelMap | None = None,
     ):
         self._detected_walls = None
         self._map = world_map
+        self._multi_map = multi_level_map
+        self._default_floor_id = next(iter(world_description.floor_ids), "")
 
         counter = itertools.count(0)
         for entity in itertools.chain(world_description.all_static_entities, world_description.all_dynamic_entities):
@@ -76,24 +100,29 @@ class WorldManager(NodeInterface):
         self._world = world_description
 
         for obstacle in self.world.all_static_entities:
-            self.map.occupancy.obstacle_occupy(
-                *self.map.tf_posr2rect(
-                    PositionRadius(
-                        x=obstacle.pose.position.x,
-                        y=obstacle.pose.position.y,
-                        radius=1,  # TODO actual radius
+            floor_id = obstacle.floor_id
+            map = self.map.get_map(floor_id)
+            if map is not None:
+                map.occupancy.obstacle_occupy(
+                    *map.tf_posr2rect(
+                        PositionRadius(
+                            x=obstacle.pose.position.x,
+                            y=obstacle.pose.position.y,
+                            radius=1,  # TODO actual radius
+                        )
                     )
                 )
-            )
 
-    def forbid(self, forbidden_zones: list[PositionRadius]):
+    def forbid(self, forbidden_zones: list[PositionRadius], floor_id: str = ""):
+        world_map = self.map_for_floor(floor_id)
         for zone in forbidden_zones:
-            self.map.occupancy.forbidden_occupy(*self.map.tf_posr2rect(zone))
+            world_map.occupancy.forbidden_occupy(*world_map.tf_posr2rect(zone))
 
-    def forbid_clear(self):
-        self._map.occupancy.forbidden_clear()
+    def forbid_clear(self, floor_id: str = ""):
+        world_map = self.map_for_floor(floor_id)
+        world_map.occupancy.forbidden_clear()
 
-    def _classic_get_random_pos_on_map(self, safe_dist: float, forbid: bool = True, forbidden_zones: list[PositionRadius] | None = None) -> Position:
+    def _classic_get_random_pos_on_map(self, safe_dist: float, forbid: bool = True, forbidden_zones: list[PositionRadius] | None = None, floor_id: str = "") -> Position:
         """
         This function is used by the robot manager and
         obstacles manager to get new positions for both
@@ -134,19 +163,20 @@ class WorldManager(NodeInterface):
 
             return True
 
-        safe_dist_in_cells = math.ceil(safe_dist / self.map.resolution) + 1
+        world_map = self.map_for_floor(floor_id)
+        safe_dist_in_cells = math.ceil(safe_dist / world_map.resolution) + 1
 
         forbidden_zones_in_cells: list[PositionRadius] = [
             PositionRadius(
-                x=math.ceil(point.x / self.map.resolution),
-                y=math.ceil(point.y / self.map.resolution),
-                radius=math.ceil(point.radius / self.map.resolution),
+                x=math.ceil(point.x / world_map.resolution),
+                y=math.ceil(point.y / world_map.resolution),
+                radius=math.ceil(point.radius / world_map.resolution),
             )
             for point in self._classic_forbidden_zones + (forbidden_zones if forbidden_zones is not None else [])
         ]
 
         # Now get index of all cells were dist is > safe_dist_in_cells
-        possible_cells: list[tuple[np.intp, np.intp]] = np.array(np.where(self.map.occupancy.grid > safe_dist_in_cells)).transpose().tolist()
+        possible_cells: list[tuple[np.intp, np.intp]] = np.array(np.where(world_map.occupancy.grid > safe_dist_in_cells)).transpose().tolist()
 
         # return (random.randint(1,6), random.randint(1, 9), 0)
         assert len(possible_cells) > 0, "No cells available"
@@ -169,8 +199,8 @@ class WorldManager(NodeInterface):
             raise RuntimeError("can't find any non-occupied spaces")
 
         point = PositionRadius(
-            x=np.round(float(x) * self.map.resolution + self.map.origin.x, 3),
-            y=np.round(float(y) * self.map.resolution + self.map.origin.y, 3),
+            x=np.round(float(x) * world_map.resolution + world_map.origin.x, 3),
+            y=np.round(float(y) * world_map.resolution + world_map.origin.y, 3),
             radius=safe_dist,
         )
 
@@ -179,7 +209,7 @@ class WorldManager(NodeInterface):
 
         return Position(x=point.x, y=point.y)
 
-    def get_positions_on_map(self, n: int, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> list[Position]:
+    def get_positions_on_map(self, n: int, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True, floor_id: str = "") -> list[Position]:
         """
         This function is used by the robot manager and
         obstacles manager to get new positions for both
@@ -206,15 +236,16 @@ class WorldManager(NodeInterface):
         if forbidden_zones is None:
             forbidden_zones = []
 
-        fork = self._map.occupancy.fork()
+        world_map = self.map_for_floor(floor_id)
+        fork = world_map.occupancy.fork()
 
         points: list[Position] = []
 
         if n < 0:  # TODO profile when this is faster
             for _ in range(n):
-                pos = self._classic_get_random_pos_on_map(safe_dist=safe_dist, forbidden_zones=forbidden_zones)
+                pos = self._classic_get_random_pos_on_map(safe_dist=safe_dist, forbidden_zones=forbidden_zones, floor_id=floor_id)
                 posr = PositionRadius(x=pos.x, y=pos.y, radius=safe_dist)
-                fork.occupy(*self.map.tf_posr2rect(posr))
+                fork.occupy(*world_map.tf_posr2rect(posr))
                 forbidden_zones.append(posr)
                 points.append(pos)
 
@@ -224,9 +255,9 @@ class WorldManager(NodeInterface):
             max_depth = 10
 
             for zone in forbidden_zones:
-                fork.occupy(*self.map.tf_posr2rect(zone))
+                fork.occupy(*world_map.tf_posr2rect(zone))
 
-            min_dist: float = safe_dist / self.resolution
+            min_dist: float = safe_dist / world_map.resolution
             available_positions = self._occupancy_to_available(occupancy=fork.grid, safe_dist=min_dist)
 
             def sample(target: int) -> Collection[Position]:
@@ -257,7 +288,7 @@ class WorldManager(NodeInterface):
 
                             fork.occupy((candidate - min_dist), (candidate + min_dist))
 
-                            result.append(self._map.tf_grid2pos((candidate[0], candidate[1])))
+                            result.append(world_map.tf_grid2pos((candidate[0], candidate[1])))
 
                         to_produce = target - len(result)
                         if to_produce <= 0:
@@ -269,7 +300,7 @@ class WorldManager(NodeInterface):
                         raise RuntimeError(f"Failed to find free position after {depth} tries")
 
                 except RuntimeError:
-                    result += [self._map.tf_grid2pos(((-1 - floor(i / 5)) * int(self._shape[1] / 5), int((i % 5) * self._shape[0] / 5))) for i in range(to_produce)]
+                    result += [world_map.tf_grid2pos(((-1 - floor(i / 5)) * int(self._shape[1] / 5), int((i % 5) * self._shape[0] / 5))) for i in range(to_produce)]
                     self._logger.warn(f"Couldn't find enough empty cells for {to_produce} requests")
 
                 return result
@@ -281,8 +312,8 @@ class WorldManager(NodeInterface):
 
         return points
 
-    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True) -> Position:
-        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid)[0]
+    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True, floor_id: str = "") -> Position:
+        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid, floor_id=floor_id)[0]
 
     id_gen = itertools.count()
 
