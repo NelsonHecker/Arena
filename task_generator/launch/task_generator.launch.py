@@ -233,6 +233,12 @@ def generate_launch_description():
             ),
         )
 
+        dotted_overrides = {
+            k: v
+            for k, v in context.launch_configurations.items()
+            if k.startswith("task.")
+        }
+
         task_generator_node = launch_ros.actions.Node(
             package="task_generator",
             executable="task_generator_node",
@@ -268,6 +274,7 @@ def generate_launch_description():
                     'task.scenario.file': scenario_file.substitution,
                     **agent_name.str_param,
                 },
+                dotted_overrides,
             ],
         )
 
