@@ -197,8 +197,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
         async def _resolve(obs: DynamicObstacle) -> DynamicObstacle:
             try:
-                wrapper = await obs.model.resolve()
-                model = await wrapper.get(ModelType.SDF)
+                view = await obs.model.resolve()
+                model = await view.model.get(ModelType.SDF)
                 if model.type is not ModelType.UNKNOWN:
                     return obs
             except Exception as e:
