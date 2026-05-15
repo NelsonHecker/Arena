@@ -309,6 +309,15 @@ class GazeboSimulator(BaseSim):
                     # direct path available, use gz cli call
                     world_name = "default"
                     sdf_path = model.path
+                    # Resolve directory to actual SDF file (Gazebo requires a file, not a directory)
+                    if sdf_path.is_dir():
+                        candidate = sdf_path / f"{sdf_path.name}.sdf"
+                        if candidate.exists():
+                            sdf_path = candidate
+                        else:
+                            candidates = list(sdf_path.glob("*.sdf"))
+                            if candidates:
+                                sdf_path = candidates[0]
                     service_name = f"/world/{world_name}/create"
 
                     req_payload = (
