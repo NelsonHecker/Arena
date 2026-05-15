@@ -10,9 +10,17 @@ import builtin_interfaces.msg
 import rclpy.callback_groups
 import rclpy.clock
 import rclpy.node
+import rclpy.qos
 import rclpy.time
 import rclpy.timer
 import rosgraph_msgs.msg
+
+_CLOCK_QOS = rclpy.qos.QoSProfile(
+    depth=1,
+    reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
+    durability=rclpy.qos.DurabilityPolicy.VOLATILE,
+    history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+)
 
 
 @functools.total_ordering
@@ -149,7 +157,7 @@ class TimeNode(rclpy.node.Node):
             rosgraph_msgs.msg.Clock,
             '/clock',
             self.__clock_callback,
-            10,
+            _CLOCK_QOS,
         )
         self.__sim_time: Time = Time()
         self.__wall_clock: rclpy.clock.Clock | None = None

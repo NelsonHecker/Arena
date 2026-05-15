@@ -237,23 +237,3 @@ def test_entity_sim_path_set_after_realize(realizer):
     )
     result = realizer.realize(obs)
     assert "box1" in result.sim_path
-
-
-def test_entity_name_prefixed_and_sim_path_matches(realizer):
-    from arena_simulation_setup.shared import Obstacle
-    from arena_simulation_setup.utils.geometry import Pose, Position
-    obs = Obstacle(name="box1", pose=Pose(Position(0, 0)), model="box", extra={})
-    result = realizer.realize(obs)
-    assert "box1" in result.name
-    assert result.name != "box1"
-    assert result.sim_path == result.name
-
-
-def test_dynamic_obstacle_name_prefixed_and_sim_path_matches(realizer):
-    from arena_simulation_setup.shared import DynamicObstacle
-    from arena_simulation_setup.utils.geometry import Pose, Position
-    obs = DynamicObstacle(name="human1", pose=Pose(Position(0, 0)), model="human", waypoints=[], extra={})
-    result = realizer.realize(obs)
-    assert "human1" in result.name
-    assert result.name != "human1"
-    assert result.sim_path == result.name

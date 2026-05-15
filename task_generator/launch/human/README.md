@@ -22,14 +22,14 @@ hunav          →  hunav/hunav.launch.py
 The `simulator` `LaunchArgument` is declared after the `SelectAction` is
 built; its `choices` are derived from `launch_human_simulator.keys`.
 
-The `human` arg from `arena.launch.py` (not the `sim` arg) is passed
-here as `simulator`. The mapping is:
+The `human` arg (not the `sim` arg) is passed here as `simulator`. The default
+mapping is:
 - `sim=dummy` → `human=dummy`
 - `sim=gazebo` → `human=hunav`
 - `sim=isaac` → `human=hunav`
 
-This is computed by `PythonExpression` in `arena.launch.py` and can be
-overridden explicitly with `human:=<key>`.
+This is resolved in `task_generator.launch.py` and can be overridden
+explicitly with `human:=<key>`.
 
 ## Per-human-sim subdir layout
 
@@ -55,6 +55,5 @@ Starts `hunav_agent_manager/arena_hunav_agent_manager` in the given namespace.
 1. Create `launch/human/<name>/<name>.launch.py`.
 2. In `human.launch.py`, call
    `launch_human_simulator.add("<name>", IncludeLaunchDescription(...))`.
-3. Update the `human` default expression in `task_generator.launch.py` (and
-   `arena.launch.py` for multi-env) to map the appropriate `sim` values to
-   the new key.
+3. Update the `human` default expression in `task_generator.launch.py` to map
+   the appropriate `sim` values to the new key.

@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <robot name="turtlebot" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:arg name="namespace" default=""/>
+  <xacro:arg name="gazebo_controllers" default=""/>
+
   <!-- Base create3 model -->
   <xacro:include filename="$(find irobot_create_description)/urdf/create3.urdf.xacro">
     <xacro:arg name="gazebo" value="ignition"/>
@@ -10,6 +13,8 @@
   <xacro:include filename="$(find arena_robots)/robots/turtlebot/urdf/tower_standoff.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/turtlebot/urdf/tower_sensor_plate.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/turtlebot/urdf/weight_block.urdf.xacro" />
+  <xacro:include filename="$(find arena_robots)/robots/turtlebot/urdf/base_hw/turtlebot.ros2_control.urdf" />
+  <xacro:include filename="$(find arena_robots)/robots/turtlebot/urdf/turtlebot.gazebo" />
 
   <!-- Mechanical properties -->
   <xacro:property name="shell_z_offset"                value="${3*cm2m}" />
@@ -111,21 +116,7 @@
     <origin xyz="${oakd_pro_x_offset} ${oakd_pro_y_offset} ${oakd_pro_z_offset}"/>
   </xacro:oakd>
 
-  <!-- Gazebo Sim Plugins -->
-  <gazebo>
-    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
-      <topic>joint_states</topic>
-    </plugin>
-    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
-      <left_joint>left_wheel_joint</left_joint>
-      <right_joint>right_wheel_joint</right_joint>
-      <wheel_separation>0.24</wheel_separation>
-      <wheel_radius>0.098</wheel_radius>
-      <odom_publish_frequency>50</odom_publish_frequency>
-      <!-- Suppress wheel-slip-polluted TF; pose_to_tf publishes odom→base_link from ground truth instead. -->
-      <tf_topic>/discard_tf</tf_topic>
-    </plugin>
-  </gazebo>
+  <xacro:turtlebot_base_hw_controller/>
 
   <!-- Wheel Friction and Dynamics -->
   <gazebo reference="wheel_left_link">

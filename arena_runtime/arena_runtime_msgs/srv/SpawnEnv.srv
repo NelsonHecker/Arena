@@ -1,6 +1,6 @@
 # Programmatically launch a task_generator env owned by arena_node.
 string ns                # explicit ns path (e.g. for sim2real); empty = auto-allocate
-bool headless            # true = no rviz, no terminal, stdout/stderr suppressed
+bool headless            # suppress stdout/stderr for this env's subprocess
 string[] launch_args     # passthrough to task_generator.launch.py, "name:=value"
 ---
 bool success

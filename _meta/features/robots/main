@@ -5,29 +5,30 @@ _py="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/robots.py"
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <update|uninstall|source|add|rm|ls|check>"
+    echo "Usage: $name <update|uninstall|source|add|rm|ls|check|drive>"
     echo ""
     echo "Per-robot submodule management (mesh assets + upstream deps)."
     echo "  add <name...>     clone robot's submodules"
     echo "  rm <name...>      deinit robot's submodules"
-    echo "  ls                list robots — [x] ready, [ ] pending"
+    echo "  ls                list robots, [x] ready, [ ] pending"
     echo "  check [--all]     verify all package://arena_robots/... URIs resolve"
     echo "  update            refresh initialized robot submodules"
     echo "  uninstall         deinit all robot submodules"
+    echo "  drive [opts]      run a random-goal episode per ready robot, report success/total"
 }
 if [ $# -lt 1 ]; then
     help
     exit 1
 fi
 case "$1" in
-    update|add|rm|ls|check)
+    add|update)
+        python3 "$_py" "$@" || exit $?
+        arena deps && arena build
+        exit $?
+    ;;
+    rm|ls|check|drive)
         python3 "$_py" "$@"
-        rc=$?
-        if [ "$rc" -eq 10 ]; then
-            arena deps && arena build
-            exit $?
-        fi
-        exit "$rc"
+        exit $?
     ;;
     uninstall)
         python3 "$_py" uninstall

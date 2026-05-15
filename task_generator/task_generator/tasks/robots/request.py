@@ -5,9 +5,10 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import attrs
+import geometry_msgs.msg
 from arena_robots.task_kinds import TaskKind
 
 from task_generator.shared import Pose
@@ -16,10 +17,14 @@ if TYPE_CHECKING:
     from task_generator.manager.robot_manager.robot_manager import RobotManager
 
 
+@attrs.define
 class TaskPhase(ABC):
     """One typed step within a :class:`TaskRequest`."""
 
     kind: ClassVar[TaskKind]
+
+    on_failure: Literal["continue", "stop_task", "abort_episode"] = attrs.field(default="continue", kw_only=True)
+    """Phase failure disposition: advance to next phase, stop the task, or abort the episode."""
 
     @abstractmethod
     def is_satisfied(self, robot_manager: RobotManager) -> bool:
@@ -41,12 +46,9 @@ class GoToPhase(TaskPhase):
         if pose is None:
             return False
 
-        tol_dist = (
-            self.tolerance_radius if self.tolerance_radius is not None else robot_manager._goal_tolerance_distance  # noqa: SLF001
-        )
-        tol_ang = (
-            self.tolerance_angle if self.tolerance_angle is not None else robot_manager._goal_tolerance_angle  # noqa: SLF001
-        )
+        conf = robot_manager.node.conf.Robot
+        tol_dist = self.tolerance_radius if self.tolerance_radius is not None else conf.GOAL_TOLERANCE_RADIUS.value
+        tol_ang = self.tolerance_angle if self.tolerance_angle is not None else conf.GOAL_TOLERANCE_ANGLE.value
 
         dx = pose.position.x - self.pose.position.x
         dy = pose.position.y - self.pose.position.y
@@ -60,6 +62,33 @@ class GoToPhase(TaskPhase):
                 return False
 
         return True
+
+
+@attrs.define
+class ReachPhase(TaskPhase):
+    kind: ClassVar[TaskKind] = TaskKind.REACH_POSE
+    target: geometry_msgs.msg.PoseStamped | None = None
+    named_target: str | None = None
+    random: bool = False
+    position_tolerance: float | None = None
+    orientation_tolerance: float | None = None
+    planning_time: float | None = None
+
+    def __attrs_post_init__(self):
+        if sum([self.target is not None, self.named_target is not None, self.random]) != 1:
+            raise ValueError("ReachPhase requires exactly one of target / named_target / random")
+
+    def is_satisfied(self, robot_manager: RobotManager) -> bool:
+        return False
+
+
+@attrs.define
+class PlayGesturePhase(TaskPhase):
+    kind: ClassVar[TaskKind] = TaskKind.PLAY_GESTURE
+    gesture: str | None = None  # None means random; adapter expands before dispatch
+
+    def is_satisfied(self, robot_manager: RobotManager) -> bool:
+        return False  # client-driven completion
 
 
 DonePredicate = Callable[
@@ -91,6 +120,8 @@ __all__ = [
     "TaskKind",
     "TaskPhase",
     "GoToPhase",
+    "ReachPhase",
+    "PlayGesturePhase",
     "TaskRequest",
     "DonePredicate",
 ]

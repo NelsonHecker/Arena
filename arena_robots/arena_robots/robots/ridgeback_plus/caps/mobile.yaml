@@ -1,7 +1,7 @@
 odom_frame: odom
 sensor_frame: lidar
 radius: 0.4
-is_holonomic: false
+is_holonomic: true
 
 footprint: [[0.48, -0.40], [0.48, 0.40], [-0.48, 0.40], [-0.48, -0.40]]
 

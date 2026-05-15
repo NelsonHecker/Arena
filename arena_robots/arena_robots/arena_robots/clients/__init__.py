@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 
     from arena_robots.Robot import RobotView
 
+from arena_rclpy_mixins.registry import ClassRegistry
+
 from arena_robots.task_kinds import TaskKind
 
 
@@ -64,22 +66,33 @@ class Client(ABC):
         return None
 
     @property
+    def reason(self) -> str | None:
+        return None
+
+    @property
     def feedback(self):
         return None
 
 
-_CLIENTS: dict[TaskKind, type[Client]] = {}
+CLIENTS: ClassRegistry[TaskKind, type[Client]] = ClassRegistry()
 
 
-def register_client(cls: type[Client]) -> type[Client]:
-    _CLIENTS[cls.task_kind] = cls
-    return cls
+@CLIENTS.register(TaskKind.GOTO_POSE)
+def _load_goto_pose() -> type[Client]:
+    from .goto_pose import GotoPoseClient
+
+    return GotoPoseClient
 
 
-def get_client(task_kind: TaskKind) -> type[Client]:
-    if task_kind not in _CLIENTS:
-        raise KeyError(f"No client registered for task_kind {task_kind!r}; available: {list(_CLIENTS)}")
-    return _CLIENTS[task_kind]
+@CLIENTS.register(TaskKind.REACH_POSE)
+def _load_reach_pose() -> type[Client]:
+    from .reach_pose import ReachPoseClient
+
+    return ReachPoseClient
 
 
-from . import goto_pose  # noqa: F401
+@CLIENTS.register(TaskKind.PLAY_GESTURE)
+def _load_play_gesture() -> type[Client]:
+    from .play_gesture import PlayGestureClient
+
+    return PlayGestureClient

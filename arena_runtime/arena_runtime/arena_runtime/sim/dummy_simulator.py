@@ -53,8 +53,6 @@ class DummySimulator(BaseSim):
         return v
 
     async def __spawn_entity(self, entities: Sequence[Entity]) -> Sequence[bool]:
-        self._logger.debug(f"spawning {len(entities)} entities")
-
         await asyncio.gather(*(self.safe_resolve(e.model) for e in entities))
         return tuple(True for _ in entities)
 
@@ -102,30 +100,27 @@ class DummySimulator(BaseSim):
 
     # world interface
     async def spawn_walls(self, walls: Sequence[Wall]) -> bool:
-        self._logger.debug(f'spawning {len(walls)} walls')
-
         async def resolve(wall: Wall):
-            walls, obs = await wall.assets()
+            sub_walls_iter, obs_iter = await wall.assets()
+            sub_walls = tuple(sub_walls_iter)
+            obs = tuple(obs_iter)
             await asyncio.gather(
-                self.__spawn_entity(tuple(obs)),
-                *(self.safe_resolve(wall.material) for wall in walls),
+                self.__spawn_entity(obs),
+                *(self.safe_resolve(w.material) for w in sub_walls),
             )
 
         await asyncio.gather(*map(resolve, walls))
         return True
 
     async def spawn_floors(self, floors: Sequence[Floor]) -> bool:
-        self._logger.debug(f'spawning {len(floors)} floors')
         await asyncio.gather(*(self.safe_resolve(floor.material) for floor in floors))
         return True
 
     async def spawn_doors(self, doors: Sequence[Door]) -> bool:
-        self._logger.debug(f'spawning {len(doors)} doors')
         await asyncio.gather(*(self.safe_resolve(door.material) for door in doors))
         return True
 
     async def spawn_elevators(self, elevators: Sequence[Elevator]) -> bool:
-        self._logger.debug(f'spawning {len(elevators)} elevators')
         await asyncio.gather(*(self.safe_resolve(elevator.material) for elevator in elevators))
         return True
 

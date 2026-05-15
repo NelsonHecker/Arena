@@ -10,9 +10,6 @@ EPISODE_PARAMS: tuple[str, ...] = (
 STATIC_CONFIG_PARAMS: tuple[str, ...] = (
     "sim",
     "human",
-    "agent_name",
-    "global_planner",
-    "local_planner",
-    "inter_planner",
-    "navigator",
+    "robot.mobile_adapter",
+    "robot.arm_adapter",
 )

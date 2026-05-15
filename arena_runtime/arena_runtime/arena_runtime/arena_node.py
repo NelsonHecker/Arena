@@ -121,7 +121,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         self._pub_shutdown_request = self.create_publisher(
             arena_runtime_msgs.msg.ShutdownRequest,
             self.service_namespace("shutdown_request"),
-            _LATCHED,
+            10,
         )
 
         self.get_logger().info(f"waiting for {sim_name} services to come up")
@@ -193,23 +193,17 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
 
         env_n = self.rosparam[int].get("env_n", 0)
         if env_n > 0:
-            env_headless = self.rosparam[int].get("env_headless", 0)
-            asyncio.create_task(self._spawn_initial_envs(env_n, env_headless))
+            asyncio.create_task(self._spawn_initial_envs(env_n))
 
         self.trigger_configure()
         self.trigger_activate()
 
-    async def _spawn_initial_envs(self, n: int, headless_mode: int) -> None:
-        """Self-orchestrate the env fleet so `arena launch` is just `arena runtime`.
-
-        headless_mode follows the historical arena.launch.py convention:
-            -1 = show all envs, 0 = show env 0 only, 1 = show only rviz, 2 = hide all.
-        """
+    async def _spawn_initial_envs(self, n: int) -> None:
+        """Self-orchestrate the initial env fleet."""
 
         async def _spawn_one(i: int) -> None:
-            env_headless = bool(headless_mode > 1) if i == 0 else bool(headless_mode > -1)
             req = arena_runtime_msgs.srv.SpawnEnv.Request()
-            req.headless = env_headless
+            req.headless = False
             req.launch_args = []
             resp = arena_runtime_msgs.srv.SpawnEnv.Response()
             try:
@@ -594,7 +588,6 @@ sys.exit(ls.run())
             "env_id": str(env_id),
             "ns": namespace,
             "sim": sim_name,
-            "headless": "true" if request.headless else "false",
         }
 
         merged: dict[str, str] = {}

@@ -1,0 +1,9 @@
+interp: linear
+keyframes:
+  - {pose: ready,  t: 0.0}
+  - {pose: wave_up, t: 0.6}
+  - {pose: wave_l,  t: 1.2}
+  - {pose: wave_r,  t: 1.6}
+  - {pose: wave_l,  t: 2.0}
+  - {pose: wave_r,  t: 2.4}
+  - {pose: ready,  t: 3.0}

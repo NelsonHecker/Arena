@@ -36,13 +36,12 @@ QWidget *make_int_pair_widget(int64_t v0, int64_t v1)
     auto *sb0 = new QSpinBox();
     sb0->setRange(0, std::numeric_limits<int>::max());
     sb0->setValue(static_cast<int>(v0));
-    lay->addWidget(sb0);
+    lay->addWidget(sb0, 1);
     lay->addWidget(new QLabel("Max"));
     auto *sb1 = new QSpinBox();
     sb1->setRange(0, std::numeric_limits<int>::max());
     sb1->setValue(static_cast<int>(v1));
-    lay->addWidget(sb1);
-    lay->addStretch();
+    lay->addWidget(sb1, 1);
     w->setLayout(lay);
     return w;
 }
@@ -57,13 +56,12 @@ QWidget *make_float_pair_widget(double v0, double v1)
     auto *sb0 = new QDoubleSpinBox();
     sb0->setRange(-1e9, 1e9);
     sb0->setValue(v0);
-    lay->addWidget(sb0);
+    lay->addWidget(sb0, 1);
     lay->addWidget(new QLabel("Max"));
     auto *sb1 = new QDoubleSpinBox();
     sb1->setRange(-1e9, 1e9);
     sb1->setValue(v1);
-    lay->addWidget(sb1);
-    lay->addStretch();
+    lay->addWidget(sb1, 1);
     w->setLayout(lay);
     return w;
 }

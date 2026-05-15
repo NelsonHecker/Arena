@@ -21,15 +21,15 @@ Both hooks default to no-ops. Subclasses override only the ones they need.
 
 Modules are instantiated in `Task.__init__` from the `tm_modules` ROS param
 (a comma-separated list of `Constants.TaskMode.TM_Module` values). Each is
-registered in `_TaskRegistry.registry_module` by
+registered on `MODULE_MODES` in
 [`tasks/registry.py`](../registry.py).
 
 ## Package structure
 
 Each `TM_Module` subclass is a package:
 
-- `__init__.py` (eager): registers the mode via `_TaskRegistry.register_module` and calls `declare_schema(node, ns)` to forward-declare all parameters at node startup.
-- `impl.py` (lazy): contains the class body, imported only on first activation.
+- `__init__.py` (eager): declares `_NS` and (optionally) `_declare_schema`, then registers the mode on `MODULE_MODES` (a `TaskModeRegistry` from `tasks/registry.py`) with `namespace=_NS` and `schema=_declare_schema`. Imported at node startup.
+- `impl.py` (lazy): contains the class body. Imported only on first activation.
 
 Parameters live under `task.<mode>.<leaf>`.
 
@@ -72,7 +72,7 @@ the stage index changes.
 ## Adding a module
 
 1. Create `tasks/modules/<name>/` as a package.
-2. In `__init__.py`: call `_TaskRegistry.register_module` (registering the lazy loader from `impl.py`) and define `declare_schema(node, ns)` using helpers from [`task_generator.tasks.declarations`](../declarations.py).
+2. In `__init__.py`: declare `_NS = _REGISTRY_NAMESPACE("<name>")`, define `_declare_schema(node, ns)` if the module has tunable parameters (using helpers from [`task_generator.tasks.declarations`](../declarations.py)), then register the loader with `@MODULE_MODES.register(Constants.TaskMode.TM_Module.<NAME>, namespace=_NS, schema=_declare_schema)`.
 3. In `impl.py`: define the class extending `TM_Module`; override `before_reset` and/or `after_reset`.
 4. Add `<NAME> = "<name>"` to `Constants.TaskMode.TM_Module` in [`constants/__init__.py`](../../constants/__init__.py).
-5. `_TaskRegistry.walk_schemas` picks up your schema automatically at node init.
+5. `walk_schemas` (module-level in `tasks/registry.py`) picks up your schema automatically at node init.

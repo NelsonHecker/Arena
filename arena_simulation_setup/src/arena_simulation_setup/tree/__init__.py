@@ -7,6 +7,7 @@ import logging
 import os
 import subprocess
 import threading
+import time
 import typing
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
@@ -190,12 +191,15 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
     Resolve asset paths from network.
     """
 
+    _TTL_MARKER = '.ttl'
+
     def __init__(self, _T: type[IdentifierT], /, provider: str, **kwargs: object) -> None:
         path = ARENA_ASSETS_DIR / provider
         super().__init__(_T, path=path, **kwargs)
         self._provider: str = provider
 
         self._formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
+        self._ttl = int(os.environ.get('ARENA_MODELS_TTL', '86400'))
         self._pending: dict[str, list[asyncio.Future[Path | None]]] = {}
         self._flush_scheduled = False
         self._batch_lock = asyncio.Lock()
@@ -253,9 +257,15 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
                     *itertools.chain.from_iterable(('--format', fmt) for fmt in self._formats if fmt),
                 ]
             )
+            stamp = str(int(time.time()))
             for relpath, futures in batch.items():
                 target = root_path / relpath
                 result = target if target.exists() else None
+                if result is not None and result.is_dir():
+                    try:
+                        (result / self._TTL_MARKER).write_text(stamp)
+                    except OSError:
+                        pass
                 for fut in futures:
                     if not fut.done():
                         fut.set_result(result)
@@ -274,6 +284,17 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         """
         if identifier in self._cache:
             return self._cache[identifier]
+
+        candidate = self.path / identifier.relpath()
+        if candidate.is_dir():
+            marker = candidate / self._TTL_MARKER
+            try:
+                stamp = int(marker.read_text().strip())
+            except (OSError, ValueError):
+                stamp = 0
+            if stamp and time.time() - stamp < self._ttl:
+                self._cache[identifier] = candidate
+                return candidate
 
         result = await self._batch_request(str(identifier.relpath()))
         if result is not None:
@@ -411,7 +432,8 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
         raise FileNotFoundError(msg)
 
     async def resolve(self, **kwargs: object) -> T:
-        return self.load(await self.resolve_path(), **kwargs)
+        path = await self.resolve_path()
+        return await asyncio.to_thread(self.load, path, **kwargs)
 
     def resolve_sync(self, **kwargs: object) -> T:
         """Synchronously load the asset referenced by this identifier."""

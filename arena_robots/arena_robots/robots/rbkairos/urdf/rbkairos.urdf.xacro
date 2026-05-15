@@ -9,8 +9,7 @@
 
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/bases/rbkairos/rbkairos_base.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/base_hw/rbkairos.ros2_control.urdf" />
-  <xacro:include filename="$(find arena_robots)/robots/rbkairos/simulators/gazebo_classic/rbkairos/rbkairos_control.urdf.xacro" />
-  <xacro:include filename="$(find arena_robots)/robots/rbkairos/simulators/gazebo_ignition/rbkairos/rbkairos_control.urdf.xacro" />
+  <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/rbkairos.gazebo" />
   <xacro:include filename="$(find arena_robots)/robots/rbkairos/urdf/all_sensors.urdf.xacro" />
 
   <!-- Properties and Arguments -->
@@ -18,7 +17,9 @@
   <xacro:arg name="namespace" default="robot"/>
   <xacro:arg name="prefix" default="robot_"/>
   <xacro:arg name="gazebo_classic" default="false"/>
-  <xacro:arg name="gazebo_ignition" default="false"/>
+  <xacro:arg name="gazebo_ignition" default="true"/>
+  <xacro:arg name="gazebo_controllers" default=""/>
+  <xacro:arg name="sim_path" default=""/>
 
   <xacro:property name="front_laser_offset_x" value="0.42109"/>
   <xacro:property name="front_laser_offset_y" value="-0.32737"/>
@@ -84,27 +85,8 @@
     <xacro:rbkairos_gz_classic_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
     <xacro:ros_planar_move_gazebo_classic/>
   </xacro:if>
-  <xacro:if value="$(arg gazebo_ignition)">
-    <xacro:rbkairos_gz_ignition_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
-  </xacro:if>
   <xacro:unless value="$(arg gazebo_classic)">
-    <xacro:unless value="$(arg gazebo_ignition)">
-      <xacro:rbkairos_base_hw_controller/>
-    </xacro:unless>
+    <xacro:rbkairos_base_hw_controller/>
   </xacro:unless>
-
-  <gazebo>
-    <plugin
-      filename="gz-sim-pose-publisher-system"
-      name="gz::sim::systems::PosePublisher">
-      <publish_model_pose>true</publish_model_pose>
-      <publish_link_pose>false</publish_link_pose>
-      <publish_collision_pose>false</publish_collision_pose>
-      <publish_visual_pose>false</publish_visual_pose>
-      <publish_sensor_pose>false</publish_sensor_pose>
-      <publish_nested_model_pose>true</publish_nested_model_pose>
-      <use_pose_vector_msg>false</use_pose_vector_msg>
-    </plugin>
-  </gazebo>
 
 </robot>

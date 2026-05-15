@@ -1,0 +1,14 @@
+string gesture                          # required, name in shared lib or per-arm override
+---
+uint8 STATUS_SUCCEEDED = 0
+uint8 STATUS_CANCELED = 1
+uint8 STATUS_ABORTED = 2
+uint8 STATUS_UNKNOWN_GESTURE = 3        # name not found
+uint8 STATUS_UNSUPPORTED = 4            # arm named_poses don't cover keyframes
+uint8 STATUS_TIMEOUT = 5
+uint8 STATUS_UNSUPPORTED_CAP = 6
+uint8 status
+string reason
+---
+string state                            # "RESOLVING" | "EXECUTING" | "DONE"
+float32 progress                        # 0..1, time-from-start over trajectory duration

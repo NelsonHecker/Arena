@@ -32,6 +32,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.lifecycle import TransitionCallbackReturn
 from rclpy.parameter import Parameter
 from std_msgs.msg import Int16, String
+from task_generator_msgs.msg import AdapterDisplay, AdapterEntry, AdapterVizManifest
 
 from task_generator.constants import Constants
 from task_generator.constants.runtime import Configuration
@@ -43,10 +44,9 @@ from task_generator.manager.world_manager.world_manager_ros import (
 )
 from task_generator.shared import Orientation, Pose, Position
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
-from task_generator.simulators.human.utils import ObstacleLayer
 from task_generator.tasks import identifier_to_available
 from task_generator.tasks.obstacles import ObstacleKind
-from task_generator.tasks.registry import _TaskRegistry
+from task_generator.tasks.registry import MODULE_MODES, OBSTACLES_MODES, ROBOTS_MODES
 from task_generator.tasks.task import Task
 
 from . import SafeCallbackNode
@@ -135,7 +135,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self,
         namespace: str = "task_generator_node",
     ):
-        super().__init__("task_generator")
+        super().__init__("task_generator", automatically_declare_parameters_from_overrides=True)
         self.conf = Configuration(self)
 
         self._namespace = Namespace(namespace)
@@ -214,6 +214,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             _LATCHED,
         )
 
+        self._pub_state_viz_manifest = self.create_publisher(
+            AdapterVizManifest,
+            self.service_namespace("state", "viz_manifest"),
+            _LATCHED,
+        )
+
         self._pub_state_queue = self.create_publisher(
             task_generator_msgs.msg.EpisodeRecord,
             self.service_namespace("state", "queue"),
@@ -238,11 +244,37 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             arena_runtime_msgs.msg.ShutdownRequest,
             "/arena/shutdown_request",
             self._cb_shutdown_request,
-            _LATCHED,
+            10,
         )
 
         self._check_status_task: asyncio.Task | None = None
         self._episode_task: asyncio.Task | None = None
+
+        self._publish_bootstrap_queue_state()
+
+    def _publish_bootstrap_queue_state(self) -> None:
+        # Latch a minimal state/queue at construction so the rviz panel can
+        # build its mode comboboxes and param tree before managers exist,
+        # instead of waiting for _build_next_record at first reset.
+        current_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
+        current_obstacles = self.conf.TaskMode.TM_OBSTACLES.value.value if self.conf.TaskMode.TM_OBSTACLES.value else ""
+        current_modules = [m.value for m in self.conf.TaskMode.TM_MODULES.value]
+
+        msg = task_generator_msgs.msg.EpisodeRecord()
+        msg.episode_id = 0
+        msg.world = ""
+        msg.seed = -1
+        msg.tm_robots = current_robots
+        msg.tm_obstacles = current_obstacles
+        msg.tm_modules = list(current_modules)
+        msg.robots = []
+        msg.outcome_state = task_generator_msgs.msg.EpisodeRecord.QUEUED
+        msg.outcome_info = ""
+        msg.goal_uuid = ""
+        msg.integrity = True
+        msg.obstacles_params = self._params_for_mode(current_obstacles)
+        msg.robots_params = self._params_for_mode(current_robots)
+        self._pub_state_queue.publish(msg)
 
     def _declare_mutable_param(self, name: str, default: object, descriptor: ParameterDescriptor) -> None:
         self.rosparam[type(default)].declare_safe(name, default, descriptor=descriptor)
@@ -285,7 +317,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         rclpy.try_shutdown()
 
     async def setup(self) -> None:
-        self._logger.info("Configuring Task Generator Node")
         try:
             await self._set_up_services()
             await self._arena_hold_client.ensure()
@@ -297,8 +328,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             tm_modules.add(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
             tm_modules.add(Constants.TaskMode.TM_Module.RVIZ_UI)
 
-            self._logger.info("Creating task")
-            self._logger.debug(f"Modules: {list(tm_modules)}")
             self._task = await Task.create(
                 node=self,
                 environment_manager=self._environment_manager,
@@ -308,9 +337,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             )
 
             await self._world_manager.sync()
+            await self._robots_manager.launch_pending()
+            self._publish_viz_manifest()
 
             self.rosparam[bool].set("initialized", True)
-            self._logger.info("Task Generator Node configured")
+            self._publish_queue_state()
         except Exception as e:
             self._logger.error(f"configure failed: {e!r}\n{traceback.format_exc()}")
             return
@@ -412,13 +443,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         self._logger.info("Setting up world manager")
         self._world_manager = WorldManager(node=self, environment_manager=self._environment_manager)
-
-        async def world_change_cb():
-            async with self._reset_lock:
-                await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
-                await self._environment_manager.spawn_world_obstacles(self._world_manager.world)
-
-        self._world_manager.on_world_change(world_change_cb)
         await self._world_manager.start()
 
         self._logger.info("Setting up robots manager")
@@ -468,6 +492,35 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.robots_params = self._params_for_mode(self._episodes.current.tm_robots)
         self._pub_state_episode.publish(msg)
 
+    def _publish_viz_manifest(self) -> None:
+        entries: list[AdapterEntry] = []
+        for mgr in self._robots_manager.managers.values():
+            ns_value = str(mgr.namespace)
+            robot_value = mgr.name
+            for adapter in mgr._adapter_instances:
+
+                def _subst(s: str, ns_value: str = ns_value, robot_value: str = robot_value) -> str:
+                    return s.replace("{ns}", ns_value).replace("{robot}", robot_value)
+
+                displays = [
+                    AdapterDisplay(
+                        name=hint.name,
+                        topic=_subst(hint.topic),
+                        topic_type=hint.topic_type,
+                        rviz_class=hint.rviz_class,
+                        config_json=_subst(hint.config_json),
+                    )
+                    for hint in adapter.displays
+                ]
+                entries.append(
+                    AdapterEntry(
+                        robot_ns=str(mgr.namespace),
+                        adapter_kind=adapter.kind,
+                        displays=displays,
+                    )
+                )
+        self._pub_state_viz_manifest.publish(AdapterVizManifest(entries=entries))
+
     def set_episode_info(self, info: str) -> None:
         self._episodes.current.outcome_info = info
         self._publish_episode_state()
@@ -477,20 +530,21 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         current_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
         current_obstacles = self.conf.TaskMode.TM_OBSTACLES.value.value if self.conf.TaskMode.TM_OBSTACLES.value else ""
         current_modules = [m.value for m in self.conf.TaskMode.TM_MODULES.value]
-        live_world = self._world_manager.world_name
+        record_world = self._episodes.current.world
+        loaded_world = self._world_manager.loaded_world
         live_robots = [m.model_name for m in self._robots_manager.managers.values()]
 
         if overrides is None:
             queued_tm_robots = current_robots
             queued_tm_obstacles = current_obstacles
             queued_tm_modules = current_modules
-            queued_world = live_world
+            queued_world = record_world or loaded_world
             queued_robots = live_robots
         else:
             queued_tm_robots = overrides.tm_robots or current_robots
             queued_tm_obstacles = overrides.tm_obstacles or current_obstacles
             queued_tm_modules = current_modules if overrides.keep_modules else overrides.tm_modules
-            queued_world = overrides.world or live_world
+            queued_world = overrides.world or record_world or loaded_world
             queued_robots = overrides.robots or live_robots
 
         obstacles_live = self._params_for_mode(queued_tm_obstacles)
@@ -539,13 +593,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         if overrides is not None and overrides.world:
             world = world or overrides.world
-            if overrides.world != self._world_manager.world_name:
-                await self._world_manager.apply_world(overrides.world)
+            # World swap itself happens inside `_run_reset_cycle`'s hold window.
 
         if overrides is not None and overrides.robots:
             self.rosparam[str].set("robot", ",".join(overrides.robots))
 
-        resolved_world = world or self._world_manager.world_name or self._episodes.current.world
+        resolved_world = world or self._world_manager.loaded_world or self._episodes.current.world
         resolved_seed = seed if seed >= 0 else _derive_seed(self._episodes.run_seed, resolved_world, new_id)
 
         current_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
@@ -584,6 +637,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             record = self._episodes.current
             await self.hold("reset")
             try:
+                if record.world and record.world != self._world_manager.loaded_world:
+                    await self._world_manager.apply_world(record.world)
                 await self._task.reset(world=record.world, seed=record.seed)
             finally:
                 await self.release("reset")
@@ -632,7 +687,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     continue
                 if not await self._task.is_done:
                     continue
-                fut.set_result((task_generator_msgs.action.RunEpisode.Result.SUCCESS, ""))
+                if self._task.abort_reason is not None:
+                    fut.set_result((task_generator_msgs.action.RunEpisode.Result.FAILED, self._task.abort_reason))
+                else:
+                    fut.set_result((task_generator_msgs.action.RunEpisode.Result.SUCCESS, ""))
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -851,10 +909,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         if merged:
             batch = [Parameter.from_parameter_msg(RclParameter(name=n, value=pv)) for n, (pv, _) in merged.items()]
-            results = self.set_parameters(batch)
-            for name, result in zip(merged.keys(), results, strict=True):
-                if not result.successful:
-                    log.warning(f"staged param {name!r} rejected: {result.reason}")
+            result = self.set_parameters_atomically(batch)
+            if not result.successful:
+                log.warning(f"staged params {list(merged)} rejected: {result.reason}")
 
     async def _cb_get_task_modes(
         self,
@@ -871,9 +928,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         request: task_generator_msgs.srv.QueryTaskModes.Request,
         response: task_generator_msgs.srv.QueryTaskModes.Response,
     ) -> task_generator_msgs.srv.QueryTaskModes.Response:
-        response.obstacles = [k.value for k in _TaskRegistry.registry_obstacles]
-        response.robots = [k.value for k in _TaskRegistry.registry_robots]
-        response.modules = [k.value for k in _TaskRegistry.registry_module]
+        response.obstacles = [k.value for k in OBSTACLES_MODES.keys()]
+        response.robots = [k.value for k in ROBOTS_MODES.keys()]
+        response.modules = [k.value for k in MODULE_MODES.keys()]
         return response
 
     def _pose_from_request(self, stamped: geometry_msgs.msg.PoseStamped) -> Pose:

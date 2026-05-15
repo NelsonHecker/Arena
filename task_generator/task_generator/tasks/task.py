@@ -13,7 +13,14 @@ from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.robot_manager import RobotsManager
 from task_generator.manager.world_manager.world_manager_ros import WorldManager
 from task_generator.shared import Pose
-from task_generator.tasks.registry import _TaskRegistry
+from task_generator.tasks.registry import (
+    _REGISTRY_NAMESPACE,
+    MODULE_MODES,
+    OBSTACLES_MODES,
+    ROBOTS_MODES,
+    walk_schemas,
+)
+from task_generator.tasks.robots.adapters import ResetContext
 from task_generator.tasks.robots.composite import (
     TM_Composite,
     _scoped_ctx,
@@ -29,7 +36,7 @@ from .robots import TM_Robots
 # import training.srv as training_srvs
 
 
-class Task(_TaskRegistry, NodeInterface):
+class Task(NodeInterface):
     """Task class that comibnes task modes."""
 
     TOPIC_RESET_START = "reset_start"
@@ -39,7 +46,7 @@ class Task(_TaskRegistry, NodeInterface):
     @classmethod
     def declare_parameters(cls, node: ROSParamServer):
         node.ROSParam[bool](cls.PARAM_RESETTING, True)
-        _TaskRegistry.walk_schemas(node)
+        walk_schemas(node)
 
     __reset_start: rclpy.publisher.Publisher
     __reset_end: rclpy.publisher.Publisher
@@ -54,6 +61,7 @@ class Task(_TaskRegistry, NodeInterface):
     __tm_obstacles: TM_Obstacles
 
     _force_reset: bool
+    _abort_reason: str | None
 
     @classmethod
     async def create(
@@ -105,12 +113,16 @@ class Task(_TaskRegistry, NodeInterface):
         super().__init__(*args, **kwargs)
 
         self._force_reset = False
+        self._abort_reason = None
 
         self._ctx = TaskContext(
             environment_manager=environment_manager,
             robots_manager=robots_manager,
             world_manager=world_manager,
+            abort_episode=self.abort_episode,
         )
+
+        robots_manager.bind_abort(self.abort_episode)
 
         self.__reset_start = self.node.create_publisher(std_msgs.Empty, 'reset_start', 1)
         self.__reset_end = self.node.create_publisher(std_msgs.Empty, 'reset_end', 1)
@@ -120,13 +132,15 @@ class Task(_TaskRegistry, NodeInterface):
         self._logger.debug('initing modules')
         self.__modules = []
         for module in modules:
-            loader, ns, _schema = self.registry_module[module]
-            self.__modules.append(loader()(ctx=self._ctx, namespace=ns, task=self, node=self.node))
+            cls = MODULE_MODES.get(module)
+            meta = MODULE_MODES.meta(module)
+            self.__modules.append(cls(ctx=self._ctx, namespace=meta.namespace, task=self, node=self.node))
 
     def set_tm_robots(self, tm_robots: Constants.TaskMode.TM_Robots):
-        assert tm_robots in self.registry_robots, f"TaskMode '{tm_robots}' for robots is not registered!"
-        loader, ns, _schema = self.registry_robots[tm_robots]
-        self.__tm_robots = loader()(ctx=self._ctx, namespace=ns, node=self.node)
+        assert tm_robots in ROBOTS_MODES, f"TaskMode '{tm_robots}' for robots is not registered!"
+        cls = ROBOTS_MODES.get(tm_robots)
+        meta = ROBOTS_MODES.meta(tm_robots)
+        self.__tm_robots = cls(ctx=self._ctx, namespace=meta.namespace, node=self.node)
         self.__param_tm_robots = tm_robots
 
     def set_tm_robots_composite(
@@ -144,29 +158,28 @@ class Task(_TaskRegistry, NodeInterface):
 
         sub_modes: list[TM_Robots] = []
         for spec, robots in allocation.items():
-            # Resolve the TM loader via the standard TaskMode enum;
+            # Resolve the TM class via the standard TaskMode enum;
             # fall back to the composite module's extra registry for TM_Null.
-            loader = None
-            ns = None
             try:
                 enum_key = Constants.TaskMode.TM_Robots(spec.kind)
             except ValueError:
                 enum_key = None
-            if enum_key is not None and enum_key in self.registry_robots:
-                loader, ns, _schema = self.registry_robots[enum_key]
+            if enum_key is not None and enum_key in ROBOTS_MODES:
+                tm_cls = ROBOTS_MODES.get(enum_key)
+                ns = ROBOTS_MODES.meta(enum_key).namespace
             else:
                 extra = get_extra_tm_loader(spec.kind)
                 if extra is None:
                     raise KeyError(f"task_mode kind {spec.kind!r} is not registered")
-                loader = extra
-                ns = _TaskRegistry._namespace(spec.kind)
+                tm_cls = extra()
+                ns = _REGISTRY_NAMESPACE(spec.kind)
 
             scoped = _scoped_ctx(self._ctx, (r.name for r in robots))
-            sub_modes.append(loader()(ctx=scoped, namespace=ns, node=self.node))
+            sub_modes.append(tm_cls(ctx=scoped, namespace=ns, node=self.node))
 
         self.__tm_robots = TM_Composite(
             ctx=self._ctx,
-            namespace=_TaskRegistry._namespace("composite"),
+            namespace=_REGISTRY_NAMESPACE("composite"),
             node=self.node,
             sub_modes=sub_modes,
         )
@@ -176,9 +189,10 @@ class Task(_TaskRegistry, NodeInterface):
         self.__param_tm_robots = None  # type: ignore[assignment]
 
     def set_tm_obstacles(self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
-        assert tm_obstacles in self.registry_obstacles, f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
-        loader, ns, _schema = self.registry_obstacles[tm_obstacles]
-        self.__tm_obstacles = loader()(ctx=self._ctx, namespace=ns, node=self.node)
+        assert tm_obstacles in OBSTACLES_MODES, f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
+        cls = OBSTACLES_MODES.get(tm_obstacles)
+        meta = OBSTACLES_MODES.meta(tm_obstacles)
+        self.__tm_obstacles = cls(ctx=self._ctx, namespace=meta.namespace, node=self.node)
         self.__param_tm_obstacles = tm_obstacles
 
     async def _reset_episode(self, **kwargs: object) -> None:
@@ -186,6 +200,7 @@ class Task(_TaskRegistry, NodeInterface):
             self.__reset_start.publish(std_msgs.Empty())
 
             await self.robots_manager.set_up()
+            await self.robots_manager.launch_pending()
 
             await self.environment_manager.before_reset_episode()
 
@@ -202,7 +217,24 @@ class Task(_TaskRegistry, NodeInterface):
                     module.before_reset()
 
                 await self.__tm_robots.reset(**kwargs)
-                await self.environment_manager.remove_all_regions()
+
+                robot_outcomes = await asyncio.gather(
+                    *(
+                        mgr.reset(
+                            ResetContext(
+                                rng=self.node.conf.General.RNG.value,
+                                start_pose=self.__tm_robots.start_poses.get(name),
+                                episode_index=self.node._episodes.current.episode_id,
+                            )
+                        )
+                        for name, mgr in self.robots_manager.managers.items()
+                    ),
+                    return_exceptions=True,
+                )
+                for name, outcome in zip(self.robots_manager.managers, robot_outcomes, strict=True):
+                    if isinstance(outcome, BaseException):
+                        self._logger.warning(f"robot {name!r} adapter reset failed: {outcome!r}")
+
                 obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
 
                 async def respawn():
@@ -225,8 +257,17 @@ class Task(_TaskRegistry, NodeInterface):
         finally:
             self.__reset_end.publish(std_msgs.Empty())
 
+    @property
+    def abort_reason(self) -> str | None:
+        return self._abort_reason
+
+    def abort_episode(self, reason: str) -> None:
+        self._abort_reason = reason
+        self._force_reset = True
+
     async def reset(self, **kwargs: object) -> None:
         self._force_reset = False
+        self._abort_reason = None
         await self._reset_episode(**kwargs)
 
     @property

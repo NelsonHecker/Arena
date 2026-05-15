@@ -9,7 +9,7 @@ consume lives here.
 - [Adding a robot](arena_robots/robots/README.md) — directory layout, required
   YAMLs, how meshes are fetched, validation.
 - [Navigation adapters](arena_robots/launch/adapters/README.md) — Adapter ABC,
-  selection via `model_params.navigator`, adding a new one.
+  selection via `mobile:`/`arm:` in setup YAML, adding a new one.
 - [Robot setup files](arena_robots/config/setup/README.md) — `robot_setup.yaml`
   schema for listing robots to spawn in a scenario.
 - [Task kinds](arena_robots/arena_robots/task_server_handlers/README.md) —

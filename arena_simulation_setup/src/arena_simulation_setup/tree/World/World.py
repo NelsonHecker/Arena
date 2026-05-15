@@ -25,11 +25,11 @@ from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
 )
-from arena_simulation_setup.utils.cattrs import ArenaConverter, converter
-from arena_simulation_setup.utils.geometry import Orientation, Pose, Position, sample_point_in_polygon
+from arena_simulation_setup.utils.cattrs import converter
+from arena_simulation_setup.utils.geometry import Position
 
 from .Map import Map
-from .Scenario import RegionAssignment, ScenarioView
+from .Scenario import ScenarioView
 
 
 @attrs.define
@@ -102,73 +102,45 @@ class WorldDescription:
     def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
         return (entity for zone in self.zones for entity in zone.entities.dynamic)
 
-    def lookup_zone_polygon(self, name: str) -> list[Position] | None:
-        """Look up a zone, door, or elevator by name and return its polygon vertices."""
-        for zone in self.zones:
-            if zone.name == name:
-                return zone.corners
-            for door in zone.doors:
-                if door.name == name:
-                    return _door_polygon(door.start, door.end)
-            for elevator in zone.elevators:
-                if elevator.name == name:
-                    return _elevator_polygon(elevator.position, elevator.size)
-        return None
-
-    def zone_converter(
+    def _rasterize_kwargs(
         self,
-        rng: np.random.Generator,
         *,
-        is_valid: typing.Callable[[Position], bool] | None = None,
-    ) -> ArenaConverter:
-        """Return a converter that resolves zone/door/elevator names to geometry.
+        default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
+        asset_color: str | None = None,
+        asset_name_color: str | None = None,
+    ) -> dict[str, typing.Any]:
+        import shapely
+        import shapely.affinity
 
-        String values for Pose/Position fields are resolved by sampling a
-        random point within the named zone polygon.  RegionAssignment dicts
-        with a ``ref`` key get their polygon resolved from the world.
+        map_kwargs: dict[str, typing.Any] = {
+            "rooms": shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
+            "doors": shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
+            "walls": shapely.MultiLineString(list(self.all_walls)),
+            "padding": 5,
+        }
 
-        ``is_valid``: optional predicate applied during sampling to reject
-        points that are too close to obstacles. Scenario loads still succeed
-        if no valid sample is found (the last candidate is returned with a
-        warning) so borderline-misconfigured zones don't break episodes.
-        """
-        lookup = self.lookup_zone_polygon
+        if asset_color is not None:
+            static_objects: list[tuple[str, shapely.Polygon]] = []
+            for entity in self.all_static_entities:
+                try:
+                    bbox = entity.asdict(expand_extra=True).get('bbox')
+                    if bbox is None:
+                        if default_asset_bbox is None:
+                            raise ValueError(f"Static entity '{entity.name}' does not have a bbox and no default_asset_bbox was provided.")
+                        bbox = default_asset_bbox
+                    (x_min, x_max), (y_min, y_max), *_ = bbox
+                except Exception:
+                    continue
+                poly = shapely.box(x_min, y_min, x_max, y_max)
+                poly = shapely.affinity.rotate(poly, entity.pose.orientation.to_yaw(), use_radians=True)
+                poly = shapely.affinity.translate(poly, entity.pose.position.x, entity.pose.position.y)
+                static_objects.append((entity.name, poly))
 
-        base_pose_hook = converter.get_structure_hook(Pose)
-        base_position_hook = converter.get_structure_hook(Position)
-        base_region_hook = converter.get_structure_hook(RegionAssignment)
+            map_kwargs["static_objects"] = static_objects
+            map_kwargs["asset_color"] = asset_color
+            map_kwargs["asset_name_color"] = asset_name_color
 
-        def pose_hook(v: object, t: type) -> Pose:
-            if isinstance(v, str):
-                polygon = lookup(v)
-                if polygon is None:
-                    raise ValueError(f"zone ref '{v}' not found in world")
-                pt = sample_point_in_polygon(polygon, rng, is_valid=is_valid)
-                return Pose(position=pt, orientation=Orientation.identity())
-            return base_pose_hook(v, t)
-
-        def position_hook(v: object, t: type) -> Position:
-            if isinstance(v, str):
-                polygon = lookup(v)
-                if polygon is None:
-                    raise ValueError(f"zone ref '{v}' not found in world")
-                return sample_point_in_polygon(polygon, rng, is_valid=is_valid)
-            return base_position_hook(v, t)
-
-        def region_hook(v: object, t: type) -> RegionAssignment:
-            if isinstance(v, dict) and 'ref' in v:
-                ref = v.pop('ref')
-                polygon = lookup(ref)
-                if polygon is None:
-                    raise ValueError(f"region ref '{ref}' not found in world")
-                v['polygon'] = polygon
-            return base_region_hook(v, t)
-
-        c = converter.copy()
-        c.register_structure_hook(Pose, pose_hook)
-        c.register_structure_hook(Position, position_hook)
-        c.register_structure_hook(RegionAssignment, region_hook)
-        return c
+        return map_kwargs
 
     def render(
         self,
@@ -194,41 +166,32 @@ class WorldDescription:
             - Static objects are drawn only if their dimensions can be determined from bbox, width/height, or default_asset_bbox.
             - If asset_color is None, static objects are not drawn.
         """
-        import shapely
-        import shapely.affinity
-
-        map_kwargs: dict[str, typing.Any] = {}
-
-        if asset_color is not None:
-            static_objects: list[tuple[str, shapely.Polygon]] = []
-            for entity in self.all_static_entities:
-                try:
-                    bbox = entity.asdict(expand_extra=True).get('bbox')
-                    if bbox is None:
-                        if default_asset_bbox is None:
-                            raise ValueError(f"Static entity '{entity.name}' does not have a bbox and no default_asset_bbox was provided.")
-                        bbox = default_asset_bbox
-                    (x_min, x_max), (y_min, y_max), *_ = bbox
-                except Exception:
-                    continue
-                poly = shapely.box(x_min, y_min, x_max, y_max)
-                poly = shapely.affinity.rotate(poly, entity.pose.orientation.to_yaw(), use_radians=True)
-                poly = shapely.affinity.translate(poly, entity.pose.position.x, entity.pose.position.y)
-                static_objects.append((entity.name, poly))
-
-            map_kwargs["static_objects"] = static_objects
-            map_kwargs["asset_color"] = asset_color
-            map_kwargs["asset_name_color"] = asset_name_color
-
-        png, origin = Map.generate_png(
-            rooms=shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
-            doors=shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
-            walls=shapely.MultiLineString(list(self.all_walls)),
+        return Map.generate_png(
             resolution=resolution,
-            padding=5,
-            **map_kwargs,
+            **self._rasterize_kwargs(
+                default_asset_bbox=default_asset_bbox,
+                asset_color=asset_color,
+                asset_name_color=asset_name_color,
+            ),
         )
-        return png, origin
+
+    def render_grid(
+        self,
+        resolution: float = 0.05,
+        *,
+        default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
+        asset_color: str | None = None,
+        asset_name_color: str | None = None,
+    ) -> tuple[np.ndarray, tuple[float, float]]:
+        """Like `render` but returns a uint8 numpy array (255=free, 0=occupied) + origin."""
+        return Map.rasterize(
+            resolution=resolution,
+            **self._rasterize_kwargs(
+                default_asset_bbox=default_asset_bbox,
+                asset_color=asset_color,
+                asset_name_color=asset_name_color,
+            ),
+        )
 
     def export(self, resolution: float = 0.05, extra_files: dict[str, bytes] | None = None, **kwargs: object) -> tarfile.TarFile:
         """

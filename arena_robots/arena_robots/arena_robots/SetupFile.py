@@ -19,10 +19,8 @@ class Config:
 
     robot: str  # name of robot
     name: str | None = None  # name or name prefix
-    planner: str | None = None  # nav2 planner
-    controller: str | None = None  # nav2 controller
-    behavior: str | None = None  # nav2 behavior tree
-    navigator: str | None = None  # navstack adapter kind (overrides model_params.navigator)
+    mobile: str | None = None  # mobile adapter kind (overrides robot.mobile_adapter)
+    arm: str | None = None  # arm adapter kind (overrides robot.arm_adapter)
 
     extra: dict[str, typing.Any] = attrs.field(factory=dict)  # extra arbitrary data
 
@@ -32,7 +30,18 @@ class Config:
         if isinstance(data, str):
             return (cls(robot=data, name=data),)
         count = data.get('count', 1)
-        fields = {k: v for k, v in data.items() if k != 'count'}
+        known = {f.name for f in attrs.fields(cls)}
+        fields: dict[str, typing.Any] = {}
+        extra: dict[str, typing.Any] = {}
+        for k, v in data.items():
+            if k == 'count':
+                continue
+            if k in known:
+                fields[k] = v
+            else:
+                extra[k] = v
+        if extra:
+            fields['extra'] = {**fields.get('extra', {}), **extra}
         return tuple(cls(**copy.deepcopy(fields)) for _ in range(count))
 
 

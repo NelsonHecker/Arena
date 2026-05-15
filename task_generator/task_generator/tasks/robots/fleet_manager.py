@@ -18,7 +18,10 @@ class TaskModeSpec:
     """A single entry in the episode-level task_modes list."""
 
     kind: str
-    produces: TaskKind = TaskKind.GOTO_POSE
+    produces: frozenset[TaskKind] = attrs.field(
+        default=frozenset({TaskKind.GOTO_POSE}),
+        converter=lambda v: v if isinstance(v, frozenset) else frozenset({v}) if isinstance(v, TaskKind) else frozenset(v),
+    )
     assignments: list[str] = attrs.field(factory=list)
     config: dict = attrs.field(factory=dict)
 
@@ -45,8 +48,8 @@ class FleetManager:
                 if name in used:
                     raise AssertionError(f"robot {name!r} is pinned to multiple task_modes")
                 robot = by_name[name]
-                if spec.produces not in robot.accepts:
-                    raise AssertionError(f"task_mode {spec.kind!r} requires task kind {spec.produces!r} but robot {name!r} accepts only {sorted(k.name for k in robot.accepts)}")
+                if not spec.produces.issubset(robot.accepts):
+                    raise AssertionError(f"task_mode {spec.kind!r} requires task kinds {spec.produces!r} but robot {name!r} accepts only {sorted(k.name for k in robot.accepts)}")
                 allocation[spec].append(robot)
                 used.add(name)
 
@@ -55,7 +58,7 @@ class FleetManager:
             if robot.name in used:
                 continue
             for spec in unpinned_specs:
-                if spec.produces in robot.accepts:
+                if spec.produces.issubset(robot.accepts):
                     allocation[spec].append(robot)
                     used.add(robot.name)
                     break

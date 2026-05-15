@@ -11,7 +11,6 @@ from arena_rclpy_mixins.shared import Namespace
 from task_generator.constants import Constants
 from task_generator.shared import Pose
 from task_generator.tasks.context import TaskContext
-from task_generator.tasks.registry import _TaskRegistry
 from task_generator.tasks.robots import TM_Robots
 
 
@@ -39,6 +38,7 @@ def _scoped_ctx(parent: TaskContext, robot_names: typing.Iterable[str]) -> TaskC
         environment_manager=parent.environment_manager,
         robots_manager=scoped_mgr,  # type: ignore[arg-type]
         world_manager=parent.world_manager,
+        abort_episode=parent.abort_episode,
     )
 
 
@@ -54,6 +54,13 @@ class TM_Composite(TM_Robots):
     async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
         await asyncio.gather(*(m.reset(**kwargs) for m in self._sub_modes))
+
+    @property
+    def start_poses(self) -> dict:
+        merged: dict = {}
+        for m in self._sub_modes:
+            merged.update(m.start_poses)
+        return merged
 
     @property
     async def done(self) -> bool:
@@ -116,4 +123,4 @@ __all__ = [
     "get_extra_tm_loader",
 ]
 
-_ = (Namespace, Constants, _TaskRegistry)
+_ = (Namespace, Constants)

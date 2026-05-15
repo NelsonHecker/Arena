@@ -30,8 +30,8 @@ _AUTO_ENV_ID = 0xFFFF
 
 def _allocate_env(env_id: int, ns: str) -> tuple[int, str, str]:
     import rclpy
-    from rclpy.node import Node
     from arena_runtime_msgs.srv import RegisterEnv
+    from rclpy.node import Node
 
     if not rclpy.ok():
         rclpy.init(args=[])
@@ -110,7 +110,7 @@ def generate_launch_description():
     )
 
     sim = LaunchArgument(name="sim", default_value="dummy", description="[dummy, gazebo, isaac]")
-    # human/navigator defaults are derived from arena's authoritative `sim` (the value
+    # human/mobile defaults are derived from arena's authoritative `sim` (the value
     # arena_node actually configured), not from this launch's local `sim` arg, which only
     # affects how the env *requests* registration. Empty here means "use arena_sim".
     # User can still override by passing e.g. human:=hunav explicitly.
@@ -132,24 +132,21 @@ def generate_launch_description():
         default_value='',
         description='Sets task.scenario.file ROS param (empty = use parameter_file default).',
     )
-    agent_name = LaunchArgument(
-        name='agent_name',
-        default_value='',
-        description='RL agent name; sets agent_name ROS param.',
-    )
     tm_obstacles = LaunchArgument(name="tm_obstacles", default_value="random")
     tm_modules = LaunchArgument(name="tm_modules", default_value="rviz_ui")
+    optim = LaunchArgument(name="optim", default_value=os.environ.get("ARENA_OPTIM", ""))
     world = LaunchArgument(name="world", default_value="map_empty")
-    inter_planner = LaunchArgument(name="inter_planner", default_value="navigate_w_replanning_time")
-    local_planner = LaunchArgument(name="local_planner", default_value="dwb")
-    global_planner = LaunchArgument(name="global_planner", default_value="navfn")
-    navigator = LaunchArgument(
-        name="navigator",
+    mobile = LaunchArgument(
+        name="mobile",
         default_value="",
-        description="empty = derive from arena_sim ({dummy: none, *: nav2})",
+        description="mobile adapter kind; empty = derive from arena_sim ({dummy: none, *: nav2})",
+    )
+    arm = LaunchArgument(
+        name="arm",
+        default_value="moveit",
+        description="arm adapter kind",
     )
     record_data_dir = LaunchArgument(name="record_data_dir", default_value="")
-    headless = LaunchArgument(name="headless", default_value="False")
     debug = LaunchArgument(name="debug", default_value="False")
     auto_reset = LaunchArgument(
         name="auto_reset",
@@ -188,9 +185,12 @@ def generate_launch_description():
         human_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)
         ) or {"dummy": "dummy", "gazebo": "hunav", "isaac": "hunav"}.get(arena_sim, "dummy")
-        navigator_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(navigator.substitution)
+        mobile_val = launch.utilities.perform_substitutions(
+            context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)
         ) or {"dummy": "none"}.get(arena_sim, "nav2")
+        arm_val = launch.utilities.perform_substitutions(
+            context, launch.utilities.normalize_to_list_of_substitutions(arm.substitution)
+        )
 
         human_launch = IncludeLaunchDescription(
             PathJoinSubstitution([
@@ -201,12 +201,6 @@ def generate_launch_description():
                 "simulator": human_val,
                 "namespace": allocated_ns,
             }.items(),
-        )
-
-        map_server_node = IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, "launch", "utils", "map_server.launch.py")
-            )
         )
 
         pedestrian_marker_node = launch_ros.actions.Node(
@@ -227,15 +221,15 @@ def generate_launch_description():
             output="screen",
         )
 
-        rviz_node = launch_ros.actions.Node(
-            package="rviz_utils",
-            executable="rviz_config",
-            name="rviz_config_generator",
-            arguments=[fqn],
-            parameters=[{"use_sim_time": True}],
-            output="screen",
-            condition=launch.conditions.UnlessCondition(headless.substitution),
-        )
+        dotted_overrides: dict[str, str] = {}
+        for k, v in context.launch_configurations.items():
+            if k.startswith("task."):
+                dotted_overrides[k] = v
+            elif k.startswith("mobile.") or k.startswith("arm."):
+                # `<cap>.<key>:=<val>` becomes `robot.<cap>.<key>` and lands as a
+                # kwarg in RobotManager._adapter_kwargs_for, overlaying the
+                # cap-file YAML for the bound adapter.
+                dotted_overrides[f"robot.{k}"] = v
 
         task_generator_node = launch_ros.actions.Node(
             package="task_generator",
@@ -248,15 +242,14 @@ def generate_launch_description():
                     "use_sim_time": True,
                     "sim": arena_sim,
                     "human": human_val,
-                    "navigator": navigator_val,
+                    "robot.mobile_adapter": mobile_val,
+                    "robot.arm_adapter": arm_val,
                     **robot.str_param,
                     **tm_robots.str_param,
                     **tm_obstacles.str_param,
                     **tm_modules.str_param,
+                    **optim.str_param,
                     **world.str_param,
-                    **inter_planner.str_param,
-                    **local_planner.str_param,
-                    **global_planner.str_param,
                     **record_data_dir.str_param,
                     **debug.param(bool),
                     **auto_reset.param(bool),
@@ -268,8 +261,8 @@ def generate_launch_description():
                 {
                     **episodes.param(int),
                     'task.scenario.file': scenario_file.substitution,
-                    **agent_name.str_param,
                 },
+                dotted_overrides,
             ],
         )
 
@@ -290,9 +283,7 @@ def generate_launch_description():
 
         inner_group = launch.actions.GroupAction([
             PushRosNamespace(namespace=allocated_ns),
-            map_server_node,
             pedestrian_marker_node,
-            rviz_node,
         ])
 
         shutdown_on_node_exit = RegisterEventHandler(OnProcessExit(

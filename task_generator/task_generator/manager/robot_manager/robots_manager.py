@@ -3,6 +3,7 @@ import contextlib
 import os
 import re
 import typing
+from collections.abc import Callable
 
 import arena_robots.SetupFile as robot_setup
 import attrs
@@ -203,7 +204,6 @@ class RobotsManager(NodeInterface):
         prespawn_x, prespawn_y = self.node._prespawn_offset
         self._initialpose = _initialpose_generator(prespawn_x, prespawn_y, -5)
 
-        node_paths: set[str] = set()
         for robot_name, config in self._diff.to_add.items():
             config = attrs.evolve(config)
             config.name = robot_name
@@ -216,17 +216,13 @@ class RobotsManager(NodeInterface):
                 environment_manager=self._environment_manager,
                 robot=config,
             )
-            futures.append(manager.set_up_robot(node_paths))
+            if self._abort_episode is not None:
+                manager.bind_abort(self._abort_episode)
+            futures.append(manager.set_up_robot())
             self.managers[robot_name] = manager
+            self._pending_launch.append(manager)
 
-        with self.provide_node_paths(node_paths) as fetch_task:
-            await asyncio.wait(
-                (
-                    fetch_task,
-                    asyncio.gather(*futures),
-                ),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+        await asyncio.gather(*futures)
         self._diff.to_add.clear()
 
         self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
@@ -244,18 +240,44 @@ class RobotsManager(NodeInterface):
         )
         self.node._pub_state_robots.publish(fleet)
 
+    def bind_abort(self, fn: Callable[[str], None]) -> None:
+        """Propagate an abort callable to all current and future RobotManagers."""
+        self._abort_episode = fn
+        for mgr in self._managers.values():
+            mgr.bind_abort(fn)
+
     def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager: EnvironmentManager = environment_manager
         self._managers: dict[str, RobotManager] = {}
         self._initialpose = _initialpose_generator(0.0, 0.0, -5)
         self._diff = _RobotDiff()
+        self._pending_launch: list[RobotManager] = []
+        self._abort_episode: Callable[[str], None] | None = None
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](
             'robot',
             type_=rclpy.Parameter.Type.STRING,
             parse=self._parse_robot_configurations,
         )
+
+    async def launch_pending(self) -> None:
+        """Bring up navstacks for managers queued by set_up. Caller controls when this fires
+        so LaunchService.run_async()'s main-loop block doesn't starve concurrent work
+        (e.g. spawn_world_obstacles)."""
+        if not self._pending_launch:
+            return
+        pending = self._pending_launch
+        self._pending_launch = []
+        node_paths: set[str] = set()
+        with self.provide_node_paths(node_paths) as fetch_task:
+            await asyncio.wait(
+                (
+                    fetch_task,
+                    asyncio.gather(*(m.launch(node_paths) for m in pending)),
+                ),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
     def add_pending(self, name: str, robot: Robot) -> None:
         """Queue a robot for full set_up_robot on the next reset_cycle."""

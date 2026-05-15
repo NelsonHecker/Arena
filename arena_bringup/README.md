@@ -8,7 +8,7 @@ task-generator, and navigation stack lives here.
 
 - [Usage (BRINGUP.md)](BRINGUP.md) — minimum-viable invocations, common arg
   permutations, expected behavior.
-- [Launch surface](launch/README.md) — full `arena.launch.py` argument table,
+- [Launch surface](launch/README.md) — full `arena_runtime.launch.py` argument table,
   top-level composition, and the `utils/` helpers.
 - [Simulator dispatch](launch/simulator/sim/README.md) — `SelectAction`
   convention, per-sim subdirs (`gazebo/`, `isaac/`), adding a new simulator.

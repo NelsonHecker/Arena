@@ -13,103 +13,102 @@ def _ros_gate():
 
 def test_registry_has_obstacles_entries():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    assert Constants.TaskMode.TM_Obstacles.PARAMETRIZED in _TaskRegistry.registry_obstacles
-    assert Constants.TaskMode.TM_Obstacles.RANDOM in _TaskRegistry.registry_obstacles
-    assert Constants.TaskMode.TM_Obstacles.SCENARIO in _TaskRegistry.registry_obstacles
-    assert Constants.TaskMode.TM_Obstacles.ENVIRONMENT in _TaskRegistry.registry_obstacles
+    from task_generator.tasks.registry import OBSTACLES_MODES
+    assert Constants.TaskMode.TM_Obstacles.PARAMETRIZED in OBSTACLES_MODES
+    assert Constants.TaskMode.TM_Obstacles.RANDOM in OBSTACLES_MODES
+    assert Constants.TaskMode.TM_Obstacles.SCENARIO in OBSTACLES_MODES
+    assert Constants.TaskMode.TM_Obstacles.ENVIRONMENT in OBSTACLES_MODES
+    # PROMPT is registered per-BaseHumanSimulator subclass via _register_task_modes,
+    # not centrally; see test_humansim_register.py.
 
 
 def test_registry_has_robots_entries():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    assert Constants.TaskMode.TM_Robots.GUIDED in _TaskRegistry.registry_robots
-    assert Constants.TaskMode.TM_Robots.EXPLORE in _TaskRegistry.registry_robots
-    assert Constants.TaskMode.TM_Robots.RANDOM in _TaskRegistry.registry_robots
-    assert Constants.TaskMode.TM_Robots.SCENARIO in _TaskRegistry.registry_robots
+    from task_generator.tasks.registry import ROBOTS_MODES
+    assert Constants.TaskMode.TM_Robots.GUIDED in ROBOTS_MODES
+    assert Constants.TaskMode.TM_Robots.EXPLORE in ROBOTS_MODES
+    assert Constants.TaskMode.TM_Robots.RANDOM in ROBOTS_MODES
+    assert Constants.TaskMode.TM_Robots.SCENARIO in ROBOTS_MODES
 
 
 def test_registry_has_module_entries():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    assert Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES in _TaskRegistry.registry_module
-    assert Constants.TaskMode.TM_Module.RVIZ_UI in _TaskRegistry.registry_module
-    assert Constants.TaskMode.TM_Module.STAGED in _TaskRegistry.registry_module
+    from task_generator.tasks.registry import MODULE_MODES
+    assert Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES in MODULE_MODES
+    assert Constants.TaskMode.TM_Module.RVIZ_UI in MODULE_MODES
+    assert Constants.TaskMode.TM_Module.STAGED in MODULE_MODES
 
 
 def test_register_obstacles_duplicate_raises():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    with pytest.raises(AssertionError, match="already exists"):
-        @_TaskRegistry.register_obstacles(Constants.TaskMode.TM_Obstacles.RANDOM)
+    from task_generator.tasks.registry import _REGISTRY_NAMESPACE, OBSTACLES_MODES
+    with pytest.raises((AssertionError, KeyError, ValueError)):
+        @OBSTACLES_MODES.register(Constants.TaskMode.TM_Obstacles.RANDOM, namespace=_REGISTRY_NAMESPACE("dup"))
         def _loader():
             pass
 
 
 def test_register_robots_duplicate_raises():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    with pytest.raises(AssertionError, match="already exists"):
-        @_TaskRegistry.register_robots(Constants.TaskMode.TM_Robots.GUIDED)
+    from task_generator.tasks.registry import _REGISTRY_NAMESPACE, ROBOTS_MODES
+    with pytest.raises((AssertionError, KeyError, ValueError)):
+        @ROBOTS_MODES.register(Constants.TaskMode.TM_Robots.GUIDED, namespace=_REGISTRY_NAMESPACE("dup"))
         def _loader():
             pass
 
 
 def test_register_module_duplicate_raises():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    with pytest.raises(AssertionError, match="already exists"):
-        @_TaskRegistry.register_module(Constants.TaskMode.TM_Module.STAGED)
+    from task_generator.tasks.registry import _REGISTRY_NAMESPACE, MODULE_MODES
+    with pytest.raises((AssertionError, KeyError, ValueError)):
+        @MODULE_MODES.register(Constants.TaskMode.TM_Module.STAGED, namespace=_REGISTRY_NAMESPACE("dup"))
         def _loader():
             pass
 
 
-def test_obstacles_loader_is_callable():
-    from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    loader, namespace, _schema = _TaskRegistry.registry_obstacles[Constants.TaskMode.TM_Obstacles.RANDOM]
-    assert callable(loader)
-
-
-def test_robots_loader_is_callable():
-    from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    loader, namespace, _schema = _TaskRegistry.registry_robots[Constants.TaskMode.TM_Robots.RANDOM]
-    assert callable(loader)
-
-
-def test_module_loader_is_callable():
-    from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    loader, namespace, _schema = _TaskRegistry.registry_module[Constants.TaskMode.TM_Module.STAGED]
-    assert callable(loader)
-
-
-def test_obstacles_namespace_contains_value():
-    from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    _, namespace, _schema = _TaskRegistry.registry_obstacles[Constants.TaskMode.TM_Obstacles.RANDOM]
-    assert "random" in str(namespace)
-
-
-def test_robots_namespace_contains_value():
-    from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    _, namespace, _schema = _TaskRegistry.registry_robots[Constants.TaskMode.TM_Robots.SCENARIO]
-    assert "scenario" in str(namespace)
-
-
 def test_obstacles_loader_returns_class():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    loader, _, _schema = _TaskRegistry.registry_obstacles[Constants.TaskMode.TM_Obstacles.RANDOM]
-    cls = loader()
+    from task_generator.tasks.registry import OBSTACLES_MODES
+    cls = OBSTACLES_MODES.get(Constants.TaskMode.TM_Obstacles.RANDOM)
     assert isinstance(cls, type)
 
 
 def test_robots_loader_returns_class():
     from task_generator.constants import Constants
-    from task_generator.tasks.registry import _TaskRegistry
-    loader, _, _schema = _TaskRegistry.registry_robots[Constants.TaskMode.TM_Robots.RANDOM]
-    cls = loader()
+    from task_generator.tasks.registry import ROBOTS_MODES
+    cls = ROBOTS_MODES.get(Constants.TaskMode.TM_Robots.RANDOM)
     assert isinstance(cls, type)
+
+
+def test_module_loader_returns_class():
+    from task_generator.constants import Constants
+    from task_generator.tasks.registry import MODULE_MODES
+    cls = MODULE_MODES.get(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
+    assert isinstance(cls, type)
+
+
+def test_obstacles_namespace_contains_value():
+    from task_generator.constants import Constants
+    from task_generator.tasks.registry import OBSTACLES_MODES
+    meta = OBSTACLES_MODES.meta(Constants.TaskMode.TM_Obstacles.RANDOM)
+    assert "random" in str(meta.namespace)
+
+
+def test_robots_namespace_contains_value():
+    from task_generator.constants import Constants
+    from task_generator.tasks.registry import ROBOTS_MODES
+    meta = ROBOTS_MODES.meta(Constants.TaskMode.TM_Robots.SCENARIO)
+    assert "scenario" in str(meta.namespace)
+
+
+def test_meta_accessible_without_invoking_loader():
+    """Regression guard: .meta() reads registry-side, never invokes the loader.
+
+    Canary: STAGED's impl.py imports `map_generator.constants` (ROS1-era, not on the
+    runtime path). If .meta() invokes the loader, this raises ModuleNotFoundError.
+    """
+    from task_generator.constants import Constants
+    from task_generator.tasks.registry import MODULE_MODES
+    meta = MODULE_MODES.meta(Constants.TaskMode.TM_Module.STAGED)
+    assert meta is not None
+    assert meta.schema is None

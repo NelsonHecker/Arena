@@ -80,23 +80,17 @@ class Realizer:
     def realize(self, target: Pose) -> Pose: ...
 
     def _realize_entity(self, entity: EntityPropsT) -> EntityPropsT:
-        res = attrs.evolve(
+        return attrs.evolve(
             entity,
-            name=self._prefix(entity.name),
             pose=self._realize_pose(entity.pose),
         )
-        res.sim_path = res.name
-        return res
 
     def _realize_dynamic_obstacle(self, obstacle: DynamicObstacle) -> DynamicObstacle:
-        res = attrs.evolve(
+        return attrs.evolve(
             obstacle,
-            name=self._prefix(obstacle.name),
             pose=self._realize_pose(obstacle.pose),
             waypoints=[self._realize_position(w) for w in obstacle.waypoints],
         )
-        res.sim_path = res.name
-        return res
 
     @typing.overload
     def realize(self, target: Wall) -> Wall: ...
@@ -112,39 +106,33 @@ class Realizer:
     def realize(self, target: Floor) -> Floor: ...
 
     def _realize_floor(self, floor: Floor) -> Floor:
-        res = attrs.evolve(
+        return attrs.evolve(
             floor,
             name=self._prefix(floor.name),
             pos=self._realize_position(floor.pos),
         )
-        res.sim_path = res.name
-        return res
 
     @typing.overload
     def realize(self, target: Door) -> Door: ...
 
     def _realize_door(self, door: Door) -> Door:
-        res = attrs.evolve(
+        return attrs.evolve(
             door,
             name=self._prefix(door.name),
             start=self._realize_position(door.start),
             end=self._realize_position(door.end),
         )
-        res.sim_path = res.name
-        return res
 
     @typing.overload
     def realize(self, target: Elevator) -> Elevator: ...
 
     def _realize_elevator(self, elevator: Elevator) -> Elevator:
-        res = attrs.evolve(
+        return attrs.evolve(
             elevator,
             name=self._prefix(elevator.name),
             position=self._realize_position(elevator.position),
             destination=self._prefix(elevator.destination) if elevator.destination else elevator.destination,
         )
-        res.sim_path = res.name
-        return res
 
     def realize(
         self,
@@ -185,4 +173,5 @@ class Realizer:
         if res is None:
             raise TypeError(f'realization not implemented for type {type(target)}')
 
+        res.sim_path = self._prefix(res.name)
         return res

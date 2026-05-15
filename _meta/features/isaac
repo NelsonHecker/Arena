@@ -126,13 +126,17 @@ source_fn(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <update|uninstall|source>"
+    echo "Usage: $name <update|uninstall|source|launch>"
 }
 if [ $# -lt 1 ]; then
     help
     exit 1
 fi
 case "$1" in
+    launch)
+        shift
+        exec ros2 launch arena_isaac run_isaacsim.launch.py "$@"
+    ;;
     update)
         update
         exit $?

@@ -1,3 +1,5 @@
+[![Discord](https://img.shields.io/badge/Discord-Join%20chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/GNTTf9DKyp)
+
 # Arena-Rosnav
 
 A modular ROS 2 (Jazzy) platform for researching and benchmarking autonomous robot navigation in 2D and 3D simulated environments. It supports classical planners (Nav2), deep-RL planners ([rosnav_rl](https://github.com/Arena-Rosnav/rosnav-rl)), and a variety of simulators (Gazebo, Isaac Sim).
@@ -52,12 +54,12 @@ The container will start automatically on source and continue running in the bac
 cd ~/arena_ws # replace with your actual workspace path
 source arena
 arena launch sim:=isaac                          # Isaac Sim
-arena launch local_planner:=rosnav_rl agent_name:=<your_agent>  # DRL planner
-arena train sim:=gazebo local_planner:=rosnav_rl train_config:=<config.yaml>  # DRL training
+arena launch mobile:=rosnav_rl mobile.agent:=<your_agent>  # DRL planner
+arena train sim:=gazebo mobile:=rosnav_rl train_config:=<config.yaml>  # DRL training
 ```
 
 ### DRL quick-start
-Place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `local_planner:=rosnav_rl agent_name:=<agent_name>`. Refer to the [arena_training](arena_training/README.md) for training instructions.
+Place your trained agent folder inside `Arena/arena_training/agents/<agent_name>/` (must contain `training_config.yaml` and `best_model.zip`), then launch with `mobile:=rosnav_rl mobile.agent:=<agent_name>`. Refer to the [arena_training](arena_training/README.md) for training instructions.
 
 
 ## Development

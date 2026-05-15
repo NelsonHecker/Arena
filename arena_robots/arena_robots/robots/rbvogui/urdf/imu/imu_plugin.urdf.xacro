@@ -176,8 +176,7 @@
             <linear_acceleration_enabled>true</linear_acceleration_enabled>
           </imu>
 
-          <topic>${node_namespace}/${node_name}/data</topic>
-          <gz_frame_id>${frame_link}</gz_frame_id>
+          <gz_frame_id>$(arg sim_path)/${frame_link}</gz_frame_id>
 
         </sensor>
       </gazebo>

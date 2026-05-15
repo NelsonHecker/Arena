@@ -30,7 +30,8 @@ Equivalent to `{ robot: jackal, name: jackal }` followed by
   planner: SmacPlanner # optional: nav2 planner override
   controller: MPPI     # optional: nav2 controller override
   behavior: default    # optional: nav2 behavior tree override
-  navigator: nav2      # optional: navstack adapter kind (overrides model_params.navigator)
+  mobile: nav2         # optional: mobile adapter kind (overrides robot.mobile_adapter)
+  arm: moveit          # optional: arm adapter kind (overrides robot.arm_adapter)
   extra:               # optional: free-form pass-through dict
     foo: bar
 ```

@@ -27,8 +27,10 @@ from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.shared import Orientation, Pose, Position, Robot
 
 if typing.TYPE_CHECKING:
-    from task_generator.tasks.robots.adapters import Adapter
-    from task_generator.tasks.robots.request import TaskKind, TaskRequest
+    from collections.abc import Callable
+
+    from task_generator.tasks.robots.adapters import Adapter, ResetContext
+    from task_generator.tasks.robots.request import TaskKind, TaskPhase, TaskRequest
 
 
 _NAV2_QUIET_NODES = (
@@ -45,6 +47,8 @@ _NAV2_QUIET_NODES = (
 )
 _NAV2_QUIET_RULES = '+[' + ', '.join(f'**/{n}:error' for n in _NAV2_QUIET_NODES) + ']'
 
+_MOVEIT_QUIET_RULES = '+[**/moveit/**:error]'
+
 
 class RobotManager(NodeInterface):
     """Manages the goal and start position of a robot for all task modes."""
@@ -54,19 +58,18 @@ class RobotManager(NodeInterface):
     _start_pos: Pose
     _goal_pos: Pose
     _robot_radius: float
-    _goal_tolerance_distance: float
-    _goal_tolerance_angle: float
     _robot: Robot
     _move_base_pub: rclpy.publisher.Publisher
     _goal_pub: rclpy.publisher.Publisher
     _pub_goal_timer: rclpy.timer.Timer
     _rate_setup: rclpy.timer.Rate
     _config: RobotView
-    # TaskKind -> Adapter dispatch table. V1 holds exactly one entry
-    # derived from robot.navigator; multi-capability composition is TODO.
     _adapters: dict[TaskKind, Adapter]
+    _adapter_instances: list[Adapter]
     _current_request: TaskRequest | None
     _phase_index: int
+    _unsupported_kinds_logged: set[TaskKind]
+    _abort_episode: Callable[[str], None] | None
 
     @property
     def robot(self) -> Robot:
@@ -122,10 +125,6 @@ class RobotManager(NodeInterface):
         self._goal_pos = Pose()
         self._robot_radius = 0.25
 
-        self._goal_tolerance_distance = self.node.conf.Robot.GOAL_TOLERANCE_RADIUS.value
-        self._goal_tolerance_angle = self.node.conf.Robot.GOAL_TOLERANCE_ANGLE.value
-        self._safety_distance = self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
-
         self._robot = robot
         self._robot.sim_path = self._environment_manager.realize(robot.name)
         self._robot.extra.setdefault('namespace', self.namespace)
@@ -133,63 +132,78 @@ class RobotManager(NodeInterface):
 
         self._publish_goal_task: asyncio.Task | None = None
 
-        # Precedence: per-robot ``navigator`` in robot_setup YAML wins over
-        # the CLI / launch-arg default (Robot.parse resolves it). The
-        # model_params ``navigator`` is a fallback for the empty-string case.
-        # Matching ``capabilities`` entry's extra keys (minus ``kind``) flow
-        # as kwargs to the adapter constructor.
-        # TODO: multi-capability adapter composition.
         # Deferred to break the import cycle between this module and
         # task_generator.tasks (which eagerly loads context.py → RobotManager).
         from task_generator.tasks.robots.adapters import ADAPTERS
+        from task_generator.tasks.robots.request import TaskKind
 
-        navigator_kind = self._robot.navigator or self._config.model_params.navigator
-        adapter_cls = ADAPTERS.get(navigator_kind)
+        caps_available = self._config.caps.available
+        caps_to_kind: dict[str, str] = {}
+        for cap in caps_available:
+            override = self._robot.adapter_overrides.get(cap)
+            if override is not None:
+                caps_to_kind[cap] = override
+                continue
+            param_name = f"robot.{cap}_adapter"
+            default_kind = self.node.rosparam[str].get(param_name, None)
+            if default_kind is None:
+                self._logger.warning(f"robot {self._robot.name!r} advertises cap {cap!r} but no default adapter is configured (param {param_name!r}); cap will be unbound.")
+                continue
+            caps_to_kind[cap] = default_kind
 
-        adapter_kwargs: dict[str, typing.Any] = {}
-        caps_list = self._config.model_params.capabilities
-        matching_caps = [entry for entry in caps_list if str(entry.get('kind', '')) == navigator_kind]
-        if len(matching_caps) > 1:
-            raise AssertionError(f"robot {self._robot.name!r} declares {len(matching_caps)} 'capabilities' entries for kind {navigator_kind!r}; only one is supported (multi-capability adapter composition is still TODO)")
-        if len(matching_caps) == 1:
-            adapter_kwargs = {k: v for k, v in matching_caps[0].items() if k != 'kind'}
-        other_kinds = sorted({str(entry.get('kind', '')) for entry in caps_list if str(entry.get('kind', '')) != navigator_kind})
-        if other_kinds:
-            self._logger.info(f"robot {self._robot.name!r} has additional 'capabilities' entries ({other_kinds}) not bound to any adapter (TODO: multi-capability adapter composition)")
+        self._adapters: dict[TaskKind, Adapter] = {}
+        self._adapter_instances: list[Adapter] = []
 
-        # Nav2 reads its planner triplet + train_mode from the Robot runtime
-        # config (populated by CLI / benchmark CLI YAML) unless the capabilities
-        # entry overrides it.
-        if navigator_kind == 'nav2':
-            adapter_kwargs.setdefault('global_planner', self._robot.global_planner)
-            adapter_kwargs.setdefault('local_planner', self._robot.local_planner)
-            adapter_kwargs.setdefault('inter_planner', self._robot.inter_planner)
-            adapter_kwargs.setdefault(
-                'train_mode',
-                self.node.rosparam[bool].get('train_mode', False),
-            )
+        for cap, kind in caps_to_kind.items():
+            if cap not in ADAPTERS:
+                raise AssertionError(f"robot {self._robot.name!r}: no adapter registry for cap {cap!r} (registered caps: {sorted(ADAPTERS)})")
+            adapter_cls = ADAPTERS[cap].get(kind)
+            declared_cap = adapter_cls._adapter_meta.cap
+            if declared_cap != cap:
+                raise AssertionError(f"adapter {kind!r} declares cap {declared_cap!r} but was selected for cap {cap!r} on robot {self._robot.name!r}")
 
-        try:
-            adapter = adapter_cls(robot_manager=self, **adapter_kwargs)
-        except TypeError as exc:
-            raise AssertionError(f"adapter {navigator_kind!r} rejected capability-derived kwargs {sorted(adapter_kwargs)} for robot {self._robot.name!r}: {exc}") from exc
+            adapter_kwargs = self._adapter_kwargs_for(cap, kind)
+            try:
+                adapter = adapter_cls(robot_manager=self, **adapter_kwargs)
+            except TypeError as exc:
+                raise AssertionError(f"adapter {kind!r} rejected kwargs {sorted(adapter_kwargs)} for robot {self._robot.name!r}: {exc}") from exc
 
-        robot_caps = self._config.caps.available
-        missing = adapter.requires - robot_caps
-        if missing:
-            raise AssertionError(f"robot {self._robot.name!r} (model {self._robot.model.name!r}) does not honor actuator caps required by navigator {navigator_kind!r}: missing {sorted(missing)}; robot declares {sorted(robot_caps)}")
+            missing = adapter.requires - caps_available
+            if missing:
+                raise AssertionError(f"adapter {kind!r} for robot {self._robot.name!r} missing caps {sorted(missing)}; robot declares {sorted(caps_available)}")
 
-        self._adapters = {kind: adapter for kind in adapter.accepts}
-        if not self._adapters:
-            raise AssertionError(f"adapter {navigator_kind!r} declares no ``accepts`` set; cannot bind to robot {self._robot.name!r}")
-        # Back-compat alias for the single-adapter path.
-        self._adapter = adapter
+            for tk in adapter.accepts:
+                if tk in self._adapters:
+                    raise AssertionError(f"robot {self._robot.name!r}: TaskKind {tk!r} claimed by both {self._adapters[tk].kind!r} and {kind!r}")
+                self._adapters[tk] = adapter
+            self._adapter_instances.append(adapter)
+
+        self._adapter = next(
+            (a for a in self._adapter_instances if TaskKind.GOTO_POSE in a.accepts),
+            self._adapter_instances[0] if self._adapter_instances else None,
+        )
 
         self._current_request = None
         self._phase_index = 0
+        self._unsupported_kinds_logged: set[TaskKind] = set()
+        self._abort_episode: Callable[[str], None] | None = None
 
-    async def set_up_robot(self, node_names: set[str]):
+    def bind_abort(self, fn: Callable[[str], None]) -> None:
+        self._abort_episode = fn
 
+    def _adapter_kwargs_for(self, cap: str, kind: str) -> dict[str, typing.Any]:
+        cap_raw = self._config.caps._load_cap_file(cap)
+        sub = cap_raw.get(kind, {})
+        kwargs: dict[str, typing.Any] = dict(sub) if isinstance(sub, dict) else {}
+        # CLI overrides land as `robot.<cap>.<key>` ROS params; they overlay the
+        # cap-file YAML so the bound adapter sees flag-level user intent.
+        for key, param in self.node.get_parameters_by_prefix(f"robot.{cap}").items():
+            kwargs[key] = param.value
+        if cap == 'mobile':
+            kwargs.setdefault('train_mode', self.node.rosparam[bool].get('train_mode', False))
+        return kwargs
+
+    async def set_up_robot(self):
         self._robot.pose.position.z += self._config.model_params.z_offset
         self._robot = (await self._environment_manager.spawn_robot((self._robot,)))[0]
 
@@ -201,6 +215,9 @@ class RobotManager(NodeInterface):
             10,
         )
 
+    async def launch(self, node_names: set[str]):
+        """Bring up the robot's navstack. Split from set_up_robot so callers can sequence the
+        LaunchService run after spawn_world_obstacles (which it would otherwise starve)."""
         await self._launch_robot(node_names)
 
         self._robot_radius = self.node.rosparam[float].get(
@@ -214,7 +231,7 @@ class RobotManager(NodeInterface):
 
     @property
     def safe_distance(self) -> float:
-        return self._robot_radius + self._safety_distance
+        return self._robot_radius + self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
 
     @property
     def model_name(self) -> str:
@@ -238,7 +255,45 @@ class RobotManager(NodeInterface):
         if Utils.get_arena_type() == Constants.ArenaType.TRAINING:
             return Namespace(f"{self._namespace}{self._namespace}_{self.model_name}")
 
-        return self._namespace(self._robot.sim_path)
+        return self._namespace(self._robot.name)
+
+    def _stop_current_task(self) -> None:
+        self._current_request = None
+        self._phase_index = 0
+        if self._publish_goal_task is not None:
+            self._publish_goal_task.cancel()
+            self._publish_goal_task = None
+
+    def _outcome_for_phase(self, phase: TaskPhase) -> tuple[int | None, str | None]:
+        """Return (status, reason) for the phase that just completed."""
+        adapter = self._adapters.get(phase.kind)
+        if adapter is None:
+            from arena_robots_msgs.action import GotoPose, PlayGesture, ReachPose
+
+            from task_generator.tasks.robots.request import TaskKind
+
+            _UNSUPPORTED_CAP: dict[TaskKind, int] = {
+                TaskKind.GOTO_POSE: GotoPose.Result.STATUS_UNSUPPORTED_CAP,
+                TaskKind.REACH_POSE: ReachPose.Result.STATUS_UNSUPPORTED_CAP,
+                TaskKind.PLAY_GESTURE: PlayGesture.Result.STATUS_UNSUPPORTED_CAP,
+            }
+            status = _UNSUPPORTED_CAP.get(phase.kind)
+            reason = f"no adapter for {phase.kind.name} on robot {self.name}"
+            return status, reason
+        status = adapter.client_for(phase.kind).status
+        reason = adapter.client_for(phase.kind).reason
+        return status, reason
+
+    async def _advance_to_next_phase(self, request: TaskRequest) -> bool:
+        """Advance phase index and dispatch next phase if one exists. Returns True when task is done."""
+        self._phase_index += 1
+        if self._phase_index >= len(request.phases):
+            return True
+        next_phase = request.phases[self._phase_index]
+        next_adapter = self._adapters.get(next_phase.kind)
+        if next_adapter is not None:
+            await next_adapter.dispatch_phase(next_phase, self)
+        return False
 
     @property
     async def is_done(self) -> bool:
@@ -260,6 +315,8 @@ class RobotManager(NodeInterface):
             adapter = self._adapters.get(phase.kind)
             if adapter is not None:
                 result = adapter.is_phase_done(phase, self)
+            else:
+                result = True
 
         if result is None:
             result = phase.is_satisfied(self)
@@ -267,14 +324,23 @@ class RobotManager(NodeInterface):
         if not result:
             return False
 
-        self._phase_index += 1
-        if self._phase_index >= len(request.phases):
-            return True
+        status, reason = self._outcome_for_phase(phase)
+        is_failure = status is not None and status != 0
 
-        next_phase = request.phases[self._phase_index]
-        next_adapter = self._adapters[next_phase.kind]
-        await next_adapter.dispatch_phase(next_phase, self)
-        return False
+        if is_failure:
+            policy = phase.on_failure
+            if policy == "stop_task":
+                self._logger.info(f"robot {self.name!r} phase {phase.kind.name} failed ({reason}); stopping task")
+                self._stop_current_task()
+                return True
+            if policy == "abort_episode":
+                self._logger.info(f"robot {self.name!r} phase {phase.kind.name} failed ({reason}); aborting episode")
+                self._stop_current_task()
+                if self._abort_episode is not None:
+                    self._abort_episode(reason or f"phase {phase.kind.name} failed on robot {self.name}")
+                return True
+
+        return await self._advance_to_next_phase(request)
 
     async def submit_task(self, request: TaskRequest) -> None:
         """Validate and dispatch phase 0 of a typed TaskRequest. Phase poses are abstract, realized to map here."""
@@ -282,9 +348,6 @@ class RobotManager(NodeInterface):
 
         if not request.phases:
             raise ValueError(f"TaskRequest has no phases; nothing to dispatch (robot={self.name!r})")
-        for i, phase in enumerate(request.phases):
-            if phase.kind not in self._adapters:
-                raise AssertionError(f"robot {self.name!r} cannot dispatch phase[{i}] of kind {phase.kind!r}; accepts {sorted(k.name for k in self.accepts)}")
 
         realized_phases = [attrs.evolve(phase, pose=self._environment_manager.realize(phase.pose)) if isinstance(phase, GoToPhase) else phase for phase in request.phases]
         request = attrs.evolve(request, phases=realized_phases)
@@ -293,7 +356,14 @@ class RobotManager(NodeInterface):
         self._phase_index = 0
 
         phase0 = request.phases[0]
-        adapter = self._adapters[phase0.kind]
+        adapter = self._adapters.get(phase0.kind)
+
+        if adapter is None:
+            if phase0.kind not in self._unsupported_kinds_logged:
+                self._unsupported_kinds_logged.add(phase0.kind)
+                self._logger.warning(f"robot {self.name!r} has no adapter for phase kind {phase0.kind.name!r}; synthesizing UNSUPPORTED_CAP failure on next tick")
+            return
+
         await adapter.dispatch_phase(phase0, self)
 
         # (Re)start the keep-alive loop that republishes _goal_pos against
@@ -312,6 +382,21 @@ class RobotManager(NodeInterface):
         if self._robot.record_data_dir:
             self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("goal"), [self.goal_pos.position.x, self.goal_pos.position.y, self.goal_pos.orientation.to_yaw()])
 
+    async def reset(self, ctx: ResetContext) -> dict[str, BaseException | None]:
+        """Fan out adapter on_reset hooks concurrently, return per-kind outcomes."""
+        results = await asyncio.gather(
+            *(a.on_reset(self, ctx) for a in self._adapter_instances),
+            return_exceptions=True,
+        )
+        outcomes: dict[str, BaseException | None] = {}
+        for adapter, result in zip(self._adapter_instances, results, strict=True):
+            if isinstance(result, BaseException):
+                self._logger.warning(f"adapter {adapter.kind!r} on_reset failed: {result!r}")
+                outcomes[adapter.kind] = result
+            else:
+                outcomes[adapter.kind] = None
+        return outcomes
+
     async def _apply_pose(self, pose: Pose):
         pose.position.z += self._config.model_params.z_offset
         self.robot.pose = pose
@@ -319,7 +404,7 @@ class RobotManager(NodeInterface):
         import time
 
         time.sleep(0.001)  # wait for the robot to move
-        await self._adapter.on_move(pose, self)
+        await asyncio.gather(*(a.on_move(pose, self) for a in self._adapter_instances))
 
     async def move(self, pose: Pose) -> None:
         """Teleport the robot to ``pose``. Positioning only — no task dispatch."""
@@ -359,28 +444,21 @@ class RobotManager(NodeInterface):
                 self._goal_start_time = self.node.sim_time
 
     async def _launch_robot(self, node_paths: set[str]):
-        """Launch the robot's navstack via the bound adapter."""
-        self._logger.info(f"LAUNCH ROBOT {self.name}")
-
+        """Launch the robot's navstack via the bound adapters."""
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
+            await asyncio.gather(*(a.ensure_services() for a in self._adapter_instances))
             launch_description = launch.LaunchDescription()
             current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
             launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))
             launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_NAV2_QUIET_RULES))
+            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_MOVEIT_QUIET_RULES))
 
-            # Adapter dispatch happens inside robot.launch.py via the
-            # ``navigator`` launch arg; Adapter.launch_description is
-            # the attachment point for pulling that up here later.
             launch_arguments = {
                 'robot': self.model_name,
                 'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
                 'namespace': self.namespace,
-                'frame': self._robot.frame('').raw(),  # trailing slash
-                'train_mode': str(self.node.rosparam[bool].get('train_mode', False)).lower(),
-                'agent_name': self._robot.agent,
+                'frame': self._robot.frame.tf(),
                 'use_sim_time': 'True',
-                # Read by robot.launch.py to gate the rosnav_rl action server.
-                'local_planner': self._robot.local_planner,
             }
 
             if self._robot.record_data_dir:
@@ -397,15 +475,12 @@ class RobotManager(NodeInterface):
                 )
             )
 
-            # Navstack adapter dispatch: each adapter owns its own launch
-            # file + the kwargs it needs. PushRosNamespace scopes it under
-            # this robot (robot.launch.py has its own separate push).
             from task_generator.tasks.robots.adapters import AdapterCtx
 
             adapter_ctx = AdapterCtx(
                 namespace=self.namespace,
                 robot_name=self.model_name,
-                frame=self._robot.frame('').raw(),
+                frame=self._robot.frame.tf(),
                 task_generator_node=os.path.join(self.node.get_namespace(), self.node.get_name()),
                 use_sim_time=True,
                 base_frame=self._config.model_params.base_frame,
@@ -414,18 +489,33 @@ class RobotManager(NodeInterface):
                 tf_buffer=None,
                 node_handle=self.node,
             )
-            launch_description.add_action(
-                launch.actions.GroupAction(
-                    [
-                        launch_ros.actions.PushRosNamespace(str(self.namespace)),
-                        self._adapter.launch_description(adapter_ctx),
-                    ]
+            adapter_actions: list[object] = [
+                launch_ros.actions.PushRosNamespace(str(self.namespace)),
+                *(a.launch_description(adapter_ctx) for a in self._adapter_instances),
+            ]
+            if self._adapter_instances:
+                bringup_caps = [a.bringup.cap for a in self._adapter_instances]
+                bringup_kinds = [a.bringup.kind for a in self._adapter_instances]
+                adapter_actions.append(
+                    launch_ros.actions.Node(
+                        package="arena_robots",
+                        executable="task_server",
+                        name="task_server",
+                        parameters=[
+                            {
+                                "robot_name": self._robot.model.name,
+                                "bringup_caps": bringup_caps,
+                                "bringup_kinds": bringup_kinds,
+                                "frame": self._robot.frame.tf(),
+                                "use_sim_time": adapter_ctx.use_sim_time,
+                            }
+                        ],
+                    )
                 )
-            )
+            launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
             await self.node.do_launch(launch_description)
-
-            await self._adapter.wait_until_ready(self, node_paths)
+            await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
 
     async def update(self):
         # TODO implement record data dir

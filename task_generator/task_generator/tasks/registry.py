@@ -1,6 +1,8 @@
 import typing
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
+import attrs
+from arena_rclpy_mixins.registry import ClassRegistry
 from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.tree import Identifier
 
@@ -14,77 +16,60 @@ if typing.TYPE_CHECKING:
     from task_generator.tasks.obstacles import TM_Obstacles
     from task_generator.tasks.robots import TM_Robots
 
+_REGISTRY_NAMESPACE: Namespace = Namespaced._namespace("task")
+
 
 def identifier_to_available(identifier: type[Identifier], **kwargs: object) -> Iterable[str]:
     yield from (identifier.shortname for identifier in identifier.listall(**kwargs))
 
 
-_ObstacleLoader = typing.Callable[[], "type[TM_Obstacles]"]
-_RobotsLoader = typing.Callable[[], "type[TM_Robots]"]
-_ModuleLoader = typing.Callable[[], "type[TM_Module]"]
-_SchemaFn = typing.Callable[["ROSParamServer", Namespace], None]
+_SchemaFn = Callable[["ROSParamServer", Namespace], None]
 
 
-class _TaskRegistry(Namespaced):
-    registry_obstacles: dict[Constants.TaskMode.TM_Obstacles, tuple[_ObstacleLoader, Namespace, _SchemaFn | None]] = {}
-    registry_robots: dict[Constants.TaskMode.TM_Robots, tuple[_RobotsLoader, Namespace, _SchemaFn | None]] = {}
-    registry_module: dict[Constants.TaskMode.TM_Module, tuple[_ModuleLoader, Namespace, _SchemaFn | None]] = {}
+@attrs.frozen
+class TaskModeMeta:
+    namespace: Namespace
+    schema: _SchemaFn | None = None
 
-    _namespace: Namespace = Namespaced._namespace('task')
 
-    @classmethod
-    def register_obstacles(
-        cls,
-        name: Constants.TaskMode.TM_Obstacles,
-        schema: _SchemaFn | None = None,
-    ) -> typing.Callable[[_ObstacleLoader], _ObstacleLoader]:
-        def inner_wrapper(loader: _ObstacleLoader) -> _ObstacleLoader:
-            assert name not in cls.registry_obstacles, f"TaskMode '{name}' for obstacles already exists!"
-            cls.registry_obstacles[name] = (loader, cls._namespace(name.value), schema)
+class TaskModeRegistry[K, V]:
+    """Lazy class registry with eager per-key metadata. Meta is registry-side (not class-side like AdapterMeta/BringupMeta) because `walk_schemas` reads it before any impl is imported."""
+
+    def __init__(self) -> None:
+        self._classes: ClassRegistry[K, V] = ClassRegistry()
+        self._meta: dict[K, TaskModeMeta] = {}
+
+    def register(self, key: K, *, namespace: Namespace, schema: _SchemaFn | None = None) -> Callable[[Callable[[], V]], Callable[[], V]]:
+        meta = TaskModeMeta(namespace=namespace, schema=schema)
+
+        def _dec(loader: Callable[[], V]) -> Callable[[], V]:
+            self._classes.register(key)(loader)
+            self._meta[key] = meta
             return loader
 
-        return inner_wrapper
+        return _dec
 
-    @classmethod
-    def register_robots(
-        cls,
-        name: Constants.TaskMode.TM_Robots,
-        schema: _SchemaFn | None = None,
-    ) -> typing.Callable[[_RobotsLoader], _RobotsLoader]:
-        def inner_wrapper(loader: _RobotsLoader) -> _RobotsLoader:
-            assert name not in cls.registry_robots, f"TaskMode '{name}' for robots already exists!"
-            cls.registry_robots[name] = (loader, cls._namespace(name.value), schema)
-            return loader
+    def get(self, key: K) -> V:
+        return self._classes.get(key)
 
-        return inner_wrapper
+    def meta(self, key: K) -> TaskModeMeta:
+        return self._meta[key]
 
-    @classmethod
-    def register_module(
-        cls,
-        name: Constants.TaskMode.TM_Module,
-        schema: _SchemaFn | None = None,
-    ) -> typing.Callable[[_ModuleLoader], _ModuleLoader]:
-        def inner_wrapper(loader: _ModuleLoader) -> _ModuleLoader:
-            assert name not in cls.registry_module, f"TaskMode '{name}' for module already exists!"
-            cls.registry_module[name] = (loader, cls._namespace(name.value), schema)
-            return loader
+    def keys(self) -> typing.KeysView[K]:
+        return self._classes.keys()
 
-        return inner_wrapper
-
-    @classmethod
-    def walk_schemas(cls, node: "ROSParamServer") -> None:
-        for _key, (_loader, ns, schema) in cls.registry_module.items():
-            if schema is not None:
-                schema(node, ns)
-        for _key, (_loader, ns, schema) in cls.registry_obstacles.items():
-            if schema is not None:
-                schema(node, ns)
-        for _key, (_loader, ns, schema) in cls.registry_robots.items():
-            if schema is not None:
-                schema(node, ns)
+    def __contains__(self, key: object) -> bool:
+        return key in self._classes
 
 
-# Mode registrations live in each mode's own __init__.py (e.g.
-# `tasks/obstacles/random/__init__.py` calls `_TaskRegistry.register_obstacles(...)`).
-# PROMPT is registered per-simulator via BaseHumanSimulator._register_task_modes;
-# each simulator provides its own TM_Prompt subclass.
+ROBOTS_MODES: TaskModeRegistry[Constants.TaskMode.TM_Robots, type["TM_Robots"]] = TaskModeRegistry()
+OBSTACLES_MODES: TaskModeRegistry[Constants.TaskMode.TM_Obstacles, type["TM_Obstacles"]] = TaskModeRegistry()
+MODULE_MODES: TaskModeRegistry[Constants.TaskMode.TM_Module, type["TM_Module"]] = TaskModeRegistry()
+
+
+def walk_schemas(node: "ROSParamServer") -> None:
+    for reg in (MODULE_MODES, OBSTACLES_MODES, ROBOTS_MODES):
+        for key in reg.keys():
+            meta = reg.meta(key)
+            if meta.schema is not None:
+                meta.schema(node, meta.namespace)

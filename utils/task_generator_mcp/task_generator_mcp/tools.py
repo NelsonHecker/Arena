@@ -265,7 +265,7 @@ def register_tools(
             ),
             Tool(
                 name="config_get_static_config",
-                description="Read the startup configuration parameters (sim, human, agent_name, planners, navigator).",
+                description="Read the startup configuration parameters (sim, human, mobile/arm adapters).",
                 inputSchema={"type": "object", "properties": {}},
             ),
             Tool(

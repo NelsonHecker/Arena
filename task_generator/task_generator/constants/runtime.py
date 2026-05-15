@@ -23,14 +23,10 @@ def Configuration(server: ROSParamServer) -> type:
 
             SIM = server.ROSParam[SimSimulator]('sim', SimSimulator.DUMMY.value, parse=SimSimulator)
 
-            HUMAN = server.ROSParam[Constants.HumanSimulator](
-                "human",
-                Constants.HumanSimulator.DUMMY.value,
-                parse=Constants.HumanSimulator,
-            )
+            HUMAN = server.ROSParam[Constants.HumanSimulator]('human', Constants.HumanSimulator.DUMMY.value, parse=Constants.HumanSimulator)
 
             WORLD = server.ROSParam[str](
-                "world",
+                'world',
                 type_=rclpy.Parameter.Type.STRING,
             )
 
@@ -40,36 +36,31 @@ def Configuration(server: ROSParamServer) -> type:
             """
 
             WAIT_FOR_SERVICE_TIMEOUT = server.ROSParam[float](
-                "timeout_wait_for_service",
+                'timeout_wait_for_service',
                 30,
             )
 
             MAX_RESET_FAIL_TIMES = server.ROSParam[int](
-                "max_reset_fail_times",
+                'max_reset_fail_times',
                 10,
             )
 
             RNG = server.ROSParam[np.random.Generator](
-                "rng",
+                'rng',
                 -1,
                 parse=lambda x: np.random.default_rng(x) if x >= 0 else np.random.default_rng(),
             )
             DESIRED_EPISODES = server.ROSParam[float](
-                "episodes",
+                'episodes',
                 -1,
                 parse=_positive_or_inf,
             )
 
         class Obstacles:
             OBSTACLE_MAX_RADIUS = server.ROSParam[float](
-                "obstacle_max_radius",
+                'obstacle_max_radius',
                 15,
                 parse=_positive_or_inf,
-            )
-
-            SAFE_DIST = server.ROSParam[float](
-                'obstacle_safe_dist',
-                0.35,
             )
 
         class Robot:
@@ -86,60 +77,41 @@ def Configuration(server: ROSParamServer) -> type:
             )
 
             TIMEOUT = server.ROSParam[float](
-                "timeout",
+                'timeout',
                 -1,
                 parse=_positive_or_inf,
             )
 
             RECORD_DATA_DIR = server.ROSParam[str | None](
-                "record_data_dir",
-                "",
+                'record_data_dir',
+                '',
                 parse=lambda x: x if bool(x) else None,
             )
 
-            AGENT = server.ROSParam[str](
-                "agent_name",
-                "",
-            )
-
-            PLANNER = server.ROSParam[str](
-                "global_planner",
-                "",
-            )
-
-            CONTROLLER = server.ROSParam[str](
-                "local_planner",
-                "",
-            )
-
-            BEHAVIOR = server.ROSParam[str](
-                "inter_planner",
-                "",
-            )
-
-            NAVIGATOR = server.ROSParam[str](
-                'navigator',
+            MOBILE_ADAPTER = server.ROSParam[str](
+                'robot.mobile_adapter',
                 'nav2',
+            )
+
+            ARM_ADAPTER = server.ROSParam[str](
+                'robot.arm_adapter',
+                'moveit',
             )
 
         class TaskMode:
             TM_ROBOTS = server.ROSParam[Constants.TaskMode.TM_Robots](
-                "tm_robots",
+                'tm_robots',
                 Constants.TaskMode.TM_Robots.default().value,
                 parse=Constants.TaskMode.TM_Robots,
             )
 
             TM_OBSTACLES = server.ROSParam[Constants.TaskMode.TM_Obstacles](
-                "tm_obstacles",
+                'tm_obstacles',
                 Constants.TaskMode.TM_Obstacles.default().value,
                 parse=Constants.TaskMode.TM_Obstacles,
             )
 
-            TM_MODULES = server.ROSParam[set[Constants.TaskMode.TM_Module]](
-                "tm_modules",
-                ",".join([m.value for m in Constants.TaskMode.TM_Module.default()]),
-                parse=lambda x: {Constants.TaskMode.TM_Module(m) for m in x.split(",") if m != ""},
-            )
+            TM_MODULES = server.ROSParam[set[Constants.TaskMode.TM_Module]]('tm_modules', ','.join([m.value for m in Constants.TaskMode.TM_Module.default()]), parse=lambda x: {Constants.TaskMode.TM_Module(m) for m in x.split(',') if m != ''})
 
     return Config
 

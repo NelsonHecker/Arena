@@ -24,8 +24,6 @@ class _FakeConf:
             value = "navfn"
         class AGENT:
             value = "rosnav"
-        class NAVIGATOR:
-            value = "nav2"
         class RECORD_DATA_DIR:
             value = None
         class TIMEOUT:
@@ -52,8 +50,6 @@ def _make_node(sim_time_sec=0, timeout=60):
                 value = "navfn"
             class AGENT:
                 value = "rosnav"
-            class NAVIGATOR:
-                value = "nav2"
             class RECORD_DATA_DIR:
                 value = None
             class TIMEOUT:

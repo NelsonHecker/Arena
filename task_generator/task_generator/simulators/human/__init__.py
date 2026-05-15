@@ -236,14 +236,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             )
             wall_map[name] = wall
 
-        door_map: dict[str, Door] = {}
         for door in doors:
             self._known_doors.create_or_get(
                 name=door.name,
                 obstacle=door,
                 layer=ObstacleLayer.WORLD,
             )
-            door_map[door.name] = door
 
         await asyncio.gather(
             self._simulator.spawn_doors(doors),

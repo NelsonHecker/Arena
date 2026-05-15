@@ -6,7 +6,14 @@ import warnings
 import pytest
 import yaml
 
-from arena_simulation_setup.tree.World.Scenario import RobotGoal, Scenario, ScenarioView
+from arena_simulation_setup.tree.World.Scenario import (
+    RobotGoal,
+    Scenario,
+    ScenarioGesturePhase,
+    ScenarioGotoPhase,
+    ScenarioPhase,
+    ScenarioView,
+)
 from arena_simulation_setup.utils.geometry import Pose
 
 
@@ -143,55 +150,115 @@ def test_scenario_view_included_from_propagated(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Zone-ref pose sampling via zone_converter
+# ScenarioPhase dispatch
 # ---------------------------------------------------------------------------
 
 
-def test_scenario_view_zone_ref_honours_is_valid(tmp_path):
-    """zone_converter's is_valid predicate constrains sampled points for zone-ref poses."""
-    import numpy as np
-    from arena_simulation_setup.tree.World.World import WorldDescription
-    from arena_simulation_setup.utils.geometry import Position
+def test_scenario_phase_parse_goto():
+    phase = ScenarioPhase.parse({"goto": [1.0, 2.0, 0.0]})
+    assert isinstance(phase, ScenarioGotoPhase)
+    assert phase.goto.position.x == pytest.approx(1.0)
 
-    scenario_dir = tmp_path / "sc_zref_safe"
+
+def test_scenario_phase_parse_gesture():
+    phase = ScenarioPhase.parse({"gesture": "wave"})
+    assert isinstance(phase, ScenarioGesturePhase)
+    assert phase.gesture == "wave"
+
+
+def test_scenario_phase_parse_malformed_raises():
+    with pytest.raises(ValueError):
+        ScenarioPhase.parse({"foo": "bar"})
+
+
+# ---------------------------------------------------------------------------
+# RobotGoal.phase_list -- legacy goal: path
+# ---------------------------------------------------------------------------
+
+
+def test_robot_goal_phase_list_legacy_goal_deprecation():
+    rg = RobotGoal.parse({"start": [0.0, 0.0], "goal": [3.0, 4.0]})
+    with pytest.warns(DeprecationWarning):
+        phases = rg.phase_list()
+    assert len(phases) == 1
+    assert isinstance(phases[0], ScenarioGotoPhase)
+    assert phases[0].goto.position.x == pytest.approx(3.0)
+
+
+def test_robot_goal_phase_list_empty_when_no_goal_no_phases():
+    rg = RobotGoal.parse({"start": [0.0, 0.0]})
+    phases = rg.phase_list()
+    assert phases == []
+
+
+# ---------------------------------------------------------------------------
+# RobotGoal.phase_list -- new phases: path
+# ---------------------------------------------------------------------------
+
+
+def test_robot_goal_phase_list_mixed_phases(tmp_path):
+    scenario_dir = tmp_path / "sc_phases"
     scenario_dir.mkdir()
     data = {
-        "static": [{"name": "obs1", "model": "box", "pose": "reception"}],
+        "static": [],
         "dynamic": [],
+        "robots": [
+            {
+                "start": [0.0, 0.0, 0.0],
+                "phases": [
+                    {"goto": [1.0, 0.0, 0.0]},
+                    {"gesture": "wave"},
+                    {"goto": [2.0, 0.0, 0.0]},
+                    {"gesture": "random"},
+                ],
+            }
+        ],
     }
     (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
 
-    zone = WorldDescription.Zone(
-        name="reception",
-        corners=[Position(0.0, 0.0), Position(10.0, 0.0), Position(10.0, 10.0), Position(0.0, 10.0)],
-    )
-    world = WorldDescription(zones=[zone])
+    view = ScenarioView(scenario_dir)
+    scenario = view.load()
+    rg = scenario.robots[0]
+    phases = rg.phase_list()
+    assert len(phases) == 4
+    assert isinstance(phases[0], ScenarioGotoPhase)
+    assert phases[0].goto.position.x == pytest.approx(1.0)
+    assert isinstance(phases[1], ScenarioGesturePhase)
+    assert phases[1].gesture == "wave"
+    assert isinstance(phases[2], ScenarioGotoPhase)
+    assert phases[2].goto.position.x == pytest.approx(2.0)
+    assert isinstance(phases[3], ScenarioGesturePhase)
+    assert phases[3].gesture == "random"
+
+
+def test_robot_goal_phase_list_malformed_phase_raises(tmp_path):
+    scenario_dir = tmp_path / "sc_bad_phase"
+    scenario_dir.mkdir()
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [
+            {
+                "start": [0.0, 0.0, 0.0],
+                "phases": [{"foo": "bar"}],
+            }
+        ],
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
 
     view = ScenarioView(scenario_dir)
-
-    # Predicate rejects the left half; sampled point must land on the right.
-    for seed in range(5):
-        conv = world.zone_converter(
-            np.random.default_rng(seed),
-            is_valid=lambda pt: pt.x >= 5.0,
-        )
-        scenario = view.load(converter=conv)
-        assert scenario.static[0].pose.position.x >= 5.0
+    with pytest.raises((ValueError, RuntimeError)):
+        view.load()
 
 
-def test_sample_point_in_polygon_exhaustion_warns():
-    """When no sample satisfies is_valid, return last candidate with a warning."""
-    import numpy as np
-    from arena_simulation_setup.utils.geometry import Position, sample_point_in_polygon
-
-    vertices = [Position(0.0, 0.0), Position(1.0, 0.0), Position(1.0, 1.0), Position(0.0, 1.0)]
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        pt = sample_point_in_polygon(
-            vertices,
-            np.random.default_rng(0),
-            is_valid=lambda _pt: False,
-            max_retries=3,
-        )
-    assert 0.0 <= pt.x <= 1.0 and 0.0 <= pt.y <= 1.0
-    assert any("no valid sample" in str(w.message) for w in caught)
+def test_robot_goal_phases_takes_priority_over_goal():
+    rg = RobotGoal.parse(
+        {
+            "start": [0.0, 0.0],
+            "goal": [9.0, 9.0],
+            "phases": [{"gesture": "wave"}],
+        }
+    )
+    phases = rg.phase_list()
+    assert len(phases) == 1
+    assert isinstance(phases[0], ScenarioGesturePhase)

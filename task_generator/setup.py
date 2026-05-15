@@ -7,14 +7,8 @@ from setuptools import find_packages, setup
 package_name = 'task_generator'
 
 
-def _share_tree(*patterns):
-    grouped = defaultdict(list)
-    for pattern in patterns:
-        for path in glob(pattern, recursive=True):
-            if os.path.isfile(path):
-                grouped[os.path.join('share', package_name, os.path.dirname(path))].append(path)
-    return list(grouped.items())
-
+def existing(*patterns):
+    return [p for pat in patterns for p in glob(pat) if os.path.exists(p)]
 
 setup(
     name=package_name,
@@ -28,7 +22,13 @@ setup(
         ('share/ament_index/resource_index/packages',
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        *_share_tree('launch/**/*.launch.py', 'launch/**/*.md'),
+        (os.path.join('share', package_name, 'launch'), existing('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'launch', 'human'),
+         existing('launch/human/*.launch.py', 'launch/human/*.md')),
+        (os.path.join('share', package_name, 'launch', 'human', 'hunav'),
+         existing('launch/human/hunav/*.launch.py')),
+        (os.path.join('share', package_name, 'launch', 'human', 'arena_humansim'),
+         existing('launch/human/arena_humansim/*.launch.py')),
     ],
     install_requires=['setuptools'],
     extras_require={

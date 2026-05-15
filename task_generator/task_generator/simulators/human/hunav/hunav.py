@@ -52,10 +52,10 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     @classmethod
     def _register_task_modes(cls):
         from task_generator.constants import Constants
-        from task_generator.tasks.obstacles.prompt import declare_schema
-        from task_generator.tasks.task import _TaskRegistry
+        from task_generator.tasks.obstacles.prompt import NS, declare_schema
+        from task_generator.tasks.registry import OBSTACLES_MODES
 
-        @_TaskRegistry.register_obstacles(Constants.TaskMode.TM_Obstacles.PROMPT, schema=declare_schema)
+        @OBSTACLES_MODES.register(Constants.TaskMode.TM_Obstacles.PROMPT, namespace=NS, schema=declare_schema)
         def _prompt() -> type:
             from task_generator.tasks.obstacles.prompt.hunav import TM_Prompt
 

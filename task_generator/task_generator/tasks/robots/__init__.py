@@ -7,7 +7,7 @@ from task_generator.tasks.mode import TaskMode
 from task_generator.tasks.robots._placement import random_placement
 from task_generator.tasks.robots.request import GoToPhase, TaskRequest
 
-from . import explore, guided, random, scenario
+from . import demo, explore, guided, random, scenario
 
 
 class TM_Robots(TaskMode):
@@ -23,9 +23,15 @@ class TM_Robots(TaskMode):
     """
 
     _last_reset: int
+    _start_poses: dict[str, Pose]
+
+    @property
+    def start_poses(self) -> dict[str, Pose]:
+        return self._start_poses
 
     async def reset(self, **kwargs: object) -> None:
         self._last_reset = self.node.sim_time.sec
+        self._start_poses = {}
 
     async def set_position(self, pose: Pose):
         """Teleport every robot to ``pose``."""
@@ -73,4 +79,4 @@ class TM_Robots(TaskMode):
         return True
 
 
-__all__ = ["TM_Robots", "explore", "guided", "random", "scenario"]
+__all__ = ["TM_Robots", "demo", "explore", "guided", "random", "scenario"]

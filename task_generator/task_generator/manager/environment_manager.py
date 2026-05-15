@@ -93,7 +93,6 @@ class EnvironmentManager(NodeInterface):
         Loads given obstacles into the simulator,
         the map file is retrieved from launch parameter "world"
         """
-
         walls = tuple(map(self.realize, world.all_walls))
         doors = tuple(map(self.realize, world.all_doors))
         floors = tuple(map(self.realize, world.all_floors))
@@ -116,7 +115,6 @@ class EnvironmentManager(NodeInterface):
             futures.append(self._human_simulator.spawn_world(walls, doors))
         futures.append(self._human_simulator.spawn_obstacles(statics, layer=ObstacleLayer.WORLD))
         if elevators:
-            self._logger.debug(f"Realized elevators for world: {[e.name for e in elevators]}")
             futures.append(self._simulator.spawn_elevators(elevators))
 
         await asyncio.gather(*futures)

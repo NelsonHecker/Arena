@@ -1,6 +1,5 @@
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree.World import WorldIdentifier
-from arena_simulation_setup.tree.World.Scenario import ScenarioView
 from arena_simulation_setup.utils.geometry import Position
 
 from task_generator.manager.world_manager.utils import WorldOccupancy
@@ -11,9 +10,6 @@ from task_generator.tasks.obstacles import Obstacles, TM_Obstacles
 
 class TM_Scenario(TM_Obstacles):
     _config: ROSParamT[str]
-
-    def _get_scenario_view(self, scenario_name: str) -> ScenarioView:
-        return WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario_name).resolve_sync()
 
     async def reset(self, **kwargs: object) -> Obstacles:
         scenario_name = self._config.value
@@ -46,7 +42,7 @@ class TM_Scenario(TM_Obstacles):
         )
 
         # Load and structure the scenario with zone-aware conversion
-        scenario = self._get_scenario_view(scenario_name).load(converter=zone_conv)
+        scenario = WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario(scenario_name).resolve_sync().load(converter=zone_conv)
 
         # Set up regions
         regions = [
@@ -65,11 +61,11 @@ class TM_Scenario(TM_Obstacles):
     def __init__(self, **kwargs: object) -> None:
         TM_Obstacles.__init__(self, **kwargs)
 
-        default_scenario: str | None = "default"
-        if default_scenario not in (scenarios := list(identifier_to_available(WorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario))):
+        default_scenario: str | None = 'default'
+        if default_scenario not in (scenarios := list(identifier_to_available(WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario))):
             default_scenario = next(iter(scenarios), None)
         if default_scenario is None:
-            raise ValueError(f"No scenarios found in world {self._ctx.world_manager.world_name}")
+            raise ValueError(f"No scenarios found in world {self._ctx.world_manager.loaded_world}")
 
         self._config = self.node.ROSParam[str](
             self.namespace("file"),

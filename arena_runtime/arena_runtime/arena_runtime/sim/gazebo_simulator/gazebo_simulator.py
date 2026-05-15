@@ -30,7 +30,6 @@ from task_generator.shared import (
     Elevator,
     Entity,
     Floor,
-    FrameNamespace,
     ModelType,
     Obstacle,
     Pose,
@@ -39,11 +38,13 @@ from task_generator.shared import (
 )
 
 from arena_runtime.sim import BaseSim, SimLifecycle
+from arena_runtime.sim._control import (
+    controller_spawner_node,
+    render_ros2_control_yaml,
+    twist_stamper_node,
+)
 
 from .robot_bridge import BridgeConfiguration
-
-# sanitize frames, gazebo does not support slashes
-FrameNamespace.auto_sanitize()
 
 
 class GazeboHost(SimLifecycle):
@@ -122,9 +123,6 @@ class GazeboHost(SimLifecycle):
                 traceback.print_exc()
                 return False
 
-    def env_prefix(self, env_id: int) -> str:
-        return f"env_{env_id}_"
-
     async def cleanup_namespace(self, prefix: str) -> int:
         names = await self._list_models()
         targets = [n for n in names if n.startswith(prefix)]
@@ -184,6 +182,28 @@ class GazeboSimulator(BaseSim):
     async def after_reset_episode(self) -> bool:
         return True
 
+    def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
+        args: dict[str, object] = {
+            **robot.asdict(),
+            'sim_path': robot.sim_path,
+            'optim': self.node.rosparam[str].get('optim', ''),
+        }
+        robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+        control_spec = robot_config.model_params.control
+        if control_spec is None or not control_spec.is_ros2_control:
+            return args
+        args['namespace'] = str(self.node.service_namespace(robot.name))
+        if control_spec.config is not None:
+            args['gazebo_controllers'] = self._render_ros2_control_yaml(
+                robot,
+                control_spec.config,
+                frame_prefix=robot.frame.tf(),
+            )
+        return args
+
+    def _render_ros2_control_yaml(self, robot: Robot, config_uri: str, *, frame_prefix: str) -> str:
+        return render_ros2_control_yaml(config_uri, robot.sim_path, frame_prefix)
+
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return await asyncio.gather(*map(self._spawn_entity, obstacles))
 
@@ -195,7 +215,7 @@ class GazeboSimulator(BaseSim):
         async def impl(robot: Robot) -> bool:
             if not await self._spawn_entity(robot):
                 return False
-            _loader_args = {**robot.asdict(), 'sim_path': robot.sim_path}
+            _loader_args = self._robot_loader_args(robot)
             model = await (await robot.model.resolve()).model.get(ModelType.URDF, loader_args=_loader_args)
             if model.type is ModelType.UNKNOWN:
                 return False
@@ -292,7 +312,7 @@ class GazeboSimulator(BaseSim):
                 # Get model description
                 try:
                     if isinstance(entity, Robot):
-                        _loader_args = {**entity.asdict(), 'sim_path': entity.sim_path}
+                        _loader_args = self._robot_loader_args(entity)
                         model = await (await entity.model.resolve()).model.get(ModelType.URDF, loader_args=_loader_args)
                     else:
                         model = await (await entity.model.resolve()).model.get(ModelType.SDF)
@@ -482,14 +502,11 @@ class GazeboSimulator(BaseSim):
                 parameters=[
                     {"use_sim_time": True},
                     {"robot_description": description},
-                    {"frame_prefix": robot.frame + "/"},  # add trailing slash
+                    {"frame_prefix": robot.frame.tf()},
                 ],
             )
         )
-        # pose_to_tf: publish odom→base_link from Gazebo's ground-truth pose
-        # so downstream localization is not contaminated by wheel-slip odometry.
-        # DiffDrive's own TF is suppressed via <tf_topic>/discard_tf</tf_topic>
-        # in each robot's gazebo file.
+
         launch_description.add_action(
             launch_ros.actions.Node(
                 package="pose_to_tf",
@@ -499,16 +516,27 @@ class GazeboSimulator(BaseSim):
                 parameters=[
                     {
                         "use_sim_time": True,
-                        "parent_frame": robot.frame(robot_config.model_params.odom_frame).raw(),
-                        "child_frame": robot.frame(robot_config.model_params.base_frame).raw(),
+                        "parent_frame": robot.frame.tf(robot_config.model_params.odom_frame),
+                        "child_frame": robot.frame.tf(robot_config.model_params.base_frame),
                         "pose_topic": "pose",
                     }
                 ],
             )
         )
-        # Static identity map→odom. pose_to_tf already publishes odom→base_link =
-        # robot's world pose, and map coincides with world, so this makes
-        # map→base_link track ground truth with no per-reset recomputation.
+
+        control_spec = robot_config.model_params.control
+        if control_spec is not None and control_spec.is_ros2_control:
+            if not control_spec.controllers:
+                raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
+            for controller_name in control_spec.controllers:
+                launch_description.add_action(controller_spawner_node(controller_name))
+            launch_description.add_action(
+                twist_stamper_node(
+                    control_spec.cmd_vel_topic,
+                    robot.frame.tf(robot_config.model_params.base_frame),
+                )
+            )
+
         launch_description.add_action(
             launch_ros.actions.Node(
                 package="tf2_ros",
@@ -523,7 +551,7 @@ class GazeboSimulator(BaseSim):
                     "0",
                     "1",
                     "map",
-                    robot.frame(robot_config.model_params.odom_frame).raw(),
+                    robot.frame.tf(robot_config.model_params.odom_frame),
                 ],
                 parameters=[{"use_sim_time": True}],
             )
