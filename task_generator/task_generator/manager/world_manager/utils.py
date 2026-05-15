@@ -2,14 +2,11 @@
 This file exists to make world_manager more readable
 """
 
-import collections.abc
 from collections.abc import Callable, Collection
-import typing
 from pathlib import Path
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 import attrs
-import nav_msgs.msg
 import numpy as np
 import scipy.interpolate
 import yaml
@@ -17,6 +14,9 @@ from arena_rclpy_mixins.Time import Time
 from PIL import Image
 
 from task_generator.shared import Position, PositionRadius, Wall
+
+if TYPE_CHECKING:
+    from arena_simulation_setup.tree.World.World import WorldDescription
 
 # CONVERTERS
 
@@ -237,6 +237,16 @@ class WorldMap:
             origin=Position(x=float(origin[0]), y=float(origin[1])),
             resolution=resolution,
             time=Time(-1, 0),
+        )
+
+    def from_world_description(description: "WorldDescription", resolution: float, time: Time) -> "WorldMap":
+        """Rasterize a WorldDescription into a WorldMap. PIL grayscale matches WorldOccupancy (255=EMPTY, 0=FULL)."""
+        grid, origin = description.render_grid(resolution=resolution)
+        return WorldMap(
+            occupancy=WorldLayers(walls=WorldOccupancy(grid.copy())),
+            origin=Position(x=origin[0], y=origin[1]),
+            resolution=resolution,
+            time=time,
         )
 
     @property

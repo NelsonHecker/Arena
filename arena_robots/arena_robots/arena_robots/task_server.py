@@ -1,6 +1,7 @@
-"""ROS node that exposes per-TaskKind action servers for the configured bringup."""
+"""ROS node that exposes per-TaskKind action servers for a robot's configured bringups."""
 
 import threading
+from typing import cast
 
 import rclpy
 import tf2_ros
@@ -8,6 +9,7 @@ from arena_rclpy_mixins.spin import spin_node
 from rclpy.action import ActionServer
 from rclpy.action.server import ServerGoalHandle
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 
 from arena_robots.bringup import BRINGUPS, check_caps
 from arena_robots.Robot import RobotIdentifier
@@ -20,22 +22,22 @@ class TaskServerNode(Node):
         super().__init__("task_server")
 
         robot_name = self.declare_parameter("robot_name", "").value
-        bringup_kind = self.declare_parameter("bringup_kind", "").value
+        bringup_caps = cast(list[str], self.declare_parameter("bringup_caps", Parameter.Type.STRING_ARRAY).value)
+        bringup_kinds = cast(list[str], self.declare_parameter("bringup_kinds", Parameter.Type.STRING_ARRAY).value)
+        frame = cast(str, self.declare_parameter("frame", "").value)
 
         if not robot_name:
             raise RuntimeError("Parameter 'robot_name' is required")
-        if not bringup_kind:
-            raise RuntimeError("Parameter 'bringup_kind' is required")
+        if len(bringup_caps) != len(bringup_kinds):
+            raise RuntimeError(f"Parameter length mismatch: bringup_caps={len(bringup_caps)} bringup_kinds={len(bringup_kinds)}")
+        if not bringup_caps:
+            self.get_logger().warning(f"no bringups configured for robot {robot_name!r}; task_server idle")
 
         namespace = self.get_namespace()
-
         robot = RobotIdentifier(robot_name).resolve_sync()
 
         self._tf_buffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self._tf_buffer, self)
-
-        self._bringup = BRINGUPS.get(bringup_kind)(robot, namespace)
-        check_caps(self._bringup)
 
         # Single-goal-per-TaskKind: a new accepted goal preempts the previous.
         # The preempted handler sees ``goal_handle.is_active == False`` and
@@ -43,18 +45,44 @@ class TaskServerNode(Node):
         self._current_handles: dict[TaskKind, ServerGoalHandle] = {}
         self._handle_lock = threading.Lock()
 
+        self._bringups: list[object] = []
         self._servers: list[ActionServer] = []
-        for tk in self._bringup.accepts_task_kinds:
-            handler_cls = HANDLERS.get((tk, self._bringup.kind))
-            handler = handler_cls(self._bringup, tf_buffer=self._tf_buffer, node=self)
-            server = ActionServer(
-                self,
-                action_type(tk),
-                endpoint(namespace, tk),
-                execute_callback=handler.execute,
-                handle_accepted_callback=self._make_handle_accepted(tk),
-            )
-            self._servers.append(server)
+
+        for cap, kind in zip(bringup_caps, bringup_kinds, strict=True):
+            try:
+                bringup_cls = BRINGUPS[cap].get(kind)
+            except KeyError:
+                self.get_logger().error(f"no bringup registered for ({cap!r}, {kind!r}); skipping")
+                continue
+
+            try:
+                bringup = bringup_cls(robot, namespace, frame=frame)
+                check_caps(bringup)
+            except Exception as exc:
+                self.get_logger().error(f"bringup ({cap!r}, {kind!r}) init failed: {exc}; skipping")
+                continue
+
+            self._bringups.append(bringup)
+
+            for tk in bringup.accepts_task_kinds:
+                try:
+                    handler_cls = HANDLERS.get((tk, kind))
+                except KeyError:
+                    self.get_logger().warning(f"no handler for ({tk!r}, {kind!r}); skipping endpoint")
+                    continue
+                try:
+                    handler = handler_cls(bringup, tf_buffer=self._tf_buffer, node=self)
+                    server = ActionServer(
+                        self,
+                        action_type(tk),
+                        endpoint(namespace, tk),
+                        execute_callback=handler.execute,
+                        handle_accepted_callback=self._make_handle_accepted(tk),
+                    )
+                except Exception as exc:
+                    self.get_logger().error(f"handler ({tk!r}, {kind!r}) init failed: {exc}; skipping endpoint")
+                    continue
+                self._servers.append(server)
 
     def _make_handle_accepted(self, tk: TaskKind) -> object:
         def _handle_accepted(goal_handle: ServerGoalHandle) -> None:

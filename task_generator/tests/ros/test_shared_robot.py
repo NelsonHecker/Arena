@@ -17,16 +17,6 @@ def _ros_gate():
 def stub_node():
     class _FakeConf:
         class Robot:
-            class BEHAVIOR:
-                value = "rosnav"
-            class CONTROLLER:
-                value = "dwa"
-            class PLANNER:
-                value = "navfn"
-            class AGENT:
-                value = "rosnav"
-            class NAVIGATOR:
-                value = "nav2"
             class RECORD_DATA_DIR:
                 value = None
             class TIMEOUT:
@@ -47,18 +37,14 @@ def stub_node():
     )
 
 
-def _make_robot(name, model_name, lp="dwa", gp="navfn", agent="rosnav", navigator="nav2"):
-    from task_generator.shared import Robot, Pose
+def _make_robot(name, model_name, mobile="nav2"):
     from arena_robots.Robot import RobotIdentifier
+    from task_generator.shared import Pose, Robot
     return Robot(
         name=name,
         pose=Pose(),
         model=RobotIdentifier.parse(model_name),
-        inter_planner="rosnav",
-        local_planner=lp,
-        global_planner=gp,
-        agent=agent,
-        navigator=navigator,
+        adapter_overrides={"mobile": mobile},
         extra={},
     )
 
@@ -75,56 +61,29 @@ def test_compatible_different_model():
     assert r1.compatible(r2) is False
 
 
-def test_compatible_different_local_planner():
-    r1 = _make_robot("r1", "turtlebot3_burger", lp="dwa")
-    r2 = _make_robot("r2", "turtlebot3_burger", lp="teb")
+def test_compatible_different_mobile_adapter():
+    r1 = _make_robot("r1", "turtlebot3_burger", mobile="nav2")
+    r2 = _make_robot("r2", "turtlebot3_burger", mobile="none")
     assert r1.compatible(r2) is False
 
 
-def test_compatible_different_global_planner():
-    r1 = _make_robot("r1", "turtlebot3_burger", gp="navfn")
-    r2 = _make_robot("r2", "turtlebot3_burger", gp="smac")
-    assert r1.compatible(r2) is False
-
-
-def test_compatible_different_agent():
-    r1 = _make_robot("r1", "turtlebot3_burger", agent="rosnav")
-    r2 = _make_robot("r2", "turtlebot3_burger", agent="rl_agent")
-    assert r1.compatible(r2) is False
-
-
-def test_compatible_different_navigator():
-    r1 = _make_robot("r1", "turtlebot3_burger", navigator="nav2")
-    r2 = _make_robot("r2", "turtlebot3_burger", navigator="none")
-    assert r1.compatible(r2) is False
-
-
-def test_parse_uses_conf_defaults_when_keys_missing(stub_node):
+def test_parse_minimal_value(stub_node):
     from task_generator.shared import Robot
     value = {"name": "bot1", "model": "turtlebot3_burger"}
     robot = Robot.parse(value, node=stub_node)
-    assert robot.local_planner == "dwa"
-    assert robot.global_planner == "navfn"
-    assert robot.agent == "rosnav"
-    assert robot.navigator == "nav2"
+    assert "mobile" not in robot.adapter_overrides
     assert robot.record_data_dir is None
 
 
-def test_parse_explicit_values_override_conf(stub_node):
+def test_parse_flat_mobile_overrides_adapters(stub_node):
     from task_generator.shared import Robot
     value = {
         "name": "bot2",
         "model": "turtlebot3_burger",
-        "local_planner": "teb",
-        "global_planner": "smac",
-        "agent": "custom_agent",
-        "navigator": "none",
+        "mobile": "none",
     }
     robot = Robot.parse(value, node=stub_node)
-    assert robot.local_planner == "teb"
-    assert robot.global_planner == "smac"
-    assert robot.agent == "custom_agent"
-    assert robot.navigator == "none"
+    assert robot.adapter_overrides["mobile"] == "none"
 
 
 def test_parse_extra_dict_preserved(stub_node):
@@ -151,16 +110,12 @@ def test_parse_default_pos_is_zero(stub_node):
 
 
 def test_frame_sim_path_branch():
-    from task_generator.shared import Robot, Pose
     from arena_robots.Robot import RobotIdentifier
+    from task_generator.shared import Pose, Robot
     robot = Robot(
         name="r",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        inter_planner="x",
-        local_planner="x",
-        global_planner="x",
-        agent="x",
         extra={},
     )
     robot.sim_path = "simulation/r"
@@ -169,16 +124,12 @@ def test_frame_sim_path_branch():
 
 
 def test_frame_name_fallback():
-    from task_generator.shared import Robot, Pose
     from arena_robots.Robot import RobotIdentifier
+    from task_generator.shared import Pose, Robot
     robot = Robot(
         name="robot_a",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        inter_planner="x",
-        local_planner="x",
-        global_planner="x",
-        agent="x",
         extra={},
     )
     frame = robot.frame
@@ -186,8 +137,8 @@ def test_frame_name_fallback():
 
 
 def test_from_setup_delegates_to_parse(stub_node):
-    from task_generator.shared import Robot
     from arena_robots.SetupFile import Config
+    from task_generator.shared import Robot
     setup = Config(robot="turtlebot3_burger", name="setup_bot")
     robot = Robot.from_setup(setup, node=stub_node)
     assert robot.name == "setup_bot"
@@ -213,17 +164,13 @@ def test_eq_not_equal_when_model_differs():
 
 
 def test_eq_not_equal_when_record_data_dir_differs():
-    from task_generator.shared import Robot, Pose
     from arena_robots.Robot import RobotIdentifier
+    from task_generator.shared import Pose, Robot
     r1 = Robot(
         name="bot",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        inter_planner="rosnav",
-        local_planner="dwa",
-        global_planner="navfn",
-        agent="rosnav",
-        navigator="nav2",
+        adapter_overrides={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/a",
     )
@@ -231,11 +178,7 @@ def test_eq_not_equal_when_record_data_dir_differs():
         name="bot",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        inter_planner="rosnav",
-        local_planner="dwa",
-        global_planner="navfn",
-        agent="rosnav",
-        navigator="nav2",
+        adapter_overrides={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/b",
     )
@@ -248,16 +191,12 @@ def test_eq_not_equal_to_non_robot():
 
 
 def test_frame_empty_name_fallback_to_empty_string():
-    from task_generator.shared import Robot, Pose
     from arena_robots.Robot import RobotIdentifier
+    from task_generator.shared import Pose, Robot
     robot = Robot(
         name="",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        inter_planner="x",
-        local_planner="x",
-        global_planner="x",
-        agent="x",
         extra={},
     )
     assert str(robot.frame) == ""

@@ -9,7 +9,7 @@ from task_generator.tasks.robots._placement import random_placement
 from task_generator.tasks.robots.request import GoToPhase, TaskRequest
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 
-from . import explore, guided, random, scenario
+from . import demo, explore, guided, random, scenario
 
 
 class TM_Robots(TaskMode):
@@ -25,6 +25,7 @@ class TM_Robots(TaskMode):
     """
 
     _last_reset: int
+    _start_poses: dict[str, Pose]
     _floor_id: ROSParamT[str]
     _floor_id_mode: ROSParamT[str]
 
@@ -46,8 +47,13 @@ class TM_Robots(TaskMode):
             return self._floor_id.value or ""
         return self._floor_id.value or ""
 
+    @property
+    def start_poses(self) -> dict[str, Pose]:
+        return self._start_poses
+
     async def reset(self, **kwargs: object) -> None:
         self._last_reset = self.node.sim_time.sec
+        self._start_poses = {}
 
     async def set_position(self, pose: Pose):
         """Teleport every robot to ``pose``."""
@@ -95,4 +101,4 @@ class TM_Robots(TaskMode):
         return True
 
 
-__all__ = ["TM_Robots", "explore", "guided", "random", "scenario"]
+__all__ = ["TM_Robots", "demo", "explore", "guided", "random", "scenario"]

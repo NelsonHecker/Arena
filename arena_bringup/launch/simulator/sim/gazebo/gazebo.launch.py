@@ -133,9 +133,14 @@ def generate_launch_description():
         package='ros_gz_bridge',
         executable='parameter_bridge',
         output='screen',
-        arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
         parameters=[{
-            **use_sim_time.dict
+            **use_sim_time.dict,
+            'config_file': PathJoinSubstitution([
+                FindPackageShare('arena_bringup'),
+                'configs',
+                'gazebo',
+                'clock_bridge.yaml',
+            ]),
         }],
     )
 

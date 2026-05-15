@@ -34,7 +34,7 @@ After `set_up()`, the active fleet is published latched on `state/robots` as a `
 
 One instance per spawned robot. Owns:
 
-- The bound `Adapter` (resolved from `robot.navigator` via
+- The bound `Adapter` (resolved from `robot.adapter_overrides` via
   `Constants.TaskMode.TM_Robots`).
 - The current `TaskRequest` and phase index.
 - A goal-republish timer loop.

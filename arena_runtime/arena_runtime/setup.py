@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'arena_node = arena_runtime.arena_node:main',
+            'urdf_publisher = arena_runtime.urdf_publisher:main',
         ]
     }
 )

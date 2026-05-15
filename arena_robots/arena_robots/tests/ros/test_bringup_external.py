@@ -1,4 +1,4 @@
-"""Tests for arena_robots.bringup.external — ExternalBringup."""
+"""Tests for arena_robots.bringup.mobile.external - ExternalBringup."""
 
 from __future__ import annotations
 
@@ -27,28 +27,28 @@ def _make_robot(external_cfg: dict, name: str = "ext_robot") -> object:
 
 class TestExternalBringupAttributes:
     def test_kind_value(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         assert ExternalBringup.kind == "external"
 
 
 class TestExternalBringupCfg:
     def test_cfg_returns_external_sub_block(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "/path/to/launch.py"})
         b = ExternalBringup(robot=robot, namespace="/ns")
         assert b._cfg == {"launch_file": "/path/to/launch.py"}
 
     def test_launch_file_present(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "/my/launch.py"})
         b = ExternalBringup(robot=robot, namespace="/ns")
         assert b.launch_file == "/my/launch.py"
 
     def test_launch_file_missing_raises_key_error(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({})
         b = ExternalBringup(robot=robot, namespace="/ns")
@@ -56,28 +56,28 @@ class TestExternalBringupCfg:
             _ = b.launch_file
 
     def test_requires_from_cfg(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "x.py", "requires": ["mobile", "arm"]})
         b = ExternalBringup(robot=robot, namespace="/ns")
         assert b.requires == frozenset({"mobile", "arm"})
 
     def test_requires_default_mobile(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "x.py"})
         b = ExternalBringup(robot=robot, namespace="/ns")
         assert b.requires == frozenset({"mobile"})
 
     def test_extra_empty_by_default(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "x.py"})
         b = ExternalBringup(robot=robot, namespace="/ns")
         assert b.extra == {}
 
     def test_extra_dict_returned(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "x.py", "extra": {"speed": 1.5}})
         b = ExternalBringup(robot=robot, namespace="/ns")
@@ -86,7 +86,7 @@ class TestExternalBringupCfg:
 
 class TestExternalBringupTopics:
     def test_goal_topic_contains_namespace(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "x.py"})
         b = ExternalBringup(robot=robot, namespace="/myns")
@@ -94,7 +94,7 @@ class TestExternalBringupTopics:
         assert "myns" in b.goal_topic
 
     def test_cmd_vel_topic_contains_namespace(self):
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         robot = _make_robot({"launch_file": "x.py"})
         b = ExternalBringup(robot=robot, namespace="/myns")
@@ -104,7 +104,7 @@ class TestExternalBringupTopics:
 
 class TestExternalBringupLaunchActions:
     def _make(self, extra_cfg: dict | None = None) -> object:
-        from arena_robots.bringup.external import ExternalBringup
+        from arena_robots.bringup.mobile.external import ExternalBringup
 
         cfg = {"launch_file": "/launch/ext.py"}
         if extra_cfg:

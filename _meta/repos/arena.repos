@@ -36,6 +36,12 @@ repositories:
     url: https://github.com/voshch/arena-models
     version: master
 
+  # AAAAAAAA WHY IS #118 NOT VENDORED
+  deps/topic_based_hardware_interfaces:
+    type: git
+    url: https://github.com/voshch/topic_based_hardware_interfaces
+    version: main
+
   # deps/xacro:
   #   type: git
   #   url: https://github.com/ros/xacro.git

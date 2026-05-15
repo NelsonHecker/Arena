@@ -1,8 +1,6 @@
 import asyncio
 import os
 import tempfile
-import traceback
-import typing
 from pathlib import Path
 
 import arena_runtime_msgs.msg
@@ -12,45 +10,26 @@ import geometry_msgs.msg
 import launch
 import launch.actions
 import launch.launch_description_sources
+import launch_ros.actions
 import lifecycle_msgs.msg
 import nav2_msgs.srv
-import nav_msgs.msg
 import numpy as np
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import FrameNamespace
-from arena_rclpy_mixins.Time import Time
 from arena_runtime._node import NodeInterface
 from arena_simulation_setup.shared import Position
 from arena_simulation_setup.tree import DynamicPaths
+from arena_simulation_setup.tree.World.Map import Map as MapTree
 
 from task_generator.manager.environment_manager import EnvironmentManager
+from task_generator.simulators.human.utils import ObstacleLayer
 
-from .utils import MultiLevelMap, WorldMap
+from .utils import WorldLayers, WorldMap, MultiLevelMap, WorldOccupancy
 from .world_manager import WorldManager
 
-_DUMMY_MAP_SHAPE = (1, 1)
-_DUMMY_MAP_PADDING = 1
-_DUMMY_MAP = nav_msgs.msg.OccupancyGrid(
-    info=nav_msgs.msg.MapMetaData(
-        height=_DUMMY_MAP_SHAPE[0] + 2 * _DUMMY_MAP_PADDING,
-        width=_DUMMY_MAP_SHAPE[1] + 2 * _DUMMY_MAP_PADDING,
-        resolution=0.1,
-        map_load_time=Time(-1, 0).to_msg(),
-    ),
-    data=list(
-        np.pad(
-            np.zeros(
-                (_DUMMY_MAP_SHAPE[0], _DUMMY_MAP_SHAPE[1]),
-                dtype=int,
-            ),
-            ((_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING), (_DUMMY_MAP_PADDING, _DUMMY_MAP_PADDING)),
-            mode='constant',
-            constant_values=1,
-        ).flat
-    ),
-)
+_DEFAULT_RESOLUTION = 0.05
 
 
 class MapServerHandler(NodeInterface):
@@ -89,12 +68,10 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
     _environment_manager: EnvironmentManager
 
-    _cli: ClientWrapper
+    _cli: ClientWrapper | None
     _cli_confirm_world: ClientWrapper
     _world_name: str
-    _origin: Position | None
-    _map_name: str | None
-    _callbacks: list[typing.Callable[[], typing.Awaitable[None]]]
+    _map_server_present: bool
 
     def _shift_map(self, map_dir: Path) -> tempfile.TemporaryDirectory:
         """Shift the map to the correct origin.
@@ -114,10 +91,6 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             map_yaml = yaml.safe_load(f)
             assert isinstance(map_yaml, dict), "map.yaml must be a dictionary"
         origin = list(map_yaml.get('origin', [0, 0, 0]))
-        self._origin = Position(
-            x=origin[0],
-            y=origin[1],
-        )
         shifted_origin = self._environment_manager.realize(
             Position(
                 x=origin[0],
@@ -164,7 +137,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         t = geometry_msgs.msg.TransformStamped()
         t.header.stamp = self.node.get_clock().now().to_msg()
         t.header.frame_id = 'map'
-        t.child_frame_id = FrameNamespace(prefix)('map').sanitize()
+        t.child_frame_id = FrameNamespace(prefix).tf('map')
         t.transform.translation.x = ref_x
         t.transform.translation.y = ref_y
         t.transform.translation.z = 0.0
@@ -188,11 +161,23 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             except RuntimeError:
                 pass
 
-    async def apply_world(self, world_name: str) -> bool:
-        """Load `world_name` if different from the current world.
+    def _ensure_world_map_files(self, world: World.World, description: World.WorldDescription, resolution: float) -> None:
+        """Render `map/map.png` + `map/map.yaml` if missing."""
+        map_dir = world.map.path
+        map_png = map_dir / 'map.png'
+        map_yaml = map_dir / 'map.yaml'
+        if map_png.exists() and map_yaml.exists():
+            return
 
-        The change surface is async-only, callers must await this from the event loop. There is no rosparam callback for `world`; the param is a read-only mirror of state.
-        """
+        os.makedirs(map_dir, exist_ok=True)
+        png_bytes, origin = description.render(resolution=resolution)
+        if not map_png.exists():
+            map_png.write_bytes(png_bytes)
+        if not map_yaml.exists():
+            map_yaml.write_text(MapTree.generate_map_yaml(resolution=resolution, filename='map.png', origin=origin))
+
+    async def apply_world(self, world_name: str) -> bool:
+        """Synchronously swap to `world_name`. Must be called inside `_run_reset_cycle`'s hold."""
         self._logger.info(f'World change requested: {world_name}')
 
         if world_name == self._world_name:
@@ -232,113 +217,86 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             self._publish_anchor_tf(ref_x, ref_y)
 
         self._logger.warn(f'Loading World {world_name}')
+
+        world_map = WorldMap.from_world_description(description, resolution=_DEFAULT_RESOLUTION, time=self.node.sim_time)
+        DynamicPaths.WORLD.path = world.path
+        self.update_world(world_map=world_map, world_description=description)
+
         self._world_name = world_name
-
-        tmp_map = self._shift_map(world_view.map.path)
-        map_yaml = os.path.join(
-            tmp_map.name,
-            'map.yaml',
-        )
-
-        response = await self._cli.call_timeout(nav2_msgs.srv.LoadMap.Request(map_url=f'{map_yaml}'))
-
-        tmp_map.cleanup()
-
-        if response is None:
-            raise RuntimeError(f'failed to load map for world {world_name}: service timed out')
-
-        if response.result > 0:
-            raise RuntimeError(f'failed to load map for world {world_name}: status code {response.result}')
-
         self.node.rosparam[str].set('world', world_name)
+
+        if self._map_server_present:
+            await self._push_world_to_map_server(world, description)
+
+        await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
+        await self._environment_manager.spawn_world_obstacles(self._world)
 
         return True
 
-    async def _map_callback(self, costmap: nav_msgs.msg.OccupancyGrid):
-        """Handle incoming map updates.
+    async def _push_world_to_map_server(self, world: World.World, description: World.WorldDescription) -> None:
+        """Render+shift+LoadMap. Caller guarantees map_server is present."""
+        self._ensure_world_map_files(world, description, resolution=_DEFAULT_RESOLUTION)
+        tmp_map = self._shift_map(world.map.path)
+        try:
+            map_yaml = os.path.join(tmp_map.name, 'map.yaml')
+            assert self._cli is not None
+            response = await self._cli.call_timeout(nav2_msgs.srv.LoadMap.Request(map_url=f'{map_yaml}'))
+        finally:
+            tmp_map.cleanup()
+        if response is None:
+            raise RuntimeError(f'failed to load map for world {self._world_name}: service timed out')
+        if response.result > 0:
+            raise RuntimeError(f'failed to load map for world {self._world_name}: status code {response.result}')
 
-        Args:
-            costmap (nav_msgs.msg.OccupancyGrid): The updated costmap.
-        """
-        if self._map.time <= costmap.info.map_load_time:
-            world_view = await World.MultiLevelWorldIdentifier(self.world_name).resolve()
-            world = world_view.load()
-            world_map = WorldMap.from_costmap(costmap)
-
-            if self._origin is not None:
-                world_map.origin = self._origin
-                self._origin = None
-
-            DynamicPaths.WORLD.path = world_view.path
-
-            # Per-floor maps are static artifacts from export; rebuild from disk for placement.
-            multi_map = None
-            floors_dir = world_view.map.path / 'floors'
-            if floors_dir.is_dir():
-                multi_map = MultiLevelMap()
-                realizer = getattr(self.node, '_realizer', None)
-                base_config = realizer.get_config() if realizer is not None else None
-                for floor_id in world.floor_ids:
-                    map_yaml_path = floors_dir / f"{floor_id}.yaml"
-                    if not map_yaml_path.exists():
-                        continue
-                    floor_map = WorldMap.from_map_files(map_yaml_path)
-                    if realizer is not None and base_config is not None:
-                        level_x, level_y = realizer.get_level_origin(floor_id)
-                        floor_map.origin = Position(
-                            x=floor_map.origin.x + base_config.x + level_x,
-                            y=floor_map.origin.y + base_config.y + level_y,
-                        )
-                    multi_map.set_map(floor_id, floor_map)
-
-            self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_map)
-
-            self._map_name = self.world_name
-            try:
-                await asyncio.gather(*(callback() for callback in self._callbacks))
-            except Exception as e:
-                self._logger.warning(f'encountered exception in world callback: {e}\n{traceback.format_exc()}')
-
-    def on_world_change(self, callback: typing.Callable[[], typing.Awaitable[None]]):
-        """Register a callback to be called when the world changes.
-
-        Args:
-            callback (typing.Callable[[], None]): The callback to register.
-        """
-        self._callbacks.append(callback)
+    async def require_map_server(self) -> None:
+        """Idempotent: lazy-launch map_server and push the current world. Safe to call concurrently."""
+        async with self._map_server_lock:
+            if self._map_server_present:
+                return
+            await self.node.do_launch(
+                launch.LaunchDescription(
+                    [
+                        launch.actions.GroupAction(
+                            [
+                                launch_ros.actions.PushRosNamespace(self.node.get_fully_qualified_name()),
+                                launch.actions.IncludeLaunchDescription(launch.launch_description_sources.PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('arena_bringup'), 'launch/utils/map_server.launch.py'))),
+                            ]
+                        ),
+                    ]
+                )
+            )
+            self._cli = self.node.create_client_wrapper(
+                nav2_msgs.srv.LoadMap,
+                self.node.service_namespace('map_server', 'load_map'),
+            )
+            await self._cli.ensure()
+            await self.ensure_map_server()
+            self._map_server_present = True
+            if self._world_name:
+                world = await World.WorldIdentifier(self._world_name).resolve()
+                await self._push_world_to_map_server(world, world.load())
 
     def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager = environment_manager
 
-        self._callbacks = []
-        dummy_world = World.MultiLevelWorld.from_world_description(World.WorldDescription())
-        dummy_map = WorldMap.from_costmap(_DUMMY_MAP)
-        self.update_world(world_map=dummy_map, world_description=dummy_world, multi_level_map=MultiLevelMap.from_single(dummy_map))
+        self.update_world(
+            world_map=WorldMap(
+                occupancy=WorldLayers(walls=WorldOccupancy(np.full((1, 1), WorldOccupancy.EMPTY, dtype=np.uint8))),
+                origin=Position(x=0.0, y=0.0),
+                resolution=_DEFAULT_RESOLUTION,
+                time=self.node.sim_time,
+            ),
+            world_description=World.MultiLevelWorldWorld.from_world_description(World.WorldDescription()),
+        )
         self._world_name = ''
-        self._origin = None
-        self._map_name = None
+        self._cli = None
+        self._map_server_present = False
+        self._map_server_lock = asyncio.Lock()
 
     async def start(self):
         """Start the world manager."""
         self._logger.info("starting")
-
-        # retrieving map from map_server
-        self.node.create_subscription(
-            nav_msgs.msg.OccupancyGrid,
-            self.node.service_namespace('map'),
-            self._map_callback,
-            1,
-        )
-
-        await self.ensure_map_server()
-
-        # publishing map to map_server
-        self._cli = self.node.create_client_wrapper(
-            nav2_msgs.srv.LoadMap,
-            self.node.service_namespace('map_server', 'load_map'),
-        )
-        await self._cli.ensure()
 
         self._cli_confirm_world = self.node.create_client_wrapper(
             arena_runtime_msgs.srv.ConfirmWorld,
@@ -350,38 +308,18 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if initial_world:
             await self.apply_world(initial_world)
 
+    @property
+    def loaded_world(self) -> str:
+        """Currently loaded world. Read `node._episodes.current.world` for the intended next-episode world (the two diverge briefly during a reset cycle)."""
+        return self._world_name
+
     async def sync(self, timeout: float = -1) -> bool:
-        """Synchronize the world and map names.
-
-        Args:
-            timeout (float, optional): The maximum time to wait for synchronization. Defaults to -1.
-
-        Returns:
-            bool: True if synchronization was successful, False otherwise.
-        """
+        """Wait until at least one world has been applied. Used by external lifecycle callers."""
         start_time = self.node.get_clock().now().seconds_nanoseconds()[0]
-        while self._map_name != self._world_name:
+        while not self._world_name:
             await asyncio.sleep(0.01)
             if timeout >= 0:
                 elapsed = self.node.get_clock().now().seconds_nanoseconds()[0] - start_time
                 if elapsed >= timeout:
                     return False
         return True
-
-    @property
-    def world_name(self) -> str:
-        """Get the current world name.
-
-        Returns:
-            str: The current world name.
-        """
-        return self._world_name
-
-    @property
-    def world(self) -> World.WorldDescription:
-        """Get the current world description.
-
-        Returns:
-            World.WorldDescription: The current world description.
-        """
-        return self._world

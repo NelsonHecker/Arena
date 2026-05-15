@@ -19,8 +19,8 @@ intent into goals sent at a specific robot through its bound adapter.
 
 Each `TM_Robots` subclass is a package:
 
-- `__init__.py` (eager): registers the mode via `_TaskRegistry.register_robots` and calls `declare_schema(node, ns)` to forward-declare all parameters at node startup.
-- `impl.py` (lazy): contains the class body, imported only on first activation.
+- `__init__.py` (eager): declares `_NS` and (optionally) `_declare_schema`, then registers the mode on `ROBOTS_MODES` (a `TaskModeRegistry` from `tasks/registry.py`) with `namespace=_NS` and `schema=_declare_schema`. Imported at node startup.
+- `impl.py` (lazy): contains the class body. Imported only on first activation.
 
 Parameters live under `task.<mode>.<leaf>`. Mode names are shared across the
 three axes; e.g. `task.scenario.file` is read by both `TM_Robots.scenario` and

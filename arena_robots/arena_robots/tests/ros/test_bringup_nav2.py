@@ -1,4 +1,4 @@
-"""Tests for arena_robots.bringup.nav2 — Nav2Bringup."""
+"""Tests for arena_robots.bringup.mobile.nav2 - Nav2Bringup."""
 
 from __future__ import annotations
 
@@ -15,25 +15,25 @@ def _make_mock_robot(name: str = "test_robot") -> object:
 
 class TestNav2BringupAttributes:
     def test_kind_value(self):
-        from arena_robots.bringup.nav2 import Nav2Bringup
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 
         assert Nav2Bringup.kind == "nav2"
 
     def test_requires_mobile(self):
-        from arena_robots.bringup.nav2 import Nav2Bringup
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 
-        assert "mobile" in Nav2Bringup.requires
+        assert "mobile" in Nav2Bringup._bringup_meta.requires
 
     def test_requires_frozenset(self):
-        from arena_robots.bringup.nav2 import Nav2Bringup
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 
-        assert isinstance(Nav2Bringup.requires, frozenset)
+        assert isinstance(Nav2Bringup._bringup_meta.requires, frozenset)
 
 
 class TestNav2BringupProperties:
     def setup_method(self):
         robot = _make_mock_robot("myrobot")
-        from arena_robots.bringup.nav2 import Nav2Bringup
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 
         self.b = Nav2Bringup(robot=robot, namespace="/robot1")
 
@@ -51,7 +51,7 @@ class TestNav2BringupProperties:
 class TestNav2LaunchActions:
     def _make_bringup(self, namespace: str = "/robot1"):
         robot = _make_mock_robot("myrobot")
-        from arena_robots.bringup.nav2 import Nav2Bringup
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 
         return Nav2Bringup(robot=robot, namespace=namespace)
 
@@ -97,9 +97,9 @@ class TestNav2LaunchActions:
         b = self._make_bringup()
         actions = b._launch_actions()
         args = dict(actions[0].launch_arguments)
-        assert args["global_planner"] == "GridBased"
-        assert args["local_planner"] == "DWB"
-        assert args["inter_planner"] == "default"
+        assert args["global_planner"] == "navfn"
+        assert args["local_planner"] == "regulated_pure_pursuit"
+        assert args["inter_planner"] == "navigate_w_replanning_time"
 
     def test_extra_kwargs_ignored(self):
         b = self._make_bringup()

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Self
 
 import attrs
+import numpy as np
 import yaml
 
 from arena_simulation_setup import ASS_DIR
@@ -105,20 +106,6 @@ class WorldDescription:
     def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
         return (entity for zone in self.zones for entity in zone.entities.dynamic)
 
-# probably unnecessary
-    # def bounding_rect(self) -> Floor:
-    #     """
-    #     represent the bounding rectangle for the whole world as an instance of Floor
-    #     """
-    #     x_min = min(corner.x for zone in self.zones for corner in zone.corners)
-    #     y_min = min(corner.y for zone in self.zones for corner in zone.corners)
-    #     x_max = max(corner.x for zone in self.zones for corner in zone.corners)
-    #     y_max = max(corner.y for zone in self.zones for corner in zone.corners)
-    #     pos = Position(x=(x_min + x_max) / 2, y=(y_min + y_max) / 2)
-    #     x_length = x_max - x_min
-    #     y_length = y_max - y_min
-    #     return Floor(name="bounding_rect", pos=pos, x_length=x_length, y_length=y_length, material=self.material)
-
     def shift_all_positions(self, dx: float, dy: float):
         diff: Position = Position(dx, dy)
         for zone in self.zones:
@@ -138,6 +125,46 @@ class WorldDescription:
             dynamic_entity.pose.position = dynamic_entity.pose.position + diff
             for idx, wp in enumerate(dynamic_entity.waypoints):
                 dynamic_entity.waypoints[idx] = wp + diff
+
+    def _rasterize_kwargs(
+        self,
+        *,
+        default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
+        asset_color: str | None = None,
+        asset_name_color: str | None = None,
+    ) -> dict[str, typing.Any]:
+        import shapely
+        import shapely.affinity
+
+        map_kwargs: dict[str, typing.Any] = {
+            "rooms": shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
+            "doors": shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
+            "walls": shapely.MultiLineString(list(self.all_walls)),
+            "padding": 5,
+        }
+
+        if asset_color is not None:
+            static_objects: list[tuple[str, shapely.Polygon]] = []
+            for entity in self.all_static_entities:
+                try:
+                    bbox = entity.asdict(expand_extra=True).get('bbox')
+                    if bbox is None:
+                        if default_asset_bbox is None:
+                            raise ValueError(f"Static entity '{entity.name}' does not have a bbox and no default_asset_bbox was provided.")
+                        bbox = default_asset_bbox
+                    (x_min, x_max), (y_min, y_max), *_ = bbox
+                except Exception:
+                    continue
+                poly = shapely.box(x_min, y_min, x_max, y_max)
+                poly = shapely.affinity.rotate(poly, entity.pose.orientation.to_yaw(), use_radians=True)
+                poly = shapely.affinity.translate(poly, entity.pose.position.x, entity.pose.position.y)
+                static_objects.append((entity.name, poly))
+
+            map_kwargs["static_objects"] = static_objects
+            map_kwargs["asset_color"] = asset_color
+            map_kwargs["asset_name_color"] = asset_name_color
+
+        return map_kwargs
 
     def render(
         self,
@@ -163,42 +190,32 @@ class WorldDescription:
             - Static objects are drawn only if their dimensions can be determined from bbox, width/height, or default_asset_bbox.
             - If asset_color is None, static objects are not drawn.
         """
-        import shapely
-        import shapely.affinity
-
-        map_kwargs: dict[str, typing.Any] = {}
-
-        if asset_color is not None:
-            static_objects: list[tuple[str, shapely.Polygon]] = []
-            for entity in self.all_static_entities:
-                try:
-                    bbox = entity.asdict(expand_extra=True).get('bbox')
-                    if bbox is None:
-                        if default_asset_bbox is None:
-                            raise ValueError(f"Static entity '{entity.name}' does not have a bbox and no default_asset_bbox was provided.")
-                        bbox = default_asset_bbox
-                    (x_min, x_max), (y_min, y_max), *_ = bbox
-                except Exception:
-                    continue
-                poly = shapely.box(x_min, y_min, x_max, y_max)
-                poly = shapely.affinity.rotate(poly, entity.pose.orientation.to_yaw(), use_radians=True)
-                poly = shapely.affinity.translate(poly, entity.pose.position.x, entity.pose.position.y)
-                static_objects.append((entity.name, poly))
-
-            map_kwargs["static_objects"] = static_objects
-            map_kwargs["asset_color"] = asset_color
-            map_kwargs["asset_name_color"] = asset_name_color
-
-        png, origin = Map.generate_png(
-            rooms=shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
-            doors=shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
-            elevators=shapely.MultiPolygon([shapely.Polygon(elevator.corners) for elevator in self.all_elevators]),
-            walls=shapely.MultiLineString(list(self.all_walls)),
+        return Map.generate_png(
             resolution=resolution,
-            padding=5,
-            **map_kwargs,
+            **self._rasterize_kwargs(
+                default_asset_bbox=default_asset_bbox,
+                asset_color=asset_color,
+                asset_name_color=asset_name_color,
+            ),
         )
-        return png, origin
+
+    def render_grid(
+        self,
+        resolution: float = 0.05,
+        *,
+        default_asset_bbox: tuple[tuple[float, float], tuple[float, float]] | None = None,
+        asset_color: str | None = None,
+        asset_name_color: str | None = None,
+    ) -> tuple[np.ndarray, tuple[float, float]]:
+        """Like `render` but returns a uint8 numpy array (255=free, 0=occupied) + origin."""
+        return Map.rasterize(
+            resolution=resolution,
+            **self._rasterize_kwargs(
+                default_asset_bbox=default_asset_bbox,
+                asset_color=asset_color,
+                asset_name_color=asset_name_color,
+            ),
+        )
 
     def export(self, resolution: float = 0.05, extra_files: dict[str, bytes] | None = None, **kwargs: object) -> tarfile.TarFile:
         """

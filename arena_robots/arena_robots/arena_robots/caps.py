@@ -24,6 +24,7 @@ from typing import Literal
 
 import attrs
 import yaml
+from arena_simulation_setup.tree.Gesture import GestureSpec
 
 _POLYGON_TYPES: frozenset[str] = frozenset({'polygon', 'circle'})
 _ACTION_TYPES: frozenset[str] = frozenset({'stop', 'slowdown', 'approach', 'limit'})
@@ -419,6 +420,50 @@ class ArmSpec(InstanceSpec):
             raise ValueError(f"{self.path}: arm '{self.name}' missing 'controller' (controllers are not in SRDF; always author explicitly)")
         return str(v)
 
+    @property
+    def planning_group(self) -> str | None:
+        mv = self.raw.get("moveit")
+        if not isinstance(mv, dict):
+            return None
+        pg = mv.get("planning_group")
+        return None if pg is None else str(pg)
+
+    @property
+    def workspace(self) -> dict[str, object] | None:
+        """Raw workspace block (type / frame / min / max), or None if not declared."""
+        ws = self.raw.get("workspace")
+        return ws if isinstance(ws, dict) else None
+
+    @property
+    def named_poses(self) -> dict[str, dict[str, float]]:
+        """``{pose_name: {joint_name: radians}}``. Empty dict if not declared.
+
+        Validates each entry's ``joints:`` block; raises ValueError on shape errors."""
+        raw = self.raw.get("named_poses")
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError(f"{self.path}: arm '{self.name}' 'named_poses' must be a mapping; got {type(raw).__name__}")
+        out: dict[str, dict[str, float]] = {}
+        for name, entry in raw.items():
+            if not isinstance(entry, dict):
+                raise ValueError(f"{self.path}: named_pose '{name}' must be a mapping")
+            joints = entry.get("joints")
+            if not isinstance(joints, dict):
+                raise ValueError(f"{self.path}: named_pose '{name}' missing 'joints' mapping")
+            out[str(name)] = {str(j): float(v) for j, v in joints.items()}
+        return out
+
+    @property
+    def gestures(self) -> dict[str, GestureSpec]:
+        """Per-robot gesture overrides. Empty dict if absent."""
+        raw = self.raw.get("gestures")
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError(f"{self.path}: arm '{self.name}' 'gestures' must be a mapping; got {type(raw).__name__}")
+        return {str(k): GestureSpec.parse(v) for k, v in raw.items()}
+
 
 @attrs.define(slots=False)
 class LiftSpec(InstanceSpec):
@@ -509,22 +554,24 @@ class RobotCaps:
         return MobileSpec(path=self.caps_dir / 'mobile.yaml', raw=data)
 
     @property
-    def arm(self) -> dict[str, ArmSpec]:
+    def arm(self) -> dict[str, ArmSpec] | None:
         return self._instances('arm', ArmSpec)
 
     @property
-    def lift(self) -> dict[str, LiftSpec]:
+    def lift(self) -> dict[str, LiftSpec] | None:
         return self._instances('lift', LiftSpec)
 
     @property
-    def gripper(self) -> dict[str, GripperSpec]:
+    def gripper(self) -> dict[str, GripperSpec] | None:
         return self._instances('gripper', GripperSpec)
 
     def _instances(
         self,
         cap: str,
         cls: type[InstanceSpec],
-    ) -> dict[str, typing.Any]:
+    ) -> dict[str, typing.Any] | None:
+        if cap not in self.available:
+            return None
         data = self._load_cap_file(cap)
         path = self.caps_dir / f'{cap}.yaml'
         out: dict[str, typing.Any] = {}

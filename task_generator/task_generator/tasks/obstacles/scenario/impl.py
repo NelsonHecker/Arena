@@ -22,7 +22,7 @@ class TM_Scenario(TM_Obstacles):
         if default_scenario not in (scenarios := list(identifier_to_available(MultiLevelWorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario))):
             default_scenario = next(iter(scenarios), None)
         if default_scenario is None:
-            raise ValueError(f"No scenarios found in world {self._ctx.world_manager.world_name}")
+            raise ValueError(f"No scenarios found in world {self._ctx.world_manager.loaded_world}")
 
         self._config = self.node.ROSParam[Scenario](
             self.namespace('file'),

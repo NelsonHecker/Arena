@@ -2,7 +2,7 @@
 
 Entry point: [`sim.launch.py`](sim.launch.py).
 
-Called from `arena.launch.py` with `simulator`, `use_sim_time`, `world`, and
+Called from `arena_runtime.launch.py` with `simulator`, `use_sim_time`, `world`, and
 `headless`. Its sole job is to select and delegate to one simulator backend.
 
 ## SelectAction dispatch

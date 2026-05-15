@@ -6,7 +6,14 @@ import warnings
 import pytest
 import yaml
 
-from arena_simulation_setup.tree.World.Scenario import RobotGoal, Scenario, ScenarioView
+from arena_simulation_setup.tree.World.Scenario import (
+    RobotGoal,
+    Scenario,
+    ScenarioGesturePhase,
+    ScenarioGotoPhase,
+    ScenarioPhase,
+    ScenarioView,
+)
 from arena_simulation_setup.utils.geometry import Pose
 
 
@@ -140,3 +147,118 @@ def test_scenario_view_included_from_propagated(tmp_path):
     scenario = view.load()
     assert len(scenario.static) >= 1
     assert scenario.static[0].included_from == scenario_dir
+
+
+# ---------------------------------------------------------------------------
+# ScenarioPhase dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_phase_parse_goto():
+    phase = ScenarioPhase.parse({"goto": [1.0, 2.0, 0.0]})
+    assert isinstance(phase, ScenarioGotoPhase)
+    assert phase.goto.position.x == pytest.approx(1.0)
+
+
+def test_scenario_phase_parse_gesture():
+    phase = ScenarioPhase.parse({"gesture": "wave"})
+    assert isinstance(phase, ScenarioGesturePhase)
+    assert phase.gesture == "wave"
+
+
+def test_scenario_phase_parse_malformed_raises():
+    with pytest.raises(ValueError):
+        ScenarioPhase.parse({"foo": "bar"})
+
+
+# ---------------------------------------------------------------------------
+# RobotGoal.phase_list -- legacy goal: path
+# ---------------------------------------------------------------------------
+
+
+def test_robot_goal_phase_list_legacy_goal_deprecation():
+    rg = RobotGoal.parse({"start": [0.0, 0.0], "goal": [3.0, 4.0]})
+    with pytest.warns(DeprecationWarning):
+        phases = rg.phase_list()
+    assert len(phases) == 1
+    assert isinstance(phases[0], ScenarioGotoPhase)
+    assert phases[0].goto.position.x == pytest.approx(3.0)
+
+
+def test_robot_goal_phase_list_empty_when_no_goal_no_phases():
+    rg = RobotGoal.parse({"start": [0.0, 0.0]})
+    phases = rg.phase_list()
+    assert phases == []
+
+
+# ---------------------------------------------------------------------------
+# RobotGoal.phase_list -- new phases: path
+# ---------------------------------------------------------------------------
+
+
+def test_robot_goal_phase_list_mixed_phases(tmp_path):
+    scenario_dir = tmp_path / "sc_phases"
+    scenario_dir.mkdir()
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [
+            {
+                "start": [0.0, 0.0, 0.0],
+                "phases": [
+                    {"goto": [1.0, 0.0, 0.0]},
+                    {"gesture": "wave"},
+                    {"goto": [2.0, 0.0, 0.0]},
+                    {"gesture": "random"},
+                ],
+            }
+        ],
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    view = ScenarioView(scenario_dir)
+    scenario = view.load()
+    rg = scenario.robots[0]
+    phases = rg.phase_list()
+    assert len(phases) == 4
+    assert isinstance(phases[0], ScenarioGotoPhase)
+    assert phases[0].goto.position.x == pytest.approx(1.0)
+    assert isinstance(phases[1], ScenarioGesturePhase)
+    assert phases[1].gesture == "wave"
+    assert isinstance(phases[2], ScenarioGotoPhase)
+    assert phases[2].goto.position.x == pytest.approx(2.0)
+    assert isinstance(phases[3], ScenarioGesturePhase)
+    assert phases[3].gesture == "random"
+
+
+def test_robot_goal_phase_list_malformed_phase_raises(tmp_path):
+    scenario_dir = tmp_path / "sc_bad_phase"
+    scenario_dir.mkdir()
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [
+            {
+                "start": [0.0, 0.0, 0.0],
+                "phases": [{"foo": "bar"}],
+            }
+        ],
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    view = ScenarioView(scenario_dir)
+    with pytest.raises((ValueError, RuntimeError)):
+        view.load()
+
+
+def test_robot_goal_phases_takes_priority_over_goal():
+    rg = RobotGoal.parse(
+        {
+            "start": [0.0, 0.0],
+            "goal": [9.0, 9.0],
+            "phases": [{"gesture": "wave"}],
+        }
+    )
+    phases = rg.phase_list()
+    assert len(phases) == 1
+    assert isinstance(phases[0], ScenarioGesturePhase)

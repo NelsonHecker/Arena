@@ -239,14 +239,14 @@ def test_spawn_robot_srv():
     req.pose = PoseStamped()
     req.use_pose = False
     req.args = [
-        KeyValue(key="local_planner", value="teb"),
-        KeyValue(key="agent_name", value=""),
+        KeyValue(key="mobile.local_planner", value="teb"),
+        KeyValue(key="mobile.agent", value=""),
     ]
 
     assert req.model == "turtlebot3"
     assert req.name == ""
     assert len(req.args) == 2
-    assert req.args[0].key == "local_planner"
+    assert req.args[0].key == "mobile.local_planner"
     assert req.args[0].value == "teb"
 
     res = SpawnRobot.Response()

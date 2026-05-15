@@ -12,6 +12,11 @@ from arena_robots.caps import MobileSpec, stringify_float_matrix
 from arena_robots.Robot import ModelParams
 from arena_robots.Sensor import SensorSpec, SensorType
 
+_TYPE_TO_NAV2: dict[str, str] = {
+    SensorType.LASERSCAN.value: "LaserScan",
+    SensorType.POINTCLOUD.value: "PointCloud2",
+}
+
 
 def compile_sensors_to_nav2(
     sensors: list[SensorSpec],
@@ -20,20 +25,13 @@ def compile_sensors_to_nav2(
     clearing: bool = True,
     marking: bool = True,
 ) -> dict[str, dict[str, typing.Any]]:
-    """Compile Arena SensorSpec entries into nav2's observation_sources_dict shape."""
-    # Unknown type strings fall through unchanged so third-party sensor
-    # kinds nav2 understands keep working.
-    _TYPE_TO_NAV2: dict[str, str] = {
-        SensorType.LASERSCAN.value: "LaserScan",
-        SensorType.POINTCLOUD.value: "PointCloud2",
-        SensorType.IMAGE.value: "Image",
-        SensorType.DEPTH.value: "DepthImage",
-    }
-
+    """Compile SensorSpec entries with a nav2 costmap data_type into nav2's observation_sources_dict shape."""
     out: dict[str, dict[str, typing.Any]] = {}
     for spec in sensors:
         type_str = spec.type.value if isinstance(spec.type, SensorType) else str(spec.type)
-        data_type = _TYPE_TO_NAV2.get(type_str, type_str)
+        data_type = _TYPE_TO_NAV2.get(type_str)
+        if data_type is None:
+            continue
         out[spec.name] = {
             "topic": spec.topic,
             "data_type": data_type,
@@ -64,11 +62,11 @@ class SensorsDerivedYAML(YAMLFileSubstitution):
     def perform(self, context: launch.LaunchContext) -> str:
         path_str = launch.utilities.perform_substitutions(context, self._path)
         sensors = ModelParams.from_yaml(path_str).sensors
-        names = [s.name for s in sensors]
+        sources = compile_sensors_to_nav2(sensors)
         derived = {
-            'observation_sources_string': ' '.join(names),
-            'observation_sources': list(names),
-            'observation_sources_dict': compile_sensors_to_nav2(sensors),
+            'observation_sources_string': ' '.join(sources.keys()),
+            'observation_sources': list(sources.keys()),
+            'observation_sources_dict': sources,
         }
         tmp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.yaml')
         yaml.dump(derived, tmp)

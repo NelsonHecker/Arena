@@ -41,3 +41,10 @@ def _load_external() -> type[GotoPoseHandler]:
     from ._passthrough import GotoPoseHandlerExternal
 
     return GotoPoseHandlerExternal
+
+
+@HANDLERS.register((TaskKind.GOTO_POSE, "rosnav_rl"))
+def _load_rosnav_rl() -> type[GotoPoseHandler]:
+    from ._passthrough import GotoPoseHandlerRosnavRl
+
+    return GotoPoseHandlerRosnavRl

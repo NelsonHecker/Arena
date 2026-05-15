@@ -72,5 +72,5 @@ def test_allowlist_does_not_contain_train_mode():
 
 
 def test_static_config_params_coverage():
-    required = {"sim", "human", "agent_name", "global_planner", "local_planner", "inter_planner", "navigator"}
+    required = {"sim", "human", "robot.mobile_adapter", "robot.arm_adapter"}
     assert required <= set(STATIC_CONFIG_PARAMS)

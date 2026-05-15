@@ -1,8 +1,8 @@
 # task_generator tasks
 
 Core abstractions for the episode loop: the `Task` driver, `TaskMode`
-base, `TaskContext` dependency bundle, and the `_TaskRegistry` that wires
-everything together.
+base, `TaskContext` dependency bundle, and the three `ClassRegistry` instances
+that wire everything together.
 
 ## Key types
 
@@ -56,48 +56,67 @@ class TaskContext:
 `TM_Composite` replaces `robots_manager` with a scoped view so each sub-TM
 only sees its allocated fleet slice.
 
-### `_TaskRegistry`
+### Mode registries
 
-[`registry.py:29`](registry.py#L29)
+[`registry.py`](registry.py)
 
-Class-level dictionaries mapping each enum value to a `(loader, Namespace)`
-pair. Three decorator factories:
+Three `TaskModeRegistry` instances map each enum value to a lazy loader plus
+a per-key `TaskModeMeta`:
 
-| Decorator | Dict | Key type |
-| --- | --- | --- |
-| `register_robots(name)` | `registry_robots` | `Constants.TaskMode.TM_Robots` |
-| `register_obstacles(name)` | `registry_obstacles` | `Constants.TaskMode.TM_Obstacles` |
-| `register_module(name)` | `registry_module` | `Constants.TaskMode.TM_Module` |
+| Instance | Key type |
+| --- | --- |
+| `ROBOTS_MODES` | `Constants.TaskMode.TM_Robots` |
+| `OBSTACLES_MODES` | `Constants.TaskMode.TM_Obstacles` |
+| `MODULE_MODES` | `Constants.TaskMode.TM_Module` |
 
 Loaders are zero-argument callables that import and return the concrete class
-(lazy import pattern). All registrations fire at import time from the
-`declare_*()` calls at the bottom of [`registry.py`](registry.py).
+(lazy import pattern). All registrations fire at import time from each mode's
+`__init__.py`.
 
-`_TaskRegistry.walk_schemas(node)` is called once at node init to fire every
-registered schema, forward-declaring all TM parameters regardless of which
-modes will be activated.
+`TaskModeMeta` is an `@attrs.frozen` dataclass with fields
+`namespace: Namespace` and `schema: Callable[[ROSParamServer, Namespace], None] | None`.
+Metadata is stored on the registry, keyed by enum value, and is reachable via
+`<axis>_MODES.meta(key)` without invoking the loader.
+
+`walk_schemas(node)` (module-level in `registry.py`) is called once at node
+init to fire every registered schema, forward-declaring all TM parameters
+regardless of which modes will be activated. It reads schemas via
+`reg.meta(key).schema` and never triggers a loader.
 
 ## TM package structure
 
 Each TM is a package with two files:
 
-- `__init__.py` (eager): calls `_TaskRegistry.register_robots` /
-  `register_obstacles` / `register_module` and `declare_schema(node, ns)`.
-  Imported at node startup.
+- `__init__.py` (eager): registers the mode on the appropriate
+  `TaskModeRegistry` instance, declares `_NS`, and (if the mode has tunable
+  parameters) defines the `_declare_schema(node, ns)` function. Imported at
+  node startup.
 - `impl.py` (lazy): contains the class body. Imported only when the mode is
   first activated.
 
-`declare_schema(node, ns)` calls one typed helper from
+The schema function calls one typed helper from
 [`task_generator.tasks.declarations`](declarations.py) per parameter:
 
 ```python
+# __init__.py
+from task_generator.constants import Constants
 from task_generator.tasks.declarations import declare_catalog, declare_int_pair
+from task_generator.tasks.registry import ROBOTS_MODES, _REGISTRY_NAMESPACE
 
-def declare_schema(node, ns):
+_NS = _REGISTRY_NAMESPACE("mymode")
+
+
+def _declare_schema(node, ns):
     declare_int_pair(node, ns("static", "n"), [5, 15],
                      label="Static count", description="[min, max] count.")
     declare_catalog(node, ns("file"), "default", catalog="scenarios",
                     label="Scenario file", description="Scenario file name.")
+
+
+@ROBOTS_MODES.register(Constants.TaskMode.TM_Robots.MYMODE, namespace=_NS, schema=_declare_schema)
+def _load_mymode() -> "type[TM_Robots]":
+    from .impl import TM_MyMode
+    return TM_MyMode
 ```
 
 Each helper builds the `ParameterDescriptor` (type, `additional_constraints`

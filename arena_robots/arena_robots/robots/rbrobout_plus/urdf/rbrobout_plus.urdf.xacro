@@ -10,10 +10,11 @@
   <xacro:include filename="$(find arena_robots)/robots/rbrobout/urdf/bases/rbrobout/rbrobout_base.urdf.xacro" />
   <xacro:include filename="$(find arena_robots)/robots/rbrobout/urdf/bases/rbrobout/rbrobout_top_cover.urdf.xacro" />
 
+  <!-- Arena ros2_control block (arm + lift). Top-level, no macro. -->
   <xacro:include filename="$(find arena_robots)/robots/rbrobout_plus/urdf/base_hw/rbrobout_plus.ros2_control.urdf" />
-  <xacro:include filename="$(find arena_robots)/robots/rbrobout/simulators/gazebo_classic/rbrobout/rbrobout_control.urdf.xacro" />
-  <xacro:include filename="$(find arena_robots)/robots/rbrobout/simulators/gazebo_ignition/rbrobout/rbrobout_control.urdf.xacro" />
-  
+  <!-- gz_ros2_control plugin (loads control.yaml, namespace + path via xacro args) -->
+  <xacro:include filename="$(find arena_robots)/robots/rbrobout_plus/urdf/rbrobout_plus.gazebo" />
+
   <xacro:include filename="$(find arena_robots)/robots/rbrobout/urdf/all_sensors.urdf.xacro" />
 
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro" />
@@ -23,8 +24,13 @@
 
   <xacro:arg name="namespace" default="robot"/>
   <xacro:arg name="prefix" default="robot_"/>
+  <xacro:arg name="sim_path" default=""/>
   <xacro:arg name="gazebo_classic" default="false"/>
-  <xacro:arg name="gazebo_ignition" default="false"/>
+  <xacro:arg name="gazebo_ignition" default="true"/>
+  <!-- When true, fall back to legacy rbrobout_gz_ignition_control (its own ros2_control + plugin).
+       Default false so Arena's ros2_control bringup (arm + lift via MoveIt) is active. -->
+  <xacro:arg name="use_legacy_controllers" default="false"/>
+  <xacro:arg name="gazebo_controllers" default=""/>
 
   <xacro:arg name="ur_type" default="ur10e"/>
   <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
@@ -71,7 +77,8 @@
       physical_parameters_file="$(arg physical_params)"
       visual_parameters_file="$(arg visual_params)"
       sim_gazebo="$(arg gazebo_classic)"
-      sim_ignition="$(arg gazebo_ignition)">
+      sim_ignition="$(arg gazebo_ignition)"
+      generate_ros2_control_tag="false">
       <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:ur_robot>
 
@@ -113,7 +120,9 @@
         <xacro:ros_planar_move_gazebo_classic/>
     </xacro:if>
     <xacro:if value="$(arg gazebo_ignition)">
-        <xacro:rbrobout_gz_ignition_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
+        <xacro:if value="$(arg use_legacy_controllers)">
+            <xacro:rbrobout_gz_ignition_control namespace="$(arg namespace)" prefix="$(arg prefix)"/>
+        </xacro:if>
     </xacro:if>
     <xacro:unless value="$(arg gazebo_classic)">
         <xacro:unless value="$(arg gazebo_ignition)">

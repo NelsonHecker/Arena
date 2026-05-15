@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import csv
+import json
 import os
 import re
 import subprocess
@@ -231,6 +233,152 @@ def cmd_check(arena: Path, args) -> int:
     return 1
 
 
+DRIVE_EMPTY_RANDOM = {
+    "static":      {"min": 0, "max": 0},
+    "dynamic":     {"min": 0, "max": 0},
+    "interactive": {"min": 0, "max": 0},
+}
+DRIVE_OWN_KEYS = frozenset({"map", "episodes", "timeout"})
+KV_RE = re.compile(r"^(\w+):=(.*)$")
+
+
+def _ready_robots(arena: Path) -> list[str]:
+    subs = robot_submodules(arena)
+    status = submodule_status(arena)
+    ready: list[str] = []
+    for robot in all_robots(arena):
+        if any(status.get(p) == "uninit" for p in subs.get(robot, [])):
+            continue
+        ready.append(robot)
+    return ready
+
+
+def _drive_suite(robots: list[str], *, map_name: str, episodes: int, timeout: str) -> dict:
+    return {
+        "stages": [
+            {
+                "name": f"drive-{robot}",
+                "robot": robot,
+                "map": map_name,
+                "episodes": episodes,
+                "tm_robots": "random",
+                "tm_obstacles": "random",
+                "config": {"random": dict(DRIVE_EMPTY_RANDOM)},
+                "timeout": timeout,
+            }
+            for robot in robots
+        ]
+    }
+
+
+def _benchmark_data_root() -> Path:
+    env = os.environ.get("ARENA_DATA_DIR")
+    if env:
+        return Path(env) / "benchmarks"
+    out = subprocess.run(
+        ["ros2", "pkg", "prefix", "arena_evaluation"],
+        text=True, capture_output=True, check=False,
+    )
+    if out.returncode != 0:
+        sys.exit("error: ARENA_DATA_DIR is unset and `ros2 pkg prefix arena_evaluation` failed")
+    return Path(out.stdout.strip()) / "share" / "arena_evaluation" / "data"
+
+
+def _newest_run(data_root: Path) -> Path | None:
+    if not data_root.is_dir():
+        return None
+    runs = [p for p in data_root.iterdir() if p.is_dir()]
+    if not runs:
+        return None
+    return max(runs, key=lambda p: p.stat().st_mtime)
+
+
+def _summarize(run_dir: Path) -> tuple[dict[str, tuple[int, int]], bool]:
+    csv_path = run_dir / "progress.csv"
+    if not csv_path.is_file():
+        sys.exit(f"error: no progress.csv at {csv_path}")
+    totals: dict[str, int] = {}
+    successes: dict[str, int] = {}
+    with csv_path.open() as fh:
+        for row in csv.DictReader(fh):
+            robot = row["robots"]
+            totals[robot] = totals.get(robot, 0) + 1
+            if row["outcome_state"] == "2":
+                successes[robot] = successes.get(robot, 0) + 1
+    summary = {r: (successes.get(r, 0), totals[r]) for r in totals}
+    all_drove = bool(summary) and all(s > 0 for s, _ in summary.values())
+    return summary, all_drove
+
+
+def cmd_drive(arena: Path, args) -> int:
+    own: dict[str, str] = {}
+    passthrough: list[str] = []
+    selected: list[str] = []
+    for tok in args.kv:
+        match = KV_RE.match(tok)
+        if match:
+            key, value = match.group(1), match.group(2)
+            if key in DRIVE_OWN_KEYS:
+                own[key] = value
+            else:
+                passthrough.append(tok)
+        else:
+            selected.append(tok)
+
+    ready = _ready_robots(arena)
+    if not ready:
+        print("robots: no ready robots, run `arena feature robots add ...` first", file=sys.stderr)
+        return 2
+    if selected:
+        ready_set = set(ready)
+        unknown = [r for r in selected if r not in ready_set]
+        if unknown:
+            print(
+                f"robots: not ready: {', '.join(unknown)}. ready: {', '.join(ready)}",
+                file=sys.stderr,
+            )
+            return 2
+        seen: dict[str, None] = {}
+        for r in selected:
+            seen.setdefault(r, None)
+        robots = list(seen)
+    else:
+        robots = ready
+    suite = _drive_suite(
+        robots,
+        map_name=own.get("map", "map_empty"),
+        episodes=int(own.get("episodes", "3")),
+        timeout=own.get("timeout", "30s"),
+    )
+    cmd = [
+        "ros2", "run", "arena_evaluation", "benchmark",
+        "--suite", json.dumps(suite),
+        "--contest", '[{"name":"default"}]',
+        *passthrough,
+    ]
+    print(
+        f"robots: drive audit for {len(robots)} robot(s): {', '.join(robots)}",
+        file=sys.stderr,
+    )
+    rc = subprocess.run(cmd, check=False).returncode
+    run_dir = _newest_run(_benchmark_data_root())
+    if run_dir is None:
+        print("robots: drive completed but no run directory found", file=sys.stderr)
+        return rc or 1
+    summary, all_drove = _summarize(run_dir)
+    width = max(len("ROBOT"), *(len(r) for r in summary)) if summary else len("ROBOT")
+    print()
+    print(f"  {'ROBOT':<{width}}  SUCCESS  TOTAL")
+    for robot in sorted(summary):
+        s, t = summary[robot]
+        print(f"  {robot:<{width}}  {s:>7}  {t:>5}")
+    print()
+    print(f"run: {run_dir}")
+    if rc != 0:
+        return rc
+    return 0 if all_drove else 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -247,11 +395,17 @@ def main() -> int:
     p = sub.add_parser("check")
     p.add_argument("--all", action="store_true")
     p.add_argument("-q", "--quiet", action="store_true")
+    p_drive = sub.add_parser("drive")
+    p_drive.add_argument("kv", nargs="*",
+                         help="bare tokens select robots (default: all ready); "
+                              "key:=value pairs: map/episodes/timeout consumed locally, "
+                              "rest forwarded to arena benchmark")
 
     args = ap.parse_args()
     handlers = {
         "ls": cmd_ls, "add": cmd_add, "rm": cmd_rm,
         "update": cmd_update, "uninstall": cmd_uninstall, "check": cmd_check,
+        "drive": cmd_drive,
     }
     return handlers[args.cmd](arena_dir(), args)
 

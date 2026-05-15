@@ -3,12 +3,11 @@ from __future__ import annotations
 import rclpy.node
 import tf2_ros
 
-from arena_robots.clients import Client, register_client
+from arena_robots.clients import Client
 from arena_robots.Robot import RobotView
 from arena_robots.task_kinds import TaskKind, action_type, endpoint
 
 
-@register_client
 class GotoPoseClient(Client):
     task_kind = TaskKind.GOTO_POSE
 
@@ -21,6 +20,7 @@ class GotoPoseClient(Client):
         self._goal_handle = None
         self._result = None
         self._status = None
+        self._reason: str | None = None
         self._feedback = None
         self._done = None
         self._result_future = None
@@ -35,6 +35,7 @@ class GotoPoseClient(Client):
         self._done = False
         self._result = None
         self._status = None
+        self._reason = None
         self._feedback = None
         self._result_future = None
         self._goal_handle = await self._action.send_goal(goal, feedback_callback=self._on_feedback)
@@ -47,7 +48,12 @@ class GotoPoseClient(Client):
             raise RuntimeError("No goal in flight; call send_goal first.")
         result_response = await self._action.await_result(self._goal_handle)
         self._result = result_response.result
-        self._status = result_response.result.status if result_response.result is not None else None
+        if result_response.result is not None:
+            self._status = result_response.result.status
+            self._reason = result_response.result.reason
+        else:
+            self._status = None
+            self._reason = None
         self._done = True
         return self._result
 
@@ -61,6 +67,10 @@ class GotoPoseClient(Client):
     @property
     def status(self) -> int | None:
         return self._status
+
+    @property
+    def reason(self) -> str | None:
+        return self._reason
 
     @property
     def feedback(self) -> object:
@@ -78,5 +88,10 @@ class GotoPoseClient(Client):
             self._done = True
             return
         self._result = result_response.result
-        self._status = result_response.result.status if result_response.result is not None else None
+        if result_response.result is not None:
+            self._status = result_response.result.status
+            self._reason = result_response.result.reason
+        else:
+            self._status = None
+            self._reason = None
         self._done = True

@@ -6,6 +6,8 @@ from arena_bringup.substitutions import LaunchArgument
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
+_RUNTIME_OWNED = frozenset({'log_level', 'sim', 'use_sim_time', 'world', 'headless'})
+
 
 def generate_launch_description():
     ld_items = []
@@ -34,7 +36,7 @@ def generate_launch_description():
 
     headless = LaunchArgument(
         name='headless',
-        default_value='0',
+        default_value='False',
     )
 
     launch_sim = launch.actions.IncludeLaunchDescription(
@@ -50,20 +52,36 @@ def generate_launch_description():
         }.items(),
     )
 
-    arena_node = launch_ros.actions.LifecycleNode(
-        package='arena_runtime',
-        executable='arena_node',
-        name='arena',
-        namespace='',
+    world_generator_node = launch_ros.actions.Node(
+        package='arena_simulation_setup',
+        executable='world_generator',
+        name='world_generator',
         output='screen',
-        parameters=[{'sim': sim.substitution}],
     )
+
+    def _arena_node(context: launch.LaunchContext) -> list[launch.Action]:
+        env_args = [
+            f'{k}:={v}'
+            for k, v in context.launch_configurations.items()
+            if k not in _RUNTIME_OWNED
+        ]
+        return [
+            launch_ros.actions.LifecycleNode(
+                package='arena_runtime',
+                executable='arena_node',
+                name='arena',
+                namespace='',
+                output='screen',
+                parameters=[{'sim': sim.substitution, 'env_args': env_args}],
+            ),
+        ]
 
     return launch.LaunchDescription([
         *ld_items,
         SetGlobalLogLevelAction(log_level.substitution),
         IsolatedGroupAction([launch_sim]),
-        arena_node,
+        world_generator_node,
+        launch.actions.OpaqueFunction(function=_arena_node),
     ])
 
 

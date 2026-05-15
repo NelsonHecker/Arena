@@ -3,6 +3,7 @@ import contextlib
 import os
 import re
 import typing
+from collections.abc import Callable
 
 import arena_robots.SetupFile as robot_setup
 import attrs
@@ -215,6 +216,8 @@ class RobotsManager(NodeInterface):
                 environment_manager=self._environment_manager,
                 robot=config,
             )
+            if self._abort_episode is not None:
+                manager.bind_abort(self._abort_episode)
             futures.append(manager.set_up_robot())
             self.managers[robot_name] = manager
             self._pending_launch.append(manager)
@@ -237,6 +240,12 @@ class RobotsManager(NodeInterface):
         )
         self.node._pub_state_robots.publish(fleet)
 
+    def bind_abort(self, fn: Callable[[str], None]) -> None:
+        """Propagate an abort callable to all current and future RobotManagers."""
+        self._abort_episode = fn
+        for mgr in self._managers.values():
+            mgr.bind_abort(fn)
+
     def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._environment_manager: EnvironmentManager = environment_manager
@@ -244,6 +253,7 @@ class RobotsManager(NodeInterface):
         self._initialpose = _initialpose_generator(0.0, 0.0, -5)
         self._diff = _RobotDiff()
         self._pending_launch: list[RobotManager] = []
+        self._abort_episode: Callable[[str], None] | None = None
 
         self._robot_configurations = self.node.ROSParam[_RobotDiff](
             'robot',

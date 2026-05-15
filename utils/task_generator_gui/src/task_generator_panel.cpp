@@ -447,10 +447,7 @@ namespace task_generator_gui
         auto tree = new QTreeWidget();
         tree->setColumnCount(2);
         tree->setHeaderLabels({"Parameter", "Value"});
-        tree->header()->resizeSection(0, int(0.5 * tree->width()));
-        tree->header()->resizeSection(1, int(0.5 * tree->width()));
-        tree->setColumnWidth(0, int(0.5 * tree->width()));
-        tree->setColumnWidth(1, int(0.5 * tree->width()));
+        tree->header()->setSectionResizeMode(QHeaderView::Stretch);
 
         parent->addWidget(tree);
 

@@ -1,0 +1,7 @@
+interp: linear
+keyframes:
+  - {pose: ready,  t: 0.0}
+  - {pose: nod_dn, t: 0.4}
+  - {pose: nod_up, t: 0.8}
+  - {pose: nod_dn, t: 1.2}
+  - {pose: ready,  t: 1.6}

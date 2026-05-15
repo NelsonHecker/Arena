@@ -8,7 +8,7 @@ files, and the `arena feature robots` CLI all look robots up by this name.
 
 ```
 <robot>/
-├── model_params.yaml    # robot-wide identity (robot_model + optional navigator)
+├── model_params.yaml    # robot-wide identity (robot_model, base_frame, z_offset, sensors)
 ├── control.yaml         # ros2_control configuration
 ├── mappings.yaml        # sim ⇄ ROS2 topic bridge
 └── caps/
@@ -28,7 +28,6 @@ base_frame: base_link       # required; TF frame of the robot's base link
 z_offset: 0.37              # optional; metres to lift the robot above the ground plane at spawn
 sensors:                    # optional; declared sensors parsed into SensorSpec entries
   - {name: lidar, type: laserscan, topic: ${namespace}/scan, frame: base_scan}
-navigator: nav2             # optional; default adapter kind for the navigator (overridable at runtime)
 ```
 
 Parsed by [`arena_robots.Robot.ModelParams`](../arena_robots/Robot.py). Additional keys pass
@@ -41,9 +40,7 @@ presence IS the advertisement**: `caps/arm.yaml` existing means this robot
 advertises `arm`. Derived at load time as `robot_view.caps.available` — a
 `frozenset[str]` of cap stems.
 
-Adapters declare `requires: set[str]`; the broker gates binding on
-`adapter.requires ⊆ robot.caps.available`. A cap must have a documented
-vocabulary entry before any adapter cites it in `requires`.
+Adapters declare `requires: frozenset[str]` via `@BringupMeta.attach(requires=frozenset({...}))` on the `Bringup` subclass; the broker gates binding on `adapter.requires ⊆ robot.caps.available`. A cap must have a documented vocabulary entry before any adapter cites it in `requires`.
 
 #### Active cap vocabulary
 

@@ -47,7 +47,7 @@ Transport: stdio (v0). Works with Claude Desktop, `mcp-cli`, and any stdio-MCP c
 | `config_get_task_modes` | — | `{tm_robots, tm_obstacles, tm_modules}` | Read current task mode `.value` strings. |
 | `config_set_episode_params` | `timeout`, `goal_tolerance_radius`, `robot_safe_dist`, `auto_reset`, `episodes`, `record_data_dir` | `{results: [...]}` | Write only the supplied (non-null) episode params via `SetParameters`. |
 | `config_get_episode_params` | — | `{timeout, goal_tolerance_radius, ...}` | Read current episode-shaping params. |
-| `config_get_static_config` | — | `{sim, human, agent_name, global_planner, ...}` | Read read-only startup configuration params. |
+| `config_get_static_config` | — | `{sim, human, robot.mobile_adapter, robot.arm_adapter}` | Read read-only startup configuration params. |
 
 ### Runtime spawn
 

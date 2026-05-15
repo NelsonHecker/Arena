@@ -52,7 +52,7 @@ runtime/spawn_dynamic      SpawnDynamic             # service; dispatches to TM_
 runtime/spawn_robot        SpawnRobot               # service; dispatches to TM_Robots.extend (experimental)
 ```
 
-**Episode-shaping params** (`timeout`, `goal_tolerance_radius`, `robot_safe_dist`, `auto_reset`, `train_mode`, `episodes`, `record_data_dir`) stay on ROS2 params. Each is declared with a `ParameterDescriptor` carrying `description`, `floating_point_range` / `integer_range` where applicable, and `read_only=False`. Internal callers and MCP both go through `SetParameters`/`GetParameters`. `get_static_config` is also dropped — startup config (`sim`, `human`, `agent_name`, planner stack) reads via `GetParameters` against documented param names.
+**Episode-shaping params** (`timeout`, `goal_tolerance_radius`, `robot_safe_dist`, `auto_reset`, `train_mode`, `episodes`, `record_data_dir`) stay on ROS2 params. Each is declared with a `ParameterDescriptor` carrying `description`, `floating_point_range` / `integer_range` where applicable, and `read_only=False`. Internal callers and MCP both go through `SetParameters`/`GetParameters`. `get_static_config` is also dropped — startup config (`sim`, `human`, `robot.mobile_adapter`, `robot.arm_adapter`, plus any cap-scoped `robot.mobile.<key>` / `robot.arm.<key>` overrides) reads via `GetParameters` against documented param names.
 
 ### Latched topics (new)
 - `state/world` — `std_msgs/String`, latched (TRANSIENT_LOCAL, depth 1). Published whenever the active world changes (i.e. when `_current_episode.world` changes at a reset boundary).
@@ -288,7 +288,7 @@ utils/task_generator_mcp/
 **Tools — param-backed (allowlist over `SetParameters`/`GetParameters`):**
 - `config_set_episode_params(timeout: float | None = None, goal_tolerance_radius: float | None = None, robot_safe_dist: float | None = None, auto_reset: bool | None = None, train_mode: bool | None = None, episodes: int | None = None, record_data_dir: str | None = None)` — the tool builds a single `SetParameters.Request` containing only the fields the caller passed. Type validation comes from the param's `ParameterDescriptor` server-side; the MCP tool schema mirrors descriptor-declared ranges.
 - `config_get_episode_params()` — single `GetParameters` call against the allowlist.
-- `config_get_static_config()` — `GetParameters` against the documented startup-config allowlist (`sim`, `human`, `agent_name`, `global_planner`, `local_planner`, `inter_planner`, `navigator`).
+- `config_get_static_config()` — `GetParameters` against the documented startup-config allowlist (`sim`, `human`, `robot.mobile_adapter`, `robot.arm_adapter`).
 
 The param allowlist lives in `task_generator_mcp/params.py` as a constant — single place to extend when new mutable params are added.
 
@@ -449,7 +449,7 @@ $ mcp call task_generator_mcp query_worlds
 - `resource/task_generator_mcp` — empty marker file.
 - `task_generator_mcp/__init__.py` — empty.
 - `task_generator_mcp/ros_bridge.py` — `RosBridge` class: `rclpy.Node` + `ClientWrapper` for each service + an `ActionClient` for `lifecycle/run_episode` + clients for `SetParameters`/`GetParameters`/`DescribeParameters` against the task_generator node + subscribers for the two latched state topics with last-value caching. Spin on a background thread.
-- `task_generator_mcp/params.py` — single allowlist constant: `EPISODE_PARAMS = ("timeout", "goal_tolerance_radius", "robot_safe_dist", "auto_reset", "train_mode", "episodes", "record_data_dir")`, `STATIC_CONFIG_PARAMS = ("sim", "human", "agent_name", "global_planner", "local_planner", "inter_planner", "navigator")`.
+- `task_generator_mcp/params.py` — single allowlist constant: `EPISODE_PARAMS = ("timeout", "goal_tolerance_radius", "robot_safe_dist", "auto_reset", "train_mode", "episodes", "record_data_dir")`, `STATIC_CONFIG_PARAMS = ("sim", "human", "robot.mobile_adapter", "robot.arm_adapter")`.
 - `task_generator_mcp/tools.py` — registers MCP tools. **Enum constraints compiled from Python source:** at module load, `from task_generator.constants import Constants` and build JSON schemas like `{"type":"string","enum":[m.value for m in Constants.TaskMode.TM_Robots]+[""]}` for `tm_robots`. Param-backed tools build their schemas from `DescribeParameters` results at startup (one round-trip on connect, cached). Also exposes `runtime_spawn_static` / `runtime_spawn_dynamic` / `runtime_spawn_robot` as MCP tools (kwargs: `model`, optional `pose` dict, optional `name` for robot). **Robot goal-setting is NOT exposed at the task_generator MCP layer** — callers needing that go through the per-robot `<robot>/goto_pose` action endpoint owned by `arena_robots`.
 - `task_generator_mcp/resources.py` — registers MCP resources for `task_generator://state/world` and `task_generator://state/episode`.
 - `task_generator_mcp/server.py` — `main()` constructs `RosBridge`, fetches param descriptors once for the allowlist, registers tools/resources on an MCP `Server`, runs stdio transport.

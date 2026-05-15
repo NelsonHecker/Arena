@@ -1,7 +1,9 @@
 #! /usr/bin/env python3
 
 import asyncio
+import json
 import os
+import signal
 import sys
 import tempfile
 import typing
@@ -16,7 +18,8 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import FrameNamespace
-from task_generator_msgs.msg import RobotDescriptor, RobotFleet
+from arena_robots.moveit_factory import build_moveit_params
+from task_generator_msgs.msg import AdapterVizManifest, RobotDescriptor, RobotFleet
 
 from rviz_utils.utils import Utils
 
@@ -24,6 +27,7 @@ from rviz_utils.utils import Utils
 class ConfigFileGenerator(ArenaMixinNode):
     topics: list[tuple[str, list[str]]]
     robots: list[RobotDescriptor]
+    viz_manifest: AdapterVizManifest
     _frame_prefix: str
     _env_id: int
 
@@ -70,6 +74,25 @@ class ConfigFileGenerator(ArenaMixinNode):
         finally:
             self.destroy_subscription(sub)
 
+    async def _await_viz_manifest(self) -> AdapterVizManifest:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[AdapterVizManifest] = loop.create_future()
+        topic = os.path.join(self._TASKGEN_NODE, 'state', 'viz_manifest')
+        sub = self.create_subscription(
+            AdapterVizManifest,
+            topic,
+            lambda msg: loop.call_soon_threadsafe(future.set_result, msg) if not future.done() else None,
+            qos_profile=rclpy.qos.QoSProfile(
+                depth=1,
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+        try:
+            self.get_logger().info(f'waiting for first {topic} message')
+            return await future
+        finally:
+            self.destroy_subscription(sub)
+
     async def setup(self) -> None:
         TASKGEN_PARAM_SRV = os.path.join(self._TASKGEN_NODE, 'get_parameters')
         PARAM_INITIALIZED = 'initialized'
@@ -83,10 +106,16 @@ class ConfigFileGenerator(ArenaMixinNode):
         self._frame_prefix = (await self._await_param(get_parameters_cli, 'prefix')).string_value
         self._env_id = (await self._await_param(get_parameters_cli, 'env_id')).integer_value
         self.robots = list((await self._await_first_fleet()).robots)
+        self.viz_manifest = await self._await_viz_manifest()
 
         config_file = self.create_config()
 
-        await self.do_launch(
+        rviz_parameters: list[dict[str, object]] = [{"use_sim_time": True}]
+        arm_params = self._collect_moveit_params()
+        if arm_params:
+            rviz_parameters.append(arm_params)
+
+        launch_task = await self._launch_manager.launch_description(
             launch.LaunchDescription(
                 [
                     NodeLogLevelExtension.SetGlobalLogLevelAction(rclpy.logging.get_logger_effective_level(self.get_logger().name).name.lower()),
@@ -95,12 +124,35 @@ class ConfigFileGenerator(ArenaMixinNode):
                         executable="rviz2",
                         name="rviz2",
                         arguments=['-d', config_file],
-                        parameters=[{"use_sim_time": True}],
+                        parameters=rviz_parameters,
                         output="screen",
                     ),
                 ]
             )
         )
+        await launch_task
+        self.get_logger().info('rviz2 exited, shutting down supervisor')
+        os.kill(os.getpid(), signal.SIGINT)
+
+    def _collect_moveit_params(self) -> dict[str, object]:
+        """Mirror each arm robot's MoveIt config into rviz2 under a robot-named
+        prefix. Per-display ``Robot Description`` properties (see the moveit
+        adapter's display hints) point at ``<robot>.robot_description`` so
+        every arm robot gets its own Trajectory/PlanningScene display."""
+        combined: dict[str, object] = {}
+        arm_names: list[str] = []
+        for robot in self.robots:
+            tf_prefix = FrameNamespace(robot.frame).raw()
+            tf_prefix = tf_prefix + "/" if tf_prefix else ""
+            params = build_moveit_params(robot.model, tf_prefix=tf_prefix)
+            if params is None:
+                continue
+            arm_names.append(robot.name)
+            for key, value in params.items():
+                combined[f"{robot.name}.{key}"] = value
+        if arm_names:
+            self.get_logger().info(f"injecting MoveIt params into rviz2 for: {arm_names}")
+        return combined
 
     def _create_pedestrian_group(self) -> dict[str, object]:
         """Creates a Pedestrian Group with stylized human visualizations"""
@@ -257,8 +309,8 @@ class ConfigFileGenerator(ArenaMixinNode):
 
         robot_group = {'Class': 'rviz_common/Group', 'Name': f'Robot: {robot_name}', 'Enabled': True, 'Displays': []}
 
-        # TF Prefix must match the sanitized prefix used by robot_state_publisher.
-        tf_prefix = FrameNamespace(robot.frame).sanitize()
+        # TF Prefix must match the prefix used by robot_state_publisher.
+        tf_prefix = FrameNamespace(robot.frame).raw()
         robot_model_topic = f'{robot_ns}/robot_description'
         robot_group['Displays'].append(Utils.Displays.robot_model(topic=robot_model_topic, robot_name=robot_name, tf_prefix=tf_prefix))
 
@@ -266,25 +318,24 @@ class ConfigFileGenerator(ArenaMixinNode):
         odom_topic = f'{robot_ns}/odom'
         robot_group['Displays'].append(Utils.Displays.odom(odom_topic, color))
 
-        # Add local costmap
-        local_costmap_topic = f'{robot_ns}/local_costmap/costmap'
-        robot_group['Displays'].append(Utils.Displays.local_costmap(local_costmap_topic))
-
-        # Add global costmap
-        global_costmap_topic = f'{robot_ns}/global_costmap/costmap'
-        robot_group['Displays'].append(Utils.Displays.global_costmap(global_costmap_topic))
-
-        # Add path visualization
-        path_topic = f'{robot_ns}/plan'
-        robot_group['Displays'].append(Utils.Displays.global_path(path_topic, color))
-
-        # Add local path visualization
-        local_path_topic = f'{robot_ns}/local_plan'
-        robot_group['Displays'].append(Utils.Displays.local_path(local_path_topic))
-
-        # Add robot footprint
-        footprint_topic = f'{robot_ns}/local_costmap/published_footprint'
-        robot_group['Displays'].append(Utils.Displays.robot_footprint(footprint_topic, color))
+        # adapter-declared displays for this robot
+        for entry in self.viz_manifest.entries:
+            if entry.robot_ns != robot_ns:
+                continue
+            for entry_display in entry.displays:
+                display: dict[str, object] = {
+                    'Class': entry_display.rviz_class,
+                    'Name': entry_display.name,
+                    'Enabled': True,
+                }
+                if entry_display.config_json:
+                    display.update(json.loads(entry_display.config_json))
+                topic = display.get('Topic')
+                if isinstance(topic, dict):
+                    topic['Value'] = entry_display.topic
+                else:
+                    display['Topic'] = {'Value': entry_display.topic}
+                robot_group['Displays'].append(display)
 
         # SENSORS
         # Map of message types to display creator methods - include all sensor types
@@ -357,7 +408,7 @@ class ConfigFileGenerator(ArenaMixinNode):
         package_path = get_package_share_directory("rviz_utils")
         file_path = os.path.join(package_path, "config", "rviz_default.rviz")
 
-        fixed_frame = FrameNamespace(self._frame_prefix)('map').sanitize()
+        fixed_frame = FrameNamespace(self._frame_prefix).tf('map')
 
         with open(file_path) as file:
             content = file.read()

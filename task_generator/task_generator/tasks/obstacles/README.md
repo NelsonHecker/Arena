@@ -30,8 +30,8 @@ implementation returns empty lists; every subclass overrides `reset`.
 
 Each `TM_Obstacles` subclass is a package:
 
-- `__init__.py` (eager): registers the mode via `_TaskRegistry.register_obstacles` and calls `declare_schema(node, ns)` to forward-declare all parameters at node startup.
-- `impl.py` (lazy): contains the class body, imported only on first activation.
+- `__init__.py` (eager): declares `_NS` and (optionally) `_declare_schema`, then registers the mode on `OBSTACLES_MODES` (a `TaskModeRegistry` from `tasks/registry.py`) with `namespace=_NS` and `schema=_declare_schema`. Imported at node startup.
+- `impl.py` (lazy): contains the class body. Imported only on first activation.
 
 Parameters live under `task.<mode>.<leaf>` (e.g. `task.random.static.n`).
 
@@ -103,7 +103,7 @@ via an LLM. PROMPT registration is per-`BaseHumanSimulator` subclass — see
 ## Adding a new TM_Obstacles mode
 
 1. Create `tasks/obstacles/<name>/` as a package.
-2. In `__init__.py`: call `_TaskRegistry.register_obstacles` (registering the lazy loader from `impl.py`) and define `declare_schema(node, ns)` using helpers from [`task_generator.tasks.declarations`](../declarations.py) (e.g. `declare_int_pair`, `declare_catalog`).
+2. In `__init__.py`: declare `_NS = _REGISTRY_NAMESPACE("<name>")`, define `_declare_schema(node, ns)` if the mode has tunable parameters (using helpers from [`task_generator.tasks.declarations`](../declarations.py), e.g. `declare_int_pair`, `declare_catalog`), then register the loader with `@OBSTACLES_MODES.register(Constants.TaskMode.TM_Obstacles.<NAME>, namespace=_NS, schema=_declare_schema)`.
 3. In `impl.py`: define the class extending `TM_Obstacles`; override `reset` to return `(list[Obstacle], list[DynamicObstacle])`.
 4. Add `<NAME> = "<name>"` to `Constants.TaskMode.TM_Obstacles` in [`constants/__init__.py`](../../constants/__init__.py).
-5. Ensure `_TaskRegistry.walk_schemas` will pick up your schema (it iterates all registered families at node init automatically).
+5. `walk_schemas` (module-level in `tasks/registry.py`) picks up your schema automatically at node init.

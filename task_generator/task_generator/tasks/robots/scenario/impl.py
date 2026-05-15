@@ -1,12 +1,17 @@
 import typing
 
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
+<<<<<<< HEAD
 from arena_simulation_setup.tree.World import MultiLevelWorldIdentifier
 from arena_simulation_setup.tree.World.Scenario import RobotGoal
+=======
+from arena_simulation_setup.tree.World import WorldIdentifier
+from arena_simulation_setup.tree.World.Scenario import RobotGoal, ScenarioGesturePhase, ScenarioGotoPhase
+>>>>>>> common/jazzy
 
 from task_generator.shared import PositionRadius
 from task_generator.tasks.robots import TM_Robots
-from task_generator.tasks.robots.request import GoToPhase, TaskRequest
+from task_generator.tasks.robots.request import GoToPhase, PlayGesturePhase, TaskRequest
 
 
 class TM_Scenario(TM_Robots):
@@ -36,20 +41,21 @@ class TM_Scenario(TM_Robots):
             self._logger.warn("Scenario file contains more robots than setup.", once=True)
 
         for robot, config in zip(managed_robots, SCENARIO_ROBOTS, strict=False):
-            await robot.move(config.start)
-            await robot.submit_task(TaskRequest(phases=[GoToPhase(pose=config.goal)]))
-            self._ctx.world_manager.forbid(
-                [
-                    PositionRadius(x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance),
-                ],
-                floor_id=config.start_floor or self._resolve_floor_id(typing.cast(str, kwargs.get("floor_id", ""))),
-            )
-            self._ctx.world_manager.forbid(
-                [
-                    PositionRadius(x=config.goal.position.x, y=config.goal.position.y, radius=robot.safe_distance),
-                ],
-                floor_id=config.goal_floor or self._resolve_floor_id(typing.cast(str, kwargs.get("floor_id", ""))),
-            )
+            self._start_poses[robot.name] = config.start
+
+            phases: list[GoToPhase | PlayGesturePhase] = []
+            forbidden: list[PositionRadius] = [
+                PositionRadius(x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance),
+            ]
+            for phase in config.phase_list():
+                if isinstance(phase, ScenarioGotoPhase):
+                    phases.append(GoToPhase(pose=phase.goto))
+                    forbidden.append(PositionRadius(x=phase.goto.position.x, y=phase.goto.position.y, radius=robot.safe_distance))
+                elif isinstance(phase, ScenarioGesturePhase):
+                    phases.append(PlayGesturePhase(gesture=None if phase.gesture in ("", "random") else phase.gesture))
+
+            await robot.submit_task(TaskRequest(phases=phases))
+            self._ctx.world_manager.forbid(forbidden)
 
     def __init__(self, **kwargs: object) -> None:
         TM_Robots.__init__(self, **kwargs)
