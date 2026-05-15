@@ -88,7 +88,9 @@ if [ "${_SKIP_OLD}" = 1 ]; then
         # echo 
 
         if  [ -n "${package}" ] &&
-            [ -d "${_INSTALL_BASE}/${package}" ] &&
+            [ -f "${_BUILD_BASE}/${package}/colcon_build.rc" ] &&
+            [ "$(cat "${_BUILD_BASE}/${package}/colcon_build.rc")" = "0" ] &&
+            [ -e "${_INSTALL_BASE}/${package}/share/${package}/package.xml" ] &&
             [ "$(recursive_mtime "${_INSTALL_BASE}/${package}")" -ge "$(recursive_mtime "${src_path}")" ];
         then
             # package is already built and newer than source

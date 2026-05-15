@@ -8,8 +8,6 @@ export ARENA_ROS_DISTRO=jazzy
 
 export ARENA_DATA_DIR="${ARENA_DATA_DIR:-$ARENA_WS_DIR/data}"
 mkdir -p "$ARENA_DATA_DIR"
-mkdir -p "$ARENA_DATA_DIR/benchmarks"
-mkdir -p "$ARENA_DATA_DIR/agents"
 export HOST_ARENA_DATA_DIR="$ARENA_DATA_DIR"
 export ROSNAV_AGENTS_DIR="${ROSNAV_AGENTS_DIR:-$ARENA_DATA_DIR/agents}"
 

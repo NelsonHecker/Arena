@@ -46,11 +46,12 @@ class GoToPhase(TaskPhase):
         if pose is None:
             return False
 
+        conf = robot_manager.node.conf.Robot
         tol_dist = (
-            self.tolerance_radius if self.tolerance_radius is not None else robot_manager._goal_tolerance_distance  # noqa: SLF001
+            self.tolerance_radius if self.tolerance_radius is not None else conf.GOAL_TOLERANCE_RADIUS.value
         )
         tol_ang = (
-            self.tolerance_angle if self.tolerance_angle is not None else robot_manager._goal_tolerance_angle  # noqa: SLF001
+            self.tolerance_angle if self.tolerance_angle is not None else conf.GOAL_TOLERANCE_ANGLE.value
         )
 
         dx = pose.position.x - self.pose.position.x

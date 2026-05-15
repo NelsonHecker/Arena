@@ -58,8 +58,6 @@ class RobotManager(NodeInterface):
     _start_pos: Pose
     _goal_pos: Pose
     _robot_radius: float
-    _goal_tolerance_distance: float
-    _goal_tolerance_angle: float
     _robot: Robot
     _move_base_pub: rclpy.publisher.Publisher
     _goal_pub: rclpy.publisher.Publisher
@@ -126,10 +124,6 @@ class RobotManager(NodeInterface):
         self._start_pos = Pose()
         self._goal_pos = Pose()
         self._robot_radius = 0.25
-
-        self._goal_tolerance_distance = self.node.conf.Robot.GOAL_TOLERANCE_RADIUS.value
-        self._goal_tolerance_angle = self.node.conf.Robot.GOAL_TOLERANCE_ANGLE.value
-        self._safety_distance = self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
 
         self._robot = robot
         self._robot.sim_path = self._environment_manager.realize(robot.name)
@@ -237,7 +231,7 @@ class RobotManager(NodeInterface):
 
     @property
     def safe_distance(self) -> float:
-        return self._robot_radius + self._safety_distance
+        return self._robot_radius + self.node.conf.Robot.SPAWN_ROBOT_SAFE_DIST.value
 
     @property
     def model_name(self) -> str:
