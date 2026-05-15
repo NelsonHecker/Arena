@@ -38,9 +38,10 @@
 # Build directory
 build/
 
-# Vim
+# tmp
 *.vim
 *.swp
+*.bak*
 
 # python
 __pycache__/
