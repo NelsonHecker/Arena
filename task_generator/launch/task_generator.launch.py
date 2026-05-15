@@ -1,6 +1,7 @@
 import atexit
 import contextlib
 import os
+import tempfile
 import time
 
 import launch
@@ -8,6 +9,7 @@ import launch.conditions
 import launch.event_handlers
 import launch.substitutions
 import launch_ros.actions
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
@@ -221,15 +223,41 @@ def generate_launch_description():
             output="screen",
         )
 
-        dotted_overrides: dict[str, str] = {}
+        def _coerce(raw: str) -> object:
+            # accept list/dict/numeric coercions only, raw otherwise
+            try:
+                parsed = yaml.safe_load(raw)
+            except yaml.YAMLError:
+                return raw
+            if isinstance(parsed, (list, dict, int, float)) and not isinstance(parsed, bool):
+                return parsed
+            return raw
+
+        dotted_overrides: dict[str, object] = {}
         for k, v in context.launch_configurations.items():
             if k.startswith("task."):
-                dotted_overrides[k] = v
+                dotted_overrides[k] = _coerce(v)
             elif k.startswith("mobile.") or k.startswith("arm."):
                 # `<cap>.<key>:=<val>` becomes `robot.<cap>.<key>` and lands as a
                 # kwarg in RobotManager._adapter_kwargs_for, overlaying the
                 # cap-file YAML for the bound adapter.
-                dotted_overrides[f"robot.{k}"] = v
+                dotted_overrides[f"robot.{k}"] = _coerce(v)
+
+        # launch_ros.normalize_parameters turns list values into tuples and
+        # yaml.dump emits them with !!python/tuple, which rcl drops silently.
+        # Bypass by writing our own params yaml and passing the path.
+        overrides_files: list[str] = []
+        if dotted_overrides:
+            fh = tempfile.NamedTemporaryFile(
+                mode='w', prefix='arena_overrides_', suffix='.yaml', delete=False
+            )
+            yaml.safe_dump(
+                {'/**': {'ros__parameters': dotted_overrides}},
+                fh,
+                default_flow_style=False,
+            )
+            fh.close()
+            overrides_files.append(fh.name)
 
         task_generator_node = launch_ros.actions.Node(
             package="task_generator",
@@ -262,7 +290,7 @@ def generate_launch_description():
                     **episodes.param(int),
                     'task.scenario.file': scenario_file.substitution,
                 },
-                dotted_overrides,
+                *overrides_files,
             ],
         )
 
