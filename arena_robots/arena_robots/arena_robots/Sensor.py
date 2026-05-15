@@ -14,6 +14,9 @@ class SensorType(enum.StrEnum):
     POINTCLOUD = "pointcloud"
     IMAGE = "image"
     DEPTH = "depth"
+    CAMERA_INFO = "camera_info"
+    IMU = "imu"
+    CONTACT = "contact"
 
 
 @attrs.define(frozen=True)
