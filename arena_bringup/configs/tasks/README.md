@@ -23,7 +23,7 @@ order (specs earlier in the list get priority during pool allocation).
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `kind` | string | yes | TM_Robots subclass key (`random`, `explore`, `guided`, `scenario`, `null`) |
+| `kind` | string | yes | TM_Robots subclass key (`random`, `explore`, `guided`, `scenario`, `demo`, `null`) |
 | `produces` | string | no | Task kind this mode emits (default `GOTO_POSE`). Must be in the target robot's `accepts` set |
 | `assignments` | list[string] | no | Pin specific robots by name. Empty list = pool (first-fit) |
 | `config` | dict | no | Passed through to the TM loader unchanged |

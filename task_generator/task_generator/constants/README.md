@@ -15,7 +15,7 @@ maps them to live ROS parameters.
 | `ArenaType` | `Enum` | `training`, `deployment` |
 | `HumanSimulator` | `Enum` | `dummy`, `hunav`, `isaac` |
 | `TaskMode.TM_Obstacles` | `Enum` | `parametrized`, `random`, `scenario`, `environment`, `prompt` |
-| `TaskMode.TM_Robots` | `Enum` | `guided`, `explore`, `random`, `scenario` |
+| `TaskMode.TM_Robots` | `Enum` | `guided`, `explore`, `random`, `scenario`, `demo` |
 | `TaskMode.TM_Module` | `Enum` | `staged`, `dynamic_map`, `clear_forbidden_zones`, `rviz_ui` |
 
 `TM_Obstacles.default()` returns `RANDOM`. `TM_Robots.default()` returns
