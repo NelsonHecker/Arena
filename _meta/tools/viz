@@ -7,9 +7,11 @@ Usage:
   viz --ns <ns>      explicit form of the above
   viz --all          attach to every running env, shut down all on Ctrl-C
 
-Accepts launch-style viz.<key>:=<value> tokens (forwarded to rviz_config.launch.py):
-  viz.view:=map|robot|robot3p      camera view (default: map)
-  viz.robot:=<int>|all             robot index in fleet; 'all' spawns one rviz per robot
+Any <key>:=<value> token is forwarded to rviz_config.launch.py. A `viz.`
+prefix is accepted (so tokens shared with `arena launch` work unchanged) but
+not required:
+  view:=map|robot|robot3p      camera view (default: map)
+  robot:=<int>|all             robot index in fleet, 'all' spawns one rviz per robot
 
 Polls `ros2 topic list` for `<ns>/state/viz_manifest` topics to discover envs,
 waiting forever (10s heartbeat) until a match appears.
@@ -137,8 +139,9 @@ def main() -> int:
         if ':=' in tok:
             key, _, value = tok.partition(':=')
             if key.startswith('viz.'):
-                viz_args[key[len('viz.'):]] = value
-                continue
+                key = key[len('viz.'):]
+            viz_args[key] = value
+            continue
         passthrough.append(tok)
 
     parser = argparse.ArgumentParser(prog="arena viz", description=__doc__)

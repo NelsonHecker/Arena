@@ -254,14 +254,16 @@ arena viz                              # auto-pick if exactly one env is running
 arena viz <env_id>                     # match by env id (last path component)
 arena viz --ns <ns>                    # explicit namespace
 arena viz --all                        # one rviz window per running env
-arena viz viz.view:=robot3p            # third-person follower on robot 0
-arena viz 1 viz.view:=robot viz.robot:=-1  # orbit the last robot of env 1
-arena viz --all viz.robot:=all         # all envs, every robot, one window each
+arena viz view:=robot3p                # third-person follower on robot 0
+arena viz 1 view:=robot robot:=-1      # orbit the last robot of env 1
+arena viz --all robot:=all             # all envs, every robot, one window each
 ```
 
-`viz.*` tokens are forwarded to [rviz_config.launch.py](../utils/rviz_utils/launch/rviz_config.launch.py)
-and accepted by both `arena launch` and `arena viz`. The launch file declares
-`view` and `robot` as ROS params on the rviz_config node.
+Any `key:=value` is forwarded straight to
+[rviz_config.launch.py](../utils/rviz_utils/launch/rviz_config.launch.py). Under
+`arena launch` the same tokens take a `viz.` prefix to disambiguate from
+runtime args; `arena viz` accepts the prefixed form too. The launch file
+declares `view` and `robot` as ROS params on the rviz_config node.
 
 Waits forever for a matching env to appear (10s warning cadence), mirroring
 `arena env`'s wait for the runtime. Once at least one env is up: a single
