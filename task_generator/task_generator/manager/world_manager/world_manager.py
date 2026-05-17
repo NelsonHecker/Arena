@@ -5,6 +5,7 @@ from collections.abc import Collection
 import arena_simulation_setup.tree.World as World
 import numpy as np
 import scipy.signal
+import shapely
 from arena_runtime._node import NodeInterface
 
 from task_generator.shared import Position, PositionRadius, Wall
@@ -30,24 +31,23 @@ def _occupancy_to_available(occupancy: np.ndarray, safe_dist_cells: float) -> np
     return np.transpose(np.where(available))
 
 
-def _sample_grid_positions(
-    occupancy: np.ndarray,
+def _sample_from_candidates(
+    available: np.ndarray,
     n: int,
     safe_dist_cells: float,
     rng: np.random.Generator,
     *,
     max_depth: int = 10,
 ) -> np.ndarray:
-    """Pick n (row, col) cells with Euclidean safe_dist_cells clearance from non-empty cells and from each other.
+    """Pick n cells from `available` (row, col) keeping safe_dist_cells separation between picks.
 
-    Returns an (n, 2) int array. Raises RuntimeError if fewer than n cells satisfy the constraint.
+    Returns an (n, 2) int array. Raises RuntimeError if fewer than n cells fit.
     """
     if n <= 0:
         return np.zeros((0, 2), dtype=np.int64)
 
-    available = _occupancy_to_available(occupancy, safe_dist_cells)
     if len(available) < n:
-        raise RuntimeError(f"need {n} positions, only {len(available)} cells satisfy safe_dist={safe_dist_cells} cells")
+        raise RuntimeError(f"need {n} positions, only {len(available)} candidate cells available")
 
     accepted = np.zeros((n, 2), dtype=np.int64)
     accepted_n = 0
@@ -71,6 +71,19 @@ def _sample_grid_positions(
         raise RuntimeError(f"failed to find {n} positions with safe_dist={safe_dist_cells} cells after {max_depth} retries")
 
     return accepted
+
+
+def _sample_grid_positions(
+    occupancy: np.ndarray,
+    n: int,
+    safe_dist_cells: float,
+    rng: np.random.Generator,
+    *,
+    max_depth: int = 10,
+) -> np.ndarray:
+    """Pick n (row, col) cells with Euclidean safe_dist_cells clearance from non-empty cells and from each other."""
+    available = _occupancy_to_available(occupancy, safe_dist_cells)
+    return _sample_from_candidates(available, n, safe_dist_cells, rng, max_depth=max_depth)
 
 
 class WorldManager(NodeInterface):
@@ -155,8 +168,11 @@ class WorldManager(NodeInterface):
         safe_dist: float,
         forbidden_zones: list[PositionRadius] | None = None,
         forbid: bool = True,
+        polygon: shapely.Polygon | None = None,
     ) -> list[Position]:
         """Sample n map positions with Euclidean safe_dist (metres) clearance from obstacles and from each other.
+
+        If `polygon` is given, candidate cells are restricted to those whose world coords lie inside it.
 
         Raises RuntimeError if fewer than n positions fit.
         """
@@ -169,7 +185,15 @@ class WorldManager(NodeInterface):
 
         safe_dist_cells = safe_dist / self.resolution
         rng = self.node.conf.General.RNG.value
-        cells = _sample_grid_positions(fork.grid, n, safe_dist_cells, rng)
+        available = _occupancy_to_available(fork.grid, safe_dist_cells)
+
+        if polygon is not None and len(available):
+            world_xy = np.array(
+                [(p.x, p.y) for p in (self._map.tf_grid2pos((int(r), int(c))) for r, c in available)],
+            )
+            available = available[shapely.contains_xy(polygon, world_xy[:, 0], world_xy[:, 1])]
+
+        cells = _sample_from_candidates(available, n, safe_dist_cells, rng)
 
         if forbid:
             halo = int(math.ceil(safe_dist_cells))
