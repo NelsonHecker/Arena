@@ -11,7 +11,9 @@ _PYTHON=${PYTHON:-1}
 _GIT=${GIT:-1}
 _ROSDEP=${ROSDEP:-1}
 
-export ROSDEP_EXCLUDES='libignition-gazebo6-dev gazebo_dev gazebo_ros gazebo_plugins gazebo_ros2_control'
+export ROSDEP_EXCLUDES='libignition-gazebo6-dev gazebo_dev gazebo_ros gazebo_plugins gazebo_ros2_control flir_ptu_description'
+
+
 
 sudo apt update
 
@@ -40,7 +42,7 @@ fi
 if [ $_ROSDEP -eq 1 ] ; then
     # shellcheck disable=SC2016
     rosdep update --rosdistro "$ARENA_ROS_DISTRO" \
-        && arena deps --skip-keys "$ROSDEP_EXCLUDES" \
+        && arena deps \
     || echo "rosdep failed to install all dependencies"
 fi
 

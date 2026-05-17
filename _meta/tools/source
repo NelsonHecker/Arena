@@ -218,7 +218,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 fi
             ;;
             deps)
-                rosdep install --ignore-src -r -y --rosdistro "${ARENA_ROS_DISTRO}" --from-paths src "$@"
+                rosdep install --ignore-src -r -y --rosdistro "${ARENA_ROS_DISTRO}" --from-paths src --skip-keys "${ROSDEP_EXCLUDES:-libignition-gazebo6-dev gazebo_dev gazebo_ros gazebo_plugins gazebo_ros2_control flir_ptu_description}" "$@"
                 result=$?
             ;;
             update)
