@@ -117,8 +117,35 @@ class Supervisor:
             self._node.destroy_client(cli)
 
 
+def _viz_spawn_commands(ns: str, viz_args: dict[str, str]) -> list[tuple[str, list[str]]]:
+    """One rviz per env, fanning out across robots when `viz.robot:=all`."""
+    robot = viz_args.get('robot', '0')
+    extras = [f'{k}:={v}' for k, v in viz_args.items() if k != 'robot']
+    base = ['ros2', 'launch', 'rviz_utils', 'rviz_config.launch.py', f'ns:={ns}', *extras]
+    if robot == 'all':
+        return [(f'rviz_{ns}_r{i}', [*base, f'robot:={i}']) for i in range(_fleet_size(ns))]
+    return [(f'rviz_{ns}', [*base, f'robot:={robot}'])]
+
+
+def _fleet_size(ns: str) -> int:
+    """Probe RobotFleet for `ns`; fall back to 1 if unknown."""
+    import rclpy.qos
+    from task_generator_msgs.msg import RobotFleet
+
+    seen: list[int] = []
+    node = rclpy.create_node('arena_supervisor_fleet_probe')
+    qos = rclpy.qos.QoSProfile(depth=1, durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL)
+    sub = node.create_subscription(RobotFleet, f'{ns}/state/robots', lambda m: seen.append(len(m.robots)), qos)
+    deadline = time.monotonic() + 5.0
+    while not seen and time.monotonic() < deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    node.destroy_subscription(sub)
+    node.destroy_node()
+    return seen[0] if seen else 1
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    """Forward every k:=v to both runtime and env; supervisor-only knobs are env_n / rviz."""
+    """Forward every k:=v to both runtime and env; supervisor-only knobs are env_n / rviz / viz.*."""
     env_n = 1
     headless = False
     rviz = True
@@ -126,6 +153,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     sim: str | None = None
     runtime_args: list[str] = []
     env_args: list[str] = []
+    viz_args: dict[str, str] = {}
 
     for arg in argv:
         if ':=' not in arg:
@@ -138,6 +166,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         if key == 'rviz':
             rviz_set = True
             rviz = value.lower() in ('true', '1')
+            continue
+        if key.startswith('viz.'):
+            viz_args[key[len('viz.') :]] = value
             continue
         if key == 'sim':
             sim = value
@@ -156,6 +187,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         sim=sim,
         runtime_args=runtime_args,
         env_args=env_args,
+        viz_args=viz_args,
     )
 
 
@@ -229,7 +261,8 @@ def run(args: argparse.Namespace, sup: Supervisor) -> int:
         ):
             return 1
         for ns in sorted(sup.viz_namespaces() - existing_ns):
-            sup.spawn(f'rviz_{ns}', ['ros2', 'run', 'rviz_utils', 'rviz_config', ns])
+            for role, cmd in _viz_spawn_commands(ns, args.viz_args):
+                sup.spawn(role, cmd)
 
     if runtime is not None:
         runtime.wait()

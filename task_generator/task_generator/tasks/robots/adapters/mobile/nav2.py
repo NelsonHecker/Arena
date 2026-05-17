@@ -59,7 +59,7 @@ if TYPE_CHECKING:
             topic="{ns}/global_costmap/costmap",
             topic_type="nav_msgs/OccupancyGrid",
             rviz_class="rviz_default_plugins/Map",
-            config_json=('{"Color Scheme": "costmap", "Draw Behind": false, "Alpha": 0.7, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}'),
+            config_json=('{"Enabled": false, "Color Scheme": "costmap", "Draw Behind": false, "Alpha": 0.7, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}'),
         ),
         AdapterDisplayHint(
             name="Local Plan",

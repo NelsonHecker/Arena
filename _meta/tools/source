@@ -398,6 +398,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     tm_robots:=demo
                     world:=demo
                     sim:=isaac
+                    viz.view:=robot3p
                 )
                 local -a _to_pass=()
                 local _def _key _skip _arg
