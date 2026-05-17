@@ -3,11 +3,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import dataclasses
+import datetime
 import json
 import os
+import pathlib
 import signal
 import subprocess
 import sys
+import threading
+import typing
 
 import ament_index_python.packages
 import arena_runtime_msgs.msg
@@ -39,6 +43,23 @@ _LATCHED = rclpy.qos.QoSProfile(
 )
 
 
+def _tee_subprocess_output(
+    pipe: typing.IO[bytes],
+    log_file: typing.IO[bytes],
+    echo_prefix: bytes | None,
+) -> None:
+    """Drain a subprocess pipe to a log file, optionally echoing each line to parent stdout."""
+    try:
+        for line in iter(pipe.readline, b""):
+            log_file.write(line)
+            log_file.flush()
+            if echo_prefix is not None:
+                sys.stdout.buffer.write(echo_prefix + line)
+                sys.stdout.buffer.flush()
+    finally:
+        log_file.close()
+
+
 @dataclasses.dataclass
 class ManagedEnv:
     """Per-env state owned by ArenaNode: subscriptions, optional spawn future, optional wrapper Popen."""
@@ -49,6 +70,8 @@ class ManagedEnv:
     heartbeat_sub: rclpy.subscription.Subscription
     spawn_ready: asyncio.Future[None] | None = None
     popen: subprocess.Popen | None = None
+    log_path: pathlib.Path | None = None
+    tee_thread: threading.Thread | None = None
 
     async def dispose(self, node: ArenaNode, *, grace_seconds: float) -> None:
         """Drop subs, cancel pending spawn future, reap the wrapper pgid."""
@@ -59,6 +82,8 @@ class ManagedEnv:
             self.spawn_ready.cancel()
         if self.popen is not None:
             await node._shutdown_pg(self.env_id, self.popen, grace_seconds=grace_seconds)
+        if self.tee_thread is not None:
+            await asyncio.get_running_loop().run_in_executor(None, self.tee_thread.join, 5.0)
 
 
 class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
@@ -610,15 +635,33 @@ sys.exit(ls.run())
             ),
         }
 
+        log_dir = pathlib.Path.home() / ".ros" / "log"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_path = log_dir / f"arena_env_{env_id}_{ts}.log"
+        env.log_path = log_path
+
+        try:
+            log_file = log_path.open("wb")
+        except Exception as e:
+            self._envs.pop(env_id, None)
+            await env.dispose(self, grace_seconds=0.0)
+            self._env_registry.free(env_id)
+            self._publish_envs()
+            response.success = False
+            response.error_msg = f"open log file failed: {e!r}"
+            return response
+
         try:
             env.popen = subprocess.Popen(
                 [sys.executable, "-c", self._LAUNCH_WRAPPER_SCRIPT],
                 env=proc_env,
-                stdout=subprocess.DEVNULL if request.headless else None,
-                stderr=subprocess.DEVNULL if request.headless else None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 start_new_session=True,
             )
         except Exception as e:
+            log_file.close()
             self._envs.pop(env_id, None)
             await env.dispose(self, grace_seconds=0.0)
             self._env_registry.free(env_id)
@@ -626,6 +669,17 @@ sys.exit(ls.run())
             response.success = False
             response.error_msg = f"popen failed: {e!r}"
             return response
+
+        echo_prefix = None if request.headless else f"[env_{env_id}] ".encode()
+        env.tee_thread = threading.Thread(
+            target=_tee_subprocess_output,
+            args=(env.popen.stdout, log_file, echo_prefix),
+            name=f"arena_env_{env_id}_tee",
+            daemon=True,
+        )
+        env.tee_thread.start()
+
+        self.get_logger().info(f"env_{env_id} spawned (ns={namespace}), logs at {log_path}")
 
         try:
             await asyncio.wait_for(env.spawn_ready, timeout=120.0)
@@ -635,14 +689,16 @@ sys.exit(ls.run())
             self._env_registry.free(env_id)
             self._publish_envs()
             response.success = False
-            response.error_msg = f"spawn ACTIVE wait failed: {e!r}"
+            response.error_msg = f"spawn ACTIVE wait failed: {e!r} (see {log_path} for details)"
+            response.log_path = str(log_path)
             return response
 
-        self.get_logger().info(f"spawned env_{env_id} (ns={namespace})")
+        self.get_logger().info(f"env_{env_id} reached ACTIVE")
 
         response.success = True
         response.env_id = env_id
         response.ns = namespace
+        response.log_path = str(log_path)
         response.error_msg = ""
         return response
 
