@@ -19,6 +19,7 @@ from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import FrameNamespace
 from arena_robots.moveit_factory import build_moveit_params
+from arena_robots.Robot import RobotIdentifier
 from task_generator_msgs.msg import AdapterVizManifest, RobotDescriptor, RobotFleet
 
 from rviz_utils.utils import Utils
@@ -290,8 +291,9 @@ class ConfigFileGenerator(ArenaMixinNode):
         except IndexError:
             self.get_logger().warning(f'robot index {idx} out of range (fleet size {len(self.robots)}), ignoring')
             return None
+        base_frame = RobotIdentifier(robot.model).resolve_sync().model_params.base_frame
         prefix = FrameNamespace(robot.frame).raw()
-        return f'{prefix}/base_link' if prefix else 'base_link'
+        return f'{prefix}/{base_frame}' if prefix else base_frame
 
     def _build_view(self) -> dict[str, object]:
         view = str(self.get_parameter('view').value)
