@@ -25,11 +25,11 @@ from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
 )
-from arena_simulation_setup.utils.cattrs import converter
-from arena_simulation_setup.utils.geometry import Position
+from arena_simulation_setup.utils.cattrs import ArenaConverter, converter
+from arena_simulation_setup.utils.geometry import Orientation, Pose, Position, sample_point_in_polygon
 
 from .Map import Map
-from .Scenario import ScenarioView
+from .Scenario import RegionAssignment, ScenarioView
 
 
 @attrs.define
@@ -101,6 +101,69 @@ class WorldDescription:
     @property
     def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
         return (entity for zone in self.zones for entity in zone.entities.dynamic)
+
+    def lookup_zone_polygon(self, name: str) -> list[Position] | None:
+        """Look up a zone, door, or elevator by name and return its polygon vertices."""
+        for zone in self.zones:
+            if zone.name == name:
+                return zone.corners
+            for door in zone.doors:
+                if door.name == name:
+                    return _door_polygon(door.start, door.end)
+            for elevator in zone.elevators:
+                if elevator.name == name:
+                    return _elevator_polygon(elevator.position, elevator.size)
+        return None
+
+    def zone_converter(
+        self,
+        rng: np.random.Generator,
+        *,
+        is_valid: typing.Callable[[Position], bool] | None = None,
+    ) -> ArenaConverter:
+        """Return a converter that resolves zone/door/elevator names to geometry.
+
+        String values for Pose/Position fields are resolved by sampling a
+        random point within the named zone polygon. RegionAssignment dicts
+        with a ``ref`` key get their polygon resolved from the world.
+        """
+        lookup = self.lookup_zone_polygon
+
+        base_pose_hook = converter.get_structure_hook(Pose)
+        base_position_hook = converter.get_structure_hook(Position)
+        base_region_hook = converter.get_structure_hook(RegionAssignment)
+
+        def pose_hook(v: object, t: type) -> Pose:
+            if isinstance(v, str):
+                polygon = lookup(v)
+                if polygon is None:
+                    raise ValueError(f"zone ref '{v}' not found in world")
+                pt = sample_point_in_polygon(polygon, rng, is_valid=is_valid)
+                return Pose(position=pt, orientation=Orientation.identity())
+            return base_pose_hook(v, t)
+
+        def position_hook(v: object, t: type) -> Position:
+            if isinstance(v, str):
+                polygon = lookup(v)
+                if polygon is None:
+                    raise ValueError(f"zone ref '{v}' not found in world")
+                return sample_point_in_polygon(polygon, rng, is_valid=is_valid)
+            return base_position_hook(v, t)
+
+        def region_hook(v: object, t: type) -> RegionAssignment:
+            if isinstance(v, dict) and 'ref' in v:
+                ref = v.pop('ref')
+                polygon = lookup(ref)
+                if polygon is None:
+                    raise ValueError(f"region ref '{ref}' not found in world")
+                v['polygon'] = polygon
+            return base_region_hook(v, t)
+
+        c = converter.copy()
+        c.register_structure_hook(Pose, pose_hook)
+        c.register_structure_hook(Position, position_hook)
+        c.register_structure_hook(RegionAssignment, region_hook)
+        return c
 
     def _rasterize_kwargs(
         self,
