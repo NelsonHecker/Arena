@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Self
+from typing_extensions import Self
 
 import yaml
 from arena_simulation_setup import ASS_DIR

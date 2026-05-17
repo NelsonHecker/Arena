@@ -5,7 +5,7 @@ import tarfile
 import typing
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Self
+from typing_extensions import Self
 
 import attrs
 import numpy as np

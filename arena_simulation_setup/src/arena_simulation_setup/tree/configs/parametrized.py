@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Self
+from typing_extensions import Self
 
 import attrs
 from arena_simulation_setup import AB_DIR

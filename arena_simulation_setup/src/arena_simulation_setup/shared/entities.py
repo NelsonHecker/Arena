@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Self
+from typing_extensions import Self
 
 import attrs
 import cattrs

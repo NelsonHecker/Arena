@@ -3,7 +3,7 @@ import contextlib
 import datetime
 import functools
 import typing
-from typing import Self
+from typing_extensions import Self
 
 import attrs
 import builtin_interfaces.msg
