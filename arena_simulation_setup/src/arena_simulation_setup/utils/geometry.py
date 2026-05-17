@@ -389,6 +389,73 @@ class Scale(Parseable, Idempotent):
         return geometry_msgs.msg.Point(x=self.x, y=self.y, z=self.z)
 
 
+def sample_point_in_polygon(
+    vertices: list[Position],
+    rng: np.random.Generator,
+    *,
+    is_valid: typing.Callable[[Position], bool] | None = None,
+    max_retries: int = 50,
+) -> Position:
+    n = len(vertices)
+    if n < 3:
+        return vertices[0] if vertices else Position(0, 0)
+
+    # Fan triangulation from first vertex
+    triangles = []
+    areas = []
+    v0 = vertices[0]
+    for i in range(1, n - 1):
+        v1, v2 = vertices[i], vertices[i + 1]
+        area = abs((v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y)) / 2.0
+        triangles.append((v0, v1, v2))
+        areas.append(area)
+
+    total = sum(areas)
+    if total <= 0:
+        return Position(v0.x, v0.y)
+
+    def _sample_once() -> Position:
+        r = float(rng.random()) * total
+        cumulative = 0.0
+        tri = triangles[0]
+        for _tri, area in zip(triangles, areas, strict=False):
+            cumulative += area
+            if cumulative >= r:
+                tri = _tri
+                break
+
+        u = float(rng.random())
+        v = float(rng.random())
+        if u + v > 1.0:
+            u, v = 1.0 - u, 1.0 - v
+        w = 1.0 - u - v
+
+        a, b, c = tri
+        return Position(
+            w * a.x + u * b.x + v * c.x,
+            w * a.y + u * b.y + v * c.y,
+        )
+
+    if is_valid is None:
+        return _sample_once()
+
+    last = _sample_once()
+    for _ in range(max_retries):
+        if is_valid(last):
+            return last
+        last = _sample_once()
+    if is_valid(last):
+        return last
+
+    import warnings
+
+    warnings.warn(
+        f"sample_point_in_polygon: no valid sample after {max_retries} retries; returning last candidate",
+        stacklevel=2,
+    )
+    return last
+
+
 def angle_diff(a: float, b: float) -> float:
     """
     returns difference of angles
