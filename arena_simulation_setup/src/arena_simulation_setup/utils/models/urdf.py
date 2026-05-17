@@ -8,7 +8,6 @@ from pathlib import Path
 
 import aiofiles
 import attrs
-from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 
 from . import Model, ModelProvider, ModelType
 
@@ -93,10 +92,17 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
 
                 if original_path.startswith(_PACKAGE_URI):
                     pkg, _, sub = original_path[len(_PACKAGE_URI) :].partition('/')
+                    abs_path: str | None = None
                     try:
-                        share = get_package_share_directory(pkg)
-                        abs_path = os.path.join(share, sub)
-                    except PackageNotFoundError:
+                        from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
+                    except ModuleNotFoundError:
+                        pass
+                    else:
+                        try:
+                            abs_path = os.path.join(get_package_share_directory(pkg), sub)
+                        except PackageNotFoundError:
+                            pass
+                    if abs_path is None:
                         abs_path = os.path.abspath(os.path.join(base_dir, sub))
                     elem.attrib['filename'] = f"file://{abs_path}"
                     print(f"Resolved {original_path} -> file://{abs_path}")
