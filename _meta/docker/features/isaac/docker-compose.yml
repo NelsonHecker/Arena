@@ -15,6 +15,7 @@ services:
       - "$HOST_ARENA_WS_DIR/install:/opt/arena_ws/install"
       - "$HOST_ARENA_WS_DIR/log:/opt/arena_ws/log"
       - "$HOST_ARENA_WS_DIR/.env:/opt/arena_ws/.env"
+      - "$HOST_ARENA_DATA_DIR:/opt/arena_ws/data"
     environment:
       - DISPLAY
       - TMPDIR=/tmp/shared
@@ -26,6 +27,8 @@ services:
       - ARENA_ROS_DISTRO
       - HOST_UID
       - HOST_ARENA_WS_DIR
+      - HOST_ARENA_DATA_DIR
+      - ARENA_DATA_DIR=/opt/arena_ws/data
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
       - LLM_API_ENDPOINT
     env_file:
