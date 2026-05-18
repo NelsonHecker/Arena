@@ -3,10 +3,10 @@ from __future__ import annotations
 import math
 import typing
 from collections.abc import Iterator, Sequence
-from typing_extensions import Self
 
 import attrs
 import numpy as np
+from typing_extensions import Self
 
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable
 

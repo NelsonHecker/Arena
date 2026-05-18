@@ -11,9 +11,9 @@ import time
 import typing
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing_extensions import Self
 
 import attrs
+from typing_extensions import Self
 
 from arena_simulation_setup import (
     ARENA_ASSETS_DIR,

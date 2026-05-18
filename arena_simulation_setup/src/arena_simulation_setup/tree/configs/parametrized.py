@@ -1,10 +1,10 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing_extensions import Self
 
 import attrs
 from arena_simulation_setup import AB_DIR
 from arena_simulation_setup.tree import Identifier, PathResolverBase
+from typing_extensions import Self
 
 
 def _get_attrib(element: ET.Element, attribute: str, default: str | None = None) -> str:

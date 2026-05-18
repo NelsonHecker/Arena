@@ -3,7 +3,6 @@ import contextlib
 import datetime
 import functools
 import typing
-from typing_extensions import Self
 
 import attrs
 import builtin_interfaces.msg
@@ -14,6 +13,7 @@ import rclpy.qos
 import rclpy.time
 import rclpy.timer
 import rosgraph_msgs.msg
+from typing_extensions import Self
 
 _CLOCK_QOS = rclpy.qos.QoSProfile(
     depth=1,

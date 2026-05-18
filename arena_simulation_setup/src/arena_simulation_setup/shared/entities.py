@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing_extensions import Self
 
 import attrs
 import cattrs
+from typing_extensions import Self
 
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
