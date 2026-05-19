@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Self
 
 import yaml
 from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.tree import Identifier, PathResolverBase
+from typing_extensions import Self
 
 
 class EnvironmentDescription(dict):

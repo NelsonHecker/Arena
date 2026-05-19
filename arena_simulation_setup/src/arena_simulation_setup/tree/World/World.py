@@ -5,11 +5,11 @@ import tarfile
 import typing
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Self
 
 import attrs
 import numpy as np
 import yaml
+from typing_extensions import Self
 
 from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.shared import (
