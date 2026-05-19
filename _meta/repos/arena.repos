@@ -42,6 +42,12 @@ repositories:
     url: https://github.com/voshch/topic_based_hardware_interfaces
     version: main
 
+  # upstream PR #28 (slider int() cast) stranded on rolling, never backported
+  deps/rqt_robot_steering:
+    type: git
+    url: https://github.com/voshch/rqt_robot_steering
+    version: jazzy
+
   # deps/xacro:
   #   type: git
   #   url: https://github.com/ros/xacro.git

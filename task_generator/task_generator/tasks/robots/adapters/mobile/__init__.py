@@ -29,6 +29,13 @@ def _load_external() -> type[Adapter]:
     return ExternalAdapter
 
 
+@ADAPTERS["mobile"].register("manual")
+def _load_manual() -> type[Adapter]:
+    from .manual import ManualAdapter
+
+    return ManualAdapter
+
+
 @ADAPTERS["mobile"].register("rosnav_rl")
 def _load_rosnav_rl() -> type[Adapter]:
     from .rosnav_rl import RosnavRlAdapter
