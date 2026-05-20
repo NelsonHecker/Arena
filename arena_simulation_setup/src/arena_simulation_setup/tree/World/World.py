@@ -112,7 +112,7 @@ class WorldDescription:
                     return _door_polygon(door.start, door.end)
             for elevator in zone.elevators:
                 if elevator.name == name:
-                    return _elevator_polygon(elevator.position, elevator.size)
+                    return elevator.cabin_corners()
         return None
 
     def zone_converter(
@@ -177,7 +177,7 @@ class WorldDescription:
 
         map_kwargs: dict[str, typing.Any] = {
             "rooms": shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
-            "doors": shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
+            "doors": shapely.MultiPolygon([poly for door in self.all_doors for poly in _render_door_polygons(door)] + [poly for elevator in self.all_elevators for poly in _render_elevator_polygons(elevator)]),
             "walls": shapely.MultiLineString(list(self.all_walls)),
             "padding": 5,
         }
@@ -309,15 +309,45 @@ def _door_polygon(start: Position, end: Position) -> list[Position]:
     ]
 
 
-def _elevator_polygon(position: Position, size: list[float]) -> list[Position]:
-    cx, cy = position.x, position.y
-    hw, hh = size[0] / 2, size[1] / 2
+_ELEVATOR_DOORWAY_DEPTH = 0.3
+
+
+def _door_axis(door_side: str) -> tuple[tuple[float, float], tuple[float, float]]:
+    return {
+        '+x': ((1.0, 0.0), (0.0, 1.0)),
+        '-x': ((-1.0, 0.0), (0.0, 1.0)),
+        '+y': ((0.0, 1.0), (1.0, 0.0)),
+        '-y': ((0.0, -1.0), (1.0, 0.0)),
+    }[door_side]
+
+
+def _elevator_doorway_corners(elevator: Elevator) -> list[Position]:
+    outward, tangent = _door_axis(elevator.door_side)
+    hx, hy = elevator.size[0] / 2.0, elevator.size[1] / 2.0
+    out_extent = hx if outward[0] != 0 else hy
+    tan_extent = hy if outward[0] != 0 else hx
+    inner_cx = elevator.position.x + outward[0] * out_extent
+    inner_cy = elevator.position.y + outward[1] * out_extent
+    outer_cx = inner_cx + outward[0] * _ELEVATOR_DOORWAY_DEPTH
+    outer_cy = inner_cy + outward[1] * _ELEVATOR_DOORWAY_DEPTH
     return [
-        Position(cx - hw, cy - hh),
-        Position(cx + hw, cy - hh),
-        Position(cx + hw, cy + hh),
-        Position(cx - hw, cy + hh),
+        Position(inner_cx - tangent[0] * tan_extent, inner_cy - tangent[1] * tan_extent),
+        Position(outer_cx - tangent[0] * tan_extent, outer_cy - tangent[1] * tan_extent),
+        Position(outer_cx + tangent[0] * tan_extent, outer_cy + tangent[1] * tan_extent),
+        Position(inner_cx + tangent[0] * tan_extent, inner_cy + tangent[1] * tan_extent),
     ]
+
+
+def _render_door_polygons(door: Door) -> list:
+    import shapely
+
+    return [shapely.Polygon(door.corners)]
+
+
+def _render_elevator_polygons(elevator: Elevator) -> list:
+    import shapely
+
+    return [shapely.Polygon(elevator.cabin_corners()), shapely.Polygon(_elevator_doorway_corners(elevator))]
 
 
 class World(PathView):

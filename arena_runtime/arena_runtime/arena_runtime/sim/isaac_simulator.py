@@ -1,21 +1,25 @@
 import asyncio
 import itertools
+import math
 import os
 import random
 import traceback
 import types
 import typing
 import xml.etree.ElementTree as ET
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 import arena_people_msgs.msg
 import arena_robots.Robot
 import arena_simulation_setup.tree.assets.Material
+import geometry_msgs.msg
 import isaacsim_msgs.msg
 import launch
 import launch_ros
+import rclpy.time
 import std_msgs.msg
 import std_srvs.srv
+import tf2_ros
 from arena_people_msgs.msg import Pedestrian, SpawnPedestrian
 from arena_people_msgs.srv import (
     DeletePedestrians,
@@ -29,27 +33,21 @@ from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
-    Door,
-    Elevator,
     Floor,
     Material,
     Prim,
-    Scale,
     Wall,
 )
 from isaacsim_msgs.srv import (
     DeletePrims,
     EditPrims,
     ResetWorld,
-    SpawnDoors,
-    SpawnElevators,
     SpawnFloors,
     SpawnPrims,
     SpawnUrdf,
     SpawnUsd,
     SpawnWalls,
 )
-from task_generator.shared import Door as DoorDefinition
 from task_generator.shared import (
     DynamicObstacle,
     ModelType,
@@ -57,7 +55,6 @@ from task_generator.shared import (
     Pose,
     Robot,
 )
-from task_generator.shared import Elevator as ElevatorDefinition
 from task_generator.shared import Floor as FloorDefinition
 from task_generator.shared import Wall as WallDefinition
 
@@ -192,8 +189,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._NS_ROBOT = Namespace(env_prefix)('Robots')
         self._NS_WALL = Namespace(env_prefix)('Walls')
         self._NS_FLOOR = Namespace(env_prefix)('Floors')
-        self._NS_DOOR = Namespace(env_prefix)('Doors')
-        self._NS_ELEVATOR = Namespace(env_prefix)('Elevators')
 
         self.wall_counter = itertools.count()
         self.floor_counter = itertools.count()
@@ -204,15 +199,18 @@ class IsaacSimulator(BaseSim, NodeInterface):
             MovePedestrians=self.node.create_client_wrapper(MovePedestrians, "/isaac/MovePedestrians"),
             ResetWorld=self.node.create_client_wrapper(ResetWorld, "/isaac/ResetWorld"),
             UpdatePedestrians=self.node.create_client_wrapper(UpdatePedestrians, "/isaac/UpdatePedestrians"),
-            SpawnDoors=self.node.create_client_wrapper(SpawnDoors, "/isaac/SpawnDoors"),
             SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "/isaac/SpawnFloors"),
             SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "/isaac/SpawnPedestrians"),
             SpawnPrims=self.node.create_client_wrapper(SpawnPrims, "/isaac/SpawnPrims"),
             SpawnUrdf=self.node.create_client_wrapper(SpawnUrdf, "/isaac/SpawnUrdf"),
             SpawnUsd=self.node.create_client_wrapper(SpawnUsd, "/isaac/SpawnUsd"),
             SpawnWalls=self.node.create_client_wrapper(SpawnWalls, "/isaac/SpawnWalls"),
-            SpawnElevators=self.node.create_client_wrapper(SpawnElevators, "/isaac/SpawnElevators"),
         )
+
+        # sim_path -> (tf_frame, prim_name)
+        self._agent_robots: dict[str, tuple[str, str]] = {}
+        self._mechanism_tf_buffer = tf2_ros.Buffer()
+        self._mechanism_tf_listener = tf2_ros.TransformListener(self._mechanism_tf_buffer, self.node)
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
         return {
@@ -276,6 +274,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
                     await self._launch_robot_stack(robot, robot_params, rsp_urdf_path)
 
+                    self._agent_robots[robot.sim_path] = (robot.frame.tf(robot_params.base_frame), fq_name)
                     return True
 
                 # TODO
@@ -440,6 +439,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return tuple(r == DeletePedestrians.Response.SUCCESS for r in res.results)
 
     async def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
+        for robot in robots:
+            self._agent_robots.pop(robot.sim_path, None)
         return await asyncio.gather(*(self._delete_entity(self._NS_ROBOT(r.name)) for r in robots))
 
     async def remove_world(self) -> bool:
@@ -528,65 +529,51 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._logger.debug("All floors spawned successfully.")
         return res
 
-    async def spawn_doors(self, doors: Sequence[DoorDefinition]) -> bool:
-        async def impl(door: DoorDefinition) -> Door | None:
+    async def spawn_box(self, name: str, size: tuple[float, float, float], pose: Pose) -> bool:
+        # SpawnWalls creates a cube via create_cube(scale=(length, thickness, height)).
+        # Encode the box as a degenerate wall: AB vector carries sx and yaw; thickness=sy; dz=sz.
+        sx, sy, sz = size
+        yaw = pose.orientation.to_yaw()
+        cx, cy, cz = pose.position.x, pose.position.y, pose.position.z
+        half = sx / 2.0
+        start_x = cx - half * math.cos(yaw)
+        start_y = cy - half * math.sin(yaw)
+        end_x = cx + half * math.cos(yaw)
+        end_y = cy + half * math.sin(yaw)
+        req = SpawnWalls.Request()
+        req.walls = [
+            Wall(
+                name=name,
+                start=geometry_msgs.msg.Point(x=start_x, y=start_y, z=cz - sz / 2.0),
+                end=geometry_msgs.msg.Point(x=end_x, y=end_y, z=cz + sz / 2.0),
+                thickness=sy,
+            )
+        ]
+        res = await self._clients.SpawnWalls.call_timeout(req)
+        return bool(res) and bool(res.ret) and res.ret[0]
+
+    async def move_box(self, name: str, pose: Pose) -> bool:
+        return await self._move_entity(name, pose)
+
+    async def delete_box(self, name: str) -> bool:
+        return await self._delete_entity(name)
+
+    def robot_positions_xy(self) -> Iterable[tuple[str, tuple[float, float]]]:
+        out: list[tuple[str, tuple[float, float]]] = []
+        for sim_path, (frame, _prim) in list(self._agent_robots.items()):
             try:
-                end = door.end.to_msg()
-                end.z += door.height
-                return Door(
-                    name=self._NS_DOOR(door.name),
-                    start=door.start.to_msg(),
-                    end=end,
-                    material=material_to_msg(await door.material.resolve()),
-                    thickness=0.1,
-                    kind=door.kind,
-                )
-            except Exception as e:
-                self._logger.error(f"Failed to spawn door: {e}\n{traceback.format_exc()}")
-                return None
+                t = self._mechanism_tf_buffer.lookup_transform('map', frame, rclpy.time.Time())
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                continue
+            out.append((sim_path, (t.transform.translation.x, t.transform.translation.y)))
+        return out
 
-        doors_req = SpawnDoors.Request()
-        doors_req.doors = list(filter(None, await asyncio.gather(*map(impl, doors))))
-        doors_res = await self._clients.SpawnDoors.call_timeout(doors_req)
-
-        res = bool(doors_res) and all(doors_res.ret)
-        self._logger.debug("All doors spawned successfully.")
-        return res
-
-    async def spawn_elevators(self, elevators: Sequence[ElevatorDefinition]) -> bool:
-        self._logger.debug(f"IsaacSimulator.spawn_elevators ENTRY, elevators: {elevators}")
-        self._logger.debug(f"IsaacSimulator.spawn_elevators called with: {[e.name for e in elevators]}")
-        for e in elevators:
-            self._logger.debug(f"Elevator data: {e}")
-
-        req = SpawnElevators.Request()
-
-        async def impl(elevator: ElevatorDefinition) -> Elevator | None:
-            try:
-                pos = elevator.position
-                size = elevator.size
-                size = Scale(x=size[0], y=size[1], z=size[2])
-                des = elevator.destination
-                material_resolved = await elevator.material.resolve()
-                result = Elevator(
-                    name=self._NS_ELEVATOR(elevator.name),
-                    position=pos.to_msg(),
-                    size=size,
-                    height_min=elevator.height_min,
-                    height_max=elevator.height_max,
-                    material=material_to_msg(material_resolved),
-                    destination=des,
-                )
-                return result
-            except Exception as e:
-                self._logger.error(f"Failed to append elevator: {elevator.name}: {e}\n{traceback.format_exc()}")
-                return None
-
-        req.elevators = list(filter(None, await asyncio.gather(*map(impl, elevators))))
-        elevators_res = await self._clients.SpawnElevators.call_timeout(req)
-        res = bool(elevators_res) and all(elevators_res.ret)
-        self._logger.debug("All elevators spawned successfully.")
-        return res
+    async def set_robot_pose(self, sim_path: str, pose: Pose) -> bool:
+        entry = self._agent_robots.get(sim_path)
+        if entry is None:
+            return False
+        _frame, prim_name = entry
+        return await self._move_entity(prim_name, pose)
 
     async def before_reset_episode(self) -> bool:
         return True
@@ -726,7 +713,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         self._logger.info("All service clients are available.")
 
-        self.node.create_publisher(std_msgs.msg.String, '/isaac/add_pedestrians_topic', 10).publish(std_msgs.msg.String(data=self.node.service_namespace('arena_peds')))
+        self.node.create_publisher(std_msgs.msg.String, '/isaac/add_pedestrians_topic', 10).publish(std_msgs.msg.String(data=self._namespace('arena_peds')))
 
         self._logger.info("All service clients initialized and available.")
 
