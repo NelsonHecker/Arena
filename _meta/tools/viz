@@ -7,6 +7,12 @@ Usage:
   viz --ns <ns>      explicit form of the above
   viz --all          attach to every running env, shut down all on Ctrl-C
 
+Any <key>:=<value> token is forwarded to rviz_config.launch.py. A `viz.`
+prefix is accepted (so tokens shared with `arena launch` work unchanged) but
+not required:
+  view:=map|robot|robot3p      camera view (default: map)
+  robot:=<int>|all             robot index in fleet, 'all' spawns one rviz per robot
+
 Polls `ros2 topic list` for `<ns>/state/viz_manifest` topics to discover envs,
 waiting forever (10s heartbeat) until a match appears.
 """
@@ -55,17 +61,47 @@ def wait_for_env(target: str | None) -> list[str]:
             print(f"arena viz: waiting for {who} ({waited}s elapsed)", file=sys.stderr)
 
 
-def attach_all(namespaces: list[str]) -> int:
+def _fleet_size(ns: str) -> int:
+    import rclpy
+    import rclpy.qos
+    from task_generator_msgs.msg import RobotFleet
+    seen: list[int] = []
+    rclpy.init(args=[])
+    try:
+        node = rclpy.create_node('arena_viz_fleet_probe')
+        qos = rclpy.qos.QoSProfile(depth=1, durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL)
+        sub = node.create_subscription(RobotFleet, f'{ns}/state/robots', lambda m: seen.append(len(m.robots)), qos)
+        deadline = time.monotonic() + 5.0
+        while not seen and time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.1)
+        node.destroy_subscription(sub)
+        node.destroy_node()
+    finally:
+        rclpy.shutdown()
+    return seen[0] if seen else 1
+
+
+def _viz_commands(ns: str, viz_args: dict[str, str]) -> list[list[str]]:
+    robot = viz_args.get('robot', '0')
+    extras = [f'{k}:={v}' for k, v in viz_args.items() if k != 'robot']
+    base = ['ros2', 'launch', 'rviz_utils', 'rviz_config.launch.py', f'ns:={ns}', *extras]
+    if robot == 'all':
+        return [[*base, f'robot:={i}'] for i in range(_fleet_size(ns))]
+    return [[*base, f'robot:={robot}']]
+
+
+def attach_all(namespaces: list[str], viz_args: dict[str, str]) -> int:
     procs: list[subprocess.Popen] = []
     for ns in namespaces:
-        print(f"arena viz: attaching to {ns}", file=sys.stderr)
-        procs.append(
-            subprocess.Popen(
-                ["ros2", "run", "rviz_utils", "rviz_config", ns],
-                start_new_session=True,
-                stdin=subprocess.DEVNULL,
+        for cmd in _viz_commands(ns, viz_args):
+            print(f"arena viz: attaching to {ns} ({' '.join(cmd[4:])})", file=sys.stderr)
+            procs.append(
+                subprocess.Popen(
+                    cmd,
+                    start_new_session=True,
+                    stdin=subprocess.DEVNULL,
+                )
             )
-        )
 
     shutting_down = False
 
@@ -96,11 +132,23 @@ def attach_all(namespaces: list[str]) -> int:
 
 
 def main() -> int:
+    raw_argv = sys.argv[1:]
+    viz_args: dict[str, str] = {}
+    passthrough: list[str] = []
+    for tok in raw_argv:
+        if ':=' in tok:
+            key, _, value = tok.partition(':=')
+            if key.startswith('viz.'):
+                key = key[len('viz.'):]
+            viz_args[key] = value
+            continue
+        passthrough.append(tok)
+
     parser = argparse.ArgumentParser(prog="arena viz", description=__doc__)
     parser.add_argument("--all", dest="all_envs", action="store_true")
     parser.add_argument("--ns", dest="ns")
     parser.add_argument("target", nargs="?")
-    args = parser.parse_args()
+    args = parser.parse_args(passthrough)
 
     if args.all_envs and (args.ns or args.target):
         parser.error("--all takes no target")
@@ -111,7 +159,7 @@ def main() -> int:
     nodes = wait_for_env(target)
 
     if args.all_envs:
-        return attach_all(nodes)
+        return attach_all(nodes, viz_args)
 
     if target is None:
         if len(nodes) > 1:
@@ -123,8 +171,11 @@ def main() -> int:
     else:
         chosen = next(n for n in nodes if matches(n, target))
 
-    print(f"arena viz: attaching to {chosen}", file=sys.stderr)
-    os.execvp("ros2", ["ros2", "run", "rviz_utils", "rviz_config", chosen])
+    cmds = _viz_commands(chosen, viz_args)
+    if len(cmds) == 1:
+        print(f"arena viz: attaching to {chosen}", file=sys.stderr)
+        os.execvp(cmds[0][0], cmds[0])
+    return attach_all([chosen], viz_args)
 
 
 if __name__ == "__main__":

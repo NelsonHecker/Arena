@@ -34,18 +34,21 @@ class TM_Robots(TaskMode):
         self._floor_id = self.node.ROSParam[str](self.namespace('floor_id'), "")
         self._floor_id_mode = self.node.ROSParam[str](self.namespace('floor_id_mode'), "default")
 
+    def _random_floor_id(self) -> str:
+        floor_ids = [str(floor_id) for floor_id in self._ctx.world_manager.world.floor_ids if str(floor_id)]
+        if not floor_ids:
+            return ""
+        return str(self.node.conf.General.RNG.value.choice(floor_ids))
+
     def _resolve_floor_id(self, floor_id: str | None = None) -> str:
         if floor_id:
             return floor_id
         mode = (self._floor_id_mode.value or "default").lower()
         if mode == "random":
-            floor_ids = list(self._ctx.world_manager.world.floor_ids)
-            if not floor_ids:
-                return ""
-            return str(self.node.conf.General.RNG.value.choice(floor_ids))
+            return self._random_floor_id()
         if mode == "explicit":
             return self._floor_id.value or ""
-        return self._floor_id.value or ""
+        return self._random_floor_id() or self._floor_id.value or ""
 
     @property
     def start_poses(self) -> dict[str, Pose]:
@@ -72,7 +75,8 @@ class TM_Robots(TaskMode):
         pose: Pose | None = None,
         args: dict[str, str] | None = None,
     ) -> str:
-        resolved_pose = pose if pose is not None else await random_placement(self._ctx)
+        floor_id = self._resolve_floor_id(typing.cast(str, (args or {}).get("floor_id", "")))
+        resolved_pose = pose if pose is not None else await random_placement(self._ctx, floor_id=floor_id)
         assigned_name = name or f"{model}_{uuid.uuid4().hex[:6]}"
         value: dict[str, object] = dict(args or {})
         value['model'] = model

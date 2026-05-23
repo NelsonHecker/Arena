@@ -224,6 +224,8 @@ via `/arena/spawn_env`.
 |---|---|---|
 | `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `rviz:=false` unless `rviz:=true` is explicit. |
 | `rviz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
+| `viz.view` | `map` | Camera view in rviz: `map` (TopDownOrtho), `robot` (Orbit on robot base), `robot3p` (ThirdPersonFollower on robot base). |
+| `viz.robot` | `0` | Robot index in the fleet for `viz.view:=robot*`. `all` spawns one rviz window per robot. Ignored when `view=map`. |
 
 Examples:
 
@@ -248,11 +250,20 @@ arena launch sim:=gazebo rviz:=false
 Attaches rviz to one or more running envs after launch (out-of-band).
 
 ```bash
-arena viz               # auto-pick if exactly one env is running
-arena viz <env_id>      # match by env id (last path component)
-arena viz --ns <ns>     # explicit namespace
-arena viz --all         # one rviz window per running env
+arena viz                              # auto-pick if exactly one env is running
+arena viz <env_id>                     # match by env id (last path component)
+arena viz --ns <ns>                    # explicit namespace
+arena viz --all                        # one rviz window per running env
+arena viz view:=robot3p                # third-person follower on robot 0
+arena viz 1 view:=robot robot:=-1      # orbit the last robot of env 1
+arena viz --all robot:=all             # all envs, every robot, one window each
 ```
+
+Any `key:=value` is forwarded straight to
+[rviz_config.launch.py](../utils/rviz_utils/launch/rviz_config.launch.py). Under
+`arena launch` the same tokens take a `viz.` prefix to disambiguate from
+runtime args; `arena viz` accepts the prefixed form too. The launch file
+declares `view` and `robot` as ROS params on the rviz_config node.
 
 Waits forever for a matching env to appear (10s warning cadence), mirroring
 `arena env`'s wait for the runtime. Once at least one env is up: a single

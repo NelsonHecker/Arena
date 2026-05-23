@@ -36,12 +36,6 @@ zones:
       - [30.0, 23.0]
       - [0.0, 23.0]
     doors:
-      - name: "east_door"
-        start: [30.0, 4.0]
-        end: [30.0, 6.0]
-        height: 2.0
-        kind: "sliding"
-        material: ["Aluminum_Anodized", {"tint": "rgba(0,255,0,0.2)"}]
       - name: "north_door"
         start: [12.0, 23.0]
         end: [18.0, 23.0]
@@ -60,23 +54,17 @@ zones:
         height: 2.0
         kind: "sliding"
         material: ["Aluminum_Anodized", {"tint": "rgba(0,255,255,0.2)"}]
-      - name: "east_door_2"
-        start: [30.0, 17.0]
-        end: [30.0, 19.0]
-        height: 2.0
-        kind: "sliding"
-        material: ["Aluminum_Anodized", {"tint": "rgba(0,255,255,0.2)"}]
- 
+
     elevators:
       - name: "elevator_ground"
         position: [31.0, 5.0, 0.0]
-        size: [2.0, 2.0, 0.02]
+        size: [2.0, 2.0, 2.5]
+        door_side: "-x"
         destination: "elevator_top"
       - name: "elevator_top"
         position: [31.0, 18.0, 0.0]
-        size: [2.0, 2.0, 0.02]
-        height_min: 0.0
-        height_max: 3.0
+        size: [2.0, 2.0, 2.5]
+        door_side: "-x"
         destination: "elevator_ground"
     mat: ""
     entities:

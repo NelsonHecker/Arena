@@ -90,7 +90,7 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "ANN", "PYI"]
-ignore = ["E501", "E402", "F841", "E731", "PYI051", "E741"]
+ignore = ["E501", "E402", "F841", "E731", "PYI051", "E741", "UP035"]
 
 [tool.ruff.lint.per-file-ignores]
 "arena_simulation_setup/**/*.py" = ["UP"]

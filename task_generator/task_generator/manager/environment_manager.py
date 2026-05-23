@@ -87,26 +87,31 @@ class EnvironmentManager(NodeInterface):
         alive = set(self._human_simulator._known_obstacles.keys())
         self._static_polygons = {n: p for n, p in self._static_polygons.items() if n in alive}
 
-    async def spawn_world_obstacles(self, world: WorldDescription):
+    async def spawn_world_obstacles(self, world: WorldDescription | MultiLevelWorld, floor_id: str = ""):
         """
         Loads given obstacles into the simulator,
         the map file is retrieved from launch parameter "world"
         """
-        await self._spawn_world_obstacles(world, floor_id="")
+        await self._spawn_world_obstacles(world, floor_id)
 
-    async def spawn_world_obstacles_for_floor(self, world: MultiLevelWorld, floor_id: str) -> None:
-        """Spawn a single floor of a multi-level world using the given floor_id."""
-        level = world.get_level(floor_id)
-        if level is None:
-            raise KeyError(f"floor_id {floor_id} is not registered in the multi-level world")
-        await self._spawn_world_obstacles(level, floor_id=floor_id)
+    async def _spawn_world_obstacles(self, world: WorldDescription | MultiLevelWorld, floor_id: str = "") -> None:
 
-    async def _spawn_world_obstacles(self, world: WorldDescription, floor_id: str) -> None:
-        walls = tuple(self._realizer.realize(w, floor_id) for w in world.all_walls)
-        doors = tuple(self._realizer.realize(d, floor_id) for d in world.all_doors)
-        floors = tuple(self._realizer.realize(f, floor_id) for f in world.all_floors)
-        elevators = tuple(self._realizer.realize(e, floor_id) for e in world.all_elevators)
-        statics = tuple(self._realizer.realize(s, floor_id) for s in world.all_static_entities)
+        def _match_level_id(level_id: str | None) -> bool:
+            target_id = floor_id 
+            if target_id == "":
+                return True
+            else:
+                if level_id is not None:
+                    return target_id == level_id
+                else:
+                    return False
+
+        _world = MultiLevelWorld.from_world_description(world) if isinstance(world, WorldDescription) else world
+        walls = tuple(self._realizer.realize(w, level_id) for level_id, level in _world.levels.items() if _match_level_id(level_id) for w in level.all_walls)
+        doors = tuple(self._realizer.realize(d, level_id) for level_id, level in _world.levels.items() if _match_level_id(level_id) for d in level.all_doors)
+        floors = tuple(self._realizer.realize(f, level_id) for level_id, level in _world.levels.items() if _match_level_id(level_id) for f in level.all_floors)
+        elevators = tuple(self._realizer.realize(e, level_id) for level_id, level in _world.levels.items() if _match_level_id(level_id) for e in level.all_elevators)
+        statics = tuple(self._realizer.realize(s, level_id) for level_id, level in _world.levels.items() if _match_level_id(level_id) for s in level.all_static_entities)
 
         line_strings: list[shapely.LineString] = []
         for w in walls:

@@ -4,7 +4,7 @@ This file exists to make world_manager more readable
 
 from collections.abc import Callable, Collection
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, Iterable
 
 import attrs
 import numpy as np
@@ -13,6 +13,7 @@ import yaml
 from arena_rclpy_mixins.Time import Time
 from PIL import Image
 
+import nav_msgs
 from task_generator.shared import Position, PositionRadius, Wall
 
 if TYPE_CHECKING:
@@ -182,9 +183,10 @@ class WorldMap:
     origin: Position
     resolution: float
     time: Time
+    level_origins: dict[str, tuple[float, float]] = {}
 
     @staticmethod
-    def from_costmap(occupancy_grid: nav_msgs.msg.OccupancyGrid) -> "WorldMap":
+    def from_costmap(occupancy_grid: nav_msgs.msg.OccupancyGrid, _level_origins: dict[str, tuple[float, float]]) -> "WorldMap":
         # Convert occupancy grid data to numpy array
         grid_data = np.array(occupancy_grid.data).reshape((occupancy_grid.info.height, occupancy_grid.info.width))
 
@@ -196,6 +198,7 @@ class WorldMap:
             origin=Position(x=occupancy_grid.info.origin.position.y, y=occupancy_grid.info.origin.position.x),
             resolution=occupancy_grid.info.resolution,
             time=Time.from_msg(occupancy_grid.info.map_load_time),
+            level_origins=_level_origins
         )
 
     @staticmethod
@@ -231,23 +234,39 @@ class WorldMap:
 
         origin = map_yaml.get('origin', [0, 0, 0])
         resolution = float(map_yaml.get('resolution', 0.05))
+        level_origins = map_yaml.get('origins', {})
+        if level_origins:
+            level_origins = {id: tuple(_origin) for id, _origin in level_origins.items()}
 
         return WorldMap(
             occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
             origin=Position(x=float(origin[0]), y=float(origin[1])),
             resolution=resolution,
             time=Time(-1, 0),
+            level_origins=level_origins
         )
 
-    def from_world_description(description: "WorldDescription", resolution: float, time: Time) -> "WorldMap":
+    @classmethod
+    def from_world_description(cls, description: "WorldDescription", resolution: float, time: Time, _level_origins: dict[str, tuple[float, float]] | None = None) -> "WorldMap":
         """Rasterize a WorldDescription into a WorldMap. PIL grayscale matches WorldOccupancy (255=EMPTY, 0=FULL)."""
         grid, origin = description.render_grid(resolution=resolution)
+        level_origins = _level_origins if _level_origins is not None else {}
         return WorldMap(
             occupancy=WorldLayers(walls=WorldOccupancy(grid.copy())),
             origin=Position(x=origin[0], y=origin[1]),
             resolution=resolution,
             time=time,
+            level_origins=level_origins
         )
+
+    def get_origin(self, floor_id: str = "") -> tuple[float, float]:
+        if floor_id:
+            try:
+                return self.level_origins[floor_id]
+            except KeyError as e:
+                raise KeyError(f"floor id {floor_id} was not recognized by WorldMap")
+        else:
+            return (self.origin.x, self.origin.y)
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -285,15 +304,18 @@ class MultiLevelMap:
         self._maps = maps if maps is not None else {}
 
     @property
-    def floor_ids(self) -> typing.Iterable[str]:
+    def floor_ids(self) -> Iterable[str]:
         return self._maps.keys()
 
     @property
     def maps(self) -> list[WorldMap]:
         return list(self._maps.values())
 
-    def get_map(self, floor_id: str) -> WorldMap | None:
-        return self._maps.get(floor_id, None)
+    def get_map(self, level_id: str) -> WorldMap | None:
+        return self._maps.get(level_id, None)
+    
+    def select_map(self, level_id: str) -> WorldMap:
+        return self._maps[level_id]
 
     def set_map(self, floor_id: str, world_map: WorldMap) -> None:
         self._maps[floor_id] = world_map
@@ -332,7 +354,7 @@ class _WallLines(dict[float, list[tuple[float, float]]]):
     Helper class for efficiently merging collinear line segments
     """
 
-    WallsT = collections.abc.Collection[tuple[tuple[float, float], tuple[float, float]]]
+    WallsT = Collection[tuple[tuple[float, float], tuple[float, float]]]
 
     _inverted: bool
 

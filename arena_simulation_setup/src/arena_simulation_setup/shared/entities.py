@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Self
 
 
 import attrs
 import cattrs
 from typing import Union
+from typing_extensions import Self
 
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
@@ -20,33 +20,50 @@ from arena_simulation_setup.utils.geometry import Pose, Position, Scale
 
 
 @attrs.define(auto_attribs=True, kw_only=True)
-class Waypoint:
-    position: Position
+class Waypoint(Position):
     floor_id: str | None = None
 
-    @staticmethod
-    def from_any(obj: Union[Position, dict, 'Waypoint']) -> 'Waypoint':
+    @property
+    def position(self) -> Position:
+        return self
+
+    @position.setter
+    def position(self, value: Position) -> None:
+        self.x = value.x
+        self.y = value.y
+        self.z = value.z
+
+    @classmethod
+    def from_any(cls, obj: Union[Position, dict, 'Waypoint']) -> 'Waypoint':
         if isinstance(obj, Waypoint):
             return obj
         if isinstance(obj, Position):
-            return Waypoint(position=obj)
+            return cls.from_position(pos=obj)
         if isinstance(obj, dict):
-            # Accept {"position": ..., "floor_id": ...} or just a Position dict
+            # Accept {"position": ..., "floor_id": ...}, a flat waypoint dict,
+            # or just a Position dict.
             if 'position' in obj:
                 pos = obj['position']
                 if not isinstance(pos, Position):
                     pos = Position.converter(pos)
-                return Waypoint(position=pos, floor_id=obj.get('floor_id'))
-            else:
-                # Assume it's a Position dict
-                return Waypoint(position=Position.converter(obj))
+                return cls.from_position(pos=pos, floor_id=obj.get('floor_id'))
+            pos = Position.converter({k: obj[k] for k in ('x', 'y', 'z') if k in obj})
+            return cls.from_position(pos=pos, floor_id=obj.get('floor_id'))
         raise TypeError(f"Cannot convert {obj!r} to Waypoint")
+
+    @classmethod
+    def from_position(cls, pos: Position, floor_id: str | None = None) -> 'Waypoint':
+        return cls(x=pos.x, y=pos.y, z=pos.z, floor_id=floor_id)
     
     def __add__(self, other):
         if isinstance(other, Position):
-            return Waypoint(position=self.position + other, floor_id=self.floor_id)
-        raise NotImplemented
+            return type(self).from_position(pos=super().__add__(other), floor_id=self.floor_id)
+        return NotImplemented
 
+    def __radd__(self, other):
+        if isinstance(other, Position):
+            return type(self).from_position(pos=other + Position(x=self.x, y=self.y, z=self.z), floor_id=self.floor_id)
+        return NotImplemented
 
 @attrs.define(kw_only=True)
 class Named(Parseable, Serializable):

@@ -30,7 +30,7 @@ class TM_Random(TM_Robots):
             to_generate = 2 * (len(self._ctx.robots) - len(ROBOT_POSITIONS))
 
             orientations = 2 * math.pi * self.node.conf.General.RNG.value.random(to_generate)
-            positions = self._ctx.world_manager.get_positions_on_map(n=to_generate, safe_dist=biggest_robot, floor_id=floor_id)
+            positions = self._ctx.world_manager.get_positions_on_map(n=to_generate, safe_dist=biggest_robot, level_id=floor_id)
 
             generated_positions = [Pose(position, Orientation.from_yaw(orientation)) for (orientation, position) in zip(orientations, positions, strict=False)]
 

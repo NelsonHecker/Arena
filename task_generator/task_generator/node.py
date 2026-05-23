@@ -443,18 +443,18 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._logger.info("Setting up world manager")
         self._world_manager = WorldManager(node=self, environment_manager=self._environment_manager)
 
-        async def world_change_cb():
-            async with self._reset_lock:
-                await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
-                world = self._world_manager.world
-                single = world.as_world_description()
-                if single is not None:
-                    await self._environment_manager.spawn_world_obstacles(single)
-                else:
-                    for floor_id in world.floor_ids:
-                        await self._environment_manager.spawn_world_obstacles_for_floor(world, floor_id)
+        # async def world_change_cb():
+        #     async with self._reset_lock:
+        #         await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
+        #         world = self._world_manager.world
+        #         single = world.as_world_description()
+        #         if single is not None:
+        #             await self._environment_manager.spawn_world_obstacles(single)
+        #         else:
+        #             for floor_id in world.floor_ids:
+        #                 await self._environment_manager.spawn_world_obstacles_for_floor(world, floor_id)
 
-        self._world_manager.on_world_change(world_change_cb)
+        # self._world_manager.on_world_change(world_change_cb)
         await self._world_manager.start()
 
         self._logger.info("Setting up robots manager")

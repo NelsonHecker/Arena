@@ -13,6 +13,6 @@ if TYPE_CHECKING:
 
 async def random_placement(ctx: TaskContext, safe_dist: float = 1.0, floor_id: str = "") -> Pose:
     """Return a single random free pose on the current map."""
-    points = ctx.world_manager.get_positions_on_map(n=1, safe_dist=safe_dist, floor_id=floor_id)
+    points = ctx.world_manager.get_positions_on_map(n=1, safe_dist=safe_dist, level_id=floor_id)
     yaw = 2 * math.pi * float(np.random.default_rng().random())
     return Pose(points[0], orientation=Orientation.from_yaw(yaw))

@@ -1,6 +1,5 @@
 import logging
 import io
-import itertools
 import logging
 import math
 import typing
@@ -31,6 +30,12 @@ class Map(PathView):
         cls, rooms: shapely.MultiPolygon, doors: shapely.MultiPolygon, walls: shapely.MultiLineString, resolution: float = 0.01, padding: int = 5, *, static_objects: Iterable[tuple[str, shapely.Polygon]] = (), asset_color: str | None = "grey", asset_name_color: str | None = "blue"
     ) -> tuple[PIL.Image.Image, tuple[float, float]]:
         min_x, min_y, max_x, max_y = rooms.bounds
+        if not doors.is_empty:
+            dmin_x, dmin_y, dmax_x, dmax_y = doors.bounds
+            min_x = min(min_x, dmin_x)
+            min_y = min(min_y, dmin_y)
+            max_x = max(max_x, dmax_x)
+            max_y = max(max_y, dmax_y)
 
         width = max_x - min_x
         height = max_y - min_y
@@ -59,7 +64,7 @@ class Map(PathView):
             return [(int(math.trunc(x) + padding), int(math.trunc(y) + padding)) for (x, y, *_) in coords]
 
         draw = PIL.ImageDraw.Draw(img)
-        for cutout in itertools.chain(rooms.geoms, doors.geoms):
+        for cutout in rooms.geoms:
             poly = tf(shapely.Polygon(cutout))
             draw.polygon(as_int(poly.exterior.coords), fill='white')
 
@@ -71,6 +76,10 @@ class Map(PathView):
         for wall in walls.geoms:
             line = tf(shapely.LineString(wall))
             draw.line(as_int(line.coords), fill='black', width=1)
+
+        for cutout in doors.geoms:
+            poly = tf(shapely.Polygon(cutout))
+            draw.polygon(as_int(poly.exterior.coords), fill='white')
 
         if asset_color is not None:
             for name, obj in static_objects:

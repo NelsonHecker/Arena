@@ -40,15 +40,11 @@ ln -rsf "$ARENA_WS_DIR/src/Arena/_meta/tools/Arena.code-workspace" ./ws-arena.co
 
 echo 'Building Arena...'
 cd $ARENA_WS_DIR
-printf 'exit\n' | source arena
-
-# default robot profile (run inside the arena container)
-arena_docker_compose exec -T arena /entrypoint.sh bash -c '
-    set -e
-    source /opt/arena_ws/source
-    arena feature robots install
-    arena feature robots add jackal turtlebot
-'
+printf '%s\n' \
+    'arena feature robots install' \
+    'arena feature robots add jackal turtlebot' \
+    'exit' \
+| source arena
 
 echo 'Installed Arena'
 echo 'run the following to get started:'

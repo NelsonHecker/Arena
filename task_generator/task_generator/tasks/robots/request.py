@@ -47,12 +47,8 @@ class GoToPhase(TaskPhase):
             return False
 
         conf = robot_manager.node.conf.Robot
-        tol_dist = (
-            self.tolerance_radius if self.tolerance_radius is not None else conf.GOAL_TOLERANCE_RADIUS.value
-        )
-        tol_ang = (
-            self.tolerance_angle if self.tolerance_angle is not None else conf.GOAL_TOLERANCE_ANGLE.value
-        )
+        tol_dist = self.tolerance_radius if self.tolerance_radius is not None else conf.GOAL_TOLERANCE_RADIUS.value
+        tol_ang = self.tolerance_angle if self.tolerance_angle is not None else conf.GOAL_TOLERANCE_ANGLE.value
 
         dx = pose.position.x - self.pose.position.x
         dy = pose.position.y - self.pose.position.y

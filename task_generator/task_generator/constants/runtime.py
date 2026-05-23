@@ -63,6 +63,11 @@ def Configuration(server: ROSParamServer) -> type:
                 parse=_positive_or_inf,
             )
 
+            SAFE_DIST = server.ROSParam[float](
+                'obstacle_safe_dist',
+                0.35,
+            )
+
         class Robot:
             GOAL_TOLERANCE_RADIUS = server.ROSParam[float]('goal_tolerance_radius', 1.0)
 

@@ -1,15 +1,16 @@
 import io
+import math
 import os
 import tarfile
 import typing
 from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
-from typing import Self
 
 import attrs
 import numpy as np
 import yaml
+from typing_extensions import Self
 
 from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.shared import (
@@ -25,11 +26,11 @@ from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
 )
-from arena_simulation_setup.utils.cattrs import converter
-from arena_simulation_setup.utils.geometry import Position
+from arena_simulation_setup.utils.cattrs import ArenaConverter, converter
+from arena_simulation_setup.utils.geometry import Orientation, Pose, Position, sample_point_in_polygon
 
 from .Map import Map
-from .Scenario import ScenarioView
+from .Scenario import RegionAssignment, ScenarioView
 
 
 @attrs.define
@@ -126,6 +127,69 @@ class WorldDescription:
             for idx, wp in enumerate(dynamic_entity.waypoints):
                 dynamic_entity.waypoints[idx] = wp + diff
 
+    def lookup_zone_polygon(self, name: str) -> list[Position] | None:
+        """Look up a zone, door, or elevator by name and return its polygon vertices."""
+        for zone in self.zones:
+            if zone.name == name:
+                return zone.corners
+            for door in zone.doors:
+                if door.name == name:
+                    return _door_polygon(door.start, door.end)
+            for elevator in zone.elevators:
+                if elevator.name == name:
+                    return elevator.cabin_corners()
+        return None
+
+    def zone_converter(
+        self,
+        rng: np.random.Generator,
+        *,
+        is_valid: typing.Callable[[Position], bool] | None = None,
+    ) -> ArenaConverter:
+        """Return a converter that resolves zone/door/elevator names to geometry.
+
+        String values for Pose/Position fields are resolved by sampling a
+        random point within the named zone polygon. RegionAssignment dicts
+        with a ``ref`` key get their polygon resolved from the world.
+        """
+        lookup = self.lookup_zone_polygon
+
+        base_pose_hook = converter.get_structure_hook(Pose)
+        base_position_hook = converter.get_structure_hook(Position)
+        base_region_hook = converter.get_structure_hook(RegionAssignment)
+
+        def pose_hook(v: object, t: type) -> Pose:
+            if isinstance(v, str):
+                polygon = lookup(v)
+                if polygon is None:
+                    raise ValueError(f"zone ref '{v}' not found in world")
+                pt = sample_point_in_polygon(polygon, rng, is_valid=is_valid)
+                return Pose(position=pt, orientation=Orientation.identity())
+            return base_pose_hook(v, t)
+
+        def position_hook(v: object, t: type) -> Position:
+            if isinstance(v, str):
+                polygon = lookup(v)
+                if polygon is None:
+                    raise ValueError(f"zone ref '{v}' not found in world")
+                return sample_point_in_polygon(polygon, rng, is_valid=is_valid)
+            return base_position_hook(v, t)
+
+        def region_hook(v: object, t: type) -> RegionAssignment:
+            if isinstance(v, dict) and 'ref' in v:
+                ref = v.pop('ref')
+                polygon = lookup(ref)
+                if polygon is None:
+                    raise ValueError(f"region ref '{ref}' not found in world")
+                v['polygon'] = polygon
+            return base_region_hook(v, t)
+
+        c = converter.copy()
+        c.register_structure_hook(Pose, pose_hook)
+        c.register_structure_hook(Position, position_hook)
+        c.register_structure_hook(RegionAssignment, region_hook)
+        return c
+
     def _rasterize_kwargs(
         self,
         *,
@@ -138,7 +202,7 @@ class WorldDescription:
 
         map_kwargs: dict[str, typing.Any] = {
             "rooms": shapely.MultiPolygon([shapely.Polygon(zone.corners) for zone in self.zones]),
-            "doors": shapely.MultiPolygon([shapely.Polygon(door.corners) for door in self.all_doors]),
+            "doors": shapely.MultiPolygon([poly for door in self.all_doors for poly in _render_door_polygons(door)] + [poly for elevator in self.all_elevators for poly in _render_elevator_polygons(elevator)]),
             "walls": shapely.MultiLineString(list(self.all_walls)),
             "padding": 5,
         }
@@ -336,6 +400,15 @@ class MultiLevelWorld:
     levels: dict[str, Level] = attrs.field(factory=dict) # level (floor) by its floor id
     shafts: dict[str, Shaft] = attrs.field(factory=dict) # shaft by its shaft id
 
+    @staticmethod
+    def _floor_sort_key(floor_id: str) -> tuple[int, int | str]:
+        if floor_id.isdigit():
+            return (0, int(floor_id))
+        return (1, floor_id)
+
+    def _sorted_floor_ids(self) -> list[str]:
+        return sorted(self.levels.keys(), key=self._floor_sort_key)
+
     @property
     def floor_ids(self) -> typing.Iterable[str]:
         return self.levels.keys()
@@ -379,6 +452,22 @@ class MultiLevelWorld:
         if len(self.levels) != 1:
             return None
         return next(iter(self.levels.values()))
+
+    def compact_world(self, origins: dict[str, tuple[float, float]]) -> WorldDescription:
+        """Return a single WorldDescription that has all the floors but with shifted origins so that they don't stack with each other
+        """
+        out = WorldDescription()
+        for id, level in self.levels.items():
+            try:
+                origin = origins[id]
+                _level = deepcopy(level)
+                _level.shift_all_positions(*origin)
+                out.zones.extend(_level.zones)
+                
+            except KeyError as e:
+                raise KeyError(f"when creating compacted single world from MultiLevelWorld, the origin for floor {id} was not given")
+        
+        return out
 
     def validate(self):
         elevator_floors: dict[str, str] = {}
@@ -431,6 +520,61 @@ class MultiLevelWorld:
                         f"shaft '{shaft.id}' mapping mismatch: elevator '{elevator_name}' "
                         f"belongs to floor '{elevator_floors[elevator_name]}', not '{floor_id}'"
                     )
+
+    def infer_shaft_elevator_destinations(self) -> None:
+        """Infer shaft destinations without mutating the per-level elevator objects.
+
+        For each shaft, the destination of an elevator is the elevator in the same shaft
+        on the next floor in numeric order. The highest floor wraps back to the lowest.
+        """
+        if not self.shafts or not self.levels:
+            return
+
+        ordered_floor_ids = self._sorted_floor_ids()
+        next_floors = ordered_floor_ids[1:] + ordered_floor_ids[:1]
+        for shaft in self.shafts.values():
+            shaft_floor_ids = [floor_id for floor_id in ordered_floor_ids if floor_id in shaft.elevators]
+            if not shaft_floor_ids:
+                continue
+
+            ordered_elevators = [shaft.elevators[floor_id] for floor_id in shaft_floor_ids]
+            next_elevators = ordered_elevators[1:] + ordered_elevators[:1]
+
+            for floor_id, destination_elevator, next_floor_id in zip(shaft_floor_ids, next_elevators, next_floors, strict=True):
+                level = self.get_level(floor_id)
+                if level is None:
+                    raise RuntimeError(f"shaft '{shaft.id}' references missing floor '{floor_id}'")
+
+                level_elevator = next(
+                    (elevator for elevator in level.levelElevators if elevator.name == shaft.elevators[floor_id]),
+                    None,
+                )
+                if level_elevator is None:
+                    raise RuntimeError(
+                        f"shaft '{shaft.id}' references missing elevator '{shaft.elevators[floor_id]}' in floor '{floor_id}'"
+                    )
+
+                level_elevator.change_destination(destination_elevator, next_floor_id)
+
+    def apply_shaft_elevator_destinations_to_levels(self, next_floor_ids: dict[str, str]) -> None:
+        """Write inferred elevator destinations into each individual level WorldDescription."""
+        for floor_id, level in self.levels.items():
+            descriptor_by_name = {descriptor.name: descriptor for descriptor in level.levelElevators}
+            for elevator in level.all_elevators:
+                descriptor = descriptor_by_name.get(elevator.name)
+                if descriptor is None:
+                    continue
+                destination = descriptor.destinations_dict.get(next_floor_ids[floor_id])
+                if destination is not None:
+                    elevator.destination = destination
+
+    def infer_and_apply_shaft_elevator_destinations(self) -> None:
+        """Convenience helper that infers shaft destinations and applies them back to levels."""
+        ordered_floor_ids = self._sorted_floor_ids()
+        next_floors = ordered_floor_ids[1:] + ordered_floor_ids[:1]
+        next_floor_ids = {c: n for c, n in zip(ordered_floor_ids, next_floors)}
+        self.infer_shaft_elevator_destinations()
+        self.apply_shaft_elevator_destinations_to_levels(next_floor_ids)
 
     @staticmethod
     def _parse_destinations(destination: str) -> list[str]:
@@ -660,23 +804,16 @@ class MultiLevelWorld:
         if not self.levels:
             raise RuntimeError('Cannot render an empty MultiLevelWorld')
 
-        def _regularize_world_origin_then_apply_shift(world: WorldDescription, dx: float, dy: float) -> tuple[WorldDescription, tuple[float, float]]:
-            shifted_world = deepcopy(world)
+        def _floor_bbox(level: Level) -> tuple[float, float, float, float]:
+            corners = [corner for zone in level.zones for corner in zone.corners]
+            if not corners:
+                return (0.0, 0.0, 0.0, 0.0)
 
-            corners = [corner for zone in shifted_world.zones for corner in zone.corners]
-            if corners:
-                x_min = min(corner.x for corner in corners)
-                y_min = min(corner.y for corner in corners)
-            else:
-                x_min = 0.0
-                y_min = 0.0
-
-            offset_x = dx - x_min
-            offset_y = dy - y_min
-
-            shifted_world.shift_all_positions(offset_x, offset_y)
-
-            return shifted_world, (offset_x, offset_y)
+            x_min = min(corner.x for corner in corners)
+            y_min = min(corner.y for corner in corners)
+            x_max = max(corner.x for corner in corners)
+            y_max = max(corner.y for corner in corners)
+            return (x_min, y_min, x_max, y_max)
 
         max_bbox_width, max_bbox_height = self.max_floor_bbox_dim()
 
@@ -686,17 +823,19 @@ class MultiLevelWorld:
 
         floor_counts_per_row = 0
         row_count = 0
+        shifted_world = deepcopy(self)
         flattened_world = WorldDescription()
         floor_origins: dict[str, tuple[float, float]] = {}
-        for floor_id, floor in self.levels.items():
-            shifted_floor, offset = _regularize_world_origin_then_apply_shift(
-                floor,
-                floor_counts_per_row * (max_bbox_width + margin_width_in_meter),
-                -1 * row_count * (max_bbox_height + margin_height_in_meter)
-            )
+        for floor_id, floor in shifted_world.levels.items():
+            x_min, y_min, _, _ = _floor_bbox(floor)
+            target_x = floor_counts_per_row * (max_bbox_width + margin_width_in_meter)
+            target_y = -1 * row_count * (max_bbox_height + margin_height_in_meter)
+            offset_x = target_x - x_min
+            offset_y = target_y - y_min
 
-            flattened_world.zones.extend(shifted_floor.zones)
-            floor_origins[floor_id] = offset
+            floor.shift_all_positions(offset_x, offset_y)
+            flattened_world.zones.extend(floor.zones)
+            floor_origins[floor_id] = (offset_x, offset_y)
 
             floor_counts_per_row += 1
             if floor_counts_per_row >= max_floor_counts_per_row:
@@ -792,6 +931,65 @@ class MultiLevelWorld:
                     tarball.addfile(tarinfo=info, fileobj=io.BytesIO(content))
             tar_stream.seek(0)
             return tarfile.open(fileobj=io.BytesIO(tar_stream.getvalue()))
+# -- Zone geometry helpers ---------------------------------------------------
+
+
+def _door_polygon(start: Position, end: Position) -> list[Position]:
+    dx = end.x - start.x
+    dy = end.y - start.y
+    length = math.sqrt(dx * dx + dy * dy)
+    if length > 0:
+        nx, ny = -dy / length, dx / length
+    else:
+        nx, ny = 0.0, 1.0
+    t = 0.3  # half-thickness
+    return [
+        Position(start.x - nx * t, start.y - ny * t),
+        Position(end.x - nx * t, end.y - ny * t),
+        Position(end.x + nx * t, end.y + ny * t),
+        Position(start.x + nx * t, start.y + ny * t),
+    ]
+
+
+_ELEVATOR_DOORWAY_DEPTH = 0.3
+
+
+def _door_axis(door_side: str) -> tuple[tuple[float, float], tuple[float, float]]:
+    return {
+        '+x': ((1.0, 0.0), (0.0, 1.0)),
+        '-x': ((-1.0, 0.0), (0.0, 1.0)),
+        '+y': ((0.0, 1.0), (1.0, 0.0)),
+        '-y': ((0.0, -1.0), (1.0, 0.0)),
+    }[door_side]
+
+
+def _elevator_doorway_corners(elevator: Elevator) -> list[Position]:
+    outward, tangent = _door_axis(elevator.door_side)
+    hx, hy = elevator.size[0] / 2.0, elevator.size[1] / 2.0
+    out_extent = hx if outward[0] != 0 else hy
+    tan_extent = hy if outward[0] != 0 else hx
+    inner_cx = elevator.position.x + outward[0] * out_extent
+    inner_cy = elevator.position.y + outward[1] * out_extent
+    outer_cx = inner_cx + outward[0] * _ELEVATOR_DOORWAY_DEPTH
+    outer_cy = inner_cy + outward[1] * _ELEVATOR_DOORWAY_DEPTH
+    return [
+        Position(inner_cx - tangent[0] * tan_extent, inner_cy - tangent[1] * tan_extent),
+        Position(outer_cx - tangent[0] * tan_extent, outer_cy - tangent[1] * tan_extent),
+        Position(outer_cx + tangent[0] * tan_extent, outer_cy + tangent[1] * tan_extent),
+        Position(inner_cx + tangent[0] * tan_extent, inner_cy + tangent[1] * tan_extent),
+    ]
+
+
+def _render_door_polygons(door: Door) -> list:
+    import shapely
+
+    return [shapely.Polygon(door.corners)]
+
+
+def _render_elevator_polygons(elevator: Elevator) -> list:
+    import shapely
+
+    return [shapely.Polygon(elevator.cabin_corners()), shapely.Polygon(_elevator_doorway_corners(elevator))]
 
 
 class World(PathView):
@@ -928,6 +1126,15 @@ class MultiLevelWorldView(PathView):
         tarball.extractall(self.path, filter=_filter)
         return self.path
 
+    def level_origins(self) -> dict[str, tuple[float, float]] | None:
+        map = self.map
+        with open(map.map_yaml) as f:
+            data = yaml.safe_load(f)
+            _origins = data.get('origins', None)
+            if _origins is not None:
+                origins = {level_id: tuple(origin) for level_id, origin in _origins.items()}
+
+        return origins if _origins is not None else None
 
 class WorldIdentifier(Identifier[World]):
     @classmethod

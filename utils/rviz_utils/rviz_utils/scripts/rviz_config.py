@@ -19,6 +19,7 @@ from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import FrameNamespace
 from arena_robots.moveit_factory import build_moveit_params
+from arena_robots.Robot import RobotIdentifier
 from task_generator_msgs.msg import AdapterVizManifest, RobotDescriptor, RobotFleet
 
 from rviz_utils.utils import Utils
@@ -35,6 +36,8 @@ class ConfigFileGenerator(ArenaMixinNode):
         super().__init__('rviz_config_generator')
 
         self._TASKGEN_NODE = TASKGEN_NODE
+        self.declare_parameter('view', 'map')
+        self.declare_parameter('robot', 0)
 
     async def _await_param(
         self,
@@ -240,6 +243,7 @@ class ConfigFileGenerator(ArenaMixinNode):
                 },
                 'Use Timestamp': False,
                 'Alpha': 0.7,
+                'Draw Behind': True,
             }
         )
 
@@ -268,25 +272,7 @@ class ConfigFileGenerator(ArenaMixinNode):
         # except Exception as e:
         #     self.get_logger().warn(f"Error checking pedsim parameter: {e}")
 
-        # Set the default view to Orbit (instead of TopDownOrtho)
-
-        python_yaw: float = 3.8
-        try:
-            python_yaw = sum(2 * (i % 2 - 0.5) * float(d) / 10**i for i, d in enumerate(sys.version.split(' ', 1)[0].split('.')))  # i am going insane
-        except BaseException:
-            pass
-
-        default_file["Visualization Manager"]["Views"]["Current"] = {
-            "Class": "rviz_default_plugins/Orbit",
-            "Distance": 50.0,
-            "Focal Point": {"X": 15.0, "Y": 10.0, "Z": 0.0},
-            "Name": "Current View",
-            "Near Clip Distance": 0.01,
-            "Pitch": 0.9,
-            "Target Frame": "<Fixed Frame>",
-            "Value": True,
-            "Yaw": python_yaw,
-        }
+        default_file["Visualization Manager"]["Views"]["Current"] = self._build_view()
 
         default_file["Visualization Manager"]["Displays"] = displays
 
@@ -294,6 +280,71 @@ class ConfigFileGenerator(ArenaMixinNode):
         self.get_logger().info(f'created config file at {file_path}')
 
         return file_path
+
+    def _target_robot_frame(self) -> str | None:
+        if not self.robots:
+            self.get_logger().warning('view requested a robot target frame, but fleet is empty, falling back to map view')
+            return None
+        idx = self.get_parameter('robot').value
+        try:
+            robot = self.robots[idx]
+        except IndexError:
+            self.get_logger().warning(f'robot index {idx} out of range (fleet size {len(self.robots)}), ignoring')
+            return None
+        base_frame = RobotIdentifier(robot.model).resolve_sync().model_params.base_frame
+        prefix = FrameNamespace(robot.frame).raw()
+        return f'{prefix}/{base_frame}' if prefix else base_frame
+
+    def _build_view(self) -> dict[str, object]:
+        view = str(self.get_parameter('view').value)
+
+        if view in ('robot', 'robot3p'):
+            target = self._target_robot_frame()
+            if target is None:
+                view = 'map'
+
+        if view == 'robot':
+            return {
+                'Class': 'rviz_default_plugins/Orbit',
+                'Distance': 8.0,
+                'Focal Point': {'X': 0.0, 'Y': 0.0, 'Z': 0.0},
+                'Name': 'Current View',
+                'Near Clip Distance': 0.01,
+                'Pitch': 0.9,
+                'Target Frame': target,
+                'Value': True,
+                'Yaw': 3.14,
+            }
+
+        if view == 'robot3p':
+            return {
+                'Class': 'rviz_default_plugins/ThirdPersonFollower',
+                'Distance': 8.0,
+                'Focal Point': {'X': 0.0, 'Y': 0.0, 'Z': 0.0},
+                'Name': 'Current View',
+                'Near Clip Distance': 0.01,
+                'Pitch': 0.5,
+                'Target Frame': target,
+                'Value': True,
+                'Yaw': 3.14,
+            }
+
+        python_yaw: float = 3.8
+        try:
+            python_yaw = sum(2 * (i % 2 - 0.5) * float(d) / 10**i for i, d in enumerate(sys.version.split(' ', 1)[0].split('.')))  # i am going insane
+        except BaseException:
+            pass
+        return {
+            'Class': 'rviz_default_plugins/Orbit',
+            'Distance': 50.0,
+            'Focal Point': {'X': 15.0, 'Y': 10.0, 'Z': 0.0},
+            'Name': 'Current View',
+            'Near Clip Distance': 0.01,
+            'Pitch': 0.9,
+            'Target Frame': '<Fixed Frame>',
+            'Value': True,
+            'Yaw': python_yaw,
+        }
 
     def _start_setup_callback(self, request: object, response: object) -> object:
         self.get_logger().info("Service callback triggered.")
