@@ -15,10 +15,13 @@ def _ros_gate():
 
 
 def _make_robot_manager_stub(pose, goal_tolerance_distance=0.3, goal_tolerance_angle=0.2):
+    robot_conf = SimpleNamespace(
+        GOAL_TOLERANCE_RADIUS=SimpleNamespace(value=goal_tolerance_distance),
+        GOAL_TOLERANCE_ANGLE=SimpleNamespace(value=goal_tolerance_angle),
+    )
     return SimpleNamespace(
         pose=pose,
-        _goal_tolerance_distance=goal_tolerance_distance,
-        _goal_tolerance_angle=goal_tolerance_angle,
+        node=SimpleNamespace(conf=SimpleNamespace(Robot=robot_conf)),
     )
 
 

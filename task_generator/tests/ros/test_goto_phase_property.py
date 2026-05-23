@@ -21,6 +21,17 @@ _pos_floats = st.floats(min_value=1e-6, max_value=10.0, allow_nan=False, allow_i
 _angles = st.floats(min_value=-math.pi, max_value=math.pi, allow_nan=False, allow_infinity=False)
 
 
+def _stub(pose, tol_dist, tol_ang):
+    robot_conf = SimpleNamespace(
+        GOAL_TOLERANCE_RADIUS=SimpleNamespace(value=tol_dist),
+        GOAL_TOLERANCE_ANGLE=SimpleNamespace(value=tol_ang),
+    )
+    return SimpleNamespace(
+        pose=pose,
+        node=SimpleNamespace(conf=SimpleNamespace(Robot=robot_conf)),
+    )
+
+
 @given(_floats, _floats, _angles, _pos_floats, _pos_floats)
 @settings(max_examples=100)
 def test_is_satisfied_goal_equals_pose(gx, gy, gyaw, tol_dist, tol_ang):
@@ -28,12 +39,7 @@ def test_is_satisfied_goal_equals_pose(gx, gy, gyaw, tol_dist, tol_ang):
     from arena_simulation_setup.utils.geometry import Pose, Position, Orientation
     goal = Pose(Position(gx, gy), Orientation.from_yaw(gyaw))
     phase = GoToPhase(pose=goal, tolerance_radius=tol_dist, tolerance_angle=tol_ang)
-    stub = SimpleNamespace(
-        pose=goal,
-        _goal_tolerance_distance=tol_dist,
-        _goal_tolerance_angle=tol_ang,
-    )
-    assert phase.is_satisfied(stub) is True
+    assert phase.is_satisfied(_stub(goal, tol_dist, tol_ang)) is True
 
 
 @given(_angles)
@@ -51,12 +57,7 @@ def test_none_pose_always_false(gx, gy, gyaw, tol_dist):
     from arena_simulation_setup.utils.geometry import Pose, Position, Orientation
     goal = Pose(Position(gx, gy), Orientation.from_yaw(gyaw))
     phase = GoToPhase(pose=goal, tolerance_radius=tol_dist, tolerance_angle=0.0)
-    stub = SimpleNamespace(
-        pose=None,
-        _goal_tolerance_distance=tol_dist,
-        _goal_tolerance_angle=0.0,
-    )
-    assert phase.is_satisfied(stub) is False
+    assert phase.is_satisfied(_stub(None, tol_dist, 0.0)) is False
 
 
 @given(_floats, _floats, _angles, _pos_floats)
@@ -68,9 +69,4 @@ def test_large_distance_always_fails(gx, gy, gyaw, tol_dist):
     goal = Pose(Position(gx, gy), Orientation.from_yaw(gyaw))
     far = Pose(Position(gx + 1000.0, gy + 1000.0), Orientation.from_yaw(gyaw))
     phase = GoToPhase(pose=goal, tolerance_radius=tol_dist, tolerance_angle=0.0)
-    stub = SimpleNamespace(
-        pose=far,
-        _goal_tolerance_distance=tol_dist,
-        _goal_tolerance_angle=0.0,
-    )
-    assert phase.is_satisfied(stub) is False
+    assert phase.is_satisfied(_stub(far, tol_dist, 0.0)) is False

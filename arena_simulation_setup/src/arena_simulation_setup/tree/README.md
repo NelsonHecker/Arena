@@ -59,8 +59,8 @@ given `Identifier` type: one pointing at `WORLD / 'assets'` and one at `ARENA`.
 
 | Identifier | File | Base class | `_asset_type` | Resolvers (in order) |
 |---|---|---|---|---|
-| `ObjectIdentifier` | [tree/assets/Object.py](assets/Object.py) | `DomainAssetIdentifier[ModelWrapper]` | `Object` | DynamicPaths (world/assets + local), then NetResolver |
-| `PedestrianIdentifier` | [tree/assets/Pedestrian.py](assets/Pedestrian.py) | `DomainAssetIdentifier[ModelWrapper]` | `Pedestrian` | DynamicPaths (world/assets + local), then NetResolver |
+| `ObjectIdentifier` | [tree/assets/Object.py](assets/Object.py) | `DomainAssetIdentifier[ObjectView]` | `Object` | DynamicPaths (world/assets + local), then NetResolver |
+| `PedestrianIdentifier` | [tree/assets/Pedestrian.py](assets/Pedestrian.py) | `DomainAssetIdentifier[PedestrianView]` | `Pedestrian` | DynamicPaths (world/assets + local), then NetResolver |
 | `MaterialIdentifier` | [tree/assets/Material.py](assets/Material.py) | `ModifiersDomainAssetIdentifier[Material]` | `Material` | DynamicPaths (world/assets + local), then NetResolver |
 | `WallIdentifier` | [tree/Wall.py](Wall.py) | `DomainAssetIdentifier[WallDescription]` | `Wall` | DynamicPaths (world/assets + local), then NetResolver |
 | `WorldIdentifier` | [tree/World/World.py](World/World.py) | `Identifier[World]` | — | FallbackResolver → `ASS_DIR / 'worlds'` |
@@ -69,8 +69,10 @@ given `Identifier` type: one pointing at `WORLD / 'assets'` and one at `ARENA`.
 
 ### `ObjectIdentifier` / `PedestrianIdentifier`
 
-`.load()` wraps the resolved path in a `ModelWrapper`. `ObjectIdentifier`
-provides both SDF and USD providers; `PedestrianIdentifier` provides SDF only.
+`.load()` wraps the resolved path in an asset view (`ObjectView` /
+`PedestrianView`) whose `.model` property is a `ModelWrapper`.
+`ObjectIdentifier` provides both SDF and USD providers; `PedestrianIdentifier`
+provides SDF only.
 
 ### `MaterialIdentifier`
 

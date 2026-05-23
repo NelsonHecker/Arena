@@ -99,3 +99,13 @@ sudo systemctl restart docker
 sudo nvidia-ctk runtime configure --runtime=containerd
 sudo systemctl restart containerd
 ```
+
+### rviz fails to open / crashes on launch
+
+On hosts with incompatible or missing GPU drivers, rviz can fail to start with an OpenGL error. Force software rendering by adding the following to `.env` at the workspace root:
+
+```sh
+LIBGL_ALWAYS_SOFTWARE=1
+```
+
+Expect lower framerates, especially with many robots.

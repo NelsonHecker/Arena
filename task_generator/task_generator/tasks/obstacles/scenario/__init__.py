@@ -13,11 +13,12 @@ if typing.TYPE_CHECKING:
 _NS = _REGISTRY_NAMESPACE("scenario")
 
 
-def _declare_schema(node: ROSParamServer, ns: Namespace) -> None:
+def declare_schema(node: ROSParamServer, ns: Namespace) -> None:
+    """Shared schema for the `scenario` task mode, used by both TM_Obstacles and TM_Robots."""
     declare_catalog(node, ns("file"), "default", catalog="scenarios", label="Scenario file", description="Scenario file name.")
 
 
-@OBSTACLES_MODES.register(Constants.TaskMode.TM_Obstacles.SCENARIO, namespace=_NS, schema=_declare_schema)
+@OBSTACLES_MODES.register(Constants.TaskMode.TM_Obstacles.SCENARIO, namespace=_NS, schema=declare_schema)
 def _load_scenario() -> type["TM_Obstacles"]:
     from .impl import TM_Scenario
 

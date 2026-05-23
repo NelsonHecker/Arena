@@ -460,6 +460,30 @@ void TaskGeneratorPanel::rebuildParamTree(
                 const uint64_t &cur_gen = is_obstacles ? rebuild_gen_obstacles_ : rebuild_gen_robots_;
                 if (this_gen != cur_gen) return;
 
+                // Drop YAML-loaded but undeclared params, describe_parameters
+                // returns PARAMETER_NOT_SET for those, so they have no real widget contract.
+                if (state->descriptors.size() == state->param_names.size()
+                    && state->values.size() == state->param_names.size())
+                {
+                    std::vector<std::string> kept_names;
+                    std::vector<rcl_interfaces::msg::ParameterDescriptor> kept_descs;
+                    std::vector<rclcpp::Parameter> kept_values;
+                    kept_names.reserve(state->param_names.size());
+                    kept_descs.reserve(state->descriptors.size());
+                    kept_values.reserve(state->values.size());
+                    for (size_t i = 0; i < state->param_names.size(); ++i)
+                    {
+                        if (state->descriptors[i].type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET)
+                            continue;
+                        kept_names.push_back(state->param_names[i]);
+                        kept_descs.push_back(state->descriptors[i]);
+                        kept_values.push_back(state->values[i]);
+                    }
+                    state->param_names = std::move(kept_names);
+                    state->descriptors = std::move(kept_descs);
+                    state->values      = std::move(kept_values);
+                }
+
                 // Collect needed catalogs from descriptors.
                 std::set<std::string> needed;
                 for (const auto &desc : state->descriptors)

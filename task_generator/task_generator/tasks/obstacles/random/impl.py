@@ -4,7 +4,6 @@ import functools
 import itertools
 import typing
 from collections.abc import Callable, Iterator
-from typing import Self
 
 import attrs
 import numpy as np
@@ -13,6 +12,7 @@ from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree import Identifier
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+from typing_extensions import Self
 
 from task_generator.shared import DynamicObstacle, Obstacle, Orientation, Pose
 from task_generator.tasks import identifier_to_available

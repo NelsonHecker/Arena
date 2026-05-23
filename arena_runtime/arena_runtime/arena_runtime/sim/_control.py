@@ -67,6 +67,8 @@ def controller_spawner_node(controller_name: str) -> launch_ros.actions.Node:
             '0',
             '--switch-timeout',
             '600',
+            '--service-call-timeout',
+            '600',
         ],
         parameters=[{'use_sim_time': True}],
     )
