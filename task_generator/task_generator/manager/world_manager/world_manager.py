@@ -98,8 +98,8 @@ class WorldManager(NodeInterface):
     """
 
     _world: World.MultiLevelWorld
-    _map: WorldMap
-    _multi_map: MultiLevelMap | None
+    _map: WorldMap # main map used that has all of the floors
+    _multi_map: MultiLevelMap | None # this is just a utility reference maps for level-specific get position operations. The actual occupancy is managed by _map
     _classic_forbidden_zones: list[PositionRadius]
     _default_floor_id: str
 
@@ -127,7 +127,11 @@ class WorldManager(NodeInterface):
         return level
 
     @property
-    def map(self) -> MultiLevelMap:
+    def map(self) -> WorldMap:
+        return self._map
+
+    @property
+    def level_maps(self) -> MultiLevelMap:
         return self._multi_map if self._multi_map is not None else MultiLevelMap.from_single(self._map)
 
     def map_for_floor(self, floor_id: str = "") -> WorldMap:
@@ -175,8 +179,18 @@ class WorldManager(NodeInterface):
         self._world = world_description
 
         for obstacle in self.world.all_static_entities:
-            floor_id = obstacle.floor_id
-            map = self.map.get_map(floor_id)
+            level_id = obstacle.floor_id
+            level_origin = self.map.level_origins[level_id] if level_id is not None else (0,0)
+            self.map.occupancy.obstacle_occupy(
+                *self.map.tf_posr2rect(
+                    PositionRadius(
+                        x=obstacle.pose.position.x + level_origin[0],
+                        y=obstacle.pose.position.y + level_origin[1],
+                        radius=1,  # TODO actual radius
+                    )
+                )
+            )
+            map = self.level_maps.get_map(level_id)
             if map is not None:
                 map.occupancy.obstacle_occupy(
                     *map.tf_posr2rect(
@@ -204,41 +218,79 @@ class WorldManager(NodeInterface):
         forbidden_zones: list[PositionRadius] | None = None,
         forbid: bool = True,
         polygon: shapely.Polygon | None = None,
+        level_id: str = ""
     ) -> list[Position]:
         """Sample n map positions with Euclidean safe_dist (metres) clearance from obstacles and from each other.
 
-        If `polygon` is given, candidate cells are restricted to those whose world coords lie inside it.
+        If `polygon` is given, candidate cells ar
+        If level_id is specified, return the local coordinate of the spawn position specific to that floor.
+        If not, return the position in the global (all-floor) context.e restricted to those whose world coords lie inside it.
 
         Raises RuntimeError if fewer than n positions fit.
         """
+
         if forbidden_zones is None:
             forbidden_zones = []
 
-        fork = self._map.occupancy.fork()
+        level_polygons: list[shapely.Polygon] | None = None
+
+        # For level-specific queries, default to sampling inside that level's zones
+        # (map rasters include padding around geometry, which is otherwise spawnable).
+        if polygon is None and level_id:
+            level = self._world.get_level(level_id)
+            if level is not None:
+                level_polygons = [
+                    shapely.Polygon([(corner.x, corner.y) for corner in zone.corners])
+                    for zone in level.zones
+                    if len(zone.corners) >= 3
+                ]
+                if not level_polygons:
+                    level_polygons = None
+
+        select_from_whole_map  = level_id == ""
+        map = self.map if select_from_whole_map  or self._multi_map is None else self._multi_map.select_map(level_id)
+        origin = (0.0, 0.0) if select_from_whole_map else self.map.get_origin(level_id)
+        origin_cell = (origin[1] / self.resolution, origin[0] / self.resolution) # row, col order
+        fork = map.occupancy.fork()
         for zone in forbidden_zones:
-            fork.occupy(*self.map.tf_posr2rect(zone))
+            fork.occupy(*map.tf_posr2rect(zone))
 
         safe_dist_cells = safe_dist / self.resolution
         rng = self.node.conf.General.RNG.value
         available = _occupancy_to_available(fork.grid, safe_dist_cells)
 
-        if polygon is not None and len(available):
+        if len(available) and (polygon is not None or level_polygons is not None):
             world_xy = np.array(
-                [(p.x, p.y) for p in (self._map.tf_grid2pos((int(r), int(c))) for r, c in available)],
+                [(p.x, p.y) for p in (map.tf_grid2pos((int(r), int(c))) for r, c in available)],
             )
-            available = available[shapely.contains_xy(polygon, world_xy[:, 0], world_xy[:, 1])]
+            if polygon is not None:
+                available = available[shapely.contains_xy(polygon, world_xy[:, 0], world_xy[:, 1])]
+            elif level_polygons is not None:
+                mask = np.zeros(len(available), dtype=bool)
+                for level_polygon in level_polygons:
+                    mask |= shapely.contains_xy(level_polygon, world_xy[:, 0], world_xy[:, 1])
+                available = available[mask]
 
         cells = _sample_from_candidates(available, n, safe_dist_cells, rng)
 
         if forbid:
-            halo = int(math.ceil(safe_dist_cells))
-            for row, col in cells:
-                fork.occupy((int(col) - halo, int(row) - halo), (int(col) + halo, int(row) + halo))
-            fork.commit()
+            if select_from_whole_map:
+                halo = int(math.ceil(safe_dist_cells))
+                for row, col in cells:
+                    fork.occupy((int(col) - halo, int(row) - halo), (int(col) + halo, int(row) + halo))
+                fork.commit()
 
-        return [self._map.tf_grid2pos((int(row), int(col))) for row, col in cells]
+        # if selecting from a specific floor, reflect that occupancy to the main map
+            else:
+                whole_map_fork = self.map.occupancy.fork()
+                halo = int(math.ceil(safe_dist_cells))
+                for row, col in cells:
+                    whole_map_fork.occupy((int(col + origin_cell[1]) - halo, int(row + origin_cell[0]) - halo), (int(col + origin_cell[1]) + halo, int(row + origin_cell[0]) + halo))
+                whole_map_fork.commit()
 
-    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True, floor_id: str = "") -> Position:
-        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid, floor_id=floor_id)[0]
+        return [map.tf_grid2pos((int(row), int(col))) for row, col in cells]
+
+    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True, level_id: str = "") -> Position:
+        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid, level_id=level_id)[0]
 
     id_gen = itertools.count()

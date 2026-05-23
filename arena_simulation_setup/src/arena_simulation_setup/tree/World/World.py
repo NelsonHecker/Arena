@@ -107,7 +107,6 @@ class WorldDescription:
     def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
         return (entity for zone in self.zones for entity in zone.entities.dynamic)
 
-<<<<<<< HEAD
     def shift_all_positions(self, dx: float, dy: float):
         diff: Position = Position(dx, dy)
         for zone in self.zones:
@@ -127,7 +126,7 @@ class WorldDescription:
             dynamic_entity.pose.position = dynamic_entity.pose.position + diff
             for idx, wp in enumerate(dynamic_entity.waypoints):
                 dynamic_entity.waypoints[idx] = wp + diff
-=======
+
     def lookup_zone_polygon(self, name: str) -> list[Position] | None:
         """Look up a zone, door, or elevator by name and return its polygon vertices."""
         for zone in self.zones:
@@ -190,7 +189,6 @@ class WorldDescription:
         c.register_structure_hook(Position, position_hook)
         c.register_structure_hook(RegionAssignment, region_hook)
         return c
->>>>>>> feature/mechanism-shim
 
     def _rasterize_kwargs(
         self,
@@ -445,6 +443,22 @@ class MultiLevelWorld:
         if len(self.levels) != 1:
             return None
         return next(iter(self.levels.values()))
+
+    def compact_world(self, origins: dict[str, tuple[float, float]]) -> WorldDescription:
+        """Return a single WorldDescription that has all the floors but with shifted origins so that they don't stack with each other
+        """
+        out = WorldDescription()
+        for id, level in self.levels.items():
+            try:
+                origin = origins[id]
+                _level = deepcopy(level)
+                _level.shift_all_positions(*origin)
+                out.zones.extend(_level.zones)
+                
+            except KeyError as e:
+                raise KeyError(f"when creating compacted single world from MultiLevelWorld, the origin for floor {id} was not given")
+        
+        return out
 
     def validate(self):
         elevator_floors: dict[str, str] = {}
@@ -726,23 +740,16 @@ class MultiLevelWorld:
         if not self.levels:
             raise RuntimeError('Cannot render an empty MultiLevelWorld')
 
-        def _regularize_world_origin_then_apply_shift(world: WorldDescription, dx: float, dy: float) -> tuple[WorldDescription, tuple[float, float]]:
-            shifted_world = deepcopy(world)
+        def _floor_bbox(level: Level) -> tuple[float, float, float, float]:
+            corners = [corner for zone in level.zones for corner in zone.corners]
+            if not corners:
+                return (0.0, 0.0, 0.0, 0.0)
 
-            corners = [corner for zone in shifted_world.zones for corner in zone.corners]
-            if corners:
-                x_min = min(corner.x for corner in corners)
-                y_min = min(corner.y for corner in corners)
-            else:
-                x_min = 0.0
-                y_min = 0.0
-
-            offset_x = dx - x_min
-            offset_y = dy - y_min
-
-            shifted_world.shift_all_positions(offset_x, offset_y)
-
-            return shifted_world, (offset_x, offset_y)
+            x_min = min(corner.x for corner in corners)
+            y_min = min(corner.y for corner in corners)
+            x_max = max(corner.x for corner in corners)
+            y_max = max(corner.y for corner in corners)
+            return (x_min, y_min, x_max, y_max)
 
         max_bbox_width, max_bbox_height = self.max_floor_bbox_dim()
 
@@ -752,17 +759,19 @@ class MultiLevelWorld:
 
         floor_counts_per_row = 0
         row_count = 0
+        shifted_world = deepcopy(self)
         flattened_world = WorldDescription()
         floor_origins: dict[str, tuple[float, float]] = {}
-        for floor_id, floor in self.levels.items():
-            shifted_floor, offset = _regularize_world_origin_then_apply_shift(
-                floor,
-                floor_counts_per_row * (max_bbox_width + margin_width_in_meter),
-                -1 * row_count * (max_bbox_height + margin_height_in_meter)
-            )
+        for floor_id, floor in shifted_world.levels.items():
+            x_min, y_min, _, _ = _floor_bbox(floor)
+            target_x = floor_counts_per_row * (max_bbox_width + margin_width_in_meter)
+            target_y = -1 * row_count * (max_bbox_height + margin_height_in_meter)
+            offset_x = target_x - x_min
+            offset_y = target_y - y_min
 
-            flattened_world.zones.extend(shifted_floor.zones)
-            floor_origins[floor_id] = offset
+            floor.shift_all_positions(offset_x, offset_y)
+            flattened_world.zones.extend(floor.zones)
+            floor_origins[floor_id] = (offset_x, offset_y)
 
             floor_counts_per_row += 1
             if floor_counts_per_row >= max_floor_counts_per_row:
@@ -1053,6 +1062,15 @@ class MultiLevelWorldView(PathView):
         tarball.extractall(self.path, filter=_filter)
         return self.path
 
+    def level_origins(self) -> dict[str, tuple[float, float]] | None:
+        map = self.map
+        with open(map.map_yaml) as f:
+            data = yaml.safe_load(f)
+            _origins = data.get('origins', None)
+            if _origins is not None:
+                origins = {level_id: tuple(origin) for level_id, origin in _origins.items()}
+
+        return origins if _origins is not None else None
 
 class WorldIdentifier(Identifier[World]):
     @classmethod

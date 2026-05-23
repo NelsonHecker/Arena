@@ -25,7 +25,7 @@ class TM_Parametrized(TM_Obstacles):
         )
 
     def _get_points(self, n: int) -> list:
-        return self._ctx.world_manager.get_positions_on_map(n=n, safe_dist=1.0, floor_id=self._floor_id)
+        return self._ctx.world_manager.get_positions_on_map(n=n, safe_dist=1.0, level_id=self._floor_id)
 
     async def reset(self, **kwargs: object) -> tuple[list[Obstacle], list[DynamicObstacle]]:
         self._floor_id = self._resolve_floor_id(typing.cast(str, kwargs.get("floor_id", "")))

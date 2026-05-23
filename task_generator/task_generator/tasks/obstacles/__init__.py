@@ -52,7 +52,7 @@ class TM_Obstacles(TaskMode):
             obstacle: Obstacle | DynamicObstacle = Obstacle(name=name, model=model, pose=resolved_pose, floor_id=floor_id)
             await self._ctx.environment_manager.spawn_obstacles([obstacle])
         else:
-            waypoints = self._ctx.world_manager.get_positions_on_map(n=2, safe_dist=1, floor_id=floor_id)
+            waypoints = self._ctx.world_manager.get_positions_on_map(n=2, safe_dist=1, level_id=floor_id)
             obstacle = DynamicObstacle(name=name, model=model, waypoints=waypoints, pose=resolved_pose)
             await self._ctx.environment_manager.spawn_dynamic_obstacles([obstacle])
         return obstacle.sim_path

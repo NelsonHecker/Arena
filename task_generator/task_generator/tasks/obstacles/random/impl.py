@@ -134,7 +134,7 @@ class TM_Random(TM_Obstacles):
         points = self._ctx.world_manager.get_positions_on_map(
             n=N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES * (1 + waypoints_per_ped),
             safe_dist=1,
-            floor_id=floor_id,
+            level_id=floor_id,
         )
 
         positions = map(lambda pos: Pose(pos, orientation=Orientation.from_yaw(2 * np.pi * self.node.conf.General.RNG.value.random())), points[: (N_STATIC_OBSTACLES + N_INTERACTIVE_OBSTACLES + N_DYNAMIC_OBSTACLES)])

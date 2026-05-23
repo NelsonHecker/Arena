@@ -14,6 +14,6 @@ if TYPE_CHECKING:
 async def random_placement(ctx: TaskContext, safe_dist: float = 0.5, floor_id: str = "") -> Pose:
     """Return a single random free pose on the current map for robot placement."""
     biggest_robot = max((r.safe_distance for r in ctx.robots.values()), default=safe_dist)
-    points = ctx.world_manager.get_positions_on_map(n=1, safe_dist=biggest_robot, floor_id=floor_id)
+    points = ctx.world_manager.get_positions_on_map(n=1, safe_dist=biggest_robot, level_id=floor_id)
     yaw = 2 * math.pi * float(np.random.default_rng().random())
     return Pose(points[0], orientation=Orientation.from_yaw(yaw))
