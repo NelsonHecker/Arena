@@ -400,6 +400,15 @@ class MultiLevelWorld:
     levels: dict[str, Level] = attrs.field(factory=dict) # level (floor) by its floor id
     shafts: dict[str, Shaft] = attrs.field(factory=dict) # shaft by its shaft id
 
+    @staticmethod
+    def _floor_sort_key(floor_id: str) -> tuple[int, int | str]:
+        if floor_id.isdigit():
+            return (0, int(floor_id))
+        return (1, floor_id)
+
+    def _sorted_floor_ids(self) -> list[str]:
+        return sorted(self.levels.keys(), key=self._floor_sort_key)
+
     @property
     def floor_ids(self) -> typing.Iterable[str]:
         return self.levels.keys()
@@ -511,6 +520,61 @@ class MultiLevelWorld:
                         f"shaft '{shaft.id}' mapping mismatch: elevator '{elevator_name}' "
                         f"belongs to floor '{elevator_floors[elevator_name]}', not '{floor_id}'"
                     )
+
+    def infer_shaft_elevator_destinations(self) -> None:
+        """Infer shaft destinations without mutating the per-level elevator objects.
+
+        For each shaft, the destination of an elevator is the elevator in the same shaft
+        on the next floor in numeric order. The highest floor wraps back to the lowest.
+        """
+        if not self.shafts or not self.levels:
+            return
+
+        ordered_floor_ids = self._sorted_floor_ids()
+        next_floors = ordered_floor_ids[1:] + ordered_floor_ids[:1]
+        for shaft in self.shafts.values():
+            shaft_floor_ids = [floor_id for floor_id in ordered_floor_ids if floor_id in shaft.elevators]
+            if not shaft_floor_ids:
+                continue
+
+            ordered_elevators = [shaft.elevators[floor_id] for floor_id in shaft_floor_ids]
+            next_elevators = ordered_elevators[1:] + ordered_elevators[:1]
+
+            for floor_id, destination_elevator, next_floor_id in zip(shaft_floor_ids, next_elevators, next_floors, strict=True):
+                level = self.get_level(floor_id)
+                if level is None:
+                    raise RuntimeError(f"shaft '{shaft.id}' references missing floor '{floor_id}'")
+
+                level_elevator = next(
+                    (elevator for elevator in level.levelElevators if elevator.name == shaft.elevators[floor_id]),
+                    None,
+                )
+                if level_elevator is None:
+                    raise RuntimeError(
+                        f"shaft '{shaft.id}' references missing elevator '{shaft.elevators[floor_id]}' in floor '{floor_id}'"
+                    )
+
+                level_elevator.change_destination(destination_elevator, next_floor_id)
+
+    def apply_shaft_elevator_destinations_to_levels(self, next_floor_ids: dict[str, str]) -> None:
+        """Write inferred elevator destinations into each individual level WorldDescription."""
+        for floor_id, level in self.levels.items():
+            descriptor_by_name = {descriptor.name: descriptor for descriptor in level.levelElevators}
+            for elevator in level.all_elevators:
+                descriptor = descriptor_by_name.get(elevator.name)
+                if descriptor is None:
+                    continue
+                destination = descriptor.destinations_dict.get(next_floor_ids[floor_id])
+                if destination is not None:
+                    elevator.destination = destination
+
+    def infer_and_apply_shaft_elevator_destinations(self) -> None:
+        """Convenience helper that infers shaft destinations and applies them back to levels."""
+        ordered_floor_ids = self._sorted_floor_ids()
+        next_floors = ordered_floor_ids[1:] + ordered_floor_ids[:1]
+        next_floor_ids = {c: n for c, n in zip(ordered_floor_ids, next_floors)}
+        self.infer_shaft_elevator_destinations()
+        self.apply_shaft_elevator_destinations_to_levels(next_floor_ids)
 
     @staticmethod
     def _parse_destinations(destination: str) -> list[str]:
