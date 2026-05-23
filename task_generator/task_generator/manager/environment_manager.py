@@ -97,7 +97,7 @@ class EnvironmentManager(NodeInterface):
     async def _spawn_world_obstacles(self, world: WorldDescription | MultiLevelWorld, floor_id: str = "") -> None:
 
         def _match_level_id(level_id: str | None) -> bool:
-            target_id = floor_id 
+            target_id = floor_id
             if target_id == "":
                 return True
             else:

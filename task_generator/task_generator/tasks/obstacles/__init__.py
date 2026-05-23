@@ -1,5 +1,6 @@
 import enum
 import uuid
+
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 
 from task_generator.shared import CustomDynamicObstacle, DynamicObstacle, Obstacle, Pose

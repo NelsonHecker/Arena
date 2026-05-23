@@ -2,12 +2,13 @@ import asyncio
 import typing
 import uuid
 
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
+
 from task_generator.shared import Pose
 from task_generator.shared import Robot as RobotEntity
 from task_generator.tasks.mode import TaskMode
 from task_generator.tasks.robots._placement import random_placement
 from task_generator.tasks.robots.request import GoToPhase, TaskRequest
-from arena_rclpy_mixins.ROSParamServer import ROSParamT
 
 from . import demo, explore, guided, random, scenario
 

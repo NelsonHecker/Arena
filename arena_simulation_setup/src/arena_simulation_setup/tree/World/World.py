@@ -435,7 +435,7 @@ class MultiLevelWorld:
             for level in self.all_levels
             for obstacle in level.all_static_entities
         )
-    
+
     @property
     def all_dynamic_entities(self) -> typing.Iterable[DynamicObstacle]:
         return (
@@ -463,10 +463,10 @@ class MultiLevelWorld:
                 _level = deepcopy(level)
                 _level.shift_all_positions(*origin)
                 out.zones.extend(_level.zones)
-                
+
             except KeyError as e:
-                raise KeyError(f"when creating compacted single world from MultiLevelWorld, the origin for floor {id} was not given")
-        
+                raise KeyError(f"when creating compacted single world from MultiLevelWorld, the origin for floor {id} was not given") from e
+
         return out
 
     def validate(self):
@@ -572,7 +572,7 @@ class MultiLevelWorld:
         """Convenience helper that infers shaft destinations and applies them back to levels."""
         ordered_floor_ids = self._sorted_floor_ids()
         next_floors = ordered_floor_ids[1:] + ordered_floor_ids[:1]
-        next_floor_ids = {c: n for c, n in zip(ordered_floor_ids, next_floors)}
+        next_floor_ids = {c: n for c, n in zip(ordered_floor_ids, next_floors, strict=True)}
         self.infer_shaft_elevator_destinations()
         self.apply_shaft_elevator_destinations_to_levels(next_floor_ids)
 
@@ -1081,7 +1081,7 @@ class MultiLevelWorldView(PathView):
                 multi_level_world = MultiLevelWorld.from_list([world_desc])
             else:
                 multi_level_world = converter.structure(data, MultiLevelWorld)
-        
+
         else:
             yaml_files = sorted(
                 path

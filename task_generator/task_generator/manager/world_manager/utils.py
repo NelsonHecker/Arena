@@ -4,16 +4,16 @@ This file exists to make world_manager more readable
 
 from collections.abc import Callable, Collection
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar, Iterable
+from typing import TYPE_CHECKING, Iterable, TypeVar
 
 import attrs
+import nav_msgs
 import numpy as np
 import scipy.interpolate
 import yaml
 from arena_rclpy_mixins.Time import Time
 from PIL import Image
 
-import nav_msgs
 from task_generator.shared import Position, PositionRadius, Wall
 
 if TYPE_CHECKING:
@@ -264,7 +264,7 @@ class WorldMap:
             try:
                 return self.level_origins[floor_id]
             except KeyError as e:
-                raise KeyError(f"floor id {floor_id} was not recognized by WorldMap")
+                raise KeyError(f"floor id {floor_id} was not recognized by WorldMap") from e
         else:
             return (self.origin.x, self.origin.y)
 
@@ -313,7 +313,7 @@ class MultiLevelMap:
 
     def get_map(self, level_id: str) -> WorldMap | None:
         return self._maps.get(level_id, None)
-    
+
     def select_map(self, level_id: str) -> WorldMap:
         return self._maps[level_id]
 

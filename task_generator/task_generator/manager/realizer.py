@@ -55,7 +55,7 @@ class Realizer:
     def deregister_floor(self, floor_id: str):
         if floor_id in self._level_origins.keys():
             raise RuntimeWarning(f"Attempted to de-register floor {floor_id} that is not registered on the Realizer.")
-        
+
     def get_config(self) -> "Realizer._Configuration":
         return self._config
 

@@ -26,7 +26,7 @@ from arena_simulation_setup.tree.World.Map import Map as MapTree
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.simulators.human.utils import ObstacleLayer
 
-from .utils import WorldLayers, WorldMap, MultiLevelMap, WorldOccupancy
+from .utils import MultiLevelMap, WorldLayers, WorldMap, WorldOccupancy
 from .world_manager import WorldManager
 
 _DEFAULT_RESOLUTION = 0.05

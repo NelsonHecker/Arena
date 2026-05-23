@@ -1,10 +1,6 @@
 import itertools
 import math
 from collections.abc import Collection
-from math import floor
-import typing
-
-import attrs
 
 import arena_simulation_setup.tree.World as World
 import numpy as np
@@ -14,7 +10,7 @@ from arena_runtime._node import NodeInterface
 
 from task_generator.shared import Position, PositionRadius, Wall
 
-from .utils import WorldMap, WorldOccupancy, MultiLevelMap
+from .utils import MultiLevelMap, WorldMap, WorldOccupancy
 
 
 def _disc_kernel(safe_dist_cells: float) -> np.ndarray:

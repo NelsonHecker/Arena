@@ -1,13 +1,7 @@
-import typing
 
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-<<<<<<< HEAD
 from arena_simulation_setup.tree.World import MultiLevelWorldIdentifier
-from arena_simulation_setup.tree.World.Scenario import RobotGoal
-=======
-from arena_simulation_setup.tree.World import WorldIdentifier
 from arena_simulation_setup.tree.World.Scenario import RobotGoal, ScenarioGesturePhase, ScenarioGotoPhase
->>>>>>> common/jazzy
 
 from task_generator.shared import PositionRadius
 from task_generator.tasks.robots import TM_Robots

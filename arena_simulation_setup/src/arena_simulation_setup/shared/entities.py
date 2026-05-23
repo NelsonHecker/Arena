@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-
+from types import NotImplementedType
+from typing import Union
 
 import attrs
 import cattrs
-from typing import Union
 from typing_extensions import Self
 
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
@@ -54,13 +54,13 @@ class Waypoint(Position):
     @classmethod
     def from_position(cls, pos: Position, floor_id: str | None = None) -> 'Waypoint':
         return cls(x=pos.x, y=pos.y, z=pos.z, floor_id=floor_id)
-    
-    def __add__(self, other):
+
+    def __add__(self, other: Position) -> Waypoint | NotImplementedType:
         if isinstance(other, Position):
             return type(self).from_position(pos=super().__add__(other), floor_id=self.floor_id)
         return NotImplemented
 
-    def __radd__(self, other):
+    def __radd__(self, other: Position) -> Waypoint | NotImplementedType:
         if isinstance(other, Position):
             return type(self).from_position(pos=other + Position(x=self.x, y=self.y, z=self.z), floor_id=self.floor_id)
         return NotImplemented
@@ -117,16 +117,16 @@ class Obstacle(Entity):
     floor_id: str | None = None
 
 
-def _waypoints_validator(instance, attribute, value):
+def _waypoints_validator(instance: object, attribute: object, value: object) -> None:
     if not isinstance(value, list):
         raise TypeError("waypoints must be a list")
     for i, wp in enumerate(value):
         try:
             Waypoint.from_any(wp)
         except Exception as e:
-            raise TypeError(f"Invalid waypoint at index {i}: {e}")
+            raise TypeError(f"Invalid waypoint at index {i}: {e}") from e
 
-def _waypoints_converter(value):
+def _waypoints_converter(value: object) -> list[Waypoint]:
     if not isinstance(value, list):
         raise TypeError("waypoints must be a list")
     return [Waypoint.from_any(wp) for wp in value]
