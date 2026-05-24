@@ -442,6 +442,19 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         self._logger.info("Setting up world manager")
         self._world_manager = WorldManager(node=self, environment_manager=self._environment_manager)
+
+        # async def world_change_cb():
+        #     async with self._reset_lock:
+        #         await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
+        #         world = self._world_manager.world
+        #         single = world.as_world_description()
+        #         if single is not None:
+        #             await self._environment_manager.spawn_world_obstacles(single)
+        #         else:
+        #             for floor_id in world.floor_ids:
+        #                 await self._environment_manager.spawn_world_obstacles_for_floor(world, floor_id)
+
+        # self._world_manager.on_world_change(world_change_cb)
         await self._world_manager.start()
 
         self._logger.info("Setting up robots manager")
@@ -738,7 +751,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         request: task_generator_msgs.srv.QueryWorlds.Request,
         response: task_generator_msgs.srv.QueryWorlds.Response,
     ) -> task_generator_msgs.srv.QueryWorlds.Response:
-        response.ids = list(identifier_to_available(World.WorldIdentifier))
+        response.ids = list(identifier_to_available(World.MultiLevelWorldIdentifier))
         return response
 
     async def _cb_query_scenarios(
@@ -747,7 +760,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         response: task_generator_msgs.srv.QueryScenarios.Response,
     ) -> task_generator_msgs.srv.QueryScenarios.Response:
         world_name = request.world or self._episodes.current.world
-        response.ids = list(identifier_to_available(World.WorldIdentifier(world_name).resolve_sync().scenario))
+        response.ids = list(identifier_to_available(World.MultiLevelWorldIdentifier(world_name).resolve_sync().scenario))
         return response
 
     async def _cb_query_robots(

@@ -2,14 +2,17 @@
 This file exists to make world_manager more readable
 """
 
-import collections.abc
 from collections.abc import Callable, Collection
-from typing import TYPE_CHECKING, TypeVar
+from pathlib import Path
+from typing import TYPE_CHECKING, Iterable, TypeVar
 
 import attrs
+import nav_msgs
 import numpy as np
 import scipy.interpolate
+import yaml
 from arena_rclpy_mixins.Time import Time
+from PIL import Image
 
 from task_generator.shared import Position, PositionRadius, Wall
 
@@ -180,17 +183,90 @@ class WorldMap:
     origin: Position
     resolution: float
     time: Time
+    level_origins: dict[str, tuple[float, float]] = {}
 
     @staticmethod
-    def from_world_description(description: "WorldDescription", resolution: float, time: Time) -> "WorldMap":
+    def from_costmap(occupancy_grid: nav_msgs.msg.OccupancyGrid, _level_origins: dict[str, tuple[float, float]]) -> "WorldMap":
+        # Convert occupancy grid data to numpy array
+        grid_data = np.array(occupancy_grid.data).reshape((occupancy_grid.info.height, occupancy_grid.info.width))
+
+        # Normalize data to 0-255 range (0 = occupied, 255 = free)
+        normalized_data = np.interp(grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)).astype(np.uint8)
+
+        return WorldMap(
+            occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
+            origin=Position(x=occupancy_grid.info.origin.position.y, y=occupancy_grid.info.origin.position.x),
+            resolution=occupancy_grid.info.resolution,
+            time=Time.from_msg(occupancy_grid.info.map_load_time),
+            level_origins=_level_origins
+        )
+
+    @staticmethod
+    def from_map_files(map_yaml_path: str | Path) -> "WorldMap":
+        map_yaml_path = Path(map_yaml_path)
+        with open(map_yaml_path, encoding='utf-8') as f:
+            map_yaml = yaml.safe_load(f)
+        if not isinstance(map_yaml, dict):
+            raise ValueError(f"map.yaml must be a dictionary: {map_yaml_path}")
+
+        image_path = map_yaml.get('image', '')
+        if not image_path:
+            raise ValueError(f"map.yaml missing image field: {map_yaml_path}")
+        image_path = str(image_path)
+        if not image_path.startswith('/'):
+            image_path = str(map_yaml_path.parent / image_path)
+
+        img = Image.open(image_path).convert('L')
+        img_data = np.array(img, dtype=np.float32) / 255.0
+
+        negate = int(map_yaml.get('negate', 0))
+        if negate:
+            img_data = 1.0 - img_data
+
+        occupied_thresh = float(map_yaml.get('occupied_thresh', 0.9))
+        free_thresh = float(map_yaml.get('free_thresh', 0.1))
+
+        grid_data = np.full(img_data.shape, 50.0, dtype=np.float32)
+        grid_data[img_data > free_thresh] = 0.0
+        grid_data[img_data < occupied_thresh] = 100.0
+
+        normalized_data = np.interp(grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)).astype(np.uint8)
+
+        origin = map_yaml.get('origin', [0, 0, 0])
+        resolution = float(map_yaml.get('resolution', 0.05))
+        level_origins = map_yaml.get('origins', {})
+        if level_origins:
+            level_origins = {id: tuple(_origin) for id, _origin in level_origins.items()}
+
+        return WorldMap(
+            occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
+            origin=Position(x=float(origin[0]), y=float(origin[1])),
+            resolution=resolution,
+            time=Time(-1, 0),
+            level_origins=level_origins
+        )
+
+    @classmethod
+    def from_world_description(cls, description: "WorldDescription", resolution: float, time: Time, _level_origins: dict[str, tuple[float, float]] | None = None) -> "WorldMap":
         """Rasterize a WorldDescription into a WorldMap. PIL grayscale matches WorldOccupancy (255=EMPTY, 0=FULL)."""
         grid, origin = description.render_grid(resolution=resolution)
+        level_origins = _level_origins if _level_origins is not None else {}
         return WorldMap(
             occupancy=WorldLayers(walls=WorldOccupancy(grid.copy())),
             origin=Position(x=origin[0], y=origin[1]),
             resolution=resolution,
             time=time,
+            level_origins=level_origins
         )
+
+    def get_origin(self, floor_id: str = "") -> tuple[float, float]:
+        if floor_id:
+            try:
+                return self.level_origins[floor_id]
+            except KeyError as e:
+                raise KeyError(f"floor id {floor_id} was not recognized by WorldMap") from e
+        else:
+            return (self.origin.x, self.origin.y)
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -219,6 +295,34 @@ class WorldMap:
 
     def detect_walls(self) -> WorldWalls:
         return self.occupancy.detect_walls(self.tf_grid2pos)
+
+@attrs.define
+class MultiLevelMap:
+    _maps: dict[str, WorldMap] = attrs.field(factory=dict)
+
+    def __init__(self, maps: dict[str, WorldMap] | None = None):
+        self._maps = maps if maps is not None else {}
+
+    @property
+    def floor_ids(self) -> Iterable[str]:
+        return self._maps.keys()
+
+    @property
+    def maps(self) -> list[WorldMap]:
+        return list(self._maps.values())
+
+    def get_map(self, level_id: str) -> WorldMap | None:
+        return self._maps.get(level_id, None)
+
+    def select_map(self, level_id: str) -> WorldMap:
+        return self._maps[level_id]
+
+    def set_map(self, floor_id: str, world_map: WorldMap) -> None:
+        self._maps[floor_id] = world_map
+
+    @classmethod
+    def from_single(cls, world_map: WorldMap, floor_id: str = "") -> "MultiLevelMap":
+        return cls(maps={floor_id: world_map})
 
 
 # END TYPES
@@ -250,7 +354,7 @@ class _WallLines(dict[float, list[tuple[float, float]]]):
     Helper class for efficiently merging collinear line segments
     """
 
-    WallsT = collections.abc.Collection[tuple[tuple[float, float], tuple[float, float]]]
+    WallsT = Collection[tuple[tuple[float, float], tuple[float, float]]]
 
     _inverted: bool
 

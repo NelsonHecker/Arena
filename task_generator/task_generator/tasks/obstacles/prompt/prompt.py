@@ -20,7 +20,7 @@ from task_generator.utils.gpt import genai
 os.environ["PYGLET_HEADLESS"] = "true"
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.tree.World import WorldDescription, WorldIdentifier
+from arena_simulation_setup.tree.World import MultiLevelWorldIdentifier, WorldDescription
 from arena_simulation_setup.utils.cattrs import converter
 from arena_text_crowd.converters.arena_world_to_text_crowd_scenario import (
     arena_world_to_text_crowd_scenario,
@@ -244,7 +244,8 @@ class TM_Prompt(TM_Obstacles):
         # Get Arena World size
         x_min, y_min, x_max, y_max = np.inf, np.inf, -np.inf, -np.inf
 
-        for zones in self._ctx.world_manager.world.zones:
+        world = self._ctx.world_manager.world_default_level()
+        for zones in world.zones:
             x_min, y_min, x_max, y_max = (
                 min(x_min, *(corner.x for corner in zones.corners)),
                 min(y_min, *(corner.y for corner in zones.corners)),
@@ -267,7 +268,7 @@ class TM_Prompt(TM_Obstacles):
         return response, x_min, y_min, x_max, y_max
 
     async def _prompt_to_config(self, prompt: str, top_p: float, generation_mode: str, local: bool = False) -> dict:
-        world_info = self.preprocess_world_description(self._ctx.world_manager.world)
+        world_info = self.preprocess_world_description(self._ctx.world_manager.world_default_level())
 
         messages = []
         crowd_pedestrians = None
@@ -388,13 +389,13 @@ class TM_Prompt(TM_Obstacles):
             self._logger.debug(f"Set Arena World bounds response: {arena_world_bounds_res.success}, {arena_world_bounds_res.message}")
             self.velocity_field_visualizer.update_world_bounds(x_min, y_min, x_max, y_max)
 
-            scenario, arena_entity_to_semantic_entity_map = arena_world_to_text_crowd_scenario(self._ctx.world_manager.world, scenario_size=(1024, 1024))
+            scenario, arena_entity_to_semantic_entity_map = arena_world_to_text_crowd_scenario(self._ctx.world_manager.world_default_level(), scenario_size=(1024, 1024))
 
             self._logger.info("Generating velocity field...")
             velocity_field, crowd_pedestrians, text_crowd_scenario = cgp.generate(
                 prompt=ambient_agent_prompt,
                 scenario=scenario,
-                arena_world_description=self._ctx.world_manager.world,
+                arena_world_description=self._ctx.world_manager.world_default_level(),
                 arena_entity_to_semantic_entity_map=arena_entity_to_semantic_entity_map,
             )  # (n_groups, 64, 64, 2) (g, y, x, 2)
 
@@ -610,7 +611,7 @@ class TM_Prompt(TM_Obstacles):
 
         self.tmp_dir = tempfile.TemporaryDirectory(
             dir=os.path.join(
-                WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().path,
+                MultiLevelWorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().path,
                 "scenarios",
             )
         )  # Temporary directory to store behavior tree XML files
