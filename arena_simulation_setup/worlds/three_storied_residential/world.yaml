@@ -235,6 +235,7 @@ levels:
           x: 5.0
           y: 0.0
           z: 0.0
+        door_side: +y
         destination: 2_elevator
       entities:
         static:
@@ -527,6 +528,7 @@ levels:
           x: 5.0
           y: 0.0
           z: 0.0
+        door_side: +y
         destination: 3_elevator
       entities:
         static:
@@ -807,6 +809,7 @@ levels:
           x: 5.0
           y: 0.0
           z: 0.0
+        door_side: +y
         destination: 1_elevator
       entities:
         static:
