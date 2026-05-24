@@ -576,6 +576,85 @@ class MultiLevelWorld:
         self.infer_shaft_elevator_destinations()
         self.apply_shaft_elevator_destinations_to_levels(next_floor_ids)
 
+    def infer_and_apply_elevator_door_sides(self, *, max_distance: float = 1.0) -> None:
+        """Infer and set `door_side` for elevators.
+
+        For each elevator on every level, find the nearest wall segment in the same
+        level. Once the wall orientation is known, use the projected elevator
+        coordinate on the perpendicular axis to compare only walls that live on the
+        same slice of the floor. The outermost wall on that slice determines the
+        outward direction: left-most => ``+x``, right-most => ``-x``, bottom-most
+        => ``+y``, top-most => ``-y``. Elevators farther than ``max_distance`` from
+        any wall are left unchanged.
+        """
+        for _, level in self.levels.items():
+            walls = list(level.all_walls)
+            if not walls:
+                continue
+
+            for elevator in level.all_elevators:
+                pos = np.array([elevator.position.x, elevator.position.y])
+
+                best_wall = None
+                best_proj = None
+                best_dist = float('inf')
+
+                for wall in walls:
+                    a = np.array([wall.start.x, wall.start.y])
+                    b = np.array([wall.end.x, wall.end.y])
+                    ab = b - a
+                    ab_len2 = float(np.dot(ab, ab))
+                    if ab_len2 == 0.0:
+                        proj = a
+                    else:
+                        t = float(np.dot(pos - a, ab) / ab_len2)
+                        t = max(0.0, min(1.0, t))
+                        proj = a + t * ab
+                    dist = float(np.linalg.norm(pos - proj))
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_wall = wall
+                        best_proj = proj
+
+                if best_wall is None or best_dist > max_distance:
+                    # no nearby wall to infer from
+                    continue
+                if best_proj is None:
+                    continue
+
+                best_dx = best_wall.end.x - best_wall.start.x
+                best_dy = best_wall.end.y - best_wall.start.y
+                wall_axis = 'y' if abs(best_dy) >= abs(best_dx) else 'x'
+
+                projected_coord = float(best_proj[0] if wall_axis == 'y' else best_proj[1])
+                comparable_walls = [
+                    wall
+                    for wall in walls
+                    if (abs((wall.start.x + wall.end.x) / 2.0 - projected_coord) if wall_axis == 'y' else abs((wall.start.y + wall.end.y) / 2.0 - projected_coord)) <= max_distance
+                ]
+                if not comparable_walls:
+                    comparable_walls = [best_wall]
+
+                if wall_axis == 'y':
+                    axis_coords = [(wall.start.x + wall.end.x) / 2.0 for wall in comparable_walls]
+                    best_coord = (best_wall.start.x + best_wall.end.x) / 2.0
+                else:
+                    axis_coords = [(wall.start.y + wall.end.y) / 2.0 for wall in comparable_walls]
+                    best_coord = (best_wall.start.y + best_wall.end.y) / 2.0
+                coord_min = min(axis_coords)
+                coord_max = max(axis_coords)
+
+                if wall_axis == 'y':
+                    if abs(best_coord - coord_min) <= abs(best_coord - coord_max):
+                        elevator.door_side = '+x'
+                    else:
+                        elevator.door_side = '-x'
+                else:
+                    if abs(best_coord - coord_min) <= abs(best_coord - coord_max):
+                        elevator.door_side = '+y'
+                    else:
+                        elevator.door_side = '-y'
+
     @staticmethod
     def _parse_destinations(destination: str) -> list[str]:
         raw = str(destination or '')
