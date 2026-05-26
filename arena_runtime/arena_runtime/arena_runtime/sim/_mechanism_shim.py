@@ -432,8 +432,11 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
         robot_destinations = {k: v for k, v in destinations.items() if k not in ped_names}
         ped_destinations = {k: v for k, v in destinations.items() if k in ped_names}
         for sim_path, (x, y) in robot_destinations.items():
+            current = mech.robot_pose(sim_path)
+            z = current.position.z if current is not None else 0.0
+            orientation = current.orientation if current is not None else Orientation(1, 0, 0, 0)
             try:
-                await mech.set_robot_pose(sim_path, Pose(position=Position(x, y, 0.0), orientation=Orientation(1, 0, 0, 0)))
+                await mech.set_robot_pose(sim_path, Pose(position=Position(x, y, z), orientation=orientation))
             except Exception as e:
                 logger.warning(f"Elevator robot teleport {source_name!r} -> {dest_name!r} failed for {sim_path!r}: {e!r}")
         if ped_destinations:

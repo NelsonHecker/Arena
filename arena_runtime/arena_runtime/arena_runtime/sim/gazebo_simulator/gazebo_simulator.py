@@ -32,7 +32,9 @@ from task_generator.shared import (
     Floor,
     ModelType,
     Obstacle,
+    Orientation,
     Pose,
+    Position,
     Robot,
     Wall,
 )
@@ -282,6 +284,21 @@ class GazeboSimulator(BaseSim):
                 continue
             out.append((sim_path, (t.transform.translation.x, t.transform.translation.y)))
         return out
+
+    def robot_pose(self, sim_path: str) -> Pose | None:
+        frame = self._agent_robots.get(sim_path)
+        if frame is None:
+            return None
+        try:
+            t = self._mechanism_tf_buffer.lookup_transform('map', frame, rclpy.time.Time())
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            return None
+        tr = t.transform.translation
+        rot = t.transform.rotation
+        return Pose(
+            position=Position(x=tr.x, y=tr.y, z=tr.z),
+            orientation=Orientation(w=rot.w, x=rot.x, y=rot.y, z=rot.z),
+        )
 
     async def set_robot_pose(self, sim_path: str, pose: Pose) -> bool:
         if sim_path not in self._agent_robots:
