@@ -39,6 +39,7 @@ def generate_launch_description():
     local_planner = LaunchArgument('local_planner')
     inter_planner = LaunchArgument('inter_planner')
     train_mode = LaunchArgument('train_mode', default_value='false')
+    planner_only = LaunchArgument('planner_only', default_value='false')
 
     def nav2_cfg(*parts):
         return PathJoinSubstitution([robots_root, 'config', 'nav2', *parts])
@@ -105,7 +106,7 @@ def generate_launch_description():
         allow_substs=True,
     )
 
-    lifecycle_nodes = [
+    full_lifecycle_nodes = [
         'controller_server',
         'smoother_server',
         'planner_server',
@@ -118,6 +119,7 @@ def generate_launch_description():
 
     def launch_setup(context, *args, **kwargs):
         tgn = task_generator_node.substitution.perform(context)
+        is_planner_only = planner_only.substitution.perform(context).lower() == 'true'
         remappings = [
             ('map_server', '/map_server'),
             ('/tf', '/tf'),
@@ -126,46 +128,56 @@ def generate_launch_description():
         if tgn:
             remappings.append(('map', PathJoinSubstitution([tgn, 'map'])))
 
-        bringup_cmd_group = GroupAction([
-            *(SetRemap(src=r[0], dst=r[1]) for r in remappings),
-            # nav2 nodes
+        planner_server_node = Node(
+            package='nav2_planner', executable='planner_server', name='planner_server',
+            output='screen', parameters=[nav2_configured_params]
+        )
+
+        if is_planner_only:
+            lifecycle_nodes = ['planner_server']
+            nav2_nodes = [planner_server_node]
+        else:
+            lifecycle_nodes = full_lifecycle_nodes
             # cmd_vel chain: controller -> cmd_vel_nav -> smoother -> cmd_vel_smoothed <- behaviors
             #                cmd_vel_smoothed -> collision_monitor -> cmd_vel (-> twist_stamper)
-            Node(
-                package='nav2_controller', executable='controller_server', name='controller_server',
-                output='screen', parameters=[nav2_configured_params],
-                remappings=[('cmd_vel', 'cmd_vel_nav')],
-            ),
-            Node(
-                package='nav2_smoother', executable='smoother_server', name='smoother_server',
-                output='screen', parameters=[nav2_configured_params]
-            ),
-            Node(
-                package='nav2_planner', executable='planner_server', name='planner_server',
-                output='screen', parameters=[nav2_configured_params]
-            ),
-            Node(
-                package='nav2_behaviors', executable='behavior_server', name='behavior_server',
-                output='screen', parameters=[nav2_configured_params],
-                remappings=[('cmd_vel', 'cmd_vel_smoothed')],
-            ),
-            Node(
-                package='nav2_bt_navigator', executable='bt_navigator', name='bt_navigator',
-                output='screen', parameters=[nav2_configured_params]
-            ),
-            Node(
-                package='nav2_waypoint_follower', executable='waypoint_follower', name='waypoint_follower',
-                output='screen', parameters=[nav2_configured_params]
-            ),
-            Node(
-                package='nav2_velocity_smoother', executable='velocity_smoother', name='velocity_smoother',
-                output='screen', parameters=[nav2_configured_params],
-                remappings=[('cmd_vel', 'cmd_vel_nav'), ('smoothed_cmd_vel', 'cmd_vel_smoothed')],
-            ),
-            Node(
-                package='nav2_collision_monitor', executable='collision_monitor', name='collision_monitor',
-                output='screen', parameters=[nav2_configured_params]
-            ),
+            nav2_nodes = [
+                Node(
+                    package='nav2_controller', executable='controller_server', name='controller_server',
+                    output='screen', parameters=[nav2_configured_params],
+                    remappings=[('cmd_vel', 'cmd_vel_nav')],
+                ),
+                Node(
+                    package='nav2_smoother', executable='smoother_server', name='smoother_server',
+                    output='screen', parameters=[nav2_configured_params]
+                ),
+                planner_server_node,
+                Node(
+                    package='nav2_behaviors', executable='behavior_server', name='behavior_server',
+                    output='screen', parameters=[nav2_configured_params],
+                    remappings=[('cmd_vel', 'cmd_vel_smoothed')],
+                ),
+                Node(
+                    package='nav2_bt_navigator', executable='bt_navigator', name='bt_navigator',
+                    output='screen', parameters=[nav2_configured_params]
+                ),
+                Node(
+                    package='nav2_waypoint_follower', executable='waypoint_follower', name='waypoint_follower',
+                    output='screen', parameters=[nav2_configured_params]
+                ),
+                Node(
+                    package='nav2_velocity_smoother', executable='velocity_smoother', name='velocity_smoother',
+                    output='screen', parameters=[nav2_configured_params],
+                    remappings=[('cmd_vel', 'cmd_vel_nav'), ('smoothed_cmd_vel', 'cmd_vel_smoothed')],
+                ),
+                Node(
+                    package='nav2_collision_monitor', executable='collision_monitor', name='collision_monitor',
+                    output='screen', parameters=[nav2_configured_params]
+                ),
+            ]
+
+        bringup_cmd_group = GroupAction([
+            *(SetRemap(src=r[0], dst=r[1]) for r in remappings),
+            *nav2_nodes,
             Node(
                 package='nav2_lifecycle_manager', executable='lifecycle_manager', name='lifecycle_manager_navigation',
                 output='screen',

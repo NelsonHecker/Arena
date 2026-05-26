@@ -32,8 +32,9 @@ topic.
 ## Adding a new bringup kind
 
 Create `<kind>.launch.py` here, then add a `Bringup` subclass in
-`arena_robots/arena_robots/arena_robots/bringup/<kind>.py` whose
-`launch_description()` includes this file. Register handlers for it under
+`arena_robots/arena_robots/arena_robots/bringup/<cap>/<kind>.py` whose
+`_launch_actions()` includes this file. Implement handlers under
 `arena_robots/arena_robots/arena_robots/task_server_handlers/<task_kind>/`
-and add a lazy loader via `@HANDLERS.register((TaskKind.<KIND>, "<kind>"))`
-in the per-kind `__init__.py`.
+and declare them on the `Bringup` subclass via a `task_handlers: ClassVar`
+mapping `TaskKind` to a zero-arg loader function. The `task_server` reads
+that mapping directly, no central registry to update.

@@ -21,3 +21,4 @@ control:
     - joint_state_broadcaster
     - jackal_velocity_controller
   cmd_vel_topic: jackal_velocity_controller/cmd_vel
+  odom_topic: jackal_velocity_controller/odom

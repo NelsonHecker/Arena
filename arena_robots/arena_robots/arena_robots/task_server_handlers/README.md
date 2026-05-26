@@ -13,9 +13,10 @@ that `(TaskKind, bringup_kind)` pair.
 | File | Role |
 |---|---|
 | [`task_kinds.py`](../task_kinds.py) | `TaskKind` enum, `PUBLIC_SUFFIX`, `action_type()`, `endpoint()` — the only place these are defined |
-| `task_server_handlers/__init__.py` | `HANDLERS` registry keyed by `(TaskKind, bringup_kind)`; stores zero-arg loaders so msgs deps are imported lazily |
-| `task_server_handlers/<kind>/__init__.py` | per-kind `@HANDLERS.register` lazy-loader block; one entry per supported bringup |
+| `task_server_handlers/__init__.py` | `TaskHandler` protocol + `_executor_sleep` helper. No registry: handler ownership lives on the Bringup subclass. |
+| `task_server_handlers/<kind>/__init__.py` | exports the per-`TaskKind` handler type alias (e.g. `GotoPoseHandler`) for handler implementations |
 | `task_server_handlers/<kind>/<bringup>.py` | the `TaskHandler` implementation for that `(kind, bringup)` pair |
+| `bringup/<cap>/<kind>.py` | declares `task_handlers: ClassVar[dict[TaskKind, Callable[[], type]]]` mapping each supported `TaskKind` to a zero-arg loader for the handler class (lazy msgs imports) |
 | `arena_robots_msgs/action/<Kind>.action` | the IDL the action type comes from |
 | `clients/<kind>.py` | optional Python client wrapper used by `task_generator` and standalone drivers |
 
@@ -59,7 +60,7 @@ when the kind is actually in use.
 ```
 task_server_handlers/
 └── follow_path/
-    ├── __init__.py         # @HANDLERS.register(...) loaders, one per bringup
+    ├── __init__.py         # exports FollowPathHandler type alias
     ├── nav2.py             # FollowPathHandlerNav2(TaskHandler)
     └── _passthrough.py     # optional: shared implementations for none/external
 ```
@@ -69,15 +70,9 @@ task_server_handlers/
 ```python
 from arena_robots_msgs.action import FollowPath
 
-from arena_robots.task_kinds import TaskKind
-from arena_robots.task_server_handlers import HANDLERS, TaskHandler
+from arena_robots.task_server_handlers import TaskHandler
 
 FollowPathHandler = TaskHandler[FollowPath.Goal, FollowPath.Feedback, FollowPath.Result]
-
-@HANDLERS.register((TaskKind.FOLLOW_PATH, "nav2"))
-def _load_nav2():
-    from .nav2 import FollowPathHandlerNav2
-    return FollowPathHandlerNav2
 ```
 
 A `TaskHandler` is a `Protocol` (see the base registry module) — implementing
@@ -85,40 +80,49 @@ it means accepting `(bringup, *, tf_buffer, node)` in `__init__` and exposing
 an `async def execute(goal_handle) -> Result`. There is no abstract base class
 to subclass; duck-typing is sufficient.
 
-### 4. Make the per-kind package loadable
-
-Append the import to `task_server_handlers/__init__.py` so registration fires
-on package import:
-
-```python
-from . import goto_pose      # noqa: E402,F401
-from . import follow_path    # noqa: E402,F401  # new
-```
-
-### 5. (Optional) Ship a Python client
+### 4. (Optional) Ship a Python client
 
 Mirror `clients/goto_pose.py` as `clients/follow_path.py`. Clients are not
 required — any consumer can talk to the raw action endpoint — but `task_generator`
 and [DRIVING.md](../../../DRIVING.md) examples use them.
 
-### 6. Wire into a `Bringup`
+### 5. Wire into a `Bringup`
 
-A `Bringup` advertises the task kinds it supports; the `task_server` iterates
-that list at startup and looks up `HANDLERS.get((kind, bringup_kind))` for
-each. A new task kind is visible as soon as at least one bringup declares it
-and a matching handler is registered.
+Each `Bringup` subclass declares a `task_handlers` ClassVar mapping `TaskKind`
+to a zero-arg loader for the handler class. Adding support for a new task kind
+in an existing bringup is one entry in that dict:
+
+```python
+def _load_follow_path_nav2() -> type:
+    from arena_robots.task_server_handlers.follow_path.nav2 import FollowPathHandlerNav2
+    return FollowPathHandlerNav2
+
+@BringupMeta.attach(requires={"mobile"}, cap="mobile")
+class Nav2Bringup(Bringup):
+    kind = "nav2"
+    task_handlers: ClassVar[dict] = {
+        TaskKind.GOTO_POSE: _load_goto_pose_nav2,
+        TaskKind.FOLLOW_PATH: _load_follow_path_nav2,
+    }
+```
+
+The `task_server` iterates `bringup.accepts_task_kinds` (derived from
+`task_handlers.keys()`) at startup and invokes the loader to construct the
+handler. A new task kind is visible as soon as at least one bringup adds an
+entry.
 
 ## Design invariants
 
 - **`TaskKind` is closed.** The enum is the sole allowlist; `task_generator`,
   the `task_server`, and clients all key off it. Don't parametrise the set by
   config.
-- **Handler registry is `(TaskKind, bringup_kind)`-keyed, not per-robot.**
-  Robot-specific behaviour belongs in the handler's interpretation of the
-  `Bringup` instance, not in a third registry axis.
+- **Handler ownership lives on the `Bringup`.** The bringup is the single
+  source of truth for `kind`, launch actions, and supported `TaskKind`s.
+  Adding a new bringup without a matching handler is a missing-key bug, not
+  a silent hang.
 - **Loaders stay zero-arg and lazy.** Putting the `nav2_msgs` import (or any
   other non-core msgs import) at module top level will break bringups that
   don't need it.
-- **No fallback handlers.** `KeyError` at `HANDLERS.get` is the correct
-  outcome for an unsupported `(kind, bringup)` pair — the `task_server` skips
-  advertising that endpoint instead of silently degrading.
+- **No fallback handlers.** A bringup either declares a `TaskKind` in
+  `task_handlers` or it doesn't; `task_server` skips advertising that
+  endpoint when missing instead of silently degrading.

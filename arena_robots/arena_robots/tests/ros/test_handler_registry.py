@@ -1,4 +1,4 @@
-"""Tests for arena_robots.task_server_handlers HANDLERS registry and _executor_sleep."""
+"""Tests for arena_rclpy_mixins ClassRegistry, Bringup.task_handlers, and _executor_sleep."""
 
 from __future__ import annotations
 
@@ -84,24 +84,30 @@ class TestHandlerRegistry:
         assert result is _loader
 
 
-class TestGlobalHandlers:
-    def test_handlers_has_goto_pose_nav2(self):
-        from arena_robots.task_server_handlers import HANDLERS
+class TestBringupTaskHandlers:
+    def test_nav2_declares_goto_pose_handler(self):
+        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
         from arena_robots.task_kinds import TaskKind
 
-        assert (TaskKind.GOTO_POSE, "nav2") in HANDLERS.keys()
+        assert TaskKind.GOTO_POSE in Nav2Bringup.task_handlers
 
-    def test_handlers_has_goto_pose_none(self):
-        from arena_robots.task_server_handlers import HANDLERS
+    def test_none_declares_goto_pose_handler(self):
+        from arena_robots.bringup.mobile.none import NoneBringup
         from arena_robots.task_kinds import TaskKind
 
-        assert (TaskKind.GOTO_POSE, "none") in HANDLERS.keys()
+        assert TaskKind.GOTO_POSE in NoneBringup.task_handlers
 
-    def test_handlers_has_goto_pose_external(self):
-        from arena_robots.task_server_handlers import HANDLERS
+    def test_external_declares_goto_pose_handler(self):
+        from arena_robots.bringup.mobile.external import ExternalBringup
         from arena_robots.task_kinds import TaskKind
 
-        assert (TaskKind.GOTO_POSE, "external") in HANDLERS.keys()
+        assert TaskKind.GOTO_POSE in ExternalBringup.task_handlers
+
+    def test_drl_declares_goto_pose_handler(self):
+        from arena_robots.bringup.mobile.drl import DrlBringup
+        from arena_robots.task_kinds import TaskKind
+
+        assert TaskKind.GOTO_POSE in DrlBringup.task_handlers
 
 
 class TestExecutorSleep:

@@ -121,3 +121,7 @@
 	branch = jazzy
 	update = none
 	robot = rskomnidirectional
+[submodule "arena_planners"]
+	path = arena_planners
+	url = https://github.com/arena-planners/arena_planners.git
+	branch = jazzy

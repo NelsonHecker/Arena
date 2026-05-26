@@ -1,8 +1,8 @@
-"""Registry of per-(TaskKind, bringup_kind) action-server handlers.
+"""TaskHandler protocol and shared utilities for task_server handler implementations.
 
-Handlers are registered via zero-arg loader functions so their modules — and
-any non-core msgs deps (e.g. ``nav2_msgs``) — are imported only when that
-particular ``(task_kind, bringup_kind)`` pair is actually requested.
+Handler registration is owned by the Bringup subclass via its ``task_handlers``
+ClassVar (see ``arena_robots.bringup.Bringup``); this module only exposes the
+shared protocol type and the ``_executor_sleep`` helper.
 """
 
 from __future__ import annotations
@@ -13,12 +13,9 @@ from typing import (
     TypeVar,
 )
 
-from arena_rclpy_mixins.registry import ClassRegistry
 from rclpy.action.server import ServerGoalHandle
 from rclpy.clock import Clock
 from rclpy.task import Future
-
-from arena_robots.task_kinds import TaskKind
 
 if TYPE_CHECKING:
     from arena_robots.bringup import Bringup
@@ -35,15 +32,12 @@ class TaskHandler(Protocol[GoalT, FeedbackT, ResultT]):
     async def execute(self, goal_handle: ServerGoalHandle) -> ResultT: ...
 
 
-HANDLERS: ClassRegistry[tuple[TaskKind, str], type[TaskHandler]] = ClassRegistry()
-
-
 async def _executor_sleep(node: object, seconds: float, *, wall: bool = False) -> None:
     """Timer-backed sleep that yields to rclpy's executor. Works inside action
     server callbacks (which run under rclpy.spin, not asyncio).
 
     ``wall=True`` uses a wall-clock timer so the sleep still ticks while sim
-    time is paused — use it for readiness/discovery polling, not for retry
+    time is paused, use it for readiness/discovery polling, not for retry
     rate-limiting where sim-time semantics are preferred.
     """
     fut: Future = Future()
@@ -57,10 +51,3 @@ async def _executor_sleep(node: object, seconds: float, *, wall: bool = False) -
         await fut
     finally:
         node.destroy_timer(timer)
-
-
-from . import (
-    goto_pose,  # noqa: E402,F401
-    play_gesture,  # noqa: E402,F401
-    reach_pose,  # noqa: E402,F401
-)

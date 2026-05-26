@@ -8,9 +8,12 @@ import attrs
 
 if TYPE_CHECKING:
     from arena_robots.Robot import RobotView
+    from arena_robots.task_server_handlers import TaskHandler
 
 from arena_rclpy_mixins.shared import Namespace
 from launch import Action
+
+from arena_robots.task_kinds import TaskKind
 
 
 class AdapterCapMismatch(RuntimeError):
@@ -43,6 +46,7 @@ class BringupMeta:
 
 class Bringup(ABC):
     kind: ClassVar[str]
+    task_handlers: ClassVar[dict[TaskKind, Callable[[], type[TaskHandler]]]] = {}
 
     def __init__(self, robot: RobotView, namespace: str, *, frame: str = "") -> None:
         self.robot = robot
@@ -67,11 +71,8 @@ class Bringup(ABC):
         return self._bringup_meta.requires
 
     @property
-    def accepts_task_kinds(self) -> frozenset:
-        from arena_robots.task_kinds import cap_for_task_kind
-        from arena_robots.task_server_handlers import HANDLERS
-
-        return frozenset(tk for (tk, k) in HANDLERS.keys() if k == self.kind and cap_for_task_kind(tk) == self.cap)
+    def accepts_task_kinds(self) -> frozenset[TaskKind]:
+        return frozenset(self.task_handlers.keys())
 
 
 def check_caps(bringup: Bringup) -> None:

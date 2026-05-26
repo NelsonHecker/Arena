@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 from launch import Action
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -7,11 +9,19 @@ from launch.substitutions import PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
 from arena_robots.bringup import Bringup, BringupMeta
+from arena_robots.task_kinds import TaskKind
+
+
+def _load_goto_pose_nav2() -> type:
+    from arena_robots.task_server_handlers.goto_pose.nav2 import GotoPoseHandlerNav2
+
+    return GotoPoseHandlerNav2
 
 
 @BringupMeta.attach(requires={"mobile"}, cap="mobile")
 class Nav2Bringup(Bringup):
     kind = "nav2"
+    task_handlers: ClassVar[dict] = {TaskKind.GOTO_POSE: _load_goto_pose_nav2}
 
     @property
     def native_action_name(self) -> str:

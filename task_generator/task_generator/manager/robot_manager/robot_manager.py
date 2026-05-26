@@ -61,7 +61,6 @@ class RobotManager(NodeInterface):
     _robot: Robot
     _move_base_pub: rclpy.publisher.Publisher
     _goal_pub: rclpy.publisher.Publisher
-    _pub_goal_timer: rclpy.timer.Timer
     _rate_setup: rclpy.timer.Rate
     _config: RobotView
     _adapters: dict[TaskKind, Adapter]
@@ -128,7 +127,6 @@ class RobotManager(NodeInterface):
         self._robot = robot
         self._robot.sim_path = self._environment_manager.realize(robot.name)
         self._robot.extra.setdefault('namespace', self.namespace)
-        self._goal_timer = None
 
         self._publish_goal_task: asyncio.Task | None = None
 
@@ -366,18 +364,13 @@ class RobotManager(NodeInterface):
 
         await adapter.dispatch_phase(phase0, self)
 
-        # (Re)start the keep-alive loop that republishes _goal_pos against
-        # nav2/AMCL jitter and (crucially) covers the gap when nav2 isn't
-        # subscribed yet on the first dispatch. Adapters that own their own
-        # goal transport (e.g. action client) opt out via republishes_goal=False
-        # so the loop does not race their dispatch.
-        if adapter.republishes_goal:
-            if self._publish_goal_task is not None:
-                self._publish_goal_task.cancel()
-            self._publish_goal_task = asyncio.create_task(self._publish_goal_loop())
-        elif self._publish_goal_task is not None:
+        from task_generator.tasks.robots.adapters.mobile import MobileAdapter
+
+        if self._publish_goal_task is not None:
             self._publish_goal_task.cancel()
             self._publish_goal_task = None
+        if isinstance(adapter, MobileAdapter):
+            self._publish_goal_task = asyncio.create_task(adapter.publish_goal_loop())
 
         if self._robot.record_data_dir:
             self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("goal"), [self.goal_pos.position.x, self.goal_pos.position.y, self.goal_pos.orientation.to_yaw()])
@@ -414,34 +407,6 @@ class RobotManager(NodeInterface):
         if self._robot.record_data_dir:
             realized = self._environment_manager.realize(self._start_pos)
             self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("start"), [realized.position.x, realized.position.y, realized.orientation.to_yaw()])
-
-    async def _publish_goal_loop(self):
-        # Keeps republishing _goal_pos against amcl jitter until a reset
-        # swaps _goal_pos to a different object. is_done elsewhere handles
-        # completion; this loop only keeps the goal alive.
-
-        target = self._goal_pos
-        with self.node.sim_time_rate(1.0, 60) as (done, rate):
-            while not done.is_set():
-                await rate.get()
-
-                if self._goal_pos is not target:
-                    break
-
-                goal = self._goal_pos
-                self._logger.debug(f"Publishing goal: x={goal.position.x}, y={goal.position.y}, orientation={goal.orientation.to_yaw()}")
-
-                if self._goal_timer is not None:
-                    self._goal_timer.cancel()
-                    self._goal_timer.destroy()
-
-                goal_msg = geometry_msgs.msg.PoseStamped()
-                goal_msg.header.frame_id = "map"
-                goal_msg.header.stamp = self.node.sim_time.to_msg()
-                goal_msg.pose = goal.to_msg()
-                self._goal_pub.publish(goal_msg)
-
-                self._goal_start_time = self.node.sim_time
 
     async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot's navstack via the bound adapters."""
@@ -522,8 +487,5 @@ class RobotManager(NodeInterface):
         pass
 
     async def destroy(self):
-        if self._goal_timer is not None:
-            self._goal_timer.cancel()
-            self._goal_timer.destroy()
         await self._environment_manager.remove_robot((self.robot,))
         # TODO kill node in navigation stack

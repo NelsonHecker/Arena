@@ -1,14 +1,24 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import launch_ros.actions
 from launch import Action
 
 from arena_robots.bringup import Bringup, BringupMeta
+from arena_robots.task_kinds import TaskKind
+
+
+def _load_goto_pose_manual() -> type:
+    from arena_robots.task_server_handlers.goto_pose._passthrough import GotoPoseHandlerNone
+
+    return GotoPoseHandlerNone
 
 
 @BringupMeta.attach(requires={"mobile"}, cap="mobile")
 class ManualBringup(Bringup):
     kind = "manual"
+    task_handlers: ClassVar[dict] = {TaskKind.GOTO_POSE: _load_goto_pose_manual}
 
     @property
     def goal_topic(self) -> str:

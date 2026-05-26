@@ -31,22 +31,7 @@ if TYPE_CHECKING:
     bringup=Nav2Bringup,
     client=GotoPoseClient,
     cap="mobile",
-    republishes_goal=False,
     displays=[
-        AdapterDisplayHint(
-            name="Plan",
-            topic="{ns}/plan",
-            topic_type="nav_msgs/Path",
-            rviz_class="rviz_default_plugins/Path",
-            config_json="",
-        ),
-        AdapterDisplayHint(
-            name="Goal Pose",
-            topic="{ns}/goal_pose",
-            topic_type="geometry_msgs/PoseStamped",
-            rviz_class="rviz_default_plugins/Pose",
-            config_json="",
-        ),
         AdapterDisplayHint(
             name="Local Costmap",
             topic="{ns}/local_costmap/costmap",
@@ -80,6 +65,10 @@ if TYPE_CHECKING:
 @requires_map_server
 class Nav2Adapter(MobileAdapter):
     kind: ClassVar[str] = "nav2"
+
+    async def publish_goal_loop(self) -> None:
+        # nav2 uses navigate_to_pose action; no topic republish.
+        return
 
     async def dispatch_phase(
         self,

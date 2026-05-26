@@ -41,3 +41,10 @@ def _load_rosnav_rl() -> type[Bringup]:
     from .rosnav_rl import RosnavRlBringup
 
     return RosnavRlBringup
+
+
+@BRINGUPS["mobile"].register("drl")
+def _load_drl() -> type[Bringup]:
+    from .drl import DrlBringup
+
+    return DrlBringup

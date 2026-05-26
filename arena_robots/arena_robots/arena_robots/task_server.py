@@ -14,7 +14,6 @@ from rclpy.parameter import Parameter
 from arena_robots.bringup import BRINGUPS, check_caps
 from arena_robots.Robot import RobotIdentifier
 from arena_robots.task_kinds import TaskKind, action_type, endpoint
-from arena_robots.task_server_handlers import HANDLERS
 
 
 class TaskServerNode(Node):
@@ -65,11 +64,11 @@ class TaskServerNode(Node):
             self._bringups.append(bringup)
 
             for tk in bringup.accepts_task_kinds:
-                try:
-                    handler_cls = HANDLERS.get((tk, kind))
-                except KeyError:
+                loader = bringup.task_handlers.get(tk)
+                if loader is None:
                     self.get_logger().warning(f"no handler for ({tk!r}, {kind!r}); skipping endpoint")
                     continue
+                handler_cls = loader()
                 try:
                     handler = handler_cls(bringup, tf_buffer=self._tf_buffer, node=self)
                     server = ActionServer(

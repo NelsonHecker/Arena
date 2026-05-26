@@ -31,6 +31,7 @@ class ControlSpec:
     controllers: tuple[str, ...]
     config: str | None = None
     cmd_vel_topic: str = "cmd_vel"
+    odom_topic: str = "odom"
 
     @classmethod
     def from_dict(cls, data: typing.Mapping[str, typing.Any]) -> "ControlSpec":
@@ -45,6 +46,7 @@ class ControlSpec:
             controllers=controllers,
             config=str(config) if config is not None else None,
             cmd_vel_topic=str(data.get("cmd_vel_topic", "cmd_vel")),
+            odom_topic=str(data.get("odom_topic", "odom")),
         )
 
     @property

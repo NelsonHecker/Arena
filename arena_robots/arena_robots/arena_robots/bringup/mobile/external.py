@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 from launch import Action
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 from arena_robots.bringup import Bringup, BringupMeta
+from arena_robots.task_kinds import TaskKind
+
+
+def _load_goto_pose_external() -> type:
+    from arena_robots.task_server_handlers.goto_pose._passthrough import GotoPoseHandlerExternal
+
+    return GotoPoseHandlerExternal
 
 
 @BringupMeta.attach(requires={"mobile"}, cap="mobile")
 class ExternalBringup(Bringup):
     kind = "external"
+    task_handlers: ClassVar[dict] = {TaskKind.GOTO_POSE: _load_goto_pose_external}
 
     @property
     def _cfg(self) -> dict:
