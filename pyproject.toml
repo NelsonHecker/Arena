@@ -53,6 +53,11 @@ dependencies = [
     "msgpack>=1.0",
     "msgpack-numpy>=0.4.8",
     "pyzmq>=25",
+    "pandas",
+    "seaborn",
+    "matplotlib",
+    "polars",
+    "rosbags",
 ]
 
 [build-system]
