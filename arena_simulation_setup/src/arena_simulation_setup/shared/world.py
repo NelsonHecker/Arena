@@ -45,7 +45,7 @@ class Elevator(Named):
 class Door(Named):
     start: Position = attrs.field(converter=Position.converter)
     end: Position = attrs.field(converter=Position.converter)
-    kind: typing.Literal['sliding', 'hinged', 'teleport'] = 'sliding'
+    kind: typing.Literal['sliding', 'hinged', 'teleport', 'sliding_top'] = 'sliding'
     width: float = 0.1
     height: float = attrs.field(default=2.0)
     material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('door'))

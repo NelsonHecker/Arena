@@ -271,7 +271,7 @@ def test_present_just_arrived_occupant_holds_open():
     """Occupant teleported in (in just_arrived) does not retrigger depart, even after long idle."""
     a = _elev_runtime(_elevator(name="a", destination="b"), destination="b")
     a.state = _ElevatorState.PRESENT
-    a.just_arrived = frozenset({"r"})
+    a.just_arrived = {"r": True}
     dr = _door_runtime(_door(name="a/door"), kind="sliding")
     dr.state = _DoorState.CLOSED
     _step_elevator(a, dr, None, occupants=[("r", (0.0, 0.0))], near_door=False, outside_trigger=False, now=999.0)
@@ -279,14 +279,68 @@ def test_present_just_arrived_occupant_holds_open():
     assert dr.last_trigger_sim_time == 999.0
 
 
-def test_present_exit_drops_from_just_arrived():
-    """Occupant leaving the cabin is removed from just_arrived; reentry counts as new."""
+def test_present_stale_outside_before_inside_does_not_clear():
+    """Post-teleport TF stutter can transiently report the occupant outside. Until the occupant
+    is positively observed inside (TF settled), no "outside" observation counts as a real exit.
+    """
     a = _elev_runtime(_elevator(name="a", destination="b"), destination="b")
     a.state = _ElevatorState.PRESENT
-    a.just_arrived = frozenset({"r"})
+    a.just_arrived = {"r": False}
     dr = _door_runtime(_door(name="a/door"), kind="sliding")
-    _step_elevator(a, dr, None, occupants=[], near_door=False, outside_trigger=False, now=5.0)
-    assert a.just_arrived == frozenset()
+    dr.state = _DoorState.CLOSED
+    _step_elevator(
+        a, dr, None,
+        occupants=[],
+        near_door=False, outside_trigger=False, now=5.0,
+        outside_names=frozenset({"r"}),
+    )
+    assert a.just_arrived == {"r": False}
+    assert a.state == _ElevatorState.PRESENT
+
+
+def test_present_inside_confirmation_flips_flag():
+    """First inside observation flips the inside-confirmed flag for the just-arrived occupant."""
+    a = _elev_runtime(_elevator(name="a", destination="b"), destination="b")
+    a.state = _ElevatorState.PRESENT
+    a.just_arrived = {"r": False}
+    dr = _door_runtime(_door(name="a/door"), kind="sliding")
+    _step_elevator(
+        a, dr, None,
+        occupants=[("r", (0.0, 0.0))],
+        near_door=False, outside_trigger=False, now=5.0,
+    )
+    assert a.just_arrived == {"r": True}
+    assert a.state == _ElevatorState.PRESENT
+
+
+def test_present_outside_after_inside_clears_just_arrived():
+    """Once inside-confirmed, an "observed outside" observation marks a real exit and clears."""
+    a = _elev_runtime(_elevator(name="a", destination="b"), destination="b")
+    a.state = _ElevatorState.PRESENT
+    a.just_arrived = {"r": True}
+    dr = _door_runtime(_door(name="a/door"), kind="sliding")
+    _step_elevator(
+        a, dr, None,
+        occupants=[],
+        near_door=False, outside_trigger=False, now=5.0,
+        outside_names=frozenset({"r"}),
+    )
+    assert a.just_arrived == {}
+
+
+def test_present_new_occupant_triggers_departure_even_with_just_arrived_resident():
+    """A fresh entrant departs the cabin even when a just-arrived occupant is still inside."""
+    a = _elev_runtime(_elevator(name="a", destination="b"), destination="b")
+    a.state = _ElevatorState.PRESENT
+    a.just_arrived = {"r": True}
+    dr = _door_runtime(_door(name="a/door"), kind="sliding")
+    dr.state = _DoorState.CLOSED
+    _step_elevator(
+        a, dr, None,
+        occupants=[("r", (0.0, 0.0)), ("r2", (0.0, 0.0))],
+        near_door=False, outside_trigger=False, now=5.0,
+    )
+    assert a.state == _ElevatorState.DEPARTING
 
 
 def test_absent_outside_trigger_calls_present_sibling():
@@ -419,7 +473,7 @@ def test_arriving_at_eta_with_pending_fires_teleport():
     result = _step_elevator(a, dr, None, occupants=[], near_door=False, outside_trigger=False, now=10.0)
     assert a.state == _ElevatorState.PRESENT
     assert result.teleport_job == ("b", "a", [("r", (5.0, 0.5))])
-    assert a.just_arrived == frozenset({"r"})
+    assert a.just_arrived == {"r": False}
     assert a.pending_occupants == ()
 
 
@@ -444,6 +498,22 @@ def test_door_open_pose_teleport_drops_z():
     assert open_p.position.x == closed.position.x
     assert open_p.position.y == closed.position.y
     assert open_p.position.z == closed.position.z - 100.0
+
+
+def test_door_open_pose_sliding_top():
+    d = Door(
+        name="d",
+        start=Position(0.0, 0.0, 0.0),
+        end=Position(2.0, 0.0, 0.0),
+        kind="sliding_top",
+        height=2.5,
+    )
+    _size, closed = _door_geometry(d)
+    open_p = _door_open_pose(d, closed, "sliding_top")
+    assert open_p.position.x == pytest.approx(closed.position.x)
+    assert open_p.position.y == pytest.approx(closed.position.y)
+    assert open_p.position.z == pytest.approx(closed.position.z + d.height)
+    assert open_p.orientation == closed.orientation
 
 
 # ---------------------------------------------------------------------------
@@ -502,7 +572,7 @@ def test_full_cycle_call_from_absent_sibling():
     assert b.arriving_eta == -math.inf
     assert door_b.last_trigger_sim_time == 5.0
     assert result.teleport_job == ("a", "b", [("r", (0.0, 0.0))])
-    assert b.just_arrived == frozenset({"r"})
+    assert b.just_arrived == {"r": False}
     assert b.pending_occupants == ()
 
 
@@ -644,6 +714,7 @@ def _run_ticks(
     n: int,
     outside_trigger: dict[str, bool] | None = None,
     occupants: dict[str, list[tuple[str, tuple[float, float]]]] | None = None,
+    outside_names: frozenset[str] = frozenset(),
 ) -> tuple[float, list[tuple[str, str, list[tuple[str, tuple[float, float]]]]]]:
     outside_trigger = outside_trigger or {}
     occupants = occupants or {}
@@ -663,6 +734,7 @@ def _run_ticks(
                 near_door=near,
                 outside_trigger=outside,
                 now=now,
+                outside_names=outside_names,
             )
             if r.teleport_job is not None:
                 jobs.append(r.teleport_job)
@@ -777,7 +849,7 @@ def test_tick_robot_stays_at_destination_no_shuttle_back():
 
 
 def test_tick_robot_exits_then_reenters_redeparts():
-    """Exit clears just_arrived; re-entry counts as a new occupant and triggers depart."""
+    """Inside-then-outside observation clears just_arrived; re-entry triggers depart."""
     runtimes, doors = _prime_pair()
     a, b = runtimes["a"], runtimes["b"]
     now, jobs1 = _run_ticks(
@@ -786,9 +858,11 @@ def test_tick_robot_exits_then_reenters_redeparts():
         occupants={"a": [("r1", (-0.5, 0.0))]},
     )
     assert len(jobs1) == 1
-    # Robot exits at B. just_arrived gets pruned to empty.
-    now, _ = _run_ticks(runtimes, doors, start=now, n=60)
-    assert b.just_arrived == frozenset()
+    # Post-teleport TF settles: confirm r1 inside B for one tick (flips inside-observed flag).
+    now, _ = _run_ticks(runtimes, doors, start=now, n=1, occupants={"b": [("r1", (10.0, 0.0))]})
+    # Robot exits B: now observed in the outside world.
+    now, _ = _run_ticks(runtimes, doors, start=now, n=60, outside_names=frozenset({"r1"}))
+    assert b.just_arrived == {}
     # Re-enter and ride back.
     _, jobs3 = _run_ticks(
         runtimes, doors, start=now, n=250,
@@ -797,6 +871,24 @@ def test_tick_robot_exits_then_reenters_redeparts():
     assert jobs3 == [("b", "a", [("r1", (10.0, 0.0))])]
     assert a.state == _ElevatorState.PRESENT
     assert b.state == _ElevatorState.ABSENT
+
+
+def test_tick_no_pingpong_when_tf_lags_post_teleport():
+    """Regression: post-teleport TF flicker (robot not yet observed inside) must not ping-pong."""
+    runtimes, doors = _prime_pair()
+    a, b = runtimes["a"], runtimes["b"]
+    now, jobs1 = _run_ticks(
+        runtimes, doors, start=0.0, n=230,
+        outside_trigger={"b": True},
+        occupants={"a": [("r1", (-0.5, 0.0))]},
+    )
+    assert len(jobs1) == 1
+    assert b.state == _ElevatorState.PRESENT
+    # 20s of TF gap: robot is physically inside B but no observations confirm it. just_arrived
+    # must not decay, so the cabin must not redepart.
+    _, jobs2 = _run_ticks(runtimes, doors, start=now, n=int(20.0 / DT))
+    assert jobs2 == []
+    assert b.state == _ElevatorState.PRESENT
 
 
 def test_tick_missing_destination_reverts_to_present():

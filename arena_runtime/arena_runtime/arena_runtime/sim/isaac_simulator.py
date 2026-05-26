@@ -555,7 +555,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return bool(res) and bool(res.ret) and res.ret[0]
 
     async def move_box(self, name: str, pose: Pose) -> bool:
-        return await self._move_entity(name, pose)
+        # Fire-and-forget: animation is cosmetic, last-write-wins, don't gate tick rate on bridge latency.
+        req = EditPrims.Request(prims=[Prim(name=name, pose=pose.to_msg())], pose=True)
+        self._clients.EditPrims.client.call_async(req)
+        return True
 
     async def delete_box(self, name: str) -> bool:
         return await self._delete_entity(name)
