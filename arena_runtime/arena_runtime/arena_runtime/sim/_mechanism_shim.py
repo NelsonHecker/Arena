@@ -95,7 +95,7 @@ class _DoorRuntime:
     door: Door
     closed_pose: Pose
     open_pose: Pose
-    effective_kind: typing.Literal['sliding', 'teleport']
+    effective_kind: typing.Literal['sliding', 'teleport', 'sliding_top']
     state: _DoorState = _DoorState.CLOSED
     progress: float = 0.0  # 0 = closed, 1 = open
     last_trigger_sim_time: float = -math.inf
@@ -109,7 +109,7 @@ class _ElevatorRuntime:
     destination_name: str
     state: _ElevatorState = _ElevatorState.ABSENT
     arriving_eta: float = -math.inf
-    just_arrived: frozenset[str] = attrs.field(factory=frozenset)
+    just_arrived: dict[str, bool] = attrs.field(factory=dict)
     pending_occupants: tuple[tuple[str, tuple[float, float]], ...] = ()
 
 
@@ -122,7 +122,7 @@ class _ElevatorStepResult:
 def _effective_kind(
     logger: rclpy.impl.rcutils_logger.RcutilsLogger,
     door: Door,
-) -> typing.Literal['sliding', 'teleport']:
+) -> typing.Literal['sliding', 'teleport', 'sliding_top']:
     """Return the animation kind, falling back to teleport for hinged with a warn-once log."""
     if door.kind == 'hinged':
         logger.warning(
@@ -131,6 +131,8 @@ def _effective_kind(
         return 'teleport'
     if door.kind == 'teleport':
         return 'teleport'
+    if door.kind == 'sliding_top':
+        return 'sliding_top'
     return 'sliding'
 
 
@@ -157,6 +159,15 @@ def _door_open_pose(door: Door, closed_pose: Pose, effective_kind: str) -> Pose:
                 x=closed_pose.position.x,
                 y=closed_pose.position.y,
                 z=closed_pose.position.z - 100.0,
+            ),
+            orientation=closed_pose.orientation,
+        )
+    if effective_kind == 'sliding_top':
+        return Pose(
+            position=Position(
+                x=closed_pose.position.x,
+                y=closed_pose.position.y,
+                z=closed_pose.position.z + door.height,
             ),
             orientation=closed_pose.orientation,
         )
@@ -245,7 +256,7 @@ def _advance_state(runtime: _DoorRuntime, dt: float, now: float) -> None:
         runtime.progress = 1.0 if fresh else 0.0
         runtime.state = _DoorState.OPEN if fresh else _DoorState.CLOSED
         return
-    # sliding: per-tick linear T delta over transition_time, mirrors arena_isaac XFormAnimation.step
+    # sliding (incl. sliding_top): per-tick linear T delta over transition_time
     target = 1.0 if fresh else 0.0
     step = dt / max(door.transition_time, 1e-9)
     if target > runtime.progress:
@@ -285,14 +296,23 @@ def _step_elevator(
     near_door: bool,
     outside_trigger: bool,
     now: float,
+    outside_names: frozenset[str] = frozenset(),
 ) -> _ElevatorStepResult:
     result = _ElevatorStepResult()
     state = runtime.state
     closing_abort = near_door and door_runtime.state != _DoorState.CLOSED
     if state == _ElevatorState.PRESENT:
         current = frozenset(name for name, _ in occupants)
-        runtime.just_arrived &= current
-        new_occupants = current - runtime.just_arrived
+        # Per just-arrived passenger, track whether they have been positively observed inside
+        # this cabin since arrival. Only after that confirmation does an "observed outside"
+        # observation count as a real exit. This decouples just_arrived from post-teleport TF
+        # latency, which has no bounded settling time on isaac.
+        for name in list(runtime.just_arrived):
+            if name in current:
+                runtime.just_arrived[name] = True
+            elif runtime.just_arrived[name] and name in outside_names:
+                del runtime.just_arrived[name]
+        new_occupants = current - runtime.just_arrived.keys()
         if outside_trigger or not new_occupants or closing_abort:
             door_runtime.last_trigger_sim_time = now
         if door_runtime.state == _DoorState.CLOSED and new_occupants:
@@ -308,7 +328,7 @@ def _step_elevator(
                 door_runtime.last_trigger_sim_time = now
             else:
                 runtime.state = _ElevatorState.ABSENT
-                runtime.just_arrived = frozenset()
+                runtime.just_arrived = {}
                 dest_runtime.state = _ElevatorState.ARRIVING
                 dest_runtime.arriving_eta = now + runtime.elevator.travel_time
                 dest_runtime.pending_occupants = tuple(occupants)
@@ -323,7 +343,7 @@ def _step_elevator(
             if runtime.pending_occupants:
                 src_name = runtime.destination_name
                 result.teleport_job = (src_name, runtime.elevator.name, list(runtime.pending_occupants))
-                runtime.just_arrived = frozenset(name for name, _ in runtime.pending_occupants)
+                runtime.just_arrived = {name: False for name, _ in runtime.pending_occupants}
                 runtime.pending_occupants = ()
     return result
 
@@ -385,6 +405,7 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
         elev_occupant_idx[elev_name] = occ
         all_occupant_idx.update(occ)
     outside_xys = [xy for i, (_n, xy) in enumerate(named_positions) if i not in all_occupant_idx]
+    outside_names = frozenset(named_positions[i][0] for i in range(len(named_positions)) if i not in all_occupant_idx)
     all_xys = [xy for _n, xy in named_positions]
 
     elevator_door_names = set(mech._elevator_doors.values())
@@ -402,7 +423,7 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
             INSIDE_DOOR_BLOCKER_RADIUS,
         )
         dest_runtime = mech._elevator_runtime.get(runtime.destination_name)
-        result = _step_elevator(runtime, door_runtime, dest_runtime, occupants, near_door, outside_trigger, now)
+        result = _step_elevator(runtime, door_runtime, dest_runtime, occupants, near_door, outside_trigger, now, outside_names=outside_names)
         if result.missing_destination:
             logger.warning(f"Elevator {elev_name!r}: destination {runtime.destination_name!r} unknown; staying PRESENT.")
         if result.teleport_job is not None:
@@ -432,8 +453,11 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
         robot_destinations = {k: v for k, v in destinations.items() if k not in ped_names}
         ped_destinations = {k: v for k, v in destinations.items() if k in ped_names}
         for sim_path, (x, y) in robot_destinations.items():
+            current = mech.robot_pose(sim_path)
+            z = current.position.z if current is not None else 0.0
+            orientation = current.orientation if current is not None else Orientation(1, 0, 0, 0)
             try:
-                await mech.set_robot_pose(sim_path, Pose(position=Position(x, y, 0.0), orientation=Orientation(1, 0, 0, 0)))
+                await mech.set_robot_pose(sim_path, Pose(position=Position(x, y, z), orientation=orientation))
             except Exception as e:
                 logger.warning(f"Elevator robot teleport {source_name!r} -> {dest_name!r} failed for {sim_path!r}: {e!r}")
         if ped_destinations:

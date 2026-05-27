@@ -228,3 +228,7 @@ class MechanismITF:
     def robot_positions_xy(self) -> Iterable[tuple[str, tuple[float, float]]]:
         """Yield (sim_path, (x, y)) for each tracked robot."""
         raise NotImplementedError
+
+    def robot_pose(self, sim_path: str) -> Pose | None:
+        """Return the current full pose of a tracked robot, or None if unavailable."""
+        raise NotImplementedError

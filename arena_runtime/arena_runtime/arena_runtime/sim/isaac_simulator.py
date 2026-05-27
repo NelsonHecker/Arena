@@ -52,7 +52,9 @@ from task_generator.shared import (
     DynamicObstacle,
     ModelType,
     Obstacle,
+    Orientation,
     Pose,
+    Position,
     Robot,
 )
 from task_generator.shared import Floor as FloorDefinition
@@ -553,7 +555,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return bool(res) and bool(res.ret) and res.ret[0]
 
     async def move_box(self, name: str, pose: Pose) -> bool:
-        return await self._move_entity(name, pose)
+        # Fire-and-forget: animation is cosmetic, last-write-wins, don't gate tick rate on bridge latency.
+        req = EditPrims.Request(prims=[Prim(name=name, pose=pose.to_msg())], pose=True)
+        self._clients.EditPrims.client.call_async(req)
+        return True
 
     async def delete_box(self, name: str) -> bool:
         return await self._delete_entity(name)
@@ -567,6 +572,22 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 continue
             out.append((sim_path, (t.transform.translation.x, t.transform.translation.y)))
         return out
+
+    def robot_pose(self, sim_path: str) -> Pose | None:
+        entry = self._agent_robots.get(sim_path)
+        if entry is None:
+            return None
+        frame, _prim = entry
+        try:
+            t = self._mechanism_tf_buffer.lookup_transform('map', frame, rclpy.time.Time())
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            return None
+        tr = t.transform.translation
+        rot = t.transform.rotation
+        return Pose(
+            position=Position(x=tr.x, y=tr.y, z=tr.z),
+            orientation=Orientation(w=rot.w, x=rot.x, y=rot.y, z=rot.z),
+        )
 
     async def set_robot_pose(self, sim_path: str, pose: Pose) -> bool:
         entry = self._agent_robots.get(sim_path)
