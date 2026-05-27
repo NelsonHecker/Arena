@@ -1,4 +1,5 @@
 import math
+import typing
 
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree.configs.parametrized import (
@@ -12,17 +13,22 @@ from task_generator.tasks.obstacles import TM_Obstacles
 
 class TM_Parametrized(TM_Obstacles):
     _config: ROSParamT[ParametrizedConfig]
+    _floor_id: str
 
     def _parse(self, config_name: str) -> ParametrizedConfig:
         return ParametrizedIdentifier(config_name).resolve_sync()
 
     def _get_pose(self) -> Pose:
-        return Pose(self._ctx.world_manager.get_position_on_map(1), Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi))
+        return Pose(
+            self._ctx.world_manager.get_position_on_map(1, floor_id=self._floor_id),
+            Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi),
+        )
 
     def _get_points(self, n: int) -> list:
-        return self._ctx.world_manager.get_positions_on_map(n=n, safe_dist=1.0)
+        return self._ctx.world_manager.get_positions_on_map(n=n, safe_dist=1.0, level_id=self._floor_id)
 
     async def reset(self, **kwargs: object) -> tuple[list[Obstacle], list[DynamicObstacle]]:
+        self._floor_id = self._resolve_floor_id(typing.cast(str, kwargs.get("floor_id", "")))
         dynamic_obstacles: list[DynamicObstacle] = []
         obstacles: list[Obstacle] = []
 
@@ -64,5 +70,6 @@ class TM_Parametrized(TM_Obstacles):
 
     def __init__(self, **kwargs: object) -> None:
         TM_Obstacles.__init__(self, **kwargs)
+        self._floor_id = ""
 
         self._config = self.node.ROSParam[ParametrizedConfig](self.namespace('file'), '', parse=self._parse)
