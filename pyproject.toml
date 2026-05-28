@@ -58,6 +58,10 @@ dependencies = [
     "matplotlib",
     "polars",
     "rosbags",
+    "pyarrow",
+    "plotly",
+    "mcap",
+    "mcap-ros2-support",
 ]
 
 [build-system]
