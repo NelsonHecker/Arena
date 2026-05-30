@@ -23,7 +23,7 @@ class TM_Environment(TM_Obstacles):
     _config: ROSParamT[_ParsedConfig]
 
     def calculate_world_bounds(self) -> tuple[float, float, float, float]:
-        world = self._ctx.world_manager.world_default_level()
+        world = self._ctx.world_manager.world_compacted()
         all_walls = list(world.all_walls)
         x_min = y_min = np.inf
         x_max = y_max = -np.inf
@@ -45,7 +45,7 @@ class TM_Environment(TM_Obstacles):
         else:
             door_threshold = float(door_threshold)
 
-        world = self._ctx.world_manager.world_default_level()
+        world = self._ctx.world_manager.world_compacted()
         all_walls = list(world.all_walls)
         horizontal, vertical = [], []
 
@@ -337,7 +337,7 @@ class TM_Environment(TM_Obstacles):
         static_obstacles: list[Obstacle] = []
         dynamic_obstacles: list[DynamicObstacle] = []
 
-        world = self._ctx.world_manager.world_default_level()
+        world = self._ctx.world_manager.world_compacted()
         if zones := world.zones:
             rooms = [shapely.Polygon(zone.corners) for zone in zones]
         else:

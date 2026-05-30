@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, TypeVar
 
 import attrs
-import nav_msgs
 import numpy as np
 import scipy.interpolate
 import yaml
@@ -17,7 +16,7 @@ from PIL import Image
 from task_generator.shared import Position, PositionRadius, Wall
 
 if TYPE_CHECKING:
-    from arena_simulation_setup.tree.World.World import WorldDescription
+    from arena_simulation_setup.tree.World.World import LevelDescription as WorldDescription
 
 # CONVERTERS
 
@@ -93,9 +92,9 @@ class WorldOccupancy:
         self.grid.fill(WorldOccupancy.EMPTY)
 
     def occupy(self, lo: tuple[int, int], hi: tuple[int, int]):
-        ly, hy = np.clip(np.array([lo[1], hi[1]]), 0, self._grid.shape[0] - 1)
-        lx, hx = np.clip(np.array([lo[0], hi[0]]), 0, self._grid.shape[1] - 1)
-        self._grid[int(ly) : int(hy), int(lx) : int(hx)] = WorldOccupancy.FULL
+        rows = np.clip(np.array([lo[0], hi[0]]), 0, self._grid.shape[0] - 1)
+        cols = np.clip(np.array([lo[1], hi[1]]), 0, self._grid.shape[1] - 1)
+        self._grid[int(rows.min()) : int(rows.max()), int(cols.min()) : int(cols.max())] = WorldOccupancy.FULL
 
 
 class WorldLayers:
@@ -183,23 +182,7 @@ class WorldMap:
     origin: Position
     resolution: float
     time: Time
-    level_origins: dict[str, tuple[float, float]] = {}
-
-    @staticmethod
-    def from_costmap(occupancy_grid: nav_msgs.msg.OccupancyGrid, _level_origins: dict[str, tuple[float, float]]) -> "WorldMap":
-        # Convert occupancy grid data to numpy array
-        grid_data = np.array(occupancy_grid.data).reshape((occupancy_grid.info.height, occupancy_grid.info.width))
-
-        # Normalize data to 0-255 range (0 = occupied, 255 = free)
-        normalized_data = np.interp(grid_data, (100, 0), (WorldOccupancy.EMPTY, WorldOccupancy.FULL)).astype(np.uint8)
-
-        return WorldMap(
-            occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
-            origin=Position(x=occupancy_grid.info.origin.position.y, y=occupancy_grid.info.origin.position.x),
-            resolution=occupancy_grid.info.resolution,
-            time=Time.from_msg(occupancy_grid.info.map_load_time),
-            level_origins=_level_origins
-        )
+    level_origins: dict[str, tuple[float, float]] = attrs.field(factory=dict)
 
     @staticmethod
     def from_map_files(map_yaml_path: str | Path) -> "WorldMap":
@@ -236,35 +219,34 @@ class WorldMap:
         resolution = float(map_yaml.get('resolution', 0.05))
         level_origins = map_yaml.get('origins', {})
         if level_origins:
-            level_origins = {id: tuple(_origin) for id, _origin in level_origins.items()}
+            level_origins = {fid: tuple(_origin) for fid, _origin in level_origins.items()}
 
         return WorldMap(
             occupancy=WorldLayers(walls=WorldOccupancy(normalized_data)),
             origin=Position(x=float(origin[0]), y=float(origin[1])),
             resolution=resolution,
             time=Time(-1, 0),
-            level_origins=level_origins
+            level_origins=level_origins,
         )
 
     @classmethod
     def from_world_description(cls, description: "WorldDescription", resolution: float, time: Time, _level_origins: dict[str, tuple[float, float]] | None = None) -> "WorldMap":
         """Rasterize a WorldDescription into a WorldMap. PIL grayscale matches WorldOccupancy (255=EMPTY, 0=FULL)."""
         grid, origin = description.render_grid(resolution=resolution)
-        level_origins = _level_origins if _level_origins is not None else {}
         return WorldMap(
             occupancy=WorldLayers(walls=WorldOccupancy(grid.copy())),
             origin=Position(x=origin[0], y=origin[1]),
             resolution=resolution,
             time=time,
-            level_origins=level_origins
+            level_origins=_level_origins if _level_origins is not None else {},
         )
 
-    def get_origin(self, floor_id: str = "") -> tuple[float, float]:
-        if floor_id:
+    def get_origin(self, level_id: str = "") -> tuple[float, float]:
+        if level_id:
             try:
-                return self.level_origins[floor_id]
+                return self.level_origins[level_id]
             except KeyError as e:
-                raise KeyError(f"floor id {floor_id} was not recognized by WorldMap") from e
+                raise KeyError(f"level id {level_id} was not recognized by WorldMap") from e
         else:
             return (self.origin.x, self.origin.y)
 
@@ -273,10 +255,10 @@ class WorldMap:
         return self.occupancy.shape
 
     def tf_pos2grid(self, position: Position) -> tuple[int, int]:
-        return np.round((position.y - self.origin.y) / self.resolution), np.round(self.shape[1] - (position.x - self.origin.x) / self.resolution)
+        return np.round(self.shape[0] - (position.y - self.origin.y) / self.resolution), np.round((position.x - self.origin.x) / self.resolution)
 
     def tf_grid2pos(self, grid_pos: tuple[float, float]) -> Position:
-        return Position(x=grid_pos[1] * self.resolution + self.origin.y, y=(grid_pos[0]) * self.resolution + self.origin.x)
+        return Position(x=grid_pos[1] * self.resolution + self.origin.x, y=(self.shape[0] - grid_pos[0]) * self.resolution + self.origin.y)
 
     def tf_posr2rect(self, posr: PositionRadius) -> tuple[tuple[int, int], tuple[int, int]]:
         lo = self.tf_pos2grid(
@@ -296,6 +278,7 @@ class WorldMap:
     def detect_walls(self) -> WorldWalls:
         return self.occupancy.detect_walls(self.tf_grid2pos)
 
+
 @attrs.define
 class MultiLevelMap:
     _maps: dict[str, WorldMap] = attrs.field(factory=dict)
@@ -304,12 +287,8 @@ class MultiLevelMap:
         self._maps = maps if maps is not None else {}
 
     @property
-    def floor_ids(self) -> Iterable[str]:
+    def level_ids(self) -> Iterable[str]:
         return self._maps.keys()
-
-    @property
-    def maps(self) -> list[WorldMap]:
-        return list(self._maps.values())
 
     def get_map(self, level_id: str) -> WorldMap | None:
         return self._maps.get(level_id, None)
@@ -317,12 +296,9 @@ class MultiLevelMap:
     def select_map(self, level_id: str) -> WorldMap:
         return self._maps[level_id]
 
-    def set_map(self, floor_id: str, world_map: WorldMap) -> None:
-        self._maps[floor_id] = world_map
-
     @classmethod
-    def from_single(cls, world_map: WorldMap, floor_id: str = "") -> "MultiLevelMap":
-        return cls(maps={floor_id: world_map})
+    def from_single(cls, world_map: WorldMap, level_id: str = "") -> "MultiLevelMap":
+        return cls(maps={level_id: world_map})
 
 
 # END TYPES

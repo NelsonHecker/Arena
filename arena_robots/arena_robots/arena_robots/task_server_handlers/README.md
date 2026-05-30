@@ -12,7 +12,7 @@ that `(TaskKind, bringup_kind)` pair.
 
 | File | Role |
 |---|---|
-| [`task_kinds.py`](../task_kinds.py) | `TaskKind` enum, `PUBLIC_SUFFIX`, `action_type()`, `endpoint()` — the only place these are defined |
+| [`task_kinds.py`](../task_kinds.py) | `TaskKind` enum, `PUBLIC_SUFFIX`, `action_type()`, `endpoint()`; the only place these are defined |
 | `task_server_handlers/__init__.py` | `HANDLERS` registry keyed by `(TaskKind, bringup_kind)`; stores zero-arg loaders so msgs deps are imported lazily |
 | `task_server_handlers/<kind>/__init__.py` | per-kind `@HANDLERS.register` lazy-loader block; one entry per supported bringup |
 | `task_server_handlers/<kind>/<bringup>.py` | the `TaskHandler` implementation for that `(kind, bringup)` pair |
@@ -24,7 +24,7 @@ that `(TaskKind, bringup_kind)` pair.
 ### 1. Define the action IDL
 
 Add `arena_robots_msgs/action/<Kind>.action`. Keep the goal/feedback/result
-fields minimal and framework-neutral — every bringup has to implement it, so
+fields minimal and framework-neutral; every bringup has to implement it, so
 nothing bringup-specific belongs here.
 
 ### 2. Register the enum and suffix
@@ -80,10 +80,10 @@ def _load_nav2():
     return FollowPathHandlerNav2
 ```
 
-A `TaskHandler` is a `Protocol` (see the base registry module) — implementing
-it means accepting `(bringup, *, tf_buffer, node)` in `__init__` and exposing
-an `async def execute(goal_handle) -> Result`. There is no abstract base class
-to subclass; duck-typing is sufficient.
+A `TaskHandler` is an `ABC` (see the base registry module): subclass it,
+accept `(bringup, *, tf_buffer, node)` in `__init__`, and implement
+`async def execute(goal_handle) -> Result`. Override `on_cancel` if you need
+custom cancel handling; the base returns `CancelResponse.ACCEPT`.
 
 ### 4. Make the per-kind package loadable
 
@@ -98,7 +98,7 @@ from . import follow_path    # noqa: E402,F401  # new
 ### 5. (Optional) Ship a Python client
 
 Mirror `clients/goto_pose.py` as `clients/follow_path.py`. Clients are not
-required — any consumer can talk to the raw action endpoint — but `task_generator`
+required (any consumer can talk to the raw action endpoint), but `task_generator`
 and [DRIVING.md](../../../DRIVING.md) examples use them.
 
 ### 6. Wire into a `Bringup`
@@ -120,5 +120,5 @@ and a matching handler is registered.
   other non-core msgs import) at module top level will break bringups that
   don't need it.
 - **No fallback handlers.** `KeyError` at `HANDLERS.get` is the correct
-  outcome for an unsupported `(kind, bringup)` pair — the `task_server` skips
+  outcome for an unsupported `(kind, bringup)` pair; the `task_server` skips
   advertising that endpoint instead of silently degrading.

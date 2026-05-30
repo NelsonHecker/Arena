@@ -135,7 +135,7 @@ def test_door_default_kind_and_timings():
     assert d.kind == 'sliding'
     assert d.transition_time == pytest.approx(1.0)
     assert d.hold_time == pytest.approx(2.0)
-    assert d.activation_distance == (2.0, 2.0)
+    assert d.activation_distance == (3.0, 3.0)
 
 
 # ---------------------------------------------------------------------------

@@ -21,7 +21,7 @@ from arena_simulation_setup.utils.geometry import Pose, Position, Scale
 
 @attrs.define(auto_attribs=True, kw_only=True)
 class Waypoint(Position):
-    floor_id: str | None = None
+    level_id: str | None = None
 
     @property
     def position(self) -> Position:
@@ -40,30 +40,31 @@ class Waypoint(Position):
         if isinstance(obj, Position):
             return cls.from_position(pos=obj)
         if isinstance(obj, dict):
-            # Accept {"position": ..., "floor_id": ...}, a flat waypoint dict,
+            # Accept {"position": ..., "level_id": ...}, a flat waypoint dict,
             # or just a Position dict.
             if 'position' in obj:
                 pos = obj['position']
                 if not isinstance(pos, Position):
                     pos = Position.converter(pos)
-                return cls.from_position(pos=pos, floor_id=obj.get('floor_id'))
+                return cls.from_position(pos=pos, level_id=obj.get('level_id'))
             pos = Position.converter({k: obj[k] for k in ('x', 'y', 'z') if k in obj})
-            return cls.from_position(pos=pos, floor_id=obj.get('floor_id'))
+            return cls.from_position(pos=pos, level_id=obj.get('level_id'))
         raise TypeError(f"Cannot convert {obj!r} to Waypoint")
 
     @classmethod
-    def from_position(cls, pos: Position, floor_id: str | None = None) -> 'Waypoint':
-        return cls(x=pos.x, y=pos.y, z=pos.z, floor_id=floor_id)
+    def from_position(cls, pos: Position, level_id: str | None = None) -> 'Waypoint':
+        return cls(x=pos.x, y=pos.y, z=pos.z, level_id=level_id)
 
     def __add__(self, other: Position) -> Waypoint | NotImplementedType:
         if isinstance(other, Position):
-            return type(self).from_position(pos=super().__add__(other), floor_id=self.floor_id)
+            return type(self).from_position(pos=super().__add__(other), level_id=self.level_id)
         return NotImplemented
 
     def __radd__(self, other: Position) -> Waypoint | NotImplementedType:
         if isinstance(other, Position):
-            return type(self).from_position(pos=other + Position(x=self.x, y=self.y, z=self.z), floor_id=self.floor_id)
+            return type(self).from_position(pos=other + Position(x=self.x, y=self.y, z=self.z), level_id=self.level_id)
         return NotImplemented
+
 
 @attrs.define(kw_only=True)
 class Named(Parseable, Serializable):
@@ -114,17 +115,8 @@ class Entity(Named, Parseable, Serializable):
 @attrs.define
 class Obstacle(Entity):
     scale: Scale | None = None
-    floor_id: str | None = None
+    level_id: str | None = None
 
-
-def _waypoints_validator(instance: object, attribute: object, value: object) -> None:
-    if not isinstance(value, list):
-        raise TypeError("waypoints must be a list")
-    for i, wp in enumerate(value):
-        try:
-            Waypoint.from_any(wp)
-        except Exception as e:
-            raise TypeError(f"Invalid waypoint at index {i}: {e}") from e
 
 def _waypoints_converter(value: object) -> list[Waypoint]:
     if not isinstance(value, list):
@@ -135,8 +127,9 @@ def _waypoints_converter(value: object) -> list[Waypoint]:
 @attrs.define
 class DynamicObstacle(Entity):
     model: PedestrianIdentifier = attrs.field(converter=PedestrianIdentifier.converter)
-    waypoints: list[Waypoint] = attrs.field(factory=list, validator=_waypoints_validator, converter=_waypoints_converter)
+    waypoints: list[Waypoint] = attrs.field(factory=list, converter=_waypoints_converter)
     velocity: float = attrs.field(converter=float, default=1.0)  # m/s
+    level_id: str = ""
 
 
 @attrs.define

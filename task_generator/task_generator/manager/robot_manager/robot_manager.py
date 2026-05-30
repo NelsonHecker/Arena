@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import typing
 
@@ -349,6 +350,21 @@ class RobotManager(NodeInterface):
         if not request.phases:
             raise ValueError(f"TaskRequest has no phases; nothing to dispatch (robot={self.name!r})")
 
+        # Inject elevator-boarding subgoals for goals on a different level than the robot.
+        # The robot drives into the cabin, is teleported across, then the next leg becomes reachable.
+        world_manager = self.node._world_manager
+        current_level = world_manager.level_of_point(self._start_pos.position.x, self._start_pos.position.y)
+        routed_phases = []
+        for phase in request.phases:
+            if isinstance(phase, GoToPhase):
+                goal_level = world_manager.level_of_point(phase.pose.position.x, phase.pose.position.y)
+                if current_level and goal_level and goal_level != current_level:
+                    for elevator_position in world_manager.elevator_route(current_level, goal_level):
+                        routed_phases.append(GoToPhase(pose=Pose(position=elevator_position, orientation=phase.pose.orientation), tolerance_angle=math.pi))
+                    current_level = goal_level
+            routed_phases.append(phase)
+        request = attrs.evolve(request, phases=routed_phases)
+
         realized_phases = [attrs.evolve(phase, pose=self._environment_manager.realize(phase.pose)) if isinstance(phase, GoToPhase) else phase for phase in request.phases]
         request = attrs.evolve(request, phases=realized_phases)
 
@@ -407,7 +423,7 @@ class RobotManager(NodeInterface):
         await asyncio.gather(*(a.on_move(pose, self) for a in self._adapter_instances))
 
     async def move(self, pose: Pose) -> None:
-        """Teleport the robot to ``pose``. Positioning only — no task dispatch."""
+        """Teleport the robot to ``pose``. Positioning only, no task dispatch."""
         self._start_pos = pose
         await self._apply_pose(pose)
 
@@ -482,6 +498,7 @@ class RobotManager(NodeInterface):
                 robot_name=self.model_name,
                 frame=self._robot.frame.tf(),
                 task_generator_node=os.path.join(self.node.get_namespace(), self.node.get_name()),
+                env_namespace=self.node.get_namespace(),
                 use_sim_time=True,
                 base_frame=self._config.model_params.base_frame,
                 odom_frame=self._config.model_params.odom_frame,

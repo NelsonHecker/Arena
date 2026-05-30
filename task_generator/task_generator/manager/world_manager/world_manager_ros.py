@@ -1,7 +1,9 @@
 import asyncio
+import io
 import os
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import arena_runtime_msgs.msg
 import arena_runtime_msgs.srv
@@ -13,7 +15,11 @@ import launch.launch_description_sources
 import launch_ros.actions
 import lifecycle_msgs.msg
 import nav2_msgs.srv
+import nav_msgs.msg
 import numpy as np
+import PIL.Image
+import rclpy.qos
+import shapely
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_rclpy_mixins.Async import ClientWrapper
@@ -21,15 +27,20 @@ from arena_rclpy_mixins.shared import FrameNamespace
 from arena_runtime._node import NodeInterface
 from arena_simulation_setup.shared import Position
 from arena_simulation_setup.tree import DynamicPaths
-from arena_simulation_setup.tree.World.Map import Map as MapTree
+from arena_simulation_setup.tree.World.World import _render_door_polygons, _render_elevator_polygons
 
 from task_generator.manager.environment_manager import EnvironmentManager
+from task_generator.manager.realizer import Realizer
 from task_generator.simulators.human.utils import ObstacleLayer
 
 from .utils import MultiLevelMap, WorldLayers, WorldMap, WorldOccupancy
 from .world_manager import WorldManager
 
+if TYPE_CHECKING:
+    from task_generator.node import TaskGenerator
+
 _DEFAULT_RESOLUTION = 0.05
+_DOOR_MASK_BUFFER_M = 0.2
 
 
 class MapServerHandler(NodeInterface):
@@ -66,45 +77,35 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         environment_manager (EnvironmentManager): The environment manager instance.
     """
 
+    node: "TaskGenerator"
+
     _environment_manager: EnvironmentManager
 
     _cli: ClientWrapper | None
     _cli_confirm_world: ClientWrapper
     _world_name: str
     _map_server_present: bool
+    _map_render_memo: dict[str, tuple[bytes, str]]
 
     def _load_multi_level_map(self, world_root: Path) -> MultiLevelMap | None:
-        floors_dir = world_root / 'map' / 'floors'
-        if not floors_dir.is_dir():
-            return None
-
         maps: dict[str, WorldMap] = {}
-        for floor_yaml in sorted(floors_dir.glob('*.yaml')):
-            floor_id = floor_yaml.stem
+        for level_yaml in sorted(world_root.glob('*/map.yaml')):
+            level_id = level_yaml.parent.name
+            if level_id in {'scenarios', 'assets', 'map'}:
+                continue
             try:
-                maps[floor_id] = WorldMap.from_map_files(floor_yaml)
+                maps[level_id] = WorldMap.from_map_files(level_yaml)
             except Exception as exc:
-                self._logger.warn(f'failed to load floor map {floor_yaml}: {exc!r}')
+                self._logger.warn(f'failed to load level map {level_yaml}: {exc!r}')
 
         return MultiLevelMap(maps=maps) if maps else None
 
-    def _shift_map(self, map_dir: Path) -> tempfile.TemporaryDirectory:
-        """Shift the map to the correct origin.
-
-        Args:
-            map_dir (Path): The directory containing the map files.
-
-        Returns:
-            tempfile.TemporaryDirectory: A temporary directory containing the shifted map files.
-        """
-        map_dir = map_dir.resolve()
+    def _shift_map(self, png_bytes: bytes, map_yaml_text: str) -> tempfile.TemporaryDirectory:
+        """Write the rendered map into a tempdir with its origin shifted into this env's frame."""
         map_tmpdir = tempfile.TemporaryDirectory()
 
-        # create shifted yaml
-        target = map_dir / 'map.yaml'
-        with open(target) as f:
-            map_yaml = yaml.safe_load(f)
-            assert isinstance(map_yaml, dict), "map.yaml must be a dictionary"
+        map_yaml = yaml.safe_load(map_yaml_text)
+        assert isinstance(map_yaml, dict), "map.yaml must be a dictionary"
         origin = list(map_yaml.get('origin', [0, 0, 0]))
         shifted_origin = self._environment_manager.realize(
             Position(
@@ -115,34 +116,25 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         origin[0] = shifted_origin.x
         origin[1] = shifted_origin.y
         map_yaml['origin'] = origin
-        floor_origins = map_yaml.get('origins')
-        if isinstance(floor_origins, dict):
-            realizer = getattr(self.node, '_realizer', None)
-            if realizer is not None:
-                base_config = realizer.get_config()
-                shifted_floor_origins: dict[str, list[float]] = {}
-                for floor_id, offset in floor_origins.items():
-                    if not isinstance(offset, (list, tuple)) or len(offset) < 2:
-                        self._logger.warn(f"Skipping invalid floor origin for {floor_id!r}: {offset!r}")
-                        continue
-                    try:
-                        realizer.register_floor(str(floor_id), x=float(offset[0]), y=float(offset[1]))
-                    except RuntimeError:
-                        realizer.set_origin(float(offset[0]), float(offset[1]), floor_id=str(floor_id))
-                    ox = float(offset[0]) + base_config.x
-                    oy = float(offset[1]) + base_config.y
-                    shifted_floor_origins[str(floor_id)] = [ox, oy]
-                if shifted_floor_origins:
-                    map_yaml['origins'] = shifted_floor_origins
-        with open(Path(map_tmpdir.name) / 'map.yaml', 'w') as f:
-            yaml.safe_dump(map_yaml, f)
+        level_origins = map_yaml.get('origins')
+        if isinstance(level_origins, dict):
+            realizer: Realizer = self.node._realizer
+            base_config = realizer.get_config()
+            shifted_level_origins: dict[str, list[float]] = {}
+            for level_id, offset in level_origins.items():
+                if not isinstance(offset, (list, tuple)) or len(offset) < 2:
+                    self._logger.warn(f"Skipping invalid level origin for {level_id!r}: {offset!r}")
+                    continue
+                ox = float(offset[0]) + base_config.x
+                oy = float(offset[1]) + base_config.y
+                shifted_level_origins[str(level_id)] = [ox, oy]
+            if shifted_level_origins:
+                map_yaml['origins'] = shifted_level_origins
 
-        # symlink all non-targets
-        for item in os.listdir(map_dir):
-            base = map_dir / item
-            if base == target:
-                continue
-            os.symlink(base, Path(map_tmpdir.name) / item)
+        tmp = Path(map_tmpdir.name)
+        (tmp / 'map.png').write_bytes(png_bytes)
+        with open(tmp / 'map.yaml', 'w') as f:
+            yaml.safe_dump(map_yaml, f)
 
         return map_tmpdir
 
@@ -159,50 +151,42 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         t.transform.rotation.w = 1.0
         self.node._static_tf_broadcaster.sendTransform(t)
 
-    def _ensure_realizer_floors(self, world: World.MultiLevelWorld) -> None:
-        """Ensure the Realizer has a zero-origin entry for every floor id.
+    def _ensure_realizer_floors(self, world: World.WorldDescription) -> None:
+        """Ensure the Realizer has a zero-origin entry for every level id.
 
-        Single-floor worlds often use a floor id like "0"; register it so
+        Single-level worlds often use a level id like "0"; register it so
         `get_level_origin()` does not raise before explicit origins are loaded.
         """
-        realizer = getattr(self.node, '_realizer', None)
-        if realizer is None:
-            return
-        for floor_id in world.floor_ids:
-            if floor_id == "":
-                continue
+        realizer: Realizer = self.node._realizer
+        for level_id in world.level_ids:
             try:
-                realizer.register_floor(str(floor_id), x=0.0, y=0.0)
+                realizer.register_floor(str(level_id), x=0.0, y=0.0)
             except RuntimeError:
                 pass
 
-    def _seed_realizer_floor_origins(self, origins: dict[str, tuple[float, float]] | None) -> None:
-        """Populate the Realizer with the per-floor origins from the loaded world."""
+    def _seed_realizer_level_origins(self, origins: dict[str, tuple[float, float]] | None) -> None:
+        """Populate the Realizer with the per-level origins from the loaded world."""
         if not origins:
             return
-        realizer = getattr(self.node, '_realizer', None)
-        if realizer is None:
-            return
-        for floor_id, origin in origins.items():
+        realizer: Realizer = self.node._realizer
+        for level_id, origin in origins.items():
             try:
-                realizer.set_origin(float(origin[0]), float(origin[1]), floor_id=str(floor_id))
+                realizer.set_origin(float(origin[0]), float(origin[1]), level_id=str(level_id))
             except KeyError:
-                realizer.register_floor(str(floor_id), x=float(origin[0]), y=float(origin[1]))
+                realizer.register_floor(str(level_id), x=float(origin[0]), y=float(origin[1]))
 
-    def _ensure_world_map_files(self, world: World.World, description: World.WorldDescription, resolution: float) -> None:
-        """Render `map/map.png` + `map/map.yaml` if missing."""
-        map_dir = world.map.path
-        map_png = map_dir / 'map.png'
-        map_yaml = map_dir / 'map.yaml'
-        if map_png.exists() and map_yaml.exists():
-            return
-
-        os.makedirs(map_dir, exist_ok=True)
-        png_bytes, origin = description.render(resolution=resolution)
-        if not map_png.exists():
-            map_png.write_bytes(png_bytes)
-        if not map_yaml.exists():
-            map_yaml.write_text(MapTree.generate_map_yaml(resolution=resolution, filename='map.png', origin=origin))
+    def _render_world_map(
+        self,
+        world_name: str,
+        description: World.LevelDescription,
+        level_origins: dict[str, tuple[float, float]] | None = None,
+    ) -> tuple[bytes, str]:
+        """Render (map.png bytes, map.yaml text) for a world, memoized per world for this process."""
+        cached = self._map_render_memo.get(world_name)
+        if cached is None:
+            cached = description.render_map_files(level_origins=level_origins, resolution=_DEFAULT_RESOLUTION)
+            self._map_render_memo[world_name] = cached
+        return cached
 
     async def apply_world(self, world_name: str) -> bool:
         """Synchronously swap to `world_name`. Must be called inside `_run_reset_cycle`'s hold."""
@@ -211,14 +195,15 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if world_name == self._world_name:
             return True
 
-        world_view = await World.MultiLevelWorldIdentifier(world_name).resolve()
-        world = world_view.load()
+        bare_name, level_filter = World.WorldIdentifier.parse(world_name)
+        world_view = await World.WorldIdentifier(bare_name).resolve()
+        world = world_view.load(level_filter=level_filter)
+        world.apply_elevator_door_sides()
         level_origins = world_view.level_origins()
-        self._seed_realizer_floor_origins(level_origins)
-        compacted_description = world.compact_world(origins = level_origins) if level_origins is not None else world.as_world_description()
+        self._seed_realizer_level_origins(level_origins)
+        compacted_description = world.compact_world(origins=level_origins if level_origins is not None else {fid: (0.0, 0.0) for fid in world.level_ids})
 
         multi_level_map = self._load_multi_level_map(Path(world_view.path))
-        description = world
         self._ensure_realizer_floors(world)
         floors = [floor for level in world.all_levels for floor in level.all_floors]
         extent = arena_runtime_msgs.msg.WorldExtent()
@@ -252,25 +237,27 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         self._logger.warn(f'Loading World {world_name}')
 
+        if compacted_description is None:
+            compacted_description = world.compact_world(origins={fid: (0.0, 0.0) for fid in world.level_ids})
         world_map = WorldMap.from_world_description(compacted_description, resolution=_DEFAULT_RESOLUTION, time=self.node.sim_time, _level_origins=level_origins)
         DynamicPaths.WORLD.path = world_view.path
-        self.update_world(world_map=world_map, world_description=description, multi_level_map=multi_level_map)
+        self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_level_map)
 
         self._world_name = world_name
         self.node.rosparam[str].set('world', world_name)
 
-        if self._map_server_present:
-            await self._push_world_to_map_server(world, description)
+        if self._map_server_present and compacted_description is not None:
+            await self._push_world_to_map_server(compacted_description, level_origins=level_origins)
 
         await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
         await self._environment_manager.spawn_world_obstacles(self._world)
 
         return True
 
-    async def _push_world_to_map_server(self, world: World.World, description: World.WorldDescription) -> None:
+    async def _push_world_to_map_server(self, description: World.LevelDescription, level_origins: dict[str, tuple[float, float]] | None = None) -> None:
         """Render+shift+LoadMap. Caller guarantees map_server is present."""
-        self._ensure_world_map_files(world, description, resolution=_DEFAULT_RESOLUTION)
-        tmp_map = self._shift_map(world.map.path)
+        png_bytes, map_yaml_text = self._render_world_map(self._world_name, description, level_origins=level_origins)
+        tmp_map = self._shift_map(png_bytes, map_yaml_text)
         try:
             map_yaml = os.path.join(tmp_map.name, 'map.yaml')
             assert self._cli is not None
@@ -281,6 +268,57 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             raise RuntimeError(f'failed to load map for world {self._world_name}: service timed out')
         if response.result > 0:
             raise RuntimeError(f'failed to load map for world {self._world_name}: status code {response.result}')
+        self._publish_door_mask(description, png_bytes, map_yaml_text)
+
+    def _publish_door_mask(
+        self,
+        description: World.LevelDescription,
+        png_bytes: bytes,
+        map_yaml_text: str,
+    ) -> None:
+        """Publish an OccupancyGrid: 0 inside door polygons, -1 elsewhere. Aligned to the static map."""
+        img = PIL.Image.open(io.BytesIO(png_bytes))
+        width, height = img.size
+
+        map_yaml = yaml.safe_load(map_yaml_text)
+        resolution = float(map_yaml['resolution'])
+        origin_world = list(map_yaml.get('origin', [0, 0, 0]))
+
+        data = np.full(width * height, -1, dtype=np.int8)
+        polys = [p for d in description.all_doors for p in _render_door_polygons(d)] + [p for e in description.all_elevators for p in _render_elevator_polygons(e)]
+        for poly in polys:
+            if poly.is_empty:
+                continue
+            # Buffer carves into adjacent walls so global costmap inflation
+            # doesn't fully close the opening.
+            poly = poly.buffer(_DOOR_MASK_BUFFER_M)
+            min_x, min_y, max_x, max_y = poly.bounds
+            col_min = max(0, int((min_x - origin_world[0]) / resolution))
+            col_max = min(width, int((max_x - origin_world[0]) / resolution) + 1)
+            row_min = max(0, int((min_y - origin_world[1]) / resolution))
+            row_max = min(height, int((max_y - origin_world[1]) / resolution) + 1)
+            for row in range(row_min, row_max):
+                cy = origin_world[1] + (row + 0.5) * resolution
+                for col in range(col_min, col_max):
+                    cx = origin_world[0] + (col + 0.5) * resolution
+                    if poly.covers(shapely.Point(cx, cy)):
+                        data[row * width + col] = 0
+
+        shifted_origin = self._environment_manager.realize(Position(x=float(origin_world[0]), y=float(origin_world[1])))
+        assert isinstance(shifted_origin, Position)
+
+        grid = nav_msgs.msg.OccupancyGrid()
+        grid.header.frame_id = 'map'
+        grid.header.stamp = self.node.sim_time.to_msg()
+        grid.info.resolution = resolution
+        grid.info.width = width
+        grid.info.height = height
+        grid.info.origin.position.x = shifted_origin.x
+        grid.info.origin.position.y = shifted_origin.y
+        grid.info.origin.orientation.w = 1.0
+        grid.data = data.tolist()
+
+        self._door_mask_pub.publish(grid)
 
     async def require_map_server(self) -> None:
         """Idempotent: lazy-launch map_server and push the current world. Safe to call concurrently."""
@@ -307,8 +345,13 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             await self._cli.ensure()
             await self.ensure_map_server()
             if self._world_name:
-                world = await World.WorldIdentifier(self._world_name).resolve()
-                await self._push_world_to_map_server(world, world.load())
+                bare_wn, wn_filter = World.WorldIdentifier.parse(self._world_name)
+                world_view = await World.WorldIdentifier(bare_wn).resolve()
+                loaded = world_view.load(level_filter=wn_filter)
+                origins = world_view.level_origins()
+                compacted = loaded.compact_world(origins=origins if origins is not None else {fid: (0.0, 0.0) for fid in loaded.level_ids})
+                if compacted is not None:
+                    await self._push_world_to_map_server(compacted, level_origins=origins)
 
     def __init__(self, *args: object, environment_manager: EnvironmentManager, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
@@ -321,12 +364,23 @@ class WorldManagerROS(MapServerHandler, WorldManager):
                 resolution=_DEFAULT_RESOLUTION,
                 time=self.node.sim_time,
             ),
-            world_description=World.MultiLevelWorld.from_world_description(World.WorldDescription()),
+            world_description=World.WorldDescription.from_levels(World.LevelDescription()),
         )
         self._world_name = ''
         self._cli = None
         self._map_server_present = False
         self._map_server_lock = asyncio.Lock()
+        self._map_render_memo = {}
+        self._door_mask_pub = self.node.create_publisher(
+            nav_msgs.msg.OccupancyGrid,
+            'door_mask',
+            rclpy.qos.QoSProfile(
+                durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+                history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+                depth=1,
+            ),
+        )
 
     async def start(self):
         """Start the world manager."""

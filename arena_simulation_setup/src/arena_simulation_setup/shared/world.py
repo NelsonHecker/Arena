@@ -29,6 +29,7 @@ class Elevator(Named):
     transition_time: float = 1.0
     hold_time: float = 2.0
     travel_time: float = 3.0
+    accept_outside_calls: bool = True
 
     def cabin_corners(self) -> list[Position]:
         cx, cy = self.position.x, self.position.y
@@ -38,17 +39,6 @@ class Elevator(Named):
             Position(cx + hw, cy - hh),
             Position(cx + hw, cy + hh),
             Position(cx - hw, cy + hh),
-        ]
-
-    @property
-    def corners(self) -> list[Position]:
-        half_width = Position(self.size[0] / 2, 0)
-        half_length = Position(0, self.size[1] / 2)
-        return [
-            self.position - half_width - half_length,
-            self.position - half_width + half_length,
-            self.position + half_width + half_length,
-            self.position + half_width - half_length
         ]
 
 
@@ -62,7 +52,7 @@ class Door(Named):
     material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('door'))
     activation_distance: tuple[float, float] = attrs.field(
         converter=_activation_distance_converter,
-        default=(2.0, 2.0),
+        default=(3.0, 3.0),
     )
     transition_time: float = 1.0
     hold_time: float = 2.0

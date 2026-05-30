@@ -83,13 +83,6 @@ class _DoorState(enum.StrEnum):
     CLOSING = 'closing'
 
 
-class _ElevatorState(enum.StrEnum):
-    PRESENT = 'present'  # cabin here, door open by default
-    DEPARTING = 'departing'  # cabin here, door closing (sibling called)
-    ABSENT = 'absent'  # cabin at sibling, door closed
-    ARRIVING = 'arriving'  # cabin in transit toward here, door closed
-
-
 @attrs.define
 class _DoorRuntime:
     door: Door
@@ -107,10 +100,16 @@ class _ElevatorRuntime:
     elevator: Elevator
     door_name: str
     destination_name: str
-    state: _ElevatorState = _ElevatorState.ABSENT
+    # Scheduled teleport: ETA when pending_occupants arrive at destination.
     arriving_eta: float = -math.inf
-    just_arrived: dict[str, bool] = attrs.field(factory=dict)
+    # Occupants staged for teleport at arriving_eta.
     pending_occupants: tuple[tuple[str, tuple[float, float]], ...] = ()
+    # Tracks just-teleported occupants; value = whether inside-confirmed post-teleport.
+    just_arrived: dict[str, bool] = attrs.field(factory=dict)
+    # True while door is in the process of closing to dispatch a teleport.
+    departing: bool = False
+    # Occupants already dispatched this leg, still in the cabin until their teleport fires.
+    dispatched: set[str] = attrs.field(factory=set)
 
 
 @attrs.define
@@ -212,16 +211,11 @@ def _inside_cabin(elevator: Elevator, pos_xy: tuple[float, float]) -> bool:
 
 
 def _is_triggered(door: Door, positions: list[tuple[float, float]]) -> bool:
-    """True if any position is within activation_distance of either door endpoint."""
-    d0, d1 = door.activation_distance
-    sx, sy = door.start.x, door.start.y
-    ex, ey = door.end.x, door.end.y
-    for x, y in positions:
-        if d0 > 0 and (x - sx) ** 2 + (y - sy) ** 2 <= d0 * d0:
-            return True
-        if d1 > 0 and (x - ex) ** 2 + (y - ey) ** 2 <= d1 * d1:
-            return True
-    return False
+    """True if any position is within activation_distance of the door segment."""
+    radius = max(door.activation_distance)
+    if radius <= 0.0:
+        return False
+    return _near_door_segment(door, positions, radius)
 
 
 def _near_door_segment(door: Door, positions: list[tuple[float, float]], radius: float) -> bool:
@@ -299,52 +293,83 @@ def _step_elevator(
     outside_names: frozenset[str] = frozenset(),
 ) -> _ElevatorStepResult:
     result = _ElevatorStepResult()
-    state = runtime.state
     closing_abort = near_door and door_runtime.state != _DoorState.CLOSED
-    if state == _ElevatorState.PRESENT:
-        current = frozenset(name for name, _ in occupants)
-        # Per just-arrived passenger, track whether they have been positively observed inside
-        # this cabin since arrival. Only after that confirmation does an "observed outside"
-        # observation count as a real exit. This decouples just_arrived from post-teleport TF
-        # latency, which has no bounded settling time on isaac.
-        for name in list(runtime.just_arrived):
-            if name in current:
-                runtime.just_arrived[name] = True
-            elif runtime.just_arrived[name] and name in outside_names:
-                del runtime.just_arrived[name]
-        new_occupants = current - runtime.just_arrived.keys()
-        if outside_trigger or not new_occupants or closing_abort:
+
+    # Update just_arrived tracking: confirm inside observation, clear on real exit.
+    current = frozenset(name for name, _ in occupants)
+    for name in list(runtime.just_arrived):
+        if name in current:
+            runtime.just_arrived[name] = True
+        elif runtime.just_arrived[name] and name in outside_names:
+            del runtime.just_arrived[name]
+
+    # Drop dispatched occupants once they have left the cabin (their teleport has fired).
+    runtime.dispatched &= current
+
+    # Check for a scheduled arrival.
+    if runtime.arriving_eta > -math.inf and now >= runtime.arriving_eta:
+        runtime.arriving_eta = -math.inf
+        door_runtime.last_trigger_sim_time = now
+        if runtime.pending_occupants:
+            src_name = runtime.destination_name
+            result.teleport_job = (src_name, runtime.elevator.name, list(runtime.pending_occupants))
+            runtime.just_arrived = {name: False for name, _ in runtime.pending_occupants}
+            runtime.pending_occupants = ()
+        return result
+
+    # While a teleport is in transit, suppress all door triggers.
+    if runtime.arriving_eta > -math.inf:
+        return result
+
+    # Our dispatched rider is mid-flight: the cabin is away, keep the door shut until they land.
+    if runtime.dispatched:
+        return result
+
+    # Outside trigger opens the door if this elevator accepts outside calls.
+    if outside_trigger and runtime.elevator.accept_outside_calls:
+        door_runtime.last_trigger_sim_time = now
+        runtime.departing = False
+        return result
+
+    # Track new (non-just-arrived) occupants in the cabin.
+    new_occupants = current - runtime.just_arrived.keys()
+
+    # Departing phase: door closing with occupants; abort if blocker appears.
+    if runtime.departing:
+        if closing_abort:
+            runtime.departing = False
             door_runtime.last_trigger_sim_time = now
-        if door_runtime.state == _DoorState.CLOSED and new_occupants:
-            runtime.state = _ElevatorState.DEPARTING
-    elif state == _ElevatorState.DEPARTING:
-        if outside_trigger or closing_abort:
-            runtime.state = _ElevatorState.PRESENT
-            door_runtime.last_trigger_sim_time = now
-        elif door_runtime.state == _DoorState.CLOSED:
+            return result
+        if door_runtime.state == _DoorState.CLOSED:
             if dest_runtime is None:
                 result.missing_destination = True
-                runtime.state = _ElevatorState.PRESENT
+                runtime.departing = False
                 door_runtime.last_trigger_sim_time = now
-            else:
-                runtime.state = _ElevatorState.ABSENT
-                runtime.just_arrived = {}
-                dest_runtime.state = _ElevatorState.ARRIVING
-                dest_runtime.arriving_eta = now + runtime.elevator.travel_time
-                dest_runtime.pending_occupants = tuple(occupants)
-    elif state == _ElevatorState.ABSENT:
-        if outside_trigger and dest_runtime is not None and dest_runtime.state == _ElevatorState.PRESENT:
-            dest_runtime.state = _ElevatorState.DEPARTING
-    elif state == _ElevatorState.ARRIVING:
-        if now >= runtime.arriving_eta:
-            runtime.state = _ElevatorState.PRESENT
-            runtime.arriving_eta = -math.inf
-            door_runtime.last_trigger_sim_time = now
-            if runtime.pending_occupants:
-                src_name = runtime.destination_name
-                result.teleport_job = (src_name, runtime.elevator.name, list(runtime.pending_occupants))
-                runtime.just_arrived = {name: False for name, _ in runtime.pending_occupants}
-                runtime.pending_occupants = ()
+                return result
+            dest_runtime.arriving_eta = now + runtime.elevator.travel_time
+            dest_runtime.pending_occupants = tuple(occupants)
+            runtime.dispatched = {name for name, _ in occupants}
+            runtime.departing = False
+            runtime.just_arrived = {}
+            return result
+        # Door still closing: hold off.
+        return result
+
+    # Hold door open for just-arrived occupants (post-teleport) or closing blocker.
+    if runtime.just_arrived or closing_abort:
+        door_runtime.last_trigger_sim_time = now
+        return result
+
+    # No new occupants: let the door close naturally (do not refresh trigger).
+    if not new_occupants:
+        return result
+
+    # New occupant present, door has fully closed: start departing.
+    if door_runtime.state == _DoorState.CLOSED:
+        runtime.departing = True
+        return result
+
+    # Door is still open or closing: do not refresh, let it close.
     return result
 
 
@@ -425,7 +450,7 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
         dest_runtime = mech._elevator_runtime.get(runtime.destination_name)
         result = _step_elevator(runtime, door_runtime, dest_runtime, occupants, near_door, outside_trigger, now, outside_names=outside_names)
         if result.missing_destination:
-            logger.warning(f"Elevator {elev_name!r}: destination {runtime.destination_name!r} unknown; staying PRESENT.")
+            logger.warning(f"Elevator {elev_name!r}: destination {runtime.destination_name!r} unknown; door held open.")
         if result.teleport_job is not None:
             teleport_jobs.append(result.teleport_job)
 
@@ -505,10 +530,9 @@ async def shim_remove_doors(mech: MechanismITF, names: Sequence[str]) -> bool:
 
 
 async def shim_spawn_elevators(mech: MechanismITF, elevators: Sequence[Elevator]) -> bool:
-    """Spawn wall geometry and synthesized doors for each elevator, then prime PRESENT state."""
+    """Spawn wall geometry and synthesized doors for each elevator."""
     ok = True
     synthesized_doors: list[Door] = []
-    pending_runtimes: list[_ElevatorRuntime] = []
     for elevator in elevators:
         spawned: list[str] = []
         for suffix, size, pose in _elevator_wall_geometries(elevator):
@@ -521,27 +545,13 @@ async def shim_spawn_elevators(mech: MechanismITF, elevators: Sequence[Elevator]
         door = _elevator_synthesized_door(elevator)
         synthesized_doors.append(door)
         mech._elevator_doors[elevator.name] = door.name
-        pending_runtimes.append(
-            _ElevatorRuntime(
-                elevator=elevator,
-                door_name=door.name,
-                destination_name=elevator.destination,
-            )
+        mech._elevator_runtime[elevator.name] = _ElevatorRuntime(
+            elevator=elevator,
+            door_name=door.name,
+            destination_name=elevator.destination,
         )
     if synthesized_doors and not await shim_spawn_doors(mech, synthesized_doors):
         ok = False
-    for runtime in pending_runtimes:
-        mech._elevator_runtime[runtime.elevator.name] = runtime
-    now = mech.node.sim_time.to_seconds()
-    for runtime in pending_runtimes:
-        dest = mech._elevator_runtime.get(runtime.destination_name)
-        if dest is None or dest.state == _ElevatorState.ABSENT:
-            runtime.state = _ElevatorState.PRESENT
-            door_runtime = mech._door_runtime.get(runtime.door_name)
-            if door_runtime is not None:
-                door_runtime.state = _DoorState.OPEN
-                door_runtime.progress = 1.0
-                door_runtime.last_trigger_sim_time = now
     return ok
 
 

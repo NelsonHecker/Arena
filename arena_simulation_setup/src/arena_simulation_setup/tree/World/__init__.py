@@ -1,23 +1,17 @@
 from .World import (
+    ElevatorDescriptor,
     Level,
-    LevelElevator,
-    MultiLevelWorld,
-    MultiLevelWorldIdentifier,
+    LevelDescription,
     MultiLevelWorldView,
-    Shaft,
-    World,
     WorldDescription,
     WorldIdentifier,
 )
 
 __all__ = [
+    'ElevatorDescriptor',
     'Level',
-    'LevelElevator',
-    'MultiLevelWorld',
-    'MultiLevelWorldIdentifier',
+    'LevelDescription',
     'MultiLevelWorldView',
-    'Shaft',
-    'World',
     'WorldDescription',
     'WorldIdentifier',
 ]

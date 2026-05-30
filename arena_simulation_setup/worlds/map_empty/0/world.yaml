@@ -60,12 +60,12 @@ zones:
         position: [31.0, 5.0, 0.0]
         size: [2.0, 2.0, 2.5]
         door_side: "-x"
-        destination: "elevator_top"
+        destination: "0.elevator_top"
       - name: "elevator_top"
         position: [31.0, 18.0, 0.0]
         size: [2.0, 2.0, 2.5]
         door_side: "-x"
-        destination: "elevator_ground"
+        destination: "0.elevator_ground"
     mat: ""
     entities:
       static:

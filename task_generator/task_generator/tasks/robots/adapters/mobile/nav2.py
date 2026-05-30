@@ -1,4 +1,4 @@
-"""Nav2 adapter — thin composer of Nav2Bringup + GotoPoseClient."""
+"""Nav2 adapter: thin composer of Nav2Bringup + GotoPoseClient."""
 
 from __future__ import annotations
 
@@ -88,6 +88,8 @@ class Nav2Adapter(MobileAdapter):
     ) -> None:
         assert isinstance(phase, GoToPhase), f"Nav2Adapter only accepts GOTO_POSE phases; got {type(phase).__name__} (kind={phase.kind!r})"
         robot._goal_pos = phase.pose  # pylint: disable=protected-access
+        if self.client.is_done() is False:
+            self.client.cancel()
         goal = GotoPose.Goal()
         goal.target = self._phase_to_pose_stamped(phase, robot)
         goal.pose_tolerance = float(phase.tolerance_radius or 0.0)
@@ -122,6 +124,8 @@ class Nav2Adapter(MobileAdapter):
         await super().wait_until_ready(robot, node_paths)
 
     async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
+        if self.client.is_done() is False:
+            self.client.cancel()
         await super().on_reset(robot, ctx)
         await self._clear_local_costmap(robot)
 
@@ -135,8 +139,6 @@ class Nav2Adapter(MobileAdapter):
         request = robot._current_request
         if request is None or robot._phase_index >= len(request.phases):
             return
-        if self.client.is_done() is False:
-            self.client.cancel()
         await self.dispatch_phase(request.phases[robot._phase_index], robot)
 
     async def _clear_local_costmap(

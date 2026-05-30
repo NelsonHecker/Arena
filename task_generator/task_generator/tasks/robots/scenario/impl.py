@@ -1,6 +1,5 @@
-
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.tree.World import MultiLevelWorldIdentifier
+from arena_simulation_setup.tree.World import WorldIdentifier
 from arena_simulation_setup.tree.World.Scenario import RobotGoal, ScenarioGesturePhase, ScenarioGotoPhase
 
 from task_generator.shared import PositionRadius
@@ -14,7 +13,7 @@ class TM_Scenario(TM_Robots):
     _config: ROSParamT[list[RobotGoal]]
 
     def _parse_scenario(self, scenario: str) -> list[RobotGoal]:
-        return MultiLevelWorldIdentifier(self._ctx.world_manager.world_name).resolve_sync().scenario(scenario).resolve_sync().load().robots
+        return WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario(scenario).resolve_sync().load().robots
 
     async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)

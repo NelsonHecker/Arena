@@ -52,6 +52,7 @@ class AdapterCtx:
     robot_name: str
     frame: str
     task_generator_node: str
+    env_namespace: str
     use_sim_time: bool
     base_frame: str
     odom_frame: str
@@ -186,6 +187,7 @@ class Adapter(ABC):
                     use_sim_time=ctx.use_sim_time,
                     frame=ctx.frame,
                     task_generator_node=ctx.task_generator_node,
+                    env_namespace=ctx.env_namespace,
                     **self._bringup_kwargs,
                 ),
             ]

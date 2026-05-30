@@ -450,7 +450,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return bool(res) and res.ret
 
     async def spawn_walls(self, walls: Sequence[WallDefinition], clear_existing: bool = True) -> bool:
-        # return True
+        if clear_existing:
+            await self.remove_world()
         self._logger.debug("Attempting to spawn walls")
 
         async def create_segment(segment: WallSegment) -> Wall | None:
@@ -532,8 +533,13 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return res
 
     async def spawn_box(self, name: str, size: tuple[float, float, float], pose: Pose) -> bool:
-        # SpawnWalls creates a cube via create_cube(scale=(length, thickness, height)).
-        # Encode the box as a degenerate wall: AB vector carries sx and yaw; thickness=sy; dz=sz.
+        """Spawn an axis-aligned box using the SpawnWalls service.
+
+        SpawnWalls creates a cube via create_cube(scale=(length, thickness, height)).
+        Encoding: the AB vector carries sx (length) and yaw; thickness carries sy; the z
+        extent of the start/end points carries sz. This lets a single Wall message
+        fully describe a box without a dedicated service call.
+        """
         sx, sy, sz = size
         yaw = pose.orientation.to_yaw()
         cx, cy, cz = pose.position.x, pose.position.y, pose.position.z

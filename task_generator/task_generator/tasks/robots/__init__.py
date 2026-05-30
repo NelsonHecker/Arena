@@ -1,8 +1,5 @@
 import asyncio
-import typing
 import uuid
-
-from arena_rclpy_mixins.ROSParamServer import ROSParamT
 
 from task_generator.shared import Pose
 from task_generator.shared import Robot as RobotEntity
@@ -27,29 +24,6 @@ class TM_Robots(TaskMode):
 
     _last_reset: int
     _start_poses: dict[str, Pose]
-    _floor_id: ROSParamT[str]
-    _floor_id_mode: ROSParamT[str]
-
-    def __init__(self, **kwargs: object) -> None:
-        super().__init__(**kwargs)
-        self._floor_id = self.node.ROSParam[str](self.namespace('floor_id'), "")
-        self._floor_id_mode = self.node.ROSParam[str](self.namespace('floor_id_mode'), "default")
-
-    def _random_floor_id(self) -> str:
-        floor_ids = [str(floor_id) for floor_id in self._ctx.world_manager.world.floor_ids if str(floor_id)]
-        if not floor_ids:
-            return ""
-        return str(self.node.conf.General.RNG.value.choice(floor_ids))
-
-    def _resolve_floor_id(self, floor_id: str | None = None) -> str:
-        if floor_id:
-            return floor_id
-        mode = (self._floor_id_mode.value or "default").lower()
-        if mode == "random":
-            return self._random_floor_id()
-        if mode == "explicit":
-            return self._floor_id.value or ""
-        return self._random_floor_id() or self._floor_id.value or ""
 
     @property
     def start_poses(self) -> dict[str, Pose]:
@@ -76,8 +50,7 @@ class TM_Robots(TaskMode):
         pose: Pose | None = None,
         args: dict[str, str] | None = None,
     ) -> str:
-        floor_id = self._resolve_floor_id(typing.cast(str, (args or {}).get("floor_id", "")))
-        resolved_pose = pose if pose is not None else await random_placement(self._ctx, floor_id=floor_id)
+        resolved_pose = pose if pose is not None else await random_placement(self._ctx)
         assigned_name = name or f"{model}_{uuid.uuid4().hex[:6]}"
         value: dict[str, object] = dict(args or {})
         value['model'] = model

@@ -1,38 +1,29 @@
 """Registry of per-(TaskKind, bringup_kind) action-server handlers.
 
-Handlers are registered via zero-arg loader functions so their modules — and
-any non-core msgs deps (e.g. ``nav2_msgs``) — are imported only when that
+Handlers are registered via zero-arg loader functions so their modules, and
+any non-core msgs deps (e.g. ``nav2_msgs``), are imported only when that
 particular ``(task_kind, bringup_kind)`` pair is actually requested.
 """
 
 from __future__ import annotations
 
-from typing import (
-    TYPE_CHECKING,
-    Protocol,
-    TypeVar,
-)
+from abc import ABC, abstractmethod
 
 from arena_rclpy_mixins.registry import ClassRegistry
+from rclpy.action import CancelResponse
 from rclpy.action.server import ServerGoalHandle
 from rclpy.clock import Clock
 from rclpy.task import Future
 
 from arena_robots.task_kinds import TaskKind
 
-if TYPE_CHECKING:
-    from arena_robots.bringup import Bringup
 
-
-GoalT = TypeVar("GoalT")
-FeedbackT = TypeVar("FeedbackT")
-ResultT = TypeVar("ResultT")
-
-
-class TaskHandler(Protocol[GoalT, FeedbackT, ResultT]):
-    def __init__(self, bringup: Bringup, *, tf_buffer: object, node: object) -> None: ...
-
+class TaskHandler[GoalT, FeedbackT, ResultT](ABC):
+    @abstractmethod
     async def execute(self, goal_handle: ServerGoalHandle) -> ResultT: ...
+
+    def on_cancel(self, goal_handle: ServerGoalHandle) -> CancelResponse:
+        return CancelResponse.ACCEPT
 
 
 HANDLERS: ClassRegistry[tuple[TaskKind, str], type[TaskHandler]] = ClassRegistry()
@@ -43,7 +34,7 @@ async def _executor_sleep(node: object, seconds: float, *, wall: bool = False) -
     server callbacks (which run under rclpy.spin, not asyncio).
 
     ``wall=True`` uses a wall-clock timer so the sleep still ticks while sim
-    time is paused — use it for readiness/discovery polling, not for retry
+    time is paused. Use it for readiness/discovery polling, not for retry
     rate-limiting where sim-time semantics are preferred.
     """
     fut: Future = Future()

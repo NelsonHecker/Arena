@@ -73,6 +73,11 @@ repositories:
   # type: git
   # url: https://github.com/ros/angles.git
   # version: ros2
+
+  deps/nav2/nav2_mask_overlay_layer:
+    type: git
+    url: https://github.com/voshch/nav2_mask_overlay_layer
+    version: jazzy
   
   deps/slam_toolbox:
     type: git
