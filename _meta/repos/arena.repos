@@ -25,10 +25,10 @@ repositories:
     type: git
     url: https://github.com/voshch/ament_cmake_venv
     version: humble
-  deps/ament_cmake_venv_pyenv:
+  deps/ament_cmake_venv_uv:
     type: git
-    url: https://github.com/voshch/ament_cmake_venv_pyenv
-    version: master
+    url: https://github.com/voshch/ament_cmake_venv_uv
+    version: jazzy
 
   # internal management
   deps/arena_models:

@@ -509,6 +509,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                         topic_type=hint.topic_type,
                         rviz_class=hint.rviz_class,
                         config_json=_subst(hint.config_json),
+                        topic_must_exist=hint.topic_must_exist,
                     )
                     for hint in adapter.displays
                 ]

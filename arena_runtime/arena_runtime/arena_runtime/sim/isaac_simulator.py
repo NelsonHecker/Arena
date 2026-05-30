@@ -64,6 +64,7 @@ from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
     controller_spawner_node,
+    odom_relay_node,
     render_ros2_control_yaml,
     twist_stamper_node,
 )
@@ -366,6 +367,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     robot.frame.tf(robot_params.base_frame),
                 )
             )
+            if control_spec.odom_topic != "odom":
+                ld.add_action(odom_relay_node(control_spec.odom_topic))
 
         await self.node.do_launch(ld)
 

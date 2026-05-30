@@ -42,6 +42,7 @@ from task_generator.shared import (
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
     controller_spawner_node,
+    odom_relay_node,
     render_ros2_control_yaml,
     twist_stamper_node,
 )
@@ -597,6 +598,8 @@ class GazeboSimulator(BaseSim):
                     robot.frame.tf(robot_config.model_params.base_frame),
                 )
             )
+            if control_spec.odom_topic != "odom":
+                launch_description.add_action(odom_relay_node(control_spec.odom_topic))
 
         launch_description.add_action(
             launch_ros.actions.Node(
