@@ -442,6 +442,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         self._logger.info("Setting up world manager")
         self._world_manager = WorldManager(node=self, environment_manager=self._environment_manager)
+
         await self._world_manager.start()
 
         self._logger.info("Setting up robots manager")
