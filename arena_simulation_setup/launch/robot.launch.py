@@ -48,8 +48,12 @@ def generate_launch_description():
         package='arena_evaluation',
         executable='record',
         name=PythonExpression(['"data_recorder" + "', namespace.substitution, '".replace("/","_")']),
-        arguments=[
-            ['--dir', ' ', record_data_dir.substitution],
+        output='screen',
+        parameters=[
+            {
+                'record_data_dir': record_data_dir.substitution,
+                'use_sim_time': use_sim_time.substitution,
+            }
         ],
         condition=launch.conditions.IfCondition(PythonExpression(['bool("', record_data_dir.substitution, '")'])),
     )
