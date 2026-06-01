@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, ClassVar
 import attrs
 from arena_rclpy_mixins.registry import ClassRegistry
 from arena_robots.Sensor import SensorSpec, SensorType, SensorTypeOrStr
+from arena_viz.kinds import DisplayKind
 from launch.actions import GroupAction
 
 if TYPE_CHECKING:
@@ -63,13 +64,13 @@ class AdapterCtx:
 
 @attrs.frozen
 class AdapterDisplayHint:
-    """Declarative rviz display entry attached to an adapter kind. Mirrors AdapterDisplay.msg."""
+    """Declarative display entry attached to an adapter kind. Mirrors AdapterDisplay.msg."""
 
     name: str
     topic: str
+    kind: DisplayKind
     topic_type: str = ""
-    rviz_class: str = ""
-    config_json: str = ""
+    style_json: str = ""
     topic_must_exist: bool = False
 
 
@@ -119,7 +120,20 @@ class Adapter(ABC):
     """Abstract base class for robot navstack adapters. Metadata is registry-driven."""
 
     kind: ClassVar[str]
-    cap_displays: ClassVar[tuple[AdapterDisplayHint, ...]] = ()
+    cap_displays: ClassVar[tuple[AdapterDisplayHint, ...]] = (
+        AdapterDisplayHint(
+            name="Robot Model",
+            topic="{ns}/robot_description",
+            topic_type="std_msgs/String",
+            kind=DisplayKind.ROBOT_MODEL,
+        ),
+        AdapterDisplayHint(
+            name="Odometry",
+            topic="{ns}/odom",
+            topic_type="nav_msgs/Odometry",
+            kind=DisplayKind.ODOM,
+        ),
+    )
 
     def __init__(self, robot_manager: RobotManager, **bringup_kwargs: object) -> None:
         self.rm = robot_manager
@@ -234,6 +248,7 @@ __all__ = [
     "AdapterDisplayHint",
     "AdapterMeta",
     "Cap",
+    "DisplayKind",
     "ResetContext",
     "SensorSpec",
     "SensorType",

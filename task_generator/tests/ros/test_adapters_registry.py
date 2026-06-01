@@ -111,8 +111,9 @@ class TestAdapterMetaConverters:
         from arena_robots.bringup.mobile.nav2 import Nav2Bringup
         from arena_robots.clients.goto_pose import GotoPoseClient
         from arena_robots.task_kinds import TaskKind
+        from arena_viz import DisplayKind
         from task_generator.tasks.robots.adapters import AdapterDisplayHint, AdapterMeta
-        hint = AdapterDisplayHint(name="X", topic="{ns}/x")
+        hint = AdapterDisplayHint(name="X", topic="{ns}/x", kind=DisplayKind.POSE)
         meta = AdapterMeta(
             accepts={TaskKind.GOTO_POSE},
             bringup=Nav2Bringup,

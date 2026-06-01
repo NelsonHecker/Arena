@@ -1,2 +1,3 @@
-# Latched per-env list of adapter entries. Published on state/viz_manifest.
+# Latched per-env viz manifest. Published on state/viz_manifest.
+task_generator_msgs/AdapterDisplay[] env_displays
 task_generator_msgs/AdapterEntry[] entries

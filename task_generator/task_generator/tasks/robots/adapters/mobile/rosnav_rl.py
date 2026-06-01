@@ -9,6 +9,7 @@ from arena_robots.bringup.mobile.rosnav_rl import RosnavRlBringup
 from arena_robots.clients.goto_pose import GotoPoseClient
 from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import GotoPose
+from arena_viz.kinds import DisplayKind
 
 from task_generator.manager.robot_manager.collision_tracker import CollisionTrackerNode
 from task_generator.manager.world_manager.shims import requires_map_server
@@ -32,8 +33,7 @@ if TYPE_CHECKING:
             name="Subgoal",
             topic="{ns}/subgoal",
             topic_type="geometry_msgs/PoseStamped",
-            rviz_class="rviz_default_plugins/Pose",
-            config_json="",
+            kind=DisplayKind.POSE,
         ),
     ],
 )

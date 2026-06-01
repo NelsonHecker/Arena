@@ -24,7 +24,10 @@ import tf2_ros
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_robots.Sensor import SensorType
 from arena_runtime.sim import BaseSim, SimulatorRegistry
+from arena_viz.kinds import DisplayKind
+from arena_viz.style import StyleSpec
 from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterValue
 from rcl_interfaces.msg import Parameter as RclParameter
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
@@ -493,10 +496,79 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._pub_state_episode.publish(msg)
 
     def _publish_viz_manifest(self) -> None:
+        """Publish the env-level and per-robot display manifest."""
+        _SENSOR_KIND: dict[str, DisplayKind] = {
+            SensorType.LASERSCAN: DisplayKind.LASER_SCAN,
+            SensorType.POINTCLOUD: DisplayKind.POINTS_3D,
+            SensorType.IMAGE: DisplayKind.IMAGE,
+            SensorType.DEPTH: DisplayKind.IMAGE,
+            SensorType.IMU: DisplayKind.IMU,
+            SensorType.CONTACT: DisplayKind.FOOT_CONTACT,
+        }
+
+        env_ns = self.get_namespace()
+        human_sim = self.conf.Arena.HUMAN.value
+
+        env_displays: list[AdapterDisplay] = [
+            AdapterDisplay(
+                name="Map",
+                topic=str(self.service_namespace("map")),
+                topic_type="nav_msgs/OccupancyGrid",
+                kind=DisplayKind.MAP,
+                style_json=StyleSpec(alpha=0.7).to_json(),
+                topic_must_exist=False,
+            ),
+            AdapterDisplay(
+                name="TF",
+                topic="",
+                topic_type="",
+                kind=DisplayKind.TF,
+                style_json="",
+                topic_must_exist=False,
+            ),
+        ]
+        if human_sim != human_sim.__class__.DUMMY:
+            env_displays.append(
+                AdapterDisplay(
+                    name="Pedestrians",
+                    topic=f"{env_ns}/pedestrian_markers",
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.PEDESTRIANS,
+                    style_json="",
+                    topic_must_exist=False,
+                )
+            )
+
         entries: list[AdapterEntry] = []
         for mgr in self._robots_manager.managers.values():
             ns_value = str(mgr.namespace)
             robot_value = mgr.name
+
+            sensor_displays: list[AdapterDisplay] = []
+            for sensor in mgr.robot_view.model_params.sensors:
+                kind = _SENSOR_KIND.get(sensor.type)
+                if kind is None:
+                    continue
+                raw_topic = sensor.topic.replace("${namespace}", ns_value)
+                sensor_displays.append(
+                    AdapterDisplay(
+                        name=sensor.name,
+                        topic=raw_topic,
+                        topic_type="",
+                        kind=kind,
+                        style_json="",
+                        topic_must_exist=True,
+                    )
+                )
+            if sensor_displays:
+                entries.append(
+                    AdapterEntry(
+                        robot_ns=ns_value,
+                        adapter_kind="_sensors",
+                        displays=sensor_displays,
+                    )
+                )
+
             for adapter in mgr._adapter_instances:
 
                 def _subst(s: str, ns_value: str = ns_value, robot_value: str = robot_value) -> str:
@@ -507,20 +579,20 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                         name=hint.name,
                         topic=_subst(hint.topic),
                         topic_type=hint.topic_type,
-                        rviz_class=hint.rviz_class,
-                        config_json=_subst(hint.config_json),
+                        kind=hint.kind,
+                        style_json=_subst(hint.style_json),
                         topic_must_exist=hint.topic_must_exist,
                     )
                     for hint in adapter.displays
                 ]
                 entries.append(
                     AdapterEntry(
-                        robot_ns=str(mgr.namespace),
+                        robot_ns=ns_value,
                         adapter_kind=adapter.kind,
                         displays=displays,
                     )
                 )
-        self._pub_state_viz_manifest.publish(AdapterVizManifest(entries=entries))
+        self._pub_state_viz_manifest.publish(AdapterVizManifest(env_displays=env_displays, entries=entries))
 
     def set_episode_info(self, info: str) -> None:
         self._episodes.current.outcome_info = info

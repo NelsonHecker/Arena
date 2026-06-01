@@ -1,0 +1,37 @@
+"""Renderer for DisplayKind.MAP (nav_msgs/OccupancyGrid)."""
+
+from __future__ import annotations
+
+from arena_viz import DisplayKind, StyleSpec
+from task_generator_msgs.msg import AdapterDisplay, RobotDescriptor
+
+from rviz_utils.renderers._registry import register
+
+
+@register(DisplayKind.MAP)
+def render_map(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict[str, object] | None:
+    style = StyleSpec.from_json(d.style_json)
+    rviz_extra: dict[str, object] = style.extra.get("rviz", {})
+    color_scheme: str = rviz_extra.get("Color Scheme", "map")
+    durability = rviz_extra.get("Durability Policy", "Transient Local")
+    reliability = rviz_extra.get("Reliability Policy", "Reliable")
+    result: dict[str, object] = {
+        "Class": "rviz_default_plugins/Map",
+        "Name": d.name,
+        "Enabled": style.enabled,
+        "Topic": {
+            "Value": d.topic,
+            "Depth": 20,
+            "History Policy": "Keep Last",
+            "Reliability Policy": reliability,
+            "Durability Policy": durability,
+        },
+        "Alpha": style.alpha,
+        "Color Scheme": color_scheme,
+        "Draw Behind": color_scheme == "map",
+        "Use Timestamp": False,
+    }
+    for k, v in rviz_extra.items():
+        if k not in ("Color Scheme", "Durability Policy", "Reliability Policy"):
+            result[k] = v
+    return result

@@ -21,6 +21,7 @@
   <exec_depend>arena_robots</exec_depend>
   <exec_depend>arena_simulation_setup</exec_depend>
   <exec_depend>task_generator_msgs</exec_depend>
+  <exec_depend>arena_viz</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
   <test_depend>python3-hypothesis</test_depend>
