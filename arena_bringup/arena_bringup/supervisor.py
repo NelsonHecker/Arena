@@ -117,31 +117,7 @@ class Supervisor:
             self._node.destroy_client(cli)
 
 
-def _viz_spawn_commands(ns: str, viz_args: dict[str, str]) -> list[tuple[str, list[str]]]:
-    """One rviz per env, fanning out across robots when `viz.robot:=all`."""
-    robot = viz_args.get('robot', '0')
-    extras = [f'{k}:={v}' for k, v in viz_args.items() if k != 'robot']
-    base = ['ros2', 'launch', 'rviz_utils', 'rviz_config.launch.py', f'ns:={ns}', *extras]
-    if robot == 'all':
-        return [(f'rviz_{ns}_r{i}', [*base, f'robot:={i}']) for i in range(_fleet_size(ns))]
-    return [(f'rviz_{ns}', [*base, f'robot:={robot}'])]
-
-
-def _fleet_size(ns: str) -> int:
-    """Probe RobotFleet for `ns`; fall back to 1 if unknown."""
-    import rclpy.qos
-    from task_generator_msgs.msg import RobotFleet
-
-    seen: list[int] = []
-    node = rclpy.create_node('arena_supervisor_fleet_probe')
-    qos = rclpy.qos.QoSProfile(depth=1, durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL)
-    sub = node.create_subscription(RobotFleet, f'{ns}/state/robots', lambda m: seen.append(len(m.robots)), qos)
-    deadline = time.monotonic() + 5.0
-    while not seen and time.monotonic() < deadline:
-        rclpy.spin_once(node, timeout_sec=0.1)
-    node.destroy_subscription(sub)
-    node.destroy_node()
-    return seen[0] if seen else 1
+from arena_bringup import viz_backends
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -261,7 +237,7 @@ def run(args: argparse.Namespace, sup: Supervisor) -> int:
         ):
             return 1
         for ns in sorted(sup.viz_namespaces() - existing_ns):
-            for role, cmd in _viz_spawn_commands(ns, args.viz_args):
+            for role, cmd in viz_backends.viz_commands(ns, viz_backends.env_idx_from_ns(ns), args.viz_args):
                 sup.spawn(role, cmd)
 
     if runtime is not None:

@@ -268,6 +268,30 @@ declares `view` and `robot` as ROS params on the rviz_config node.
 Waits forever for a matching env to appear (10s warning cadence), mirroring
 `arena env`'s wait for the runtime. Once at least one env is up: a single
 match with no arg auto-picks; multiple matches with no arg print the list
+
+### Backend selection
+
+`rviz_utils` and [`rerun_utils`](../utils/rerun_utils) both consume the same
+[`arena_viz`](../utils/arena_viz) manifest. Pick one (or both) via the
+`backend:=` token; the default comes from `$ARENA_VIZ_BACKEND` (falling
+back to `rviz`).
+
+```bash
+arena viz                                 # rviz (default)
+arena viz 0 backend:=rerun                # rerun web viewer against env_0
+arena viz --all backend:=rviz,rerun       # both side by side, every env
+ARENA_VIZ_BACKEND=rerun arena viz --all   # rerun as the session default
+```
+
+Backend-specific knobs pass straight through:
+
+| Backend | Args | Notes |
+|---|---|---|
+| `rviz` | `view:=map\|robot\|robot3p`, `robot:=<int>\|all` | `robot:=all` fans out one window per robot. |
+| `rerun` | `web_port:=<int>`, `grpc_port:=<int>` | Defaults 9090/9876; auto-bumped per env under `--all` to avoid collisions. Requires `pip install 'rerun-sdk>=0.21'` once. |
+
+Rerun opens a browser-based viewer (no X server, container-friendly); for
+the default `web_port:=9090` go to `http://localhost:9090/`.
 and exit non-zero with a hint to use `--all` or `<env_id>`.
 
 ---
