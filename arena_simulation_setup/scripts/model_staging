@@ -29,6 +29,11 @@ class InstallStagingData:
     def execute(self):
         os.makedirs(self._install_dir, exist_ok=True)
 
+        for entry in os.listdir(self._install_dir):
+            p = os.path.join(self._install_dir, entry)
+            if os.path.islink(p):
+                os.unlink(p)
+
         for dest_name, src_path in self._symlinks.items():
             dest_path = os.path.join(self._install_dir, dest_name)
             src_path_abs = os.path.abspath(src_path)
