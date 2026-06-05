@@ -1,0 +1,30 @@
+site_name: Arena-Rosnav
+site_description: Modular ROS 2 platform for autonomous robot navigation research
+site_url: https://arena-dev.readthedocs.io/
+repo_url: https://github.com/voshch/Arena
+repo_name: voshch/Arena
+edit_uri: edit/jazzy/
+
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.indexes
+    - content.action.edit
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - gen_nav.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.highlight
