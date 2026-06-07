@@ -1,6 +1,6 @@
 """Process supervisor for `arena launch`.
 
-Spawns arena_runtime + N task_generator envs (+ rviz per env), discovers
+Spawns arena_runtime + N task_generator envs (+ viz per env), discovers
 readiness via rclpy graph queries, and propagates signals to the entire
 process tree of each child via process-group signaling.
 """
@@ -121,11 +121,11 @@ from arena_bringup import viz_backends
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    """Forward every k:=v to both runtime and env; supervisor-only knobs are env_n / rviz / viz.*."""
+    """Forward every k:=v to both runtime and env; supervisor-only knobs are env_n / viz / viz.*."""
     env_n = 1
     headless = False
-    rviz = True
-    rviz_set = False
+    viz = True
+    viz_set = False
     sim: str | None = None
     runtime_args: list[str] = []
     env_args: list[str] = []
@@ -139,9 +139,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         if key == 'env_n':
             env_n = int(value)
             continue
-        if key == 'rviz':
-            rviz_set = True
-            rviz = value.lower() in ('true', '1')
+        if key == 'viz':
+            viz_set = True
+            viz = value.lower() in ('true', '1')
             continue
         if key.startswith('viz.'):
             viz_args[key[len('viz.') :]] = value
@@ -153,13 +153,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         runtime_args.append(arg)
         env_args.append(arg)
 
-    if headless and not rviz_set:
-        rviz = False
+    if headless and not viz_set:
+        viz = False
 
     return argparse.Namespace(
         env_n=env_n,
         headless=headless,
-        rviz=rviz,
+        viz=viz,
         sim=sim,
         runtime_args=runtime_args,
         env_args=env_args,
@@ -229,7 +229,7 @@ def run(args: argparse.Namespace, sup: Supervisor) -> int:
             ],
         )
 
-    if args.rviz:
+    if args.viz:
         if not wait_until(
             lambda: len(sup.viz_namespaces()) >= target_count,
             runtime_proc=runtime,

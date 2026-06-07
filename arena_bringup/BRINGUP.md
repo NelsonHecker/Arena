@@ -9,7 +9,7 @@ either:
   check on `sim:=`.
 
 Either way it then spawns `env_n` task-generator envs and, unless
-`headless:=true` (or explicit `rviz:=false`), runs `arena viz --all` so each
+`headless:=true` (or explicit `viz:=false`), runs `arena viz --all` so each
 env gets a rviz window.
 
 For the decoupled flow (runtime stays up, envs and viz come and go), the
@@ -80,7 +80,7 @@ arena launch \
 | `sim:=gazebo` | Starts gz-sim 8 (dart physics, ogre renderer). `human` defaults to `hunav` |
 | `world:=map_empty` | Resolved to `arena_simulation_setup/worlds/map_empty/worlds/map_empty.world`; falls back to `configs/gazebo/empty.sdf` if absent |
 | `mobile.local_planner:=teb` | TEB local planner; `mobile` adapter defaults to `nav2` for gazebo, the override lands as `robot.mobile.local_planner` and is forwarded to nav2's bringup |
-| `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (rviz also suppressed unless `rviz:=true` is set explicitly) |
+| `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (viz also suppressed unless `viz:=true` is set explicitly) |
 
 To suppress the HuNavSim agent manager when no human obstacles are needed,
 add `human:=dummy` to the command above.
@@ -218,12 +218,12 @@ via `/arena/spawn_env`.
 
 ---
 
-## headless and rviz
+## headless and viz
 
 | Arg | Default | Meaning |
 |---|---|---|
-| `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `rviz:=false` unless `rviz:=true` is explicit. |
-| `rviz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
+| `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `viz:=false` unless `viz:=true` is explicit. |
+| `viz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
 | `viz.view` | `map` | Camera view in rviz: `map` (TopDownOrtho), `robot` (Orbit on robot base), `robot3p` (ThirdPersonFollower on robot base). |
 | `viz.robot` | `0` | Robot index in the fleet for `viz.view:=robot*`. `all` spawns one rviz window per robot. Ignored when `view=map`. |
 
@@ -237,10 +237,10 @@ arena launch sim:=gazebo
 arena launch sim:=gazebo headless:=true
 
 # Sim GUI hidden, rviz shown (explicit override)
-arena launch sim:=gazebo headless:=true rviz:=true
+arena launch sim:=gazebo headless:=true viz:=true
 
 # Sim GUI visible, no rviz
-arena launch sim:=gazebo rviz:=false
+arena launch sim:=gazebo viz:=false
 ```
 
 ---
