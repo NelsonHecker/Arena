@@ -236,6 +236,7 @@ class Utils:
                 "Shaft Radius": 0.05,
                 "Head Length": 0.2,
                 "Head Radius": 0.1,
+                "Covariance": {"Value": False},
             }
 
         @classmethod

@@ -25,7 +25,7 @@ uninstall(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <update|uninstall|source>"
+    echo "Usage: $name <install|update|uninstall|source|launch>"
     echo ""
     echo "arena_training + rosnav_rl for DRL-based navigation."
     echo "This enables:"
@@ -38,8 +38,18 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 case "$1" in
+    install)
+        _feature_default_install "$name"
+        exit $?
+    ;;
     update)
         update
+        exit $?
+    ;;
+    launch)
+        _feature_registry require "$name" || exit 1
+        shift
+        ros2 launch arena_training training.launch.py "$@"
         exit $?
     ;;
     uninstall)

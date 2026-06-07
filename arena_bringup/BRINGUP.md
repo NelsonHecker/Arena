@@ -36,10 +36,11 @@ already up) and is the canonical entry point for most sessions.
 
 ## Minimum-viable invocations
 
-### 1. Smoke check — dummy sim, empty map
+### 1. Smoke check - dummy sim, empty map
 
 No physics engine. Useful for verifying that the ROS graph comes up without
-hardware or GPU.
+hardware or GPU. The `sim` argument defaults to `gazebo`; pass `sim:=dummy`
+explicitly for this plumbing-only mode.
 
 ```bash
 arena launch \
@@ -52,7 +53,7 @@ arena launch \
 
 | Arg | Implication |
 |---|---|
-| `sim:=dummy` | No physics engine; a `map→dummy` static TF is published instead |
+| `sim:=dummy` | No physics engine; a `map->dummy` static TF is published instead. Must be explicit - the default is `gazebo`. |
 | `world:=map_empty` | Loads the empty map from `arena_simulation_setup` |
 | `robot:=jackal` | Single jackal; `mobile` adapter defaults to `none` (dummy sim has no nav2) |
 | `tm_robots:=explore` | Robot gets fresh random goals continuously |
@@ -80,7 +81,7 @@ arena launch \
 | `sim:=gazebo` | Starts gz-sim 8 (dart physics, ogre renderer). `human` defaults to `hunav` |
 | `world:=map_empty` | Resolved to `arena_simulation_setup/worlds/map_empty/worlds/map_empty.world`; falls back to `configs/gazebo/empty.sdf` if absent |
 | `mobile.local_planner:=teb` | TEB local planner; `mobile` adapter defaults to `nav2` for gazebo, the override lands as `robot.mobile.local_planner` and is forwarded to nav2's bringup |
-| `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (rviz also suppressed unless `rviz:=true` is set explicitly) |
+| `headless` | Omitted -> `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (rviz also suppressed unless `rviz:=true` is set explicitly) |
 
 To suppress the HuNavSim agent manager when no human obstacles are needed,
 add `human:=dummy` to the command above.
@@ -281,6 +282,16 @@ complexity:=2        # AMCL (position unknown); 3 = SLAM
 record_data_dir:=/tmp/arena_run  # enable data recording
 ```
 
+### sim:=
+
+Default is `gazebo`. Valid values:
+
+| Value | Meaning |
+|---|---|
+| `gazebo` (default) | gz-sim 8, dart physics, ogre renderer. `human` defaults to `hunav`. |
+| `isaac` | Isaac Sim via `arena feature isaac launch`. `mobile` defaults to `nav2`. |
+| `dummy` | No physics engine; a static `map->dummy` TF is published. For plumbing-only checks (no GPU, no controllers). Must be passed explicitly. |
+
 ## Cap-scoped overrides
 
 Per-robot caps (`mobile`, `arm`, `lift`) are configured at launch via three
@@ -300,6 +311,39 @@ top-level key there is overridable by the same name with the cap prefix.
 Contestant args in benchmark YAMLs use the same shapes and the same forwarding
 rules (see
 [benchmark README](../arena_evaluation/arena_evaluation/configs/benchmark/README.md#contestant-args)).
+
+### robot:=auto
+
+The `robot` argument defaults to `auto`. Instead of selecting a robot
+explicitly, `auto` resolves to a robot at launch time based on the active
+planner's declared `action_type` and `sensor_needs`:
+
+| Condition | Resolved robot |
+|---|---|
+| `action_type: omnidirectional` | `ridgeback_plus` |
+| `action_type: differential_drive` | `jackal` |
+| `sensor_needs` includes `image` or `depth` | `turtlebot` (overrides kinematics match) |
+| `mobile.kind` is not `drl`, or no planner set | `jackal` (fallback) |
+
+The resolution result is printed to the boot log:
+
+```
+arena: auto -> planner=rlrvo robot=ridgeback_plus [...]
+```
+
+`auto` is composable as a per-token value in multi-robot lists. Any `auto`
+token is substituted independently; explicit tokens are left as-is:
+
+```
+robot:=auto              # single auto-resolved robot
+robot:=auto[2]           # two auto-resolved robots
+robot:=auto,jackal       # one auto-resolved + one jackal
+robot:=jackal,auto,turtlebot[2]   # mixed fleet
+```
+
+When an explicit robot is named and its kinematic class or sensor set
+disagrees with the chosen planner, a mismatch warning is emitted; the bridge
+applies the canonical projection for that planner in that case.
 
 ## CLI verbs
 

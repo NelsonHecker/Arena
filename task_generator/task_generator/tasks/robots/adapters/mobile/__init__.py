@@ -12,6 +12,10 @@ if TYPE_CHECKING:
 
 
 class MobileAdapter(Adapter):
+    @property
+    def controls_orientation(self) -> bool:
+        return True
+
     cap_displays: ClassVar[tuple[AdapterDisplayHint, ...]] = (
         AdapterDisplayHint(
             name="Goal Pose",

@@ -21,7 +21,7 @@ def generate_launch_description():
 
     sim = LaunchArgument(
         name='sim',
-        default_value='dummy',
+        default_value='gazebo',
     )
 
     use_sim_time = LaunchArgument(

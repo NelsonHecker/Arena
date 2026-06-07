@@ -62,6 +62,10 @@ if [ $# -lt 1 ]; then
   exit 1
 fi
 case "$1" in
+  install)
+    _feature_default_install "$name"
+    exit $?
+    ;;
   update)
     update
     exit $?

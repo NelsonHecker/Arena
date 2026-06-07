@@ -7,20 +7,20 @@ Called from `arena_runtime.launch.py` with `simulator`, `use_sim_time`, `world`,
 
 ## SelectAction dispatch
 
-`SelectAction` is a key→action registry resolved at launch time. The selector
+`SelectAction` is a key->action registry resolved at launch time. The selector
 expression is `LaunchConfiguration('simulator')`. Each registered key maps to
 a `GroupAction` or `IncludeLaunchDescription`.
 
 ```
-simulator key  →  action
+simulator key  ->  action
 ──────────────────────────────────────────────────────────────────
-dummy          →  static_transform_publisher (map → dummy TF only)
-gazebo         →  gazebo/gazebo.launch.py
-isaac          →  isaac/isaac.launch.py
+dummy          ->  static_transform_publisher (map -> dummy TF only)
+gazebo         ->  gazebo/gazebo.launch.py
+isaac          ->  isaac/isaac.launch.py
 ```
 
 The `simulator` `LaunchArgument` is declared *after* the `SelectAction` is
-built so that `choices` can be derived from `launch_simulator.keys` — the
+built so that `choices` can be derived from `launch_simulator.keys` - the
 keys registered above. Passing an unregistered value causes a launch-time
 validation error.
 
@@ -28,11 +28,11 @@ validation error.
 
 ```
 launch/simulator/sim/
-├── sim.launch.py          — dispatcher (this file's parent)
+├── sim.launch.py          - dispatcher (this file's parent)
 ├── gazebo/
-│   └── gazebo.launch.py   — gz-sim 8 bringup + clock bridge
+│   └── gazebo.launch.py   - gz-sim 8 bringup + clock bridge
 └── isaac/
-    └── isaac.launch.py    — delegates to `arena feature isaac launch`
+    └── isaac.launch.py    - delegates to `arena feature isaac launch`
 ```
 
 ### gazebo/gazebo.launch.py
