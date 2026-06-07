@@ -25,6 +25,7 @@ _ARENA_DEFAULT_ROBOT = "jackal"
 @attrs.define(frozen=True)
 class _Readiness:
     """Per-robot submodule readiness from the source-tree arena_robots/.gitmodules."""
+
     ready: frozenset[str]
     pending: dict[str, frozenset[str]]  # robot -> uninitialized submodule paths
 
@@ -248,10 +249,7 @@ class RobotsManager(NodeInterface):
             readiness = _robot_readiness()
             if readiness is not None and base.robot in readiness.pending:
                 paths = ", ".join(sorted(readiness.pending[base.robot]))
-                raise RuntimeError(
-                    f"robot {base.robot!r} is not installed (submodule(s) not checked out: {paths}). "
-                    f"run: arena feature robots add {base.robot}"
-                )
+                raise RuntimeError(f"robot {base.robot!r} is not installed (submodule(s) not checked out: {paths}). run: arena feature robots add {base.robot}")
             name = base.name
             config = Robot.from_setup(base, node=self.node)
 
