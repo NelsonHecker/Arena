@@ -7,8 +7,16 @@ import mkdocs_gen_files
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 EXCLUDE_SEGMENTS = {
-    ".git", ".github", ".venv", ".ruff_cache", ".pytest_cache",
-    "node_modules", "_assets", "_meta", ".docs", "deps",
+    ".git",
+    ".github",
+    ".venv",
+    ".ruff_cache",
+    ".pytest_cache",
+    "node_modules",
+    "_assets",
+    "_meta",
+    ".docs",
+    "deps",
 }
 
 NAMED_DOCS = {"bringup.md", "driving.md", "authoring.md", "services.md"}
