@@ -152,30 +152,6 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         t.transform.rotation.w = 1.0
         self.node._static_tf_broadcaster.sendTransform(t)
 
-    def _ensure_realizer_floors(self, world: World.WorldDescription) -> None:
-        """Ensure the Realizer has a zero-origin entry for every level id.
-
-        Single-level worlds often use a level id like "0"; register it so
-        `get_level_origin()` does not raise before explicit origins are loaded.
-        """
-        realizer: Realizer = self.node._realizer
-        for level_id in world.level_ids:
-            try:
-                realizer.register_floor(str(level_id), x=0.0, y=0.0)
-            except RuntimeError:
-                pass
-
-    def _seed_realizer_level_origins(self, origins: dict[str, tuple[float, float]] | None) -> None:
-        """Populate the Realizer with the per-level origins from the loaded world."""
-        if not origins:
-            return
-        realizer: Realizer = self.node._realizer
-        for level_id, origin in origins.items():
-            try:
-                realizer.set_origin(float(origin[0]), float(origin[1]), level_id=str(level_id))
-            except KeyError:
-                realizer.register_floor(str(level_id), x=float(origin[0]), y=float(origin[1]))
-
     async def _render_world_map(
         self,
         world_name: str,
@@ -208,11 +184,11 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         world = world_view.load(level_filter=level_filter)
         world.apply_elevator_door_sides()
         level_origins = world_view.level_origins()
-        self._seed_realizer_level_origins(level_origins)
-        compacted_description = world.compact_world(origins=level_origins if level_origins is not None else {fid: (0.0, 0.0) for fid in world.level_ids})
+        origins = level_origins if level_origins is not None else {fid: (0.0, 0.0) for fid in world.level_ids}
+        self.node._realizer.reset_level_origins(origins)
+        compacted_description = world.compact_world(origins=origins)
 
         multi_level_map = self._load_multi_level_map(Path(world_view.path))
-        self._ensure_realizer_floors(world)
         floors = [floor for level in world.all_levels for floor in level.all_floors]
         extent = arena_runtime_msgs.msg.WorldExtent()
         if floors:
