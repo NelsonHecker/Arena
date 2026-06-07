@@ -37,6 +37,7 @@ services:
       - HOST_ARENA_DATA_DIR
       - ARENA_DATA_DIR=/opt/arena_ws/data
       - ROSNAV_AGENTS_DIR=/opt/arena_ws/data/agents
+      - HF_HOME=/opt/arena_ws/data/hf
       - LLM_API_ENDPOINT
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - CYCLONEDDS_URI=file:///opt/arena_ws/src/Arena/_meta/docker/cyclonedds.xml

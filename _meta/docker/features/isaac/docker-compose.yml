@@ -30,6 +30,7 @@ services:
       - HOST_ARENA_WS_DIR
       - HOST_ARENA_DATA_DIR
       - ARENA_DATA_DIR=/opt/arena_ws/data
+      - HF_HOME=/opt/arena_ws/data/hf
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
       - LLM_API_ENDPOINT
     env_file:
