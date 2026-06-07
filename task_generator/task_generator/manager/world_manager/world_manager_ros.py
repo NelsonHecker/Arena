@@ -176,7 +176,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             except KeyError:
                 realizer.register_floor(str(level_id), x=float(origin[0]), y=float(origin[1]))
 
-    def _render_world_map(
+    async def _render_world_map(
         self,
         world_name: str,
         description: World.LevelDescription,
@@ -185,7 +185,8 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """Render (map.png bytes, map.yaml text) for a world, memoized per world for this process."""
         cached = self._map_render_memo.get(world_name)
         if cached is None:
-            cached = description.render_map_files(level_origins=level_origins, resolution=_DEFAULT_RESOLUTION)
+            # rasterizing a large world is CPU-heavy; keep it off the event loop
+            cached = await asyncio.to_thread(description.render_map_files, level_origins=level_origins, resolution=_DEFAULT_RESOLUTION)
             self._map_render_memo[world_name] = cached
         return cached
 
@@ -264,7 +265,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
     async def _push_world_to_map_server(self, description: World.LevelDescription, level_origins: dict[str, tuple[float, float]] | None = None) -> None:
         """Render+shift+LoadMap. Caller guarantees map_server is present."""
-        png_bytes, map_yaml_text = self._render_world_map(self._world_name, description, level_origins=level_origins)
+        png_bytes, map_yaml_text = await self._render_world_map(self._world_name, description, level_origins=level_origins)
         tmp_map = self._shift_map(png_bytes, map_yaml_text)
         try:
             map_yaml = os.path.join(tmp_map.name, 'map.yaml')

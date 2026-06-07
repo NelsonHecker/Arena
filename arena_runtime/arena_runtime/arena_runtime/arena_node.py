@@ -124,6 +124,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
 
         period = self.rosparam[float].get("heartbeat_period_sec", 1.0)
         self.rosparam[float].get("heartbeat_timeout_sec", 5.0)
+        self.rosparam[float].get("reset_hold_timeout_sec", 30.0)
         slot_buffer = self.rosparam[float].get("slot_buffer", 5.0)
 
         self._env_registry = EnvRegistry(slot_buffer=slot_buffer)
@@ -343,12 +344,15 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
 
     async def _check_heartbeats(self) -> None:
         timeout = self.rosparam[float].get("heartbeat_timeout_sec", 5.0)
+        reset_timeout = self.rosparam[float].get("reset_hold_timeout_sec", 30.0)
         now = self.wall_time
         for env_id, record in self._env_registry.items():
             if record.draining or not record.bootstrapped:
                 continue
             elapsed = (now - Time.from_msg(record.last_heartbeat)).to_seconds()
-            if elapsed > timeout:
+            # an env mid-reset blocks its loop for seconds; tolerate longer while it holds "reset", but still cap it
+            effective = reset_timeout if self._holds.has(record.fqn, "reset") else timeout
+            if elapsed > effective:
                 await self._evict(env_id, "heartbeat_timeout")
 
     async def _evict(self, env_id: int, reason: str) -> None:
