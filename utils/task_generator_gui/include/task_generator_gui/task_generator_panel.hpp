@@ -26,7 +26,6 @@
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/empty.hpp>
-#include <std_srvs/srv/trigger.hpp>
 
 #include <rcl_interfaces/srv/set_parameters.hpp>
 #include <rcl_interfaces/msg/parameter_descriptor.hpp>
@@ -60,6 +59,8 @@
 #include <QTimer>
 #include "Qt-MultiSelectComboBox/MultiSelectComboBox.h"
 
+#include "task_generator_gui/utils/dynamic_param_tree.hpp"
+
 #include <atomic>
 #include <deque>
 #include <functional>
@@ -74,28 +75,6 @@
 namespace task_generator_gui
 {
     using rviz_common::properties::PropertyTreeModel;
-
-    // Per-rebuild shared state for the async callback chain.
-    struct RebuildState
-    {
-        uint64_t generation{0};
-        std::string mode;
-        bool is_obstacles{true};
-
-        std::vector<std::string>                         param_names;
-        std::vector<rcl_interfaces::msg::ParameterDescriptor> descriptors;
-        std::vector<rclcpp::Parameter>                   values;
-
-        // catalog results deposited by callbacks
-        std::mutex                                        mtx;
-        std::set<std::string>                            needed_catalogs;
-        std::unordered_map<std::string, std::vector<std::string>> catalog_cache;
-        std::atomic<int>                                 pending_catalogs{0};
-
-        // set once describe + get both arrive
-        std::atomic<bool>                                have_descriptors{false};
-        std::atomic<bool>                                have_values{false};
-    };
 
     class TaskGeneratorPanel
         : public rviz_common::Panel
@@ -116,7 +95,6 @@ namespace task_generator_gui
 
         void setTMObstaclesParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req);
         void setTMRobotsParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req);
-        bool generateWorld();
         void getParams();
         void setRobot();
 
@@ -141,28 +119,10 @@ namespace task_generator_gui
         // Send reset_episode (world field intentionally empty; node resolves from pending overrides).
         void sendResetEpisode();
 
-        void rebuildParamTree(QTreeWidget *tree, const std::string &mode,
-                              std::unordered_map<std::string, QWidget *> &widget_map);
-
-        std::vector<rcl_interfaces::msg::Parameter> collectParamsFor(
-            const std::unordered_map<std::string, QWidget *> &widget_map,
-            const std::unordered_map<std::string, uint8_t> &type_map);
-
-        // Set a single widget's value from a rcl_interfaces Parameter (signal-blocked).
-        void setWidgetValueFromParam(QWidget *w, const rcl_interfaces::msg::Parameter &p);
-
         // When obstacles and robots task modes match, the leaf maps to the same
         // ROS param. Copy the source widget's current value to its twin in the
         // other tree so the two stay in lockstep as the user edits.
         void mirrorSharedParam(const std::string &leaf, bool from_obstacles);
-
-        // Kept for any remaining genuinely-sync callers (none on the load path).
-        template <typename ServiceT>
-        typename ServiceT::Response::SharedPtr sendRequest(
-            const typename rclcpp::Client<ServiceT>::SharedPtr &client,
-            const typename ServiceT::Request::SharedPtr &request,
-            const std::string &service_name,
-            std::chrono::milliseconds cooldown = std::chrono::milliseconds(200));
 
         // Non-blocking readiness gate: polls `ready_check` on the rviz executor
         // until true, then runs `action` once.
@@ -182,10 +142,6 @@ namespace task_generator_gui
 
         void fetchCatalog(const std::string &catalog_name,
                           std::function<void(std::vector<std::string>)> callback);
-
-        void buildTreeWidgets(QTreeWidget *tree,
-                              std::unordered_map<std::string, QWidget *> &widget_map,
-                              const std::shared_ptr<RebuildState> &state);
 
     protected:
         std::shared_ptr<rviz_common::ros_integration::RosNodeAbstractionIface> node_ptr;
@@ -211,8 +167,6 @@ namespace task_generator_gui
         rclcpp::Client<task_generator_msgs::srv::QueueEpisode>::SharedPtr queue_episode_client;
 
         std::shared_ptr<rclcpp::AsyncParametersClient> parameters_client;
-
-        rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr generate_world_client;
 
         // --- state/episode subscription (current, deduped into history_buffer_) ---
         rclcpp::Subscription<task_generator_msgs::msg::EpisodeRecord>::SharedPtr episode_sub;
@@ -245,9 +199,8 @@ namespace task_generator_gui
         std::unordered_map<std::string, uint8_t> param_types_obstacles_;
         std::unordered_map<std::string, uint8_t> param_types_robots_;
 
-        // Per-family rebuild generation counters (incremented on each rebuildParamTree call).
-        uint64_t rebuild_gen_obstacles_{0};
-        uint64_t rebuild_gen_robots_{0};
+        std::unique_ptr<DynamicParamTree> dynamic_param_tree_obstacles_;
+        std::unique_ptr<DynamicParamTree> dynamic_param_tree_robots_;
 
         // Dirty-tracking flags: set when the user edits a widget.
         // The robot combobox is a picker for the Spawn Robot button, not a queued-state
@@ -278,7 +231,6 @@ namespace task_generator_gui
         QComboBox *robot_task_mode_combobox;
         QComboBox *robot_combobox;
         QComboBox *world_combobox;
-        QPushButton *generate_world_button;
         QPushButton *spawn_robot_button;
 
         QPushButton *discard_button;
@@ -301,7 +253,6 @@ namespace task_generator_gui
         QTableWidget *playlist_table;
 
     private Q_SLOTS:
-        void generateWorldButtonActivated();
         void onQueueClicked();
         void spawnRobotButtonActivated();
 
@@ -316,38 +267,5 @@ namespace task_generator_gui
 
         void onPauseClicked();
     };
-
-    template <typename ServiceT>
-    typename ServiceT::Response::SharedPtr TaskGeneratorPanel::sendRequest(
-        const typename rclcpp::Client<ServiceT>::SharedPtr &client,
-        const typename ServiceT::Request::SharedPtr &request,
-        const std::string &service_name,
-        std::chrono::milliseconds cooldown)
-    {
-        if (!client->wait_for_service(std::chrono::seconds(10)))
-        {
-            RCLCPP_ERROR(node->get_logger(),
-                         "Service [%s] not available.", service_name.c_str());
-            return nullptr;
-        }
-
-        auto promise = std::make_shared<std::promise<typename ServiceT::Response::SharedPtr>>();
-        auto future_result = promise->get_future();
-
-        std::function<void(typename rclcpp::Client<ServiceT>::SharedFuture)> cb =
-            [promise, service_name, cooldown, logger = node->get_logger()]
-            (typename rclcpp::Client<ServiceT>::SharedFuture f) mutable
-            {
-                rclcpp::sleep_for(cooldown);
-                try { promise->set_value(f.get()); }
-                catch (...) {
-                    RCLCPP_ERROR(logger, "Failed to call service [%s]!", service_name.c_str());
-                    promise->set_value(nullptr);
-                }
-            };
-        client->async_send_request(request, std::move(cb));
-
-        return future_result.get();
-    }
 } // namespace task_generator_gui
 #endif // TASK_GENERATOR_GUI_TASK_GENERATOR_PANEL_HPP

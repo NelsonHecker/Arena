@@ -1,5 +1,6 @@
 import abc
 import enum
+import random
 import typing
 
 import pydantic
@@ -28,8 +29,12 @@ class WorldGeneratorImpl(abc.ABC):
     Abstract base class for world generators.
     """
 
-    def __init__(self, configuration: dict) -> None:
+    config: BaseConfiguration
+    rng: random.Random
+
+    def __init__(self, configuration: dict, rng: random.Random) -> None:
         super().__init__()
+        self.rng = rng
         self.configure(configuration)
 
     @abc.abstractmethod
@@ -51,16 +56,27 @@ class WorldGenerator:
 
         return wrap
 
+    @classmethod
+    def available(cls) -> list[WorldGeneratorType]:
+        return list(cls.__registry.keys())
+
+    @classmethod
+    def config_model(cls, generator: WorldGeneratorType) -> type[BaseConfiguration]:
+        if generator not in cls.__registry:
+            raise ValueError(f"Generator {generator} has no implementation")
+        return cls.__registry[generator]().Configuration
+
     def compute(self) -> LevelDescription:
         return self._active.compute()
 
-    def update_generator(self, generator: WorldGeneratorType, configuration: dict):
+    def update_generator(self, generator: WorldGeneratorType, configuration: dict, seed: int = -1):
         if generator not in self.__registry:
             raise ValueError(f"Generator {generator} has no implementation")
-        self._active: WorldGeneratorImpl = self.__registry[generator]()(configuration)
+        rng = random.Random(seed if seed >= 0 else None)  # negative seed = nondeterministic
+        self._active: WorldGeneratorImpl = self.__registry[generator]()(configuration, rng)
 
-    def __init__(self, generator: WorldGeneratorType, configuration: dict):
-        self.update_generator(generator, configuration)
+    def __init__(self, generator: WorldGeneratorType, configuration: dict, seed: int = -1):
+        self.update_generator(generator, configuration, seed)
 
 
 @WorldGenerator.register(WorldGeneratorType.EMPTY)

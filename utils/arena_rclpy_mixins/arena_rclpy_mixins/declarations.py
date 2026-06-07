@@ -15,7 +15,7 @@ from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescri
 from rclpy import Parameter
 
 if typing.TYPE_CHECKING:
-    from arena_rclpy_mixins.ROSParamServer import ROSParamServer
+    from .ROSParamServer import ROSParamServer
 
 
 def _constraints(*tokens: str) -> str:

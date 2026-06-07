@@ -84,6 +84,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
     _cli: ClientWrapper | None
     _cli_confirm_world: ClientWrapper
     _world_name: str
+    _world_mtime: float
     _map_server_present: bool
     _map_render_memo: dict[str, tuple[bytes, str]]
 
@@ -190,13 +191,19 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
     async def apply_world(self, world_name: str) -> bool:
         """Synchronously swap to `world_name`. Must be called inside `_run_reset_cycle`'s hold."""
-        self._logger.info(f'World change requested: {world_name}')
-
-        if world_name == self._world_name:
-            return True
-
         bare_name, level_filter = World.WorldIdentifier.parse(world_name)
         world_view = await World.WorldIdentifier(bare_name).resolve()
+        mtimes = [p.stat().st_mtime for p in Path(world_view.path).glob('*/world.yaml')]
+        mtime = max(mtimes) if mtimes else 0.0
+
+        if world_name == self._world_name and mtime == self._world_mtime:
+            return True
+
+        self._logger.info(f'World change requested: {world_name}')
+
+        # regeneration reuses the name but rewrites world.yaml; drop the stale render
+        self._map_render_memo.pop(world_name, None)
+
         world = world_view.load(level_filter=level_filter)
         world.apply_elevator_door_sides()
         level_origins = world_view.level_origins()
@@ -244,6 +251,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_level_map)
 
         self._world_name = world_name
+        self._world_mtime = mtime
         self.node.rosparam[str].set('world', world_name)
 
         if self._map_server_present and compacted_description is not None:
@@ -367,6 +375,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             world_description=World.WorldDescription.from_levels(World.LevelDescription()),
         )
         self._world_name = ''
+        self._world_mtime = 0.0
         self._cli = None
         self._map_server_present = False
         self._map_server_lock = asyncio.Lock()
