@@ -10,6 +10,7 @@ import time
 import traceback
 import typing
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 
 import arena_robots.Robot
 import launch
@@ -21,6 +22,7 @@ from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_simulation_setup.utils.material import MdlUtil
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from launch import LaunchDescription
 from ros_gz_interfaces.msg import Entity as EntityMsg
@@ -177,6 +179,7 @@ class GazeboSimulator(BaseSim):
         self.entities: dict[str, Entity] = {}
         self._walls_entities: list[str] = []
         self._wall_counter = itertools.count()
+        self._material_texture_cache: dict[str, dict[str, str]] = {}
         self._spawned_names: set[str] = set()
 
         self._agent_robots: dict[str, str] = {}
@@ -500,6 +503,28 @@ class GazeboSimulator(BaseSim):
                 traceback.print_exc()
                 return False
 
+    async def _resolve_wall_textures(self, material: object) -> dict[str, str]:
+        """Resolve a wall material to absolute PBR texture paths, cached per identifier. Empty for unset/unresolvable materials."""
+        if material is None:
+            return {}
+        key = f"{material!r}|{material.modifiers!r}"
+        cached = self._material_texture_cache.get(key)
+        if cached is not None:
+            return cached
+        result: dict[str, str] = {}
+        try:
+            resolved = await material.resolve()
+            mdl = MdlUtil(Path(resolved.path))
+            for name, slot in (("albedo", "diffuse_texture"), ("normal", "normalmap_texture")):
+                tex = mdl.texture(slot)
+                if tex is not None and tex.exists():
+                    result[name] = str(tex)
+        except Exception as e:
+            self._logger.warning(f"Failed to resolve wall material textures for {material!r}: {e}")
+            result = {}
+        self._material_texture_cache[key] = result
+        return result
+
     async def spawn_walls(self, walls: Sequence[Wall], clear_existing: bool = True) -> bool:
         if clear_existing:
             await self.remove_world()
@@ -511,6 +536,7 @@ class GazeboSimulator(BaseSim):
                 height=2.0,
                 thickness=0.05,
                 base_position=(0, 0, 0),
+                textures=await self._resolve_wall_textures(wall.material),
             )
             if not wall_sdf:
                 self._logger.error(f"Failed to generate SDF for wall: {wall_name}")
@@ -734,12 +760,39 @@ class GazeboSimulator(BaseSim):
         return simulator
 
 
+def _wall_material_sdf(textures: dict[str, str] | None) -> str:
+    """PBR metal block when an albedo map is available, else the flat-gray fallback.
+
+    The diffuse/ambient base colors double as the albedo under ogre2 (its PBR path renders
+    an ambient-only material black), so they keep walls visible under both render engines.
+    """
+    if textures and textures.get("albedo"):
+        normal = f"<normal_map>{textures['normal']}</normal_map>" if textures.get("normal") else ""
+        return f"""<material>
+                    <diffuse>1 1 1 1</diffuse>
+                    <pbr>
+                        <metal>
+                            <albedo_map>{textures["albedo"]}</albedo_map>
+                            {normal}
+                            <roughness>0.8</roughness>
+                            <metalness>0.0</metalness>
+                        </metal>
+                    </pbr>
+                </material>"""
+    return """<material>
+                    <ambient>0.4 0.4 0.4 1</ambient>
+                    <diffuse>0.7 0.7 0.7 1</diffuse>
+                    <specular>0.2 0.2 0.2 1</specular>
+                </material>"""
+
+
 def _generate_wall_sdf(
     name: str,
     walls: list[Wall],
     height: float,
     thickness: float,
     base_position: tuple[float, float, float] = (0, 0, 0),
+    textures: dict[str, str] | None = None,
 ) -> str:
     """
     Generate an SDF string for a wall structure based on given parameters and base position.
@@ -761,9 +814,7 @@ def _generate_wall_sdf(
                         <size>{length} {thickness} {height}</size>
                     </box>
                 </geometry>
-                <material>
-                    <ambient>0.7 0.7 0.7 1</ambient>
-                </material>
+                {material}
             </visual>
             <collision name="collision">
                 <geometry>
@@ -775,6 +826,7 @@ def _generate_wall_sdf(
             <pose>{x} {y} {z} 0 0 {orientation}</pose>
         </link>
         """
+    material = _wall_material_sdf(textures)
     links = []
     base_x, base_y, base_z = base_position
     z = height / 2.0  # Center the wall height relative to the base
@@ -796,6 +848,7 @@ def _generate_wall_sdf(
                 y=y,
                 z=z + base_z,
                 orientation=orientation,
+                material=material,
             )
         )
 
