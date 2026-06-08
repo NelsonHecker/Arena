@@ -50,6 +50,7 @@ from isaacsim_msgs.srv import (
 )
 from task_generator.shared import (
     DynamicObstacle,
+    Model,
     ModelType,
     Obstacle,
     Orientation,
@@ -68,6 +69,7 @@ from arena_runtime.sim._control import (
     render_ros2_control_yaml,
     twist_stamper_node,
 )
+from arena_runtime.sim._walls import realize_renderable
 
 """
 IsaacHost is constructed once by arena_node and owns process-singleton resources for Isaac: the lifecycle (pause/unpause/cleanup) and the pause/unpause/delete service clients.
@@ -474,12 +476,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 self._logger.error(f"Failed to spawn wall: {e}\n{traceback.format_exc()}")
                 return None
 
-        async def create_obstacle(obstacle: ObstacleDefinition) -> Prim | None:
+        async def create_obstacle(item: tuple[ObstacleDefinition, Model]) -> Prim | None:
+            obstacle, model = item
             try:
                 prim_name = self._realizer.realize(f"obstacle_{next(self.wall_counter)}")
-                model = await (await obstacle.model.resolve()).model.get(ModelType.USD)
-                if model.type is ModelType.UNKNOWN:
-                    return None
                 assert model.path is not None, f"USD model {model.name} must have a valid file path"
                 prim = Prim()
                 prim.usd_path = str(model.path)
@@ -492,7 +492,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 return None
 
         async def create_wall(wall: WallDefinition) -> tuple[typing.Iterator[object], typing.Iterator[object]]:
-            segments, obstacles = await wall.assets()
+            segments, obstacles = await realize_renderable(wall, (ModelType.USD,))
             return map(create_segment, segments), map(create_obstacle, obstacles)
 
         wall_futures = await asyncio.gather(*map(create_wall, walls))

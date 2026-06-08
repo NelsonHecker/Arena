@@ -22,6 +22,7 @@ from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_simulation_setup.tree.Wall import WallSegment
 from arena_simulation_setup.utils.material import MdlUtil
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from launch import LaunchDescription
@@ -32,6 +33,7 @@ from task_generator.shared import (
     DynamicObstacle,
     Entity,
     Floor,
+    Model,
     ModelType,
     Obstacle,
     Orientation,
@@ -48,6 +50,7 @@ from arena_runtime.sim._control import (
     render_ros2_control_yaml,
     twist_stamper_node,
 )
+from arena_runtime.sim._walls import realize_renderable
 
 from .robot_bridge import BridgeConfiguration
 
@@ -275,8 +278,13 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*(impl(p) for p in pedestrians.pedestrians))
 
     async def spawn_floors(self, floors: Sequence[Floor]) -> bool:
-        # Gazebo does not support spawning floors
-        del floors
+        for floor in floors:
+            name = self._realizer.realize(f"floor_{next(self._wall_counter)}")
+            textures = await self._resolve_wall_textures(floor.material)
+            floor_sdf = _generate_floor_sdf(name, floor, textures)
+            async with self._semaphore:
+                await self._spawn_sdf(name, floor_sdf, Pose())
+            self._walls_entities.append(name)
         return True
 
     def robot_positions_xy(self) -> Iterable[tuple[str, tuple[float, float]]]:
@@ -373,7 +381,6 @@ class GazeboSimulator(BaseSim):
     async def _spawn_entity(self, entity: Entity) -> bool:
         async with self._semaphore:
             try:
-                # Get model description
                 try:
                     if isinstance(entity, Robot):
                         _loader_args = self._robot_loader_args(entity)
@@ -389,51 +396,44 @@ class GazeboSimulator(BaseSim):
                     self._logger.warning(f"Failed to resolve model for entity {entity.name}: unknown model type {model}")
                     return False
 
-                if model.path and model.type not in (ModelType.URDF,):
-                    # direct path available, use gz cli call
-                    world_name = "default"
-                    sdf_path = model.path
-                    # Resolve directory to actual SDF file (Gazebo requires a file, not a directory)
-                    if sdf_path.is_dir():
-                        candidate = sdf_path / f"{sdf_path.name}.sdf"
-                        if candidate.exists():
-                            sdf_path = candidate
-                        else:
-                            candidates = list(sdf_path.glob("*.sdf"))
-                            if candidates:
-                                sdf_path = candidates[0]
-                    service_name = f"/world/{world_name}/create"
-
-                    req_payload = (
-                        f'sdf_filename: "{sdf_path}", '
-                        f'name: "{entity.sim_path}", '
-                        f'pose: {{ '
-                        f'  position: {{ x: {entity.pose.position.x}, y: {entity.pose.position.y}, z: {entity.pose.position.z} }} '
-                        f'  orientation: {{ x: {entity.pose.orientation.x}, y: {entity.pose.orientation.y}, z: {entity.pose.orientation.z}, w: {entity.pose.orientation.w} }} '
-                        f'}}'
-                    )
-
-                    process = await asyncio.create_subprocess_exec('gz', 'service', '-s', service_name, '--reqtype', 'gz.msgs.EntityFactory', '--reptype', 'gz.msgs.Boolean', '--timeout', '2000', '--req', req_payload, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-
-                    stdout, stderr = await process.communicate()
-
-                    if process.returncode == 0:
-                        self._spawned_names.add(entity.sim_path)
-                        return True
-                    else:
-                        self._logger.error(f"Failed to spawn {entity.sim_path}. Error: {stderr.decode().strip()}")
-                        return False
-
-                else:
-                    ok = await self._spawn_sdf(entity.sim_path, model.description, entity.pose)
-                    if ok:
-                        self.entities[entity.name] = entity
-                    return ok
+                ok = await self._spawn_model(entity.sim_path, model, entity.pose)
+                if ok and (model.path is None or model.type is ModelType.URDF):
+                    self.entities[entity.name] = entity
+                return ok
 
             except Exception as e:
                 self._logger.error(f"Error spawning entity {entity.name}: {str(e)}")
                 traceback.print_exc()
                 return False
+
+    async def _spawn_model(self, name: str, model: Model, pose: Pose) -> bool:
+        """Spawn an already-resolved model under `name` at `pose`. Caller holds self._semaphore."""
+        if model.path and model.type not in (ModelType.URDF,):
+            # direct path available, use gz cli call
+            sdf_path = model.path
+            # Resolve directory to actual SDF file (Gazebo requires a file, not a directory)
+            if sdf_path.is_dir():
+                candidate = sdf_path / f"{sdf_path.name}.sdf"
+                if candidate.exists():
+                    sdf_path = candidate
+                else:
+                    candidates = list(sdf_path.glob("*.sdf"))
+                    if candidates:
+                        sdf_path = candidates[0]
+
+            req_payload = f'sdf_filename: "{sdf_path}", name: "{name}", pose: {{   position: {{ x: {pose.position.x}, y: {pose.position.y}, z: {pose.position.z} }}   orientation: {{ x: {pose.orientation.x}, y: {pose.orientation.y}, z: {pose.orientation.z}, w: {pose.orientation.w} }} }}'
+
+            process = await asyncio.create_subprocess_exec('gz', 'service', '-s', '/world/default/create', '--reqtype', 'gz.msgs.EntityFactory', '--reptype', 'gz.msgs.Boolean', '--timeout', '2000', '--req', req_payload, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+
+            _, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                self._spawned_names.add(name)
+                return True
+            self._logger.error(f"Failed to spawn {name}. Error: {stderr.decode().strip()}")
+            return False
+
+        return await self._spawn_sdf(name, model.description, pose)
 
     async def _spawn_sdf(self, name: str, sdf: str, pose: Pose) -> bool:
         """Spawn from an in-memory SDF via ros_gz_bridge. Caller holds self._semaphore."""
@@ -529,21 +529,23 @@ class GazeboSimulator(BaseSim):
         if clear_existing:
             await self.remove_world()
         for wall in walls:
-            wall_name = self._realizer.realize(f"wall_{next(self._wall_counter)}")
-            wall_sdf = _generate_wall_sdf(
-                name=wall_name,
-                walls=[wall],
-                height=2.0,
-                thickness=0.05,
-                base_position=(0, 0, 0),
-                textures=await self._resolve_wall_textures(wall.material),
-            )
-            if not wall_sdf:
-                self._logger.error(f"Failed to generate SDF for wall: {wall_name}")
-                continue
-            async with self._semaphore:
-                await self._spawn_sdf(wall_name, wall_sdf, Pose())
-            self._walls_entities.append(wall_name)
+            segments, obstacles = await realize_renderable(wall, (ModelType.SDF,))
+            boxes = []
+            for segment in segments:
+                boxes.append((segment, await self._resolve_wall_textures(segment.material)))
+            if boxes:
+                wall_name = self._realizer.realize(f"wall_{next(self._wall_counter)}")
+                wall_sdf = _generate_wall_sdf(wall_name, boxes)
+                if wall_sdf:
+                    async with self._semaphore:
+                        await self._spawn_sdf(wall_name, wall_sdf, Pose())
+                    self._walls_entities.append(wall_name)
+            for obstacle, model in obstacles:
+                obstacle.sim_path = self._realizer.realize(f"wall_obj_{next(self._wall_counter)}")
+                async with self._semaphore:
+                    ok = await self._spawn_model(obstacle.sim_path, model, obstacle.pose)
+                if ok:
+                    self._walls_entities.append(obstacle.sim_path)
         return True
 
     async def remove_world(self) -> bool:
@@ -786,21 +788,12 @@ def _wall_material_sdf(textures: dict[str, str] | None) -> str:
                 </material>"""
 
 
-def _generate_wall_sdf(
-    name: str,
-    walls: list[Wall],
-    height: float,
-    thickness: float,
-    base_position: tuple[float, float, float] = (0, 0, 0),
-    textures: dict[str, str] | None = None,
-) -> str:
-    """
-    Generate an SDF string for a wall structure based on given parameters and base position.
-    """
+def _generate_wall_sdf(name: str, boxes: list[tuple[WallSegment, dict[str, str]]]) -> str:
+    """SDF model with one box link per (WallSegment, textures) pair, each at the segment's own z/height."""
     sdf_template = """
         <sdf version="1.6">
             <model name="{name}">
-                <pose>{base_x} {base_y} {base_z} 0 0 0</pose>
+                <pose>0 0 0 0 0 0</pose>
                 {links}
                 <static>true</static>
             </model>
@@ -826,33 +819,62 @@ def _generate_wall_sdf(
             <pose>{x} {y} {z} 0 0 {orientation}</pose>
         </link>
         """
-    material = _wall_material_sdf(textures)
     links = []
-    base_x, base_y, base_z = base_position
-    z = height / 2.0  # Center the wall height relative to the base
-
-    for i, w in enumerate(walls):
-        x1, y1, x2, y2 = w.start.x, w.start.y, w.end.x, w.end.y
+    for i, (segment, textures) in enumerate(boxes):
+        x1, y1, x2, y2 = segment.start.x, segment.start.y, segment.end.x, segment.end.y
         length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+        if length < 1e-9:
+            continue
         orientation = math.atan2(y2 - y1, x2 - x1)
-        x = (x1 + x2) / 2 + base_x
-        y = (y1 + y2) / 2 + base_y
-
         links.append(
             link_template.format(
                 index=i,
                 length=length,
-                thickness=thickness,
-                height=height,
-                x=x,
-                y=y,
-                z=z + base_z,
+                thickness=segment.width,
+                height=segment.height,
+                x=(x1 + x2) / 2,
+                y=(y1 + y2) / 2,
+                z=segment.start.z + segment.height / 2.0,
                 orientation=orientation,
-                material=material,
+                material=_wall_material_sdf(textures),
             )
         )
 
-    return sdf_template.format(name=name, base_x=base_x, base_y=base_y, base_z=base_z, links="\n".join(links))
+    if not links:
+        return ""
+    return sdf_template.format(name=name, links="\n".join(links))
+
+
+def _generate_floor_sdf(name: str, floor: Floor, textures: dict[str, str]) -> str:
+    """SDF model with one thin box link placed just above the world ground plane."""
+    thickness = 0.02
+    center_z = floor.pos.z + thickness / 2.0 + 0.001
+    return f"""
+        <sdf version="1.6">
+            <model name="{name}">
+                <pose>0 0 0 0 0 0</pose>
+                <link name="floor_link">
+                    <visual name="visual">
+                        <geometry>
+                            <box>
+                                <size>{floor.x_length} {floor.y_length} {thickness}</size>
+                            </box>
+                        </geometry>
+                        {_wall_material_sdf(textures)}
+                    </visual>
+                    <collision name="collision">
+                        <geometry>
+                            <box>
+                                <size>{floor.x_length} {floor.y_length} {thickness}</size>
+                            </box>
+                        </geometry>
+                    </collision>
+                    <pose>{floor.pos.x} {floor.pos.y} {center_z} 0 0 0</pose>
+                </link>
+                <static>true</static>
+            </model>
+        </sdf>
+        """
 
 
 _BOX_SDF_TEMPLATE = """
