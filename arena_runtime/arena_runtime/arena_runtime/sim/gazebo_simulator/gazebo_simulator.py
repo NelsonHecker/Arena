@@ -884,6 +884,7 @@ _BOX_SDF_TEMPLATE = """
         <link name="link">
             <visual name="visual">
                 <geometry><box><size>{sx} {sy} {sz}</size></box></geometry>
+                {material}
             </visual>
             <collision name="collision">
                 <geometry><box><size>{sx} {sy} {sz}</size></box></geometry>
@@ -896,4 +897,4 @@ _BOX_SDF_TEMPLATE = """
 
 def _generate_box_sdf(name: str, size: tuple[float, float, float]) -> str:
     sx, sy, sz = size
-    return _BOX_SDF_TEMPLATE.format(name=name, sx=sx, sy=sy, sz=sz)
+    return _BOX_SDF_TEMPLATE.format(name=name, sx=sx, sy=sy, sz=sz, material=_wall_material_sdf(None))
