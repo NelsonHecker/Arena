@@ -9,7 +9,7 @@ either:
   check on `sim:=`.
 
 Either way it then spawns `env_n` task-generator envs and, unless
-`headless:=true` (or explicit `rviz:=false`), runs `arena viz --all` so each
+`headless:=true` (or explicit `viz:=false`), runs `arena viz --all` so each
 env gets a rviz window.
 
 For the decoupled flow (runtime stays up, envs and viz come and go), the
@@ -80,7 +80,7 @@ arena launch \
 | `sim:=gazebo` | Starts gz-sim 8 (dart physics, ogre renderer). `human` defaults to `hunav` |
 | `world:=map_empty` | Resolved to `arena_simulation_setup/worlds/map_empty/worlds/map_empty.world`; falls back to `configs/gazebo/empty.sdf` if absent |
 | `mobile.local_planner:=teb` | TEB local planner; `mobile` adapter defaults to `nav2` for gazebo, the override lands as `robot.mobile.local_planner` and is forwarded to nav2's bringup |
-| `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (rviz also suppressed unless `rviz:=true` is set explicitly) |
+| `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (viz also suppressed unless `viz:=true` is set explicitly) |
 
 To suppress the HuNavSim agent manager when no human obstacles are needed,
 add `human:=dummy` to the command above.
@@ -218,12 +218,12 @@ via `/arena/spawn_env`.
 
 ---
 
-## headless and rviz
+## headless and viz
 
 | Arg | Default | Meaning |
 |---|---|---|
-| `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `rviz:=false` unless `rviz:=true` is explicit. |
-| `rviz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
+| `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `viz:=false` unless `viz:=true` is explicit. |
+| `viz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
 | `viz.view` | `map` | Camera view in rviz: `map` (TopDownOrtho), `robot` (Orbit on robot base), `robot3p` (ThirdPersonFollower on robot base). |
 | `viz.robot` | `0` | Robot index in the fleet for `viz.view:=robot*`. `all` spawns one rviz window per robot. Ignored when `view=map`. |
 
@@ -237,10 +237,10 @@ arena launch sim:=gazebo
 arena launch sim:=gazebo headless:=true
 
 # Sim GUI hidden, rviz shown (explicit override)
-arena launch sim:=gazebo headless:=true rviz:=true
+arena launch sim:=gazebo headless:=true viz:=true
 
 # Sim GUI visible, no rviz
-arena launch sim:=gazebo rviz:=false
+arena launch sim:=gazebo viz:=false
 ```
 
 ---
@@ -268,6 +268,30 @@ declares `view` and `robot` as ROS params on the rviz_config node.
 Waits forever for a matching env to appear (10s warning cadence), mirroring
 `arena env`'s wait for the runtime. Once at least one env is up: a single
 match with no arg auto-picks; multiple matches with no arg print the list
+
+### Backend selection
+
+`rviz_utils` and [`rerun_utils`](../utils/rerun_utils) both consume the same
+[`arena_viz`](../utils/arena_viz) manifest. Pick one (or both) via the
+`backend:=` token; the default comes from `$ARENA_VIZ_BACKEND` (falling
+back to `rviz`).
+
+```bash
+arena viz                                 # rviz (default)
+arena viz 0 backend:=rerun                # rerun web viewer against env_0
+arena viz --all backend:=rviz,rerun       # both side by side, every env
+ARENA_VIZ_BACKEND=rerun arena viz --all   # rerun as the session default
+```
+
+Backend-specific knobs pass straight through:
+
+| Backend | Args | Notes |
+|---|---|---|
+| `rviz` | `view:=map\|robot\|robot3p`, `robot:=<int>\|all` | `robot:=all` fans out one window per robot. |
+| `rerun` | `web_port:=<int>`, `grpc_port:=<int>` | Defaults 9090/9876; auto-bumped per env under `--all` to avoid collisions. Requires `pip install 'rerun-sdk>=0.21'` once. |
+
+Rerun opens a browser-based viewer (no X server, container-friendly); for
+the default `web_port:=9090` go to `http://localhost:9090/`.
 and exit non-zero with a hint to use `--all` or `<env_id>`.
 
 ---

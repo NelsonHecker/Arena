@@ -8,7 +8,7 @@ setup(
     name=package_name,
     version='0.0.0',
     # Packages to export
-    packages=[package_name],
+    packages=[package_name, f'{package_name}.renderers'],
     # Files we want to install, specifically launch files
     data_files=[
         # Install marker file in the package index

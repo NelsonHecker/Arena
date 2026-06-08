@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 import geometry_msgs.msg
+from arena_viz.kinds import DisplayKind
 
 from task_generator.tasks.robots.adapters import ADAPTERS, Adapter, AdapterDisplayHint
 
@@ -13,17 +14,18 @@ if TYPE_CHECKING:
 
 class MobileAdapter(Adapter):
     cap_displays: ClassVar[tuple[AdapterDisplayHint, ...]] = (
+        *Adapter.cap_displays,
         AdapterDisplayHint(
             name="Goal Pose",
             topic="{ns}/goal_pose",
             topic_type="geometry_msgs/PoseStamped",
-            rviz_class="rviz_default_plugins/Pose",
+            kind=DisplayKind.POSE,
         ),
         AdapterDisplayHint(
             name="Plan",
             topic="{ns}/plan",
             topic_type="nav_msgs/Path",
-            rviz_class="rviz_default_plugins/Path",
+            kind=DisplayKind.PATH,
             topic_must_exist=True,
         ),
     )

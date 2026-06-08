@@ -1,0 +1,35 @@
+"""Renderer for DisplayKind.PLANNING_SCENE (moveit_msgs/PlanningScene)."""
+
+from __future__ import annotations
+
+from arena_viz import DisplayKind, StyleSpec
+from task_generator_msgs.msg import AdapterDisplay, RobotDescriptor
+
+from rviz_utils.renderers._registry import register
+
+
+@register(DisplayKind.PLANNING_SCENE)
+def render_planning_scene(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict[str, object] | None:
+    style = StyleSpec.from_json(d.style_json)
+    robot_desc = ""
+    if robot is not None:
+        robot_desc = f"{robot.name}.robot_description"
+    name = d.name
+    if robot is not None:
+        name = f"{robot.name}: {d.name}"
+    result: dict[str, object] = {
+        "Class": "moveit_rviz_plugin/PlanningScene",
+        "Name": name,
+        "Enabled": style.enabled,
+        "Robot Description": robot_desc,
+        "Move Group Namespace": robot.ns if robot is not None else "",
+        "Planning Scene Topic": {
+            "Value": d.topic,
+            "Depth": 20,
+            "History Policy": "Keep Last",
+            "Reliability Policy": "Reliable",
+            "Durability Policy": "Volatile",
+        },
+    }
+    result.update(style.extra.get("rviz", {}))
+    return result

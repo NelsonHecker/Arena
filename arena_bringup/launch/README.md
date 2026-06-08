@@ -21,8 +21,8 @@ args (`sim`, `headless`, `world`, `use_sim_time`, `log_level`) go to
 | `mobile.<key>:=<val>` | adapter-scoped | — | Override any kwarg the bound mobile adapter accepts. Lands as ROS param `robot.mobile.<key>` and overlays the cap-file YAML. Examples: `mobile.local_planner:=teb`, `mobile.global_planner:=smac`, `mobile.agent:=jackal_pretrained`. |
 | `arm.<key>:=<val>` | adapter-scoped | — | Same shape for the arm cap. |
 | `sim` | string | `dummy` | Physics simulator: `dummy`, `gazebo`, or `isaac` |
-| `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses rviz unless `rviz:=true` is explicit. |
-| `rviz` | bool string | `true` | `arena launch` only: run `arena viz --all` after envs are up. Forced `false` when `headless:=true` unless overridden. |
+| `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses viz unless `viz:=true` is explicit. |
+| `viz` | bool string | `true` | `arena launch` only: run `arena viz --all` after envs are up. Forced `false` when `headless:=true` unless overridden. |
 | `human` | string | `dummy` for `dummy` sim, `hunav` for `gazebo`/`isaac` | Human-simulator backend |
 | `complexity` | string | `1` | `1` map+position known; `2` map known AMCL; `3` SLAM |
 | `record_data_dir` | string | `` (empty) | Directory for data recording; empty disables |

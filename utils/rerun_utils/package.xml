@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>rerun_utils</name>
+  <version>0.0.0</version>
+  <description>Rerun.io web-viewer bridge for the arena_viz contract.</description>
+
+  <maintainer email="dev@voshch.dev">voshch</maintainer>
+
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>arena_rclpy_mixins</depend>
+  <depend>arena_viz</depend>
+  <depend>task_generator_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_msgs</depend>
+  <depend>visualization_msgs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
