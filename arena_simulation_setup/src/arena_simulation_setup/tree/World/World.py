@@ -3,6 +3,7 @@ import logging
 import math
 import os
 import tarfile
+import time
 import typing
 from collections.abc import Iterator
 from copy import deepcopy
@@ -861,22 +862,29 @@ class MultiLevelWorldView(PathView):
 
         if not hasattr(tarfile, 'data_filter'):
             tarball.extractall(self.path)
-            return self.path
+        else:
+            _filter = tarfile.data_filter
+            if map_only:
 
-        _filter = tarfile.data_filter
-        if map_only:
-
-            def map_only_filter(member: tarfile.TarInfo, destpath: str) -> tarfile.TarInfo | None:
-                if not tarfile.data_filter(member, destpath):
+                def map_only_filter(member: tarfile.TarInfo, destpath: str) -> tarfile.TarInfo | None:
+                    if not tarfile.data_filter(member, destpath):
+                        return None
+                    parts = member.name.split('/', 1)
+                    if len(parts) == 2 and parts[1] in {'map.png', 'map.yaml'}:
+                        return member
                     return None
-                parts = member.name.split('/', 1)
-                if len(parts) == 2 and parts[1] in {'map.png', 'map.yaml'}:
-                    return member
-                return None
 
-            _filter = map_only_filter
+                _filter = map_only_filter
 
-        tarball.extractall(self.path, filter=_filter)
+            tarball.extractall(self.path, filter=_filter)
+
+        # tar members carry epoch-0 mtime; stamp extracted files with the write time so a re-saved world is detectable
+        now = time.time()
+        for member in tarball.getmembers():
+            extracted = os.path.join(self.path, member.name)
+            if member.isfile() and os.path.exists(extracted):
+                os.utime(extracted, (now, now))
+
         return self.path
 
     def level_origins(self) -> dict[str, tuple[float, float]] | None:

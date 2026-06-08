@@ -23,6 +23,7 @@ set(CMAKE_AUTOMOC ON)
 qt5_wrap_cpp(MOC_FILES
   include/task_generator_gui/task_generator_panel.hpp
   include/task_generator_gui/spawn_pedestrian_tool.hpp
+  include/task_generator_gui/world_generator_panel.hpp
   include/Qt-MultiSelectComboBox/MultiSelectComboBox.h
   )
 
@@ -30,7 +31,9 @@ qt5_wrap_cpp(MOC_FILES
   src/task_generator_panel.cpp
   src/task_generator_panel_getset_params.cpp
   src/task_generator_panel_dynamic_params.cpp
+  src/utils/dynamic_param_tree.cpp
   src/spawn_pedestrian_tool.cpp
+  src/world_generator_panel.cpp
   src/Qt-MultiSelectComboBox/MultiSelectComboBox.cpp
   ${MOC_FILES})
 target_include_directories(task_generator_panel PUBLIC

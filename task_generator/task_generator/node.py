@@ -710,7 +710,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             record = self._episodes.current
             await self.hold("reset")
             try:
-                if record.world and record.world != self._world_manager.loaded_world:
+                if record.world:
                     await self._world_manager.apply_world(record.world)
                 await self._task.reset(world=record.world, seed=record.seed)
             finally:

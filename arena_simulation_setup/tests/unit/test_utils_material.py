@@ -106,3 +106,43 @@ def test_mdlutil_diffuse_texture_paths_invalid_lines(tmp_path):
     mdl_file.write_text("diffuse_texture: not_a_texture_2d(blah)\n")
     paths = list(MdlUtil(mdl_file).diffuse_texture_paths)
     assert paths == []
+
+
+# ---------------------------------------------------------------------------
+# MdlUtil.texture
+# ---------------------------------------------------------------------------
+
+
+def test_mdlutil_texture_diffuse_slot(tmp_path):
+    mdl_file = tmp_path / "mat.mdl"
+    mdl_file.write_text('diffuse_texture: texture_2d("./Mat/Mat_BaseColor.png")\n')
+    tex = MdlUtil(mdl_file).texture("diffuse_texture")
+    assert tex is not None
+    assert tex.name == "Mat_BaseColor.png"
+    assert tex.parent == tmp_path / "Mat"
+
+
+def test_mdlutil_texture_normal_slot(tmp_path):
+    mdl_content = (
+        'diffuse_texture: texture_2d("./Mat/Mat_BaseColor.png")\n'
+        'normalmap_texture: texture_2d("./Mat/Mat_N.png")\n'
+    )
+    mdl_file = tmp_path / "mat.mdl"
+    mdl_file.write_text(mdl_content)
+    assert MdlUtil(mdl_file).texture("normalmap_texture").name == "Mat_N.png"
+
+
+def test_mdlutil_texture_empty_slot_returns_none(tmp_path):
+    mdl_content = (
+        'diffuse_texture: texture_2d("./Mat/Mat_BaseColor.png")\n'
+        "normalmap_texture: texture_2d()\n"
+    )
+    mdl_file = tmp_path / "mat.mdl"
+    mdl_file.write_text(mdl_content)
+    assert MdlUtil(mdl_file).texture("normalmap_texture") is None
+
+
+def test_mdlutil_texture_absent_slot_returns_none(tmp_path):
+    mdl_file = tmp_path / "mat.mdl"
+    mdl_file.write_text('diffuse_texture: texture_2d("./Mat/Mat_BaseColor.png")\n')
+    assert MdlUtil(mdl_file).texture("ORM_texture") is None

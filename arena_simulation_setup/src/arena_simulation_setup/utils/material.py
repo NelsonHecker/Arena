@@ -1,4 +1,5 @@
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 import colourings
@@ -68,15 +69,24 @@ class MdlUtil:
     def __init__(self, path: Path):
         self.path = path
 
+    def _texture_paths(self, slot: str) -> Iterator[Path]:
+        """Yields paths to texture files bound to the given OmniPBR slot (e.g. 'diffuse_texture')."""
+        pattern = re.compile(rf'{slot}:\s*texture_2d\("([^"]+)"')
+        with open(self.path) as f:
+            for line in f:
+                match = pattern.search(line)
+                if match:
+                    yield self.path.parent / Path(match.group(1))
+
+    def texture(self, slot: str) -> Path | None:
+        """First texture bound to the given slot, or None if the slot is empty/absent."""
+        return next(self._texture_paths(slot), None)
+
     @property
-    def diffuse_texture_paths(self):
+    def diffuse_texture_paths(self) -> Iterator[Path]:
         """Yields paths to diffuse texture files referenced by the .mdl file.
 
         Yields:
             Path: Path to a texture file.
         """
-        with open(self.path) as f:
-            for line in f:
-                match = re.search(r'diffuse_texture:\s*texture_2d\("([^"]+)"', line)
-                if match:
-                    yield self.path.parent / Path(match.group(1))
+        return self._texture_paths('diffuse_texture')

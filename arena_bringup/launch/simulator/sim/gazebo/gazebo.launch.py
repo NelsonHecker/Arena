@@ -1,15 +1,28 @@
 import itertools
 import os
+import subprocess
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable
+from launch.actions import IncludeLaunchDescription, LogInfo, OpaqueFunction, SetEnvironmentVariable
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 from arena_bringup.future import IfElseSubstitution, PythonExpression  # noqa
 from arena_bringup.substitutions import LaunchArgument
+
+
+def _select_render_engine() -> str:
+    """ogre2 renders PBR materials but needs a real GL device; ogre1 is the software-safe fallback.
+    Forced-software GL (LIBGL_ALWAYS_SOFTWARE) segfaults ogre2's GL3Plus backend, so it pins ogre1."""
+    if os.environ.get("LIBGL_ALWAYS_SOFTWARE", "0").lower() in ("1", "true"):
+        return "ogre"
+    try:
+        subprocess.run(["nvidia-smi"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    except Exception:
+        return "ogre"
+    return "ogre2"
 
 
 def generate_launch_description():
@@ -110,7 +123,8 @@ def generate_launch_description():
     def _launch_gazebo(context, *args, **kwargs):
         resolved_world = context.perform_substitution(world_path)
         headless_val = context.perform_substitution(headless.substitution)
-        gz_args = resolved_world + " -r --render-engine ogre"
+        engine = _select_render_engine()
+        gz_args = resolved_world + f" -r --render-engine {engine}"
         if headless_val.lower() in ("true", "1"):
             gz_args += " -s"
         include = IncludeLaunchDescription(
@@ -125,7 +139,7 @@ def generate_launch_description():
                 "physics-engine": "gz-physics-dartsim",
             }.items(),
         )
-        return [include]
+        return [LogInfo(msg=f"gazebo render engine: {engine} (ogre2 = PBR/textures, needs GPU)"), include]
 
     gazebo = OpaqueFunction(function=_launch_gazebo)
 

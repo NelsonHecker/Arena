@@ -129,6 +129,7 @@ class ConfigFileGenerator(ArenaMixinNode):
                         arguments=['-d', config_file],
                         parameters=rviz_parameters,
                         output="screen",
+                        additional_env={"LIBGL_ALWAYS_SOFTWARE": "1"},
                     ),
                 ]
             )

@@ -61,8 +61,6 @@ namespace task_generator_gui
 
         parameters_client = std::make_shared<rclcpp::AsyncParametersClient>(node, task_generator_node);
 
-        generate_world_client = node->create_client<std_srvs::srv::Trigger>("/world_generator/generate_world");
-
         // Latched paused-state subscription.
         {
             rclcpp::QoS pqos(rclcpp::KeepLast(1));
@@ -272,13 +270,13 @@ namespace task_generator_gui
                     {
                         auto m = obstacles_task_mode.toStdString();
                         for (char &c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                        rebuildParamTree(obstacles_tree, m, param_widgets_obstacles_);
+                        dynamic_param_tree_obstacles_->rebuild("task." + m);
                     }
                     if (rob_changed && robots_tree)
                     {
                         auto m = robots_task_mode.toStdString();
                         for (char &c : m) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                        rebuildParamTree(robots_tree, m, param_widgets_robots_);
+                        dynamic_param_tree_robots_->rebuild("task." + m);
                     }
                 }, Qt::QueuedConnection);
             });
@@ -311,16 +309,44 @@ namespace task_generator_gui
         connect(spawn_robot_button, &QPushButton::clicked, this, &TaskGeneratorPanel::spawnRobotButtonActivated);
         robot_combobox->parentWidget()->layout()->addWidget(spawn_robot_button);
 
-        generate_world_button = new QPushButton("Generate World");
-        connect(generate_world_button, &QPushButton::clicked, this, &TaskGeneratorPanel::generateWorldButtonActivated);
-        this->root_layout->addWidget(generate_world_button);
-
         // World combobox — disabled until worlds arrive.
         world_combobox = setupComboBoxWithLabel(this->root_layout, QStringList{"Loading..."}, QString("World"));
         world_combobox->setEnabled(false);
         connect(world_combobox, &QComboBox::currentTextChanged, this, &TaskGeneratorPanel::onWorldChanged);
 
         setupTabs(this->root_layout);
+
+        dynamic_param_tree_obstacles_ = std::make_unique<DynamicParamTree>(
+            node, parameters_client,
+            obstacles_tree,
+            &param_widgets_obstacles_, &param_types_obstacles_,
+            [this](const std::string &leaf)
+            {
+                if (loading_from_queue_) return;
+                obstacles_params_dirty_ = true;
+                mirrorSharedParam(leaf, true);
+                updateDirtyButtons();
+            },
+            [this](const std::string &cat, std::function<void(std::vector<std::string>)> cb)
+            {
+                fetchCatalog(cat, std::move(cb));
+            });
+
+        dynamic_param_tree_robots_ = std::make_unique<DynamicParamTree>(
+            node, parameters_client,
+            robots_tree,
+            &param_widgets_robots_, &param_types_robots_,
+            [this](const std::string &leaf)
+            {
+                if (loading_from_queue_) return;
+                robots_params_dirty_ = true;
+                mirrorSharedParam(leaf, false);
+                updateDirtyButtons();
+            },
+            [this](const std::string &cat, std::function<void(std::vector<std::string>)> cb)
+            {
+                fetchCatalog(cat, std::move(cb));
+            });
 
         auto episode_nav_widget = new QWidget();
         auto episode_nav_layout = new QHBoxLayout();
@@ -359,7 +385,6 @@ namespace task_generator_gui
         playlist_table->horizontalHeader()->setStretchLastSection(true);
         playlist_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
         playlist_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-        playlist_table->setMaximumHeight(200);
 
         playlist_layout->addWidget(playlist_table);
         playlist_group->setLayout(playlist_layout);
@@ -466,11 +491,11 @@ namespace task_generator_gui
         getScenarios(staged_world);
         auto obs_mode = obstacles_task_mode.toStdString();
         for (char &c : obs_mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        rebuildParamTree(obstacles_tree, obs_mode, param_widgets_obstacles_);
+        dynamic_param_tree_obstacles_->rebuild("task." + obs_mode);
 
         auto rob_mode = robots_task_mode.toStdString();
         for (char &c : rob_mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        rebuildParamTree(robots_tree, rob_mode, param_widgets_robots_);
+        dynamic_param_tree_robots_->rebuild("task." + rob_mode);
 
         if (!loading_from_queue_)
         {
@@ -484,7 +509,7 @@ namespace task_generator_gui
         obstacles_task_mode = text;
         auto mode = text.toStdString();
         for (char &c : mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        rebuildParamTree(obstacles_tree, mode, param_widgets_obstacles_);
+        dynamic_param_tree_obstacles_->rebuild("task." + mode);
 
         if (!loading_from_queue_)
         {
@@ -498,7 +523,7 @@ namespace task_generator_gui
         robots_task_mode = text;
         auto mode = text.toStdString();
         for (char &c : mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        rebuildParamTree(robots_tree, mode, param_widgets_robots_);
+        dynamic_param_tree_robots_->rebuild("task." + mode);
 
         if (!loading_from_queue_)
         {
@@ -624,6 +649,8 @@ namespace task_generator_gui
             if (world_combobox)
             {
                 QSignalBlocker b(world_combobox);
+                if (world_combobox->findText(QString::fromStdString(staged_world)) < 0)
+                    world_combobox->addItem(QString::fromStdString(staged_world));
                 world_combobox->setCurrentText(QString::fromStdString(staged_world));
             }
         }
@@ -648,7 +675,7 @@ namespace task_generator_gui
             // in rec.<>_params (set below) since staging does not write the
             // live param.
             if (new_mode != cur_mode)
-                rebuildParamTree(obstacles_tree, new_mode, param_widgets_obstacles_);
+                dynamic_param_tree_obstacles_->rebuild("task." + new_mode);
         }
 
         if (!rec.tm_robots.empty())
@@ -662,7 +689,7 @@ namespace task_generator_gui
                 robot_task_mode_combobox->setCurrentText(robots_task_mode);
             }
             if (new_mode != cur_mode)
-                rebuildParamTree(robots_tree, new_mode, param_widgets_robots_);
+                dynamic_param_tree_robots_->rebuild("task." + new_mode);
         }
 
         if (!rec.robots.empty())
@@ -679,13 +706,13 @@ namespace task_generator_gui
         {
             auto it = param_widgets_obstacles_.find(p.name);
             if (it != param_widgets_obstacles_.end())
-                setWidgetValueFromParam(it->second, p);
+                DynamicParamTree::setWidgetValueFromParam(it->second, p);
         }
         for (const auto &p : rec.robots_params)
         {
             auto it = param_widgets_robots_.find(p.name);
             if (it != param_widgets_robots_.end())
-                setWidgetValueFromParam(it->second, p);
+                DynamicParamTree::setWidgetValueFromParam(it->second, p);
         }
     }
 
@@ -790,15 +817,6 @@ namespace task_generator_gui
             playlist_table->setItem(row, 0, makeItalic(QString::fromStdString(que.world)));
             playlist_table->setItem(row, 1, makeItalic(QString("(queued)")));
             playlist_table->setItem(row, 2, makeItalic(QString::fromStdString(que.outcome_info)));
-        }
-    }
-
-    void TaskGeneratorPanel::generateWorldButtonActivated()
-    {
-        if (generateWorld())
-        {
-            staged_world = ".generated";
-            pushQueueEpisode([](bool) {});
         }
     }
 

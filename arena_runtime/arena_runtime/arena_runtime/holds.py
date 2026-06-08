@@ -32,6 +32,9 @@ class HoldRegistry:
     def is_empty(self) -> bool:
         return not self._data
 
+    def has(self, caller_id: str, reason: str) -> bool:
+        return reason in self._data.get(caller_id, {})
+
     def total_count(self) -> int:
         return sum(sum(reasons.values()) for reasons in self._data.values())
 

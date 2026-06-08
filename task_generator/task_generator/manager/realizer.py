@@ -47,10 +47,9 @@ class Realizer:
                 raise KeyError(f"level_id {level_id} is not registered on realizer")
             self._level_origins[level_id] = (x, y)
 
-    def register_floor(self, level_id: str, x: float = 0.0, y: float = 0.0):
-        if level_id in self._level_origins.keys():
-            raise RuntimeError(f"tried to register level {level_id} that is already registered on the realizer")
-        self._level_origins[level_id] = (x, y)
+    def reset_level_origins(self, origins: dict[str, tuple[float, float]]) -> None:
+        """Replace the per-level origin table, dropping any levels from a prior world."""
+        self._level_origins = {str(level_id): (float(x), float(y)) for level_id, (x, y) in origins.items()}
 
     def get_config(self) -> "Realizer._Configuration":
         return self._config
