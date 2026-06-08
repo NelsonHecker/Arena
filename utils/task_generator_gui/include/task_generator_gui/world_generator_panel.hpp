@@ -72,6 +72,8 @@ protected:
 
     void setupUi();
     void loadAlgorithms();
+    // Apply the generator's episode binding (JSON from generate_world) onto a queue request.
+    void applyEpisodeBinding(task_generator_msgs::srv::QueueEpisode::Request& req, const std::string& json);
 
 private Q_SLOTS:
     void onAlgorithmChanged(const QString& text);

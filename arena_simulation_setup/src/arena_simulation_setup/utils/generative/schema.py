@@ -4,6 +4,8 @@ Dispatches each pydantic field to the shared `arena_rclpy_mixins.declarations`
 helpers, so the descriptor mini-DSL (label/range tokens) has a single producer.
 """
 
+from __future__ import annotations
+
 import typing
 
 import pydantic
@@ -46,7 +48,7 @@ def _find_le(metadata: list) -> float | None:
     return None
 
 
-def declare_config_params(node: "ROSParamServer", namespace_prefix: str, model_cls: type[pydantic.BaseModel]) -> None:
+def declare_config_params(node: ROSParamServer, namespace_prefix: str, model_cls: type[pydantic.BaseModel]) -> None:
     """Declare one ROS param per scalar/pair field of model_cls under namespace_prefix.<field>."""
     for field_name, field_info in model_cls.model_fields.items():
         name = f"{namespace_prefix}.{field_name}"

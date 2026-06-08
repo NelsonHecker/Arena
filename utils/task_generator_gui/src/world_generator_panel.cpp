@@ -3,13 +3,19 @@
 
 #include <rcl_interfaces/msg/parameter.hpp>
 #include <rclcpp/parameter.hpp>
+#include <rclcpp/parameter_value.hpp>
 
+#include <QByteArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QMetaObject>
 
 #include <chrono>
 #include <climits>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace task_generator_gui
 {
@@ -86,9 +92,8 @@ void WorldGeneratorPanel::loadAlgorithms()
             {"algorithm"}, 10,
             [this, holder, in_flight](std::shared_future<rcl_interfaces::msg::ListParametersResult> future)
             {
-                *in_flight = false;
                 rcl_interfaces::msg::ListParametersResult resp;
-                try { resp = future.get(); } catch (...) { return; }
+                try { resp = future.get(); } catch (...) { *in_flight = false; return; }
 
                 std::set<std::string> algos;
                 for (const auto& name : resp.names)
@@ -101,7 +106,7 @@ void WorldGeneratorPanel::loadAlgorithms()
                     algos.insert(rest.substr(0, dot));
                 }
 
-                if (algos.empty()) return;  // params not declared yet; keep polling
+                if (algos.empty()) { *in_flight = false; return; }  // params not declared yet; keep polling
 
                 if (*holder) (*holder)->cancel();
                 holder->reset();
@@ -122,6 +127,41 @@ void WorldGeneratorPanel::loadAlgorithms()
     };
 
     *holder = node->create_wall_timer(std::chrono::milliseconds(500), std::move(tick));
+}
+
+void WorldGeneratorPanel::applyEpisodeBinding(
+    task_generator_msgs::srv::QueueEpisode::Request& req, const std::string& json)
+{
+    // generate_world returns the generator's episode binding as JSON ({} = no overrides).
+    auto doc = QJsonDocument::fromJson(QByteArray::fromStdString(json));
+    if (!doc.isObject()) return;
+    const QJsonObject obj = doc.object();
+
+    if (obj.contains("tm_robots"))
+        req.tm_robots = obj.value("tm_robots").toString().toStdString();
+    if (obj.contains("tm_obstacles"))
+        req.tm_obstacles = obj.value("tm_obstacles").toString().toStdString();
+
+    // Binding param values are strings (the only kind generators emit); the target task params are string-typed.
+    auto leaves = [](const QJsonValue& v) -> std::vector<rcl_interfaces::msg::Parameter>
+    {
+        std::vector<rcl_interfaces::msg::Parameter> out;
+        if (!v.isObject()) return out;
+        const QJsonObject leaf_obj = v.toObject();
+        for (auto it = leaf_obj.begin(); it != leaf_obj.end(); ++it)
+        {
+            rcl_interfaces::msg::Parameter pm;
+            pm.name  = it.key().toStdString();
+            pm.value = rclcpp::ParameterValue(it.value().toString().toStdString()).to_value_msg();
+            out.push_back(pm);
+        }
+        return out;
+    };
+
+    auto robots    = leaves(obj.value("robots_params"));
+    auto obstacles = leaves(obj.value("obstacles_params"));
+    req.robots_params.insert(req.robots_params.end(), robots.begin(), robots.end());
+    req.obstacles_params.insert(req.obstacles_params.end(), obstacles.begin(), obstacles.end());
 }
 
 void WorldGeneratorPanel::setupUi()
@@ -213,7 +253,7 @@ void WorldGeneratorPanel::onGenerateClicked()
 
     params_client_->set_parameters(
         params,
-        [this, algo, target](
+        [this, target](
             std::shared_future<std::vector<rcl_interfaces::msg::SetParametersResult>> future)
         {
             auto results = future.get();
@@ -263,6 +303,9 @@ void WorldGeneratorPanel::onGenerateClicked()
                     qreq->action       = task_generator_msgs::srv::QueueEpisode::Request::MERGE;
                     qreq->keep_modules = true;
                     qreq->world        = target;
+
+                    // The generator returns its episode binding (e.g. BARN pins robots to scenario mode).
+                    applyEpisodeBinding(*qreq, resp->message);
 
                     queue_episode_client_->async_send_request(
                         qreq,

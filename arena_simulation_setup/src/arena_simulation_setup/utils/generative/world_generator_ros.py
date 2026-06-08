@@ -1,3 +1,4 @@
+import json
 import sys
 
 import std_srvs.srv
@@ -27,8 +28,9 @@ class WorldGeneratorROS(WorldGenerator, ROSParamServer, ServiceNamespace):
     def _cb_generate(self, request: std_srvs.srv.Trigger.Request, response: std_srvs.srv.Trigger.Response) -> std_srvs.srv.Trigger.Response:
         try:
             self.update_generator(*self._get_parameters())
-            WorldIdentifier(self.get_parameter('world').value).resolve_sync().save(WorldDescription.from_levels(self.compute()))
+            WorldIdentifier(self.get_parameter('world').value).resolve_sync().save(WorldDescription.from_levels(self.compute()), extra_files=self.files())
             response.success = True
+            response.message = json.dumps(self.params())  # episode binding for the panel to apply on queue
         except Exception as e:
             response.success = False
             response.message = repr(e)

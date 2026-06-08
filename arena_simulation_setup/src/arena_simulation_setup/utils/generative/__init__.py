@@ -15,6 +15,7 @@ class WorldGeneratorType(enum.Enum):
 
     EMPTY = "empty"
     HALLWAY = "hallway"
+    BARN = "barn"
 
 
 class BaseConfiguration(pydantic.BaseModel):
@@ -43,6 +44,15 @@ class WorldGeneratorImpl(abc.ABC):
     @abc.abstractmethod
     def compute(self) -> LevelDescription: ...
 
+    def files(self) -> dict[str, bytes]:
+        """Auxiliary artifacts packed into the world tar by relative path; none by default."""
+        return {}
+
+    def params(self) -> dict[str, typing.Any]:
+        """Episode binding applied when this world is queued: tm_robots/tm_obstacles plus
+        robots_params/obstacles_params leaf dicts. Empty (default) leaves the prior episode untouched."""
+        return {}
+
 
 class WorldGenerator:
     __registry: typing.ClassVar[dict[WorldGeneratorType, typing.Callable[[], type[WorldGeneratorImpl]]]] = {}
@@ -69,6 +79,12 @@ class WorldGenerator:
     def compute(self) -> LevelDescription:
         return self._active.compute()
 
+    def files(self) -> dict[str, bytes]:
+        return self._active.files()
+
+    def params(self) -> dict[str, typing.Any]:
+        return self._active.params()
+
     def update_generator(self, generator: WorldGeneratorType, configuration: dict, seed: int = -1):
         if generator not in self.__registry:
             raise ValueError(f"Generator {generator} has no implementation")
@@ -91,3 +107,10 @@ def lazy_Hallway() -> type[WorldGeneratorImpl]:
     from .hallway import WorldGeneratorHallway
 
     return WorldGeneratorHallway
+
+
+@WorldGenerator.register(WorldGeneratorType.BARN)
+def lazy_Barn() -> type[WorldGeneratorImpl]:
+    from .barn import WorldGeneratorBarn
+
+    return WorldGeneratorBarn
