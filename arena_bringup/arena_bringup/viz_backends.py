@@ -69,13 +69,21 @@ def _rerun_commands(ns: str, env_idx: int, args: dict[str, str]) -> list[tuple[s
     web = int(args.get('web_port', 9090)) + env_idx
     grpc = int(args.get('grpc_port', 9876)) + env_idx
     extras = [f'{k}:={v}' for k, v in args.items() if k not in ('web_port', 'grpc_port')]
-    return [(
-        f'rerun_{ns}',
-        [
-            'ros2', 'launch', 'rerun_utils', 'rerun_bridge.launch.py',
-            f'ns:={ns}', f'web_port:={web}', f'grpc_port:={grpc}', *extras,
-        ],
-    )]
+    return [
+        (
+            f'rerun_{ns}',
+            [
+                'ros2',
+                'launch',
+                'rerun_utils',
+                'rerun_bridge.launch.py',
+                f'ns:={ns}',
+                f'web_port:={web}',
+                f'grpc_port:={grpc}',
+                *extras,
+            ],
+        )
+    ]
 
 
 BACKENDS: dict[str, BackendFn] = {
