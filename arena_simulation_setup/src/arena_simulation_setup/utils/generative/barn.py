@@ -6,6 +6,8 @@ import shapely
 import shapely.affinity
 import yaml
 
+from arena_simulation_setup.tree.assets.Material import MaterialIdentifier
+
 from . import BaseConfiguration, LevelDescription, WorldGeneratorImpl
 from .utils import to_corners, to_walls
 
@@ -13,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 Cell = tuple[int, int]
 _DIRS: list[Cell] = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+_CARDBOARD = MaterialIdentifier('Cardboard')
 
 
 class BarnBase(WorldGeneratorImpl):
@@ -212,7 +215,7 @@ class WorldGeneratorBarn(BarnBase):
     def _walls(self, corridor: shapely.Geometry) -> list:
         # the corridor boundary is the load-bearing seal at exactly passage_width;
         # rotated cardboard tiles ride it for the angled physical-course look
-        walls = to_walls(corridor.boundary)
+        walls = to_walls(corridor.boundary, material=_CARDBOARD)
         walls += self._tiles(corridor)
         return walls
 
@@ -240,5 +243,5 @@ class WorldGeneratorBarn(BarnBase):
                 tile = shapely.affinity.translate(tile, ox * half, oy * half)
                 tile = tile.difference(corridor)
                 if not tile.is_empty:
-                    walls += to_walls(tile.boundary)
+                    walls += to_walls(tile.boundary, material=_CARDBOARD)
         return walls
