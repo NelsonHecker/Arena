@@ -19,7 +19,9 @@
 	path = arena_planners
 	url = https://github.com/arena-planners/arena_planners.git
 	branch = jazzy
+	update = rebase
 [submodule "arena_robots"]
 	path = arena_robots
 	url = https://github.com/arena-robots/arena_robots.git
 	branch = jazzy
+	update = rebase

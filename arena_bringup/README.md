@@ -6,19 +6,19 @@ task-generator, and navigation stack lives here.
 
 ## Guides
 
-- [Usage (BRINGUP.md)](BRINGUP.md) — minimum-viable invocations, common arg
+- [Usage (BRINGUP.md)](BRINGUP.md) - minimum-viable invocations, common arg
   permutations, expected behavior.
-- [Launch surface](launch/README.md) — full `arena_runtime.launch.py` argument table,
+- [Launch surface](launch/README.md) - full `arena_runtime.launch.py` argument table,
   top-level composition, and the `utils/` helpers.
-- [Simulator dispatch](launch/simulator/sim/README.md) — `SelectAction`
+- [Simulator dispatch](launch/simulator/sim/README.md) - `SelectAction`
   convention, per-sim subdirs (`gazebo/`, `isaac/`), adding a new simulator.
 - Human simulator dispatch: see `task_generator/launch/human/README.md`
   (moved alongside its `BaseHumanSimulator` adapters).
-- [Task configs](configs/tasks/README.md) — `TaskModeSpec` schema,
+- [Task configs](configs/tasks/README.md) - `TaskModeSpec` schema,
   fleet-manager allocation, examples.
-- [Benchmark configs](../arena_evaluation/configs/benchmark/README.md) — suites,
+- [Benchmark configs](../arena_evaluation/configs/benchmark/README.md) - suites,
   contests, and how the runner consumes them.
-- [Python helpers](README.md) — `LaunchArgument`, `SelectAction`,
+- [Python helpers](README.md) - `LaunchArgument`, `SelectAction`,
   `IsolatedGroupAction`, YAML substitutions, and log-level extension.
 
 ## Internals

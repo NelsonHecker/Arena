@@ -55,7 +55,7 @@ class GoToPhase(TaskPhase):
         if math.hypot(dx, dy) > tol_dist:
             return False
 
-        if tol_ang > 0:
+        if tol_ang > 0 and robot_manager.controls_orientation:
             dyaw = pose.orientation.to_yaw() - self.pose.orientation.to_yaw()
             dyaw = (dyaw + math.pi) % (2 * math.pi) - math.pi
             if abs(dyaw) > tol_ang:

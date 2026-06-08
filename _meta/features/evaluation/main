@@ -19,10 +19,11 @@ uninstall(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <update|uninstall|source|launch|list|status|tail>"
+    echo "Usage: $name <install|update|uninstall|source|launch|list|status|tail>"
     echo ""
     echo "arena_evaluation for recording, metrics, and benchmarking."
     echo "This enables:"
+    echo "  install   -- register feature, pull arena_evaluation submodule and rebuild"
     echo "  update    -- pull arena_evaluation submodule and rebuild"
     echo "  uninstall -- deinit arena_evaluation and remove from registry"
     echo "  source    -- no-op; sourced by the feature dispatcher"
@@ -36,6 +37,10 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 case "$1" in
+    install)
+        _feature_default_install "$name"
+        exit $?
+    ;;
     update)
         update
         exit $?

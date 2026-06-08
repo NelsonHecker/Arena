@@ -112,7 +112,7 @@ def generate_launch_description():
         description="Explicit ns path (e.g. for sim2real); empty = auto-generate.",
     )
 
-    sim = LaunchArgument(name="sim", default_value="dummy", description="[dummy, gazebo, isaac]")
+    sim = LaunchArgument(name="sim", default_value="gazebo", description="[dummy, gazebo, isaac]")
     # human/mobile defaults are derived from arena's authoritative `sim` (the value
     # arena_node actually configured), not from this launch's local `sim` arg, which only
     # affects how the env *requests* registration. Empty here means "use arena_sim".
@@ -122,7 +122,7 @@ def generate_launch_description():
         default_value="",
         description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: hunav})",
     )
-    robot = LaunchArgument(name="robot", default_value="jackal")
+    robot = LaunchArgument(name="robot", default_value="auto")
     tm_robots = LaunchArgument(name="tm_robots", default_value="explore")
     task_config = LaunchArgument(name="task_config", default_value="")
     episodes = LaunchArgument(

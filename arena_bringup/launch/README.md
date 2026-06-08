@@ -15,19 +15,19 @@ args (`sim`, `headless`, `world`, `use_sim_time`, `log_level`) go to
 | Name | Type / choices | Default | Meaning |
 |---|---|---|---|
 | `log_level` | level / `{glob:lvl,…,default}` / yaml path | `warn` | Per-node log level via `NodeLogLevelExtension`. See [Log level](#log-level) below. |
-| `robot` | string | `jackal` | Robot model; must match a directory under `arena_robots/robots/` |
+| `robot` | string | `auto` | Robot model; must match a directory under `arena_robots/robots/`. `auto` resolves from the selected planner's `action_type` + `sensor_needs` (canonical defaults: `jackal` for differential_drive, `ridgeback_plus` for omnidirectional, `turtlebot` for image/depth signatures). Composable: `auto`, `auto[2]`, `auto,jackal`. |
 | `mobile` | string | derived from `sim` | Mobile adapter kind: `nav2`, `rosnav_rl`, `external`, `none`. Empty = `none` for dummy, `nav2` otherwise. |
 | `arm` | string | `moveit` | Arm adapter kind |
-| `mobile.<key>:=<val>` | adapter-scoped | — | Override any kwarg the bound mobile adapter accepts. Lands as ROS param `robot.mobile.<key>` and overlays the cap-file YAML. Examples: `mobile.local_planner:=teb`, `mobile.global_planner:=smac`, `mobile.agent:=jackal_pretrained`. |
-| `arm.<key>:=<val>` | adapter-scoped | — | Same shape for the arm cap. |
-| `sim` | string | `dummy` | Physics simulator: `dummy`, `gazebo`, or `isaac` |
-| `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses viz unless `viz:=true` is explicit. |
+| `mobile.<key>:=<val>` | adapter-scoped | - | Override any kwarg the bound mobile adapter accepts. Lands as ROS param `robot.mobile.<key>` and overlays the cap-file YAML. Examples: `mobile.local_planner:=teb`, `mobile.global_planner:=smac`, `mobile.agent:=jackal_pretrained`. |
+| `arm.<key>:=<val>` | adapter-scoped | - | Same shape for the arm cap. |
+| `sim` | string | `gazebo` | Physics simulator: `dummy`, `gazebo`, or `isaac`. `dummy` must be explicit. |
+| `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses rviz unless `rviz:=true` is explicit. |
 | `viz` | bool string | `true` | `arena launch` only: run `arena viz --all` after envs are up. Forced `false` when `headless:=true` unless overridden. |
 | `human` | string | `dummy` for `dummy` sim, `hunav` for `gazebo`/`isaac` | Human-simulator backend |
 | `complexity` | string | `1` | `1` map+position known; `2` map known AMCL; `3` SLAM |
 | `record_data_dir` | string | `` (empty) | Directory for data recording; empty disables |
 | `tm_robots` | string | `explore` | Robot task mode (legacy single-kind shorthand) |
-| `task_config` | string | `` (empty) | Path to a [TaskModeSpec YAML](../configs/tasks/README.md); empty → synthesize from `tm_robots` (wins if both set) |
+| `task_config` | string | `` (empty) | Path to a [TaskModeSpec YAML](../configs/tasks/README.md); empty -> synthesize from `tm_robots` (wins if both set) |
 | `tm_obstacles` | string | `random` | Obstacle task mode |
 | `tm_modules` | string | `rviz_ui` | Comma-separated task modules to load |
 | `world` | string | `map_empty` | World name; resolved under `arena_simulation_setup/worlds/` |
@@ -58,13 +58,13 @@ ROS-style FQNs (`/dummy/node`) match the same as bare paths. Levels are the ROS
 canonical set: `debug | info | warn | error | fatal` (no aliases).
 
 `SetGlobalLogLevelAction` is also invoked further down the launch tree (e.g. by
-`task_generator`'s robot launcher to silence nav2 nodes by default) — those
+`task_generator`'s robot launcher to silence nav2 nodes by default) - those
 later calls can use the merge form to layer rules on top of the user's spec
 without clobbering it.
 
 ## Simulator dispatch
 
-- [simulator/sim/README.md](simulator/sim/README.md) — physics simulator backends (`dummy`, `gazebo`, `isaac`).
+- [simulator/sim/README.md](simulator/sim/README.md) - physics simulator backends (`dummy`, `gazebo`, `isaac`).
 - Human-simulation backends: see `task_generator/launch/human/README.md`
   (moved alongside their `BaseHumanSimulator` adapters).
 
@@ -72,31 +72,31 @@ without clobbering it.
 
 `arena_runtime.launch.py` assembles the following in order:
 
-1. **`SetGlobalLogLevelAction`** — stores `log_level` in the launch context so
+1. **`SetGlobalLogLevelAction`** - stores `log_level` in the launch context so
    `NodeLogLevelExtension` can inject `--log-level` into every subsequent `Node`
    action.
-2. **`IsolatedGroupAction` → `sim.launch.py`** — the physics simulator.
-3. **`world_generator`** node (`arena_simulation_setup`) — generates world
+2. **`IsolatedGroupAction` -> `sim.launch.py`** - the physics simulator.
+3. **`world_generator`** node (`arena_simulation_setup`) - generates world
    assets.
-4. **`arena_node`** (`LifecycleNode`) — the multi-env orchestrator.
+4. **`arena_node`** (`LifecycleNode`) - the multi-env orchestrator.
 
 Task-generator envs are not included here. Each env is started separately via
 `task_generator.launch.py` (either manually via `arena env` or orchestrated by
 `arena launch`). Each env includes:
 
-- `human.launch.py` — starts the human simulator (if any) for that environment.
+- `human.launch.py` - starts the human simulator (if any) for that environment.
 - The `task_generator_node` with all forwarded args plus `namespace` and `prefix`.
 
 Environments are positioned on a *snail grid* (`snail_grid(d)`) that spirals
 outward from the origin with spacing `d`, so multiple parallel environments do
 not overlap.
 
-The simulator is paused during setup and the entire `Task._reset_episode` body —
+The simulator is paused during setup and the entire `Task._reset_episode` body -
 see [Sim-paused invariant](../../arena_runtime/arena_runtime/arena_runtime/sim/README.md#sim-paused-invariant).
 
 ## utils/
 
 | File | Purpose |
 |---|---|
-| [`utils/fake_localization.launch.py`](utils/fake_localization.launch.py) | Publishes a static `map → odom` TF (zero transform). Args: `global_frame_id` (default `map`), `odom_frame_id` (default `odom`). Used for `complexity=1` (position known). |
-| [`utils/map_server.launch.py`](utils/map_server.launch.py) | Starts `nav2_map_server` with `nav2_lifecycle_manager` (autostart, `bond_timeout=0`). No launch args — callers remap parameters directly. |
+| [`utils/fake_localization.launch.py`](utils/fake_localization.launch.py) | Publishes a static `map -> odom` TF (zero transform). Args: `global_frame_id` (default `map`), `odom_frame_id` (default `odom`). Used for `complexity=1` (position known). |
+| [`utils/map_server.launch.py`](utils/map_server.launch.py) | Starts `nav2_map_server` with `nav2_lifecycle_manager` (autostart, `bond_timeout=0`). No launch args - callers remap parameters directly. |

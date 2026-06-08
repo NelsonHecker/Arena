@@ -41,6 +41,7 @@ def render_odom(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict[str, o
         "Shaft Radius": 0.05,
         "Head Length": 0.2,
         "Head Radius": 0.1,
+        "Covariance": {"Value": False},
     }
     result.update(style.extra.get("rviz", {}))
     return result

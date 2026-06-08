@@ -18,6 +18,85 @@ from task_generator.shared import Pose, Position, Robot
 
 from .robot_manager import RobotManager
 
+_AUTO_TOKEN = "auto"
+_ARENA_DEFAULT_ROBOT = "jackal"
+
+
+@attrs.define(frozen=True)
+class _Readiness:
+    """Per-robot submodule readiness from the source-tree arena_robots/.gitmodules."""
+
+    ready: frozenset[str]
+    pending: dict[str, frozenset[str]]  # robot -> uninitialized submodule paths
+
+
+_READINESS_CACHE: _Readiness | None = None
+
+
+def _autoselect_dispatch() -> dict[str, str]:
+    """Map mobile.kind -> ROS param key holding the planner name. Today only drl."""
+    return {"drl": "robot.mobile.planner"}
+
+
+def _robot_readiness() -> _Readiness | None:
+    """Per-robot submodule readiness, or None when detection isn't possible
+    (no git, no .gitmodules); callers treat None as "don't filter" so out-of-tree
+    workflows still resolve. The robot -> submodule tags live in the SDK's
+    arena_robots/.gitmodules with SDK-relative paths; we prefix arena_robots/ so
+    they match the Arena-root-relative paths from `git submodule status --recursive`."""
+    global _READINESS_CACHE
+    if _READINESS_CACHE is not None:
+        return _READINESS_CACHE
+    import configparser  # noqa: PLC0415
+    import pathlib  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    here = pathlib.Path(__file__).resolve()
+    arena = next((p for p in here.parents if (p / "arena_robots").is_dir() and (p / ".gitmodules").is_file()), None)
+    if arena is None:
+        return None
+    gitmodules = arena / "arena_robots" / ".gitmodules"
+    if not gitmodules.is_file():
+        return None
+    status = subprocess.run(
+        ["git", "submodule", "status", "--recursive"],
+        cwd=arena,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status.returncode != 0:
+        return None
+    uninit_paths = {line[1:].split()[1] for line in status.stdout.splitlines() if line.startswith("-")}
+    cp = configparser.ConfigParser()
+    cp.read(gitmodules)
+    robot_to_paths: dict[str, set[str]] = {}
+    for section in cp.sections():
+        path = cp[section].get("path")
+        robot = cp[section].get("robot")
+        if not (path and robot):
+            continue
+        full_path = f"arena_robots/{path}"
+        for name in robot.split():
+            robot_to_paths.setdefault(name, set()).add(full_path)
+    all_robots = {p.name for p in (arena / "arena_robots" / "arena_robots" / "robots").iterdir() if p.is_dir()}
+    ready: set[str] = set()
+    pending: dict[str, frozenset[str]] = {}
+    for r in all_robots:
+        missing = {p for p in robot_to_paths.get(r, ()) if p in uninit_paths}
+        if missing:
+            pending[r] = frozenset(missing)
+        else:
+            ready.add(r)
+    _READINESS_CACHE = _Readiness(ready=frozenset(ready), pending=pending)
+    return _READINESS_CACHE
+
+
+def _ready_robot_names() -> frozenset[str] | None:
+    """Robot names whose submodules are all initialized, or None when undetectable."""
+    readiness = _robot_readiness()
+    return readiness.ready if readiness is not None else None
+
 
 def _initialpose_generator(x: float, y: float, d: float):
     """Generate initial poses for the robot.
@@ -93,6 +172,61 @@ class RobotsManager(NodeInterface):
             if t and not t.done():
                 t.cancel()
 
+    def _resolve_auto(self) -> str:
+        dispatch = _autoselect_dispatch()
+        log = self.node.get_logger()
+
+        mobile_kind = str(self.node.rosparam[str].get("robot.mobile_adapter", ""))
+        if not mobile_kind or mobile_kind not in dispatch:
+            log.warn(f"arena: auto-robot fallback={_ARENA_DEFAULT_ROBOT!r}: mobile_adapter={mobile_kind!r} not in dispatch {sorted(dispatch)}")
+            return _ARENA_DEFAULT_ROBOT
+
+        planner_param_key = dispatch[mobile_kind]
+        planner_name = str(self.node.rosparam[str].get(planner_param_key, ""))
+        if not planner_name:
+            log.warn(f"arena: auto-robot fallback={_ARENA_DEFAULT_ROBOT!r}: {planner_param_key!r} is empty")
+            return _ARENA_DEFAULT_ROBOT
+
+        from arena_planners.resolver import load_manifest  # noqa: PLC0415
+
+        manifest = load_manifest(planner_name)
+        action_type: str | None = manifest.get("action_type")
+        sensor_needs: list[str] = manifest.get("sensor_needs") or []
+
+        if action_type is None:
+            log.warn(f"arena: auto-robot fallback={_ARENA_DEFAULT_ROBOT!r}: planner={planner_name!r} manifest has no action_type")
+            return _ARENA_DEFAULT_ROBOT
+
+        want_holonomic = action_type == "omnidirectional"
+
+        from arena_robots.Robot import RobotIdentifier  # noqa: PLC0415
+
+        ready = _ready_robot_names()
+        candidates: list[tuple[int, str]] = []
+        for robot_id in RobotIdentifier.listall():
+            name = robot_id.shortname
+            if ready is not None and name not in ready:
+                continue
+            view = robot_id.resolve_sync()
+            mobile = view.mobile
+            if mobile is None:
+                continue
+            if mobile.is_holonomic != want_holonomic:
+                continue
+            robot_sensors = {s.type for s in view.model_params.sensors}
+            if not set(sensor_needs) <= robot_sensors:
+                continue
+            candidates.append((-view.model_params.priority, name))
+
+        if not candidates:
+            log.warn(f"arena: auto-robot fallback={_ARENA_DEFAULT_ROBOT!r}: no robot matched action_type={action_type!r} sensor_needs={sensor_needs!r}")
+            return _ARENA_DEFAULT_ROBOT
+
+        candidates.sort(key=lambda t: (t[0], t[1]))
+        chosen = candidates[0][1]
+        log.info(f"arena: auto -> planner={planner_name!r} robot={chosen!r} [action_type={action_type!r}, sensor_needs={sensor_needs!r}]")
+        return chosen
+
     def _parse_robot_configurations(self, v: object) -> _RobotDiff:
         """Parse robot configurations from the given value.
 
@@ -112,6 +246,10 @@ class RobotsManager(NodeInterface):
         parsed_anonymous: dict[str, list[Robot]] = {}
 
         def add(base: robot_setup.Config):
+            readiness = _robot_readiness()
+            if readiness is not None and base.robot in readiness.pending:
+                paths = ", ".join(sorted(readiness.pending[base.robot]))
+                raise RuntimeError(f"robot {base.robot!r} is not installed (submodule(s) not checked out: {paths}). run: arena feature robots add {base.robot}")
             name = base.name
             config = Robot.from_setup(base, node=self.node)
 
@@ -130,11 +268,14 @@ class RobotsManager(NodeInterface):
                     add(addition)
             elif match := re.match(r'(.*)\[(\d+)\]', arg):
                 # multi-instantiations via model[count]
+                base = match.group(1)
+                if base == _AUTO_TOKEN:
+                    base = self._resolve_auto()
                 for _ in range(int(match.group(2))):
-                    add(robot_setup.Config(robot=match.group(1)))
+                    add(robot_setup.Config(robot=base))
             else:
-                # just robot
-                add(robot_setup.Config(robot=arg))
+                resolved = self._resolve_auto() if arg == _AUTO_TOKEN else arg
+                add(robot_setup.Config(robot=resolved))
 
         existing = {k: v.robot for k, v in self.managers.items()}
 

@@ -101,6 +101,26 @@ _feature_registry(){
 }
 export -f _feature_registry 2>/dev/null || true
 
+_feature_default_install(){
+    local name="$1"
+    local feature_path
+    feature_path="$(_feature_registry resolve "$name")" || { echo "Unknown feature '$name'" >&2; return 1; }
+    if _feature_registry has "$name"; then
+        echo "$name is already installed."
+        return 0
+    fi
+    _feature_registry pull "$name"
+    _feature_registry add "$name"
+    if ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' update"); then
+        echo "Installed $name successfully."
+        return 0
+    fi
+    _feature_registry remove "$name"
+    echo "Install of $name failed during update." >&2
+    return 1
+}
+export -f _feature_default_install 2>/dev/null || true
+
 export ARENA_MODELS_FORMATS="yaml,png,jpg,mdl"
 
 exit(){
@@ -316,23 +336,6 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     shift
                     fverb="$1"
                     case "$fverb" in
-                        install)
-                            if _feature_registry has "$fname"; then
-                                echo "$fname is already installed."
-                                result=0
-                            else
-                                _feature_registry pull "$fname"
-                                _feature_registry add "$fname"
-                                if ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' update"); then
-                                    echo "Installed $fname successfully."
-                                    result=0
-                                else
-                                    _feature_registry remove "$fname"
-                                    echo "Install of $fname failed during update." >&2
-                                    result=1
-                                fi
-                            fi
-                        ;;
                         update)
                             if ! _feature_registry has "$fname"; then
                                 echo "$fname is not installed; run 'arena feature $fname install' first." >&2
@@ -340,21 +343,6 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                             else
                                 shift
                                 ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' update $*")
-                                result=$?
-                            fi
-                        ;;
-                        launch)
-                            if [ "$fname" = "training" ]; then
-                                if ! _feature_registry has "$fname"; then
-                                    echo "training feature is not installed; run 'arena feature training install' first." >&2
-                                    result=1
-                                else
-                                    shift
-                                    ros2 launch arena_training training.launch.py "$@"
-                                    result=$?
-                                fi
-                            else
-                                ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
                                 result=$?
                             fi
                         ;;

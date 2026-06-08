@@ -5,11 +5,11 @@ _py="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/robots.py"
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <update|uninstall|source|add|rm|ls|check|drive>"
+    echo "Usage: $name <update|install|uninstall|source|add|rm|ls|check|drive>"
     echo ""
     echo "Per-robot submodule management (mesh assets + upstream deps)."
-    echo "  add <name...>     clone robot's submodules"
-    echo "  rm <name...>      deinit robot's submodules"
+    echo "  add <name...>     clone robot's submodules (alias: install)"
+    echo "  rm <name...>      deinit robot's submodules (alias: uninstall <name...>)"
     echo "  ls                list robots, [x] ready, [ ] pending"
     echo "  check [--all]     verify all package://arena_robots/... URIs resolve"
     echo "  update            refresh initialized robot submodules"
@@ -26,11 +26,23 @@ case "$1" in
         arena deps && arena build
         exit $?
     ;;
+    install)
+        shift
+        python3 "$_py" add "$@" || exit $?
+        arena deps && arena build
+        exit $?
+    ;;
     rm|ls|check|drive)
         python3 "$_py" "$@"
         exit $?
     ;;
     uninstall)
+        shift
+        if [ $# -gt 0 ]; then
+            python3 "$_py" rm "$@"
+            # shellcheck disable=SC2317
+            return $? 2>/dev/null || exit $?
+        fi
         python3 "$_py" uninstall
         arena registry remove "$name"
         # shellcheck disable=SC2317

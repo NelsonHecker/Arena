@@ -30,6 +30,10 @@ if TYPE_CHECKING:
 class DrlAdapter(MobileAdapter):
     kind: ClassVar[str] = "drl"
 
+    @property
+    def controls_orientation(self) -> bool:
+        return self._controls_orientation
+
     def __init__(
         self,
         robot_manager: RobotManager,
@@ -73,6 +77,7 @@ class DrlAdapter(MobileAdapter):
 
         depends = manifest_dict.get("depends") or {}
         self._depends_global_plan: bool = bool(depends.get("global_plan", False))
+        self._controls_orientation: bool = bool(manifest_dict.get("controls_orientation", True))
         self._global_planner: str = str(bringup_kwargs.get("global_planner", "nav2/navfn"))
 
         self._handler_metadata: dict = {}
@@ -141,7 +146,22 @@ class DrlAdapter(MobileAdapter):
         base_frame = robot._config.model_params.base_frame
         source_frame = robot.frame.tf(base_frame)
 
-        robot.node.get_logger().info(f"DRL edge for robot={robot.robot.name!r} planner={self._planner_name!r} ns={ns}")
+        mobile_cap = robot._config.caps.mobile if "mobile" in robot._config.caps.available else None
+        is_holonomic = bool(mobile_cap.is_holonomic) if mobile_cap is not None else False
+
+        from arena_planners.resolver import load_manifest  # noqa: PLC0415
+
+        _manifest = load_manifest(self._planner_name)
+        _action_type: str | None = _manifest.get("action_type")
+        _sensor_needs: list[str] = _manifest.get("sensor_needs") or []
+        if _action_type is not None and is_holonomic != (_action_type == "omnidirectional"):
+            robot.node.get_logger().warn(f"arena: planner={self._planner_name!r} (action_type={_action_type}) but robot={robot.robot.name!r} is_holonomic={is_holonomic}; bridge will apply projection")
+        _available = {s.type for s in robot._config.model_params.sensors}
+        for _need in _sensor_needs:
+            if _need not in _available:
+                robot.node.get_logger().warn(f"arena: planner={self._planner_name!r} needs sensor {_need!r} but robot={robot.robot.name!r} sensors={sorted(_available)}; planner will receive empty data")
+
+        robot.node.get_logger().info(f"DRL edge for robot={robot.robot.name!r} planner={self._planner_name!r} ns={ns} holonomic={is_holonomic}")
 
         edge_node = PlannerEdgeNode(
             node_name=node_name,
@@ -151,6 +171,7 @@ class DrlAdapter(MobileAdapter):
             source_frame=source_frame,
             target_frame="map",
             cmd_vel_topic=self.bringup.cmd_vel_topic,
+            is_holonomic=is_holonomic,
         )
         robot.node.executor.add_node(edge_node)
 

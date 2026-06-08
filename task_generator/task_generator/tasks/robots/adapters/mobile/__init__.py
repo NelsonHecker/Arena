@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 
 class MobileAdapter(Adapter):
+    @property
+    def controls_orientation(self) -> bool:
+        return True
+
     cap_displays: ClassVar[tuple[AdapterDisplayHint, ...]] = (
         *Adapter.cap_displays,
         AdapterDisplayHint(
