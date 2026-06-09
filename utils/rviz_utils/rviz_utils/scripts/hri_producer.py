@@ -202,7 +202,7 @@ class HriProducer(Node):
                 js = JointState()
                 js.header.stamp = stamp
                 js.header.frame_id = ""
-                js.name = list(ped.joint_state.name)
+                js.name = [f"{n}_{bid}" for n in ped.joint_state.name]
                 js.position = list(ped.joint_state.position)
                 js.velocity = list(ped.joint_state.velocity)
                 js.effort = list(ped.joint_state.effort)
@@ -214,7 +214,12 @@ class HriProducer(Node):
                 self._prev_stamp_sec[bid] = now_sec
                 speed = math.hypot(ped.twist.linear.x, ped.twist.linear.y)
                 angles = self._gait.compute(ped.id, ped.animation_state, speed, dt)
-                self._body_js_pub[bid].publish(self._gait.joint_state(bid, angles, stamp=stamp))
+                bare_js = self._gait.joint_state(angles, stamp=stamp)
+                js = JointState()
+                js.header = bare_js.header
+                js.name = [f"{n}_{bid}" for n in bare_js.name]
+                js.position = list(bare_js.position)
+                self._body_js_pub[bid].publish(js)
 
             self._person_conf_pub[bid].publish(Float32(data=1.0))
             self._person_eng_pub[bid].publish(_engagement_level(ped.animation_state))

@@ -220,18 +220,14 @@ class GaitGenerator:
 
     def joint_state(
         self,
-        body_id: str,
         angles: dict[str, float],
         stamp: Time | None = None,
     ) -> JointState:
-        """Build a sensor_msgs/JointState from a compute() result.
-
-        Joint names are suffixed with _<body_id> to match the generated URDF.
-        """
+        """Build a sensor_msgs/JointState from a compute() result with bare semantic names."""
         msg = JointState()
         if stamp is not None:
             msg.header.stamp = stamp
-        msg.name = [f"{name}_{body_id}" for name in self.JOINT_NAMES]
+        msg.name = list(self.JOINT_NAMES)
         msg.position = [angles[name] for name in self.JOINT_NAMES]
         return msg
 

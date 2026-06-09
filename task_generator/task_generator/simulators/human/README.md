@@ -59,6 +59,17 @@ Every subclass must implement:
 | `_remove_robot_impl(robots)` | human-sim side: deregister robots |
 | `_move_robot_impl(robots)` | human-sim side: update robot positions |
 
+## GaitGenerator as articulation ground truth
+
+`BaseHumanSimulator.publish_arena_peds` is the single point where skeletal
+joint angles are committed to the `arena_peds` bus.  For each `Pedestrian` in
+the outgoing message it checks `ped.joint_state.name`:
+
+- **non-empty**: upstream backend supplied its own joint state, published unchanged (override path: an upstream producer that already computes joint angles).
+- **empty**: `publish_arena_peds` calls `GaitGenerator.compute` + `GaitGenerator.joint_state` and fills the field with bare semantic joint names (20 DOF, ~9 active per gait mode, no body suffix).
+
+The filled field feeds the ROS4HRI skeleton in rviz through `hri_producer`.  The 3D engines do not read it: Isaac animates pedestrians with its native omni.anim.people AnimGraph and Gazebo clip-scrubs `walk.dae`, both driven by pedestrian pose and twist.  So `GaitGenerator` is the ROS-side articulation ground truth, while the in-engine meshes play plausible locomotion that is not bone-for-bone identical to it.
+
 ## Visualization topics
 
 Pedestrian visualization flows through one data feed plus a few marker layers, all at
@@ -66,7 +77,7 @@ env level (`<env_ns>/`) and shared by every backend:
 
 | Topic | Producer | QoS | Role |
 | --- | --- | --- | --- |
-| `arena_peds` | each backend (`publish_arena_peds`) | reliable, volatile | Pedestrian state feed (positions/velocities), plus an optional `joint_state` skeleton override (empty by default). Data, not markers. |
+| `arena_peds` | each backend (`publish_arena_peds`) | reliable, volatile | Pedestrian state feed (positions/velocities/joint_state). `joint_state` carries bare semantic joint names filled by `GaitGenerator` unless the backend overrides it (non-empty = upstream wins). |
 | `humans/bodies/tracked`, `humans/persons/*`, `humans/bodies/<id>/joint_states` | `hri_producer` node | per REP-155 | **Canonical** ROS4HRI projection of `arena_peds`: id lists, per-person engagement, per-body joint states, per-body URDF on param `human_description_<id>`, TF `body_<id>`. |
 | `pedestrian_markers/extra` | base class (`publish_markers`) | best-effort, volatile | Backend-internal debug overlay (e.g. arena_humansim forwards its planner viz). Off by default. |
 | `pedestrian_markers/static` | base class (`publish_static_markers`) | reliable, transient-local, depth 1 | Latched static scene as one combined topic. |
@@ -77,10 +88,12 @@ env level (`<env_ns>/`) and shared by every backend:
 `arena_peds` and projects it into the ROS4HRI (REP-155) `humans/` namespace: id lists, per-person
 engagement, and a per-body `robot_state_publisher` (pooled) driven from `humans/bodies/<id>/joint_states`
 against the `human_description` URDF rig. The [`hri_rviz/Skeletons3D`](https://github.com/ros4hri/hri_rviz)
-display renders one kinematic model per body. Joint states come from `arena_peds.joint_state` when an
-upstream backend supplies one (override, e.g. Isaac real bones), otherwise the producer synthesizes a
-fallback gait per the rig contract in [`JOINTS.md`](JOINTS.md). `extra` is backend debug, disabled by
-default.
+display renders one kinematic model per body.
+
+`hri_producer` is now a relay: it re-suffixes joint names from `arena_peds.joint_state` per body ID and
+publishes them directly.  The producer's own `GaitGenerator` instance is a **fallback only** for peds whose
+`joint_state` arrives empty (e.g. the Isaac adapter, which does not fill joint_state on the bus).
+`extra` is backend debug, disabled by default.
 
 **Display kinds** (`arena_viz.DisplayKind`):
 - `PEDESTRIANS` — the canonical `hri_rviz/Skeletons3D` skeleton display, keyed on the env `humans/`

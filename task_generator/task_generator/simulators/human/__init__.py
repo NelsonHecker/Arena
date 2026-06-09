@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import itertools
+import math
 import typing
 from collections.abc import Iterable, Mapping, Sequence
 
@@ -19,6 +20,7 @@ from arena_simulation_setup.utils.models import ModelType
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
+from task_generator.simulators.human.gait import GaitGenerator
 from task_generator.simulators.human.utils import (
     KnownObstacle,
     KnownObstacles,
@@ -87,6 +89,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         )
 
         self._ped_positions_xy: dict[str, tuple[float, float]] = {}
+        self._gait = GaitGenerator()
+        self._gait_prev_stamp: dict[int, float] = {}
         self.node.create_subscription(
             Pedestrians,
             self._namespace("arena_peds"),
@@ -95,8 +99,27 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         )
         self._simulator.attach_human_simulator(self)
 
-    def publish_arena_peds(self, msg: Pedestrians):
-        """Publish pedestrian states."""
+    def publish_arena_peds(self, msg: Pedestrians) -> None:
+        """Fill bare-name joint_state for each ped missing one, then publish."""
+        now = self.node.get_clock().now()
+        now_sec = now.nanoseconds * 1e-9
+        stamp = now.to_msg()
+
+        current_ids: set[int] = {ped.id for ped in msg.pedestrians}
+        for stale in set(self._gait_prev_stamp) - current_ids:
+            self._gait.forget(stale)
+            del self._gait_prev_stamp[stale]
+
+        for ped in msg.pedestrians:
+            if ped.joint_state.name:
+                continue
+            prev = self._gait_prev_stamp.get(ped.id)
+            dt = (now_sec - prev) if prev is not None and now_sec > prev else 0.1
+            self._gait_prev_stamp[ped.id] = now_sec
+            speed = math.hypot(ped.twist.linear.x, ped.twist.linear.y)
+            angles = self._gait.compute(ped.id, ped.animation_state, speed, dt)
+            ped.joint_state = self._gait.joint_state(angles, stamp=stamp)
+
         self._arena_peds_publisher.publish(msg)
 
     def publish_markers(self, markers: MarkerArray) -> None:
