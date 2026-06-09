@@ -26,6 +26,10 @@ if [ $_GIT -eq 1 ] ; then
     echo updating Arena...
     git pull --ff-only --autostash && git submodule update --recursive
 
+    # init core SDKs; per-robot/planner pieces stay opt-in (no --recursive)
+    git submodule update --init --checkout arena_planners arena_robots \
+        || echo "failed to init/update arena_planners/arena_robots, ignoring"
+
     # re-source
     . "$ARENA_DIR/_meta/tools/source"
 
