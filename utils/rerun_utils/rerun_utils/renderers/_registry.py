@@ -25,7 +25,9 @@ REGISTRY: dict[DisplayKind, RendererFn] = {}
 
 def register(kind: DisplayKind) -> Callable[[RendererFn], RendererFn]:
     """Decorator that registers a renderer for a DisplayKind."""
+
     def decorator(fn: RendererFn) -> RendererFn:
         REGISTRY[kind] = fn
         return fn
+
     return decorator

@@ -18,6 +18,7 @@ from rerun_utils.renderers._registry import RendererCtx, register
 
 try:
     from rerun_loader_urdf_python.urdf_logger import URDFLogger  # type: ignore
+
     _HAVE_URDF = True
 except ImportError:
     URDFLogger = None  # type: ignore
@@ -30,9 +31,7 @@ def render_robot_model(d: AdapterDisplay, robot: RobotDescriptor | None, ctx: Re
     if not style.enabled:
         return
     if not _HAVE_URDF:
-        ctx.node.get_logger().warning(
-            f"rerun-loader-urdf-python not installed; skipping ROBOT_MODEL for {d.name!r}"
-        )
+        ctx.node.get_logger().warning(f"rerun-loader-urdf-python not installed; skipping ROBOT_MODEL for {d.name!r}")
         return
     entity = display_path(ctx.env_id, robot, d.name)
     logged: dict[str, bool] = {"done": False}

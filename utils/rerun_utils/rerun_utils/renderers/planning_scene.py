@@ -10,7 +10,5 @@ from rerun_utils.renderers._registry import RendererCtx, register
 
 @register(DisplayKind.PLANNING_SCENE)
 def render_planning_scene(d: AdapterDisplay, robot: RobotDescriptor | None, ctx: RendererCtx) -> None:
-    ctx.node.get_logger().info(
-        f"PLANNING_SCENE renderer not implemented (MoveIt PlanningScene); skipping {d.name!r}"
-    )
+    ctx.node.get_logger().info(f"PLANNING_SCENE renderer not implemented (MoveIt PlanningScene); skipping {d.name!r}")
     del robot

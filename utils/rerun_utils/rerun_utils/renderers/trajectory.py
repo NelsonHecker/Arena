@@ -10,7 +10,5 @@ from rerun_utils.renderers._registry import RendererCtx, register
 
 @register(DisplayKind.TRAJECTORY)
 def render_trajectory(d: AdapterDisplay, robot: RobotDescriptor | None, ctx: RendererCtx) -> None:
-    ctx.node.get_logger().info(
-        f"TRAJECTORY renderer not implemented (MoveIt DisplayTrajectory); skipping {d.name!r}"
-    )
+    ctx.node.get_logger().info(f"TRAJECTORY renderer not implemented (MoveIt DisplayTrajectory); skipping {d.name!r}")
     del robot

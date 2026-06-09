@@ -10,7 +10,5 @@ from rerun_utils.renderers._registry import RendererCtx, register
 
 @register(DisplayKind.FOOT_CONTACT)
 def render_foot_contact(d: AdapterDisplay, robot: RobotDescriptor | None, ctx: RendererCtx) -> None:
-    ctx.node.get_logger().info(
-        f"FOOT_CONTACT renderer not implemented; skipping {d.name!r} on {d.topic!r}"
-    )
+    ctx.node.get_logger().info(f"FOOT_CONTACT renderer not implemented; skipping {d.name!r} on {d.topic!r}")
     del robot

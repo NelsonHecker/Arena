@@ -21,7 +21,7 @@ def _read_xyz(msg: PointCloud2) -> np.ndarray:
     pts = np.empty((buf.shape[0], 3), dtype=np.float32)
     for i, axis in enumerate(("x", "y", "z")):
         off = offsets[axis]
-        pts[:, i] = buf[:, off:off + 4].copy().view(np.float32).reshape(-1)
+        pts[:, i] = buf[:, off : off + 4].copy().view(np.float32).reshape(-1)
     return pts
 
 

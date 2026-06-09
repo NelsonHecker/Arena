@@ -127,15 +127,17 @@ class LevelDescription:
                     segments, _ = await wall.assets()
                     for segment in segments:
                         z = max(z, segment.start.z + segment.height)
-            result.append(Ceiling(
-                name=zone.name,
-                pos=pos,
-                x_length=x_length,
-                y_length=y_length,
-                z=z,
-                cast_shadows=zone.ceiling_cast_shadows,
-                material=zone.ceiling_material,
-            ))
+            result.append(
+                Ceiling(
+                    name=zone.name,
+                    pos=pos,
+                    x_length=x_length,
+                    y_length=y_length,
+                    z=z,
+                    cast_shadows=zone.ceiling_cast_shadows,
+                    material=zone.ceiling_material,
+                )
+            )
         return result
 
     @property
