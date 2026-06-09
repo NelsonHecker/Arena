@@ -6,6 +6,7 @@ import typing
 from collections.abc import Iterable, Mapping, Sequence
 
 from arena_people_msgs.msg import Pedestrians
+from arena_simulation_setup.shared import Ceiling
 from task_generator.shared import (
     Door,
     DynamicObstacle,
@@ -130,6 +131,12 @@ class WorldITF(abc.ABC):
         Add a list of floors to the simulator.
         """
         raise NotImplementedError()
+
+    async def spawn_ceilings(self, ceilings: Sequence[Ceiling]) -> bool:
+        """
+        Add a list of ceilings to the simulator. No-op by default.
+        """
+        return True
 
     async def remove_world(self) -> bool:
         """

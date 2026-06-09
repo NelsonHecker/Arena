@@ -16,6 +16,7 @@ from typing_extensions import Self
 
 from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.shared import (
+    Ceiling,
     Door,
     DynamicObstacle,
     Elevator,
@@ -67,6 +68,13 @@ class LevelDescription:
         doors: list[Door] = attrs.field(factory=list)
         elevators: list[Elevator] = attrs.field(factory=list)
         entities: WorldEntities = attrs.field(factory=WorldEntities)
+        ceiling: bool = attrs.field(default=True)
+        ceiling_height: float | None = attrs.field(default=None)
+        ceiling_cast_shadows: bool = attrs.field(default=False)
+        ceiling_material: MaterialIdentifier = attrs.field(
+            converter=MaterialIdentifier.converter,
+            default=Material.default('ceiling'),
+        )
 
         @property
         def floor(self) -> Floor:
@@ -96,6 +104,39 @@ class LevelDescription:
     @property
     def all_floors(self) -> typing.Iterable[Floor]:
         return (zone.floor for zone in self.zones)
+
+    async def all_ceilings(self) -> list[Ceiling]:
+        result: list[Ceiling] = []
+        for zone in self.zones:
+            if not zone.ceiling:
+                continue
+            if not zone.corners:
+                continue
+            x_min = min(corner.x for corner in zone.corners)
+            y_min = min(corner.y for corner in zone.corners)
+            x_max = max(corner.x for corner in zone.corners)
+            y_max = max(corner.y for corner in zone.corners)
+            pos = Position(x=(x_min + x_max) / 2, y=(y_min + y_max) / 2)
+            x_length = x_max - x_min
+            y_length = y_max - y_min
+            if zone.ceiling_height is not None:
+                z = zone.ceiling_height
+            else:
+                z = 2.0
+                for wall in zone.walls:
+                    segments, _ = await wall.assets()
+                    for segment in segments:
+                        z = max(z, segment.start.z + segment.height)
+            result.append(Ceiling(
+                name=zone.name,
+                pos=pos,
+                x_length=x_length,
+                y_length=y_length,
+                z=z,
+                cast_shadows=zone.ceiling_cast_shadows,
+                material=zone.ceiling_material,
+            ))
+        return result
 
     @property
     def all_static_entities(self) -> typing.Iterable[Obstacle]:

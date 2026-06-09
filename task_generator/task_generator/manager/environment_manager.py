@@ -7,6 +7,7 @@ import shapely
 import shapely.affinity
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
+from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.World import LevelDescription, WorldDescription
 
 from task_generator.manager.realizer import Realizer
@@ -110,6 +111,12 @@ class EnvironmentManager(NodeInterface):
         walls = tuple(self._realizer.realize(w, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for w in level.all_walls)
         doors = tuple(self._realizer.realize(d, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for d in level.all_doors)
         floors = tuple(self._realizer.realize(f, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for f in level.all_floors)
+        ceilings: list[Ceiling] = []
+        for fid, level in _world.levels.items():
+            if not _match_level_id(fid):
+                continue
+            for ceiling in await level.all_ceilings():
+                ceilings.append(self._realizer.realize(ceiling, fid))
         elevators = tuple(self._realizer.realize(e, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for e in level.all_elevators)
         statics = tuple(self._realizer.realize(s, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for s in level.all_static_entities)
 
@@ -135,6 +142,8 @@ class EnvironmentManager(NodeInterface):
         futures: list[typing.Awaitable] = []
         if floors:
             futures.append(self._simulator.spawn_floors(floors))
+        if ceilings:
+            futures.append(self._simulator.spawn_ceilings(ceilings))
         if walls or doors:
             futures.append(self._human_simulator.spawn_world(walls, doors))
         futures.append(self._human_simulator.spawn_obstacles(statics, layer=ObstacleLayer.WORLD))

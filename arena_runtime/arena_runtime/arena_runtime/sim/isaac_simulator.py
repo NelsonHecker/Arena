@@ -33,6 +33,7 @@ from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
+    Ceiling,
     Floor,
     Material,
     Prim,
@@ -42,12 +43,14 @@ from isaacsim_msgs.srv import (
     DeletePrims,
     EditPrims,
     ResetWorld,
+    SpawnCeilings,
     SpawnFloors,
     SpawnPrims,
     SpawnUrdf,
     SpawnUsd,
     SpawnWalls,
 )
+from task_generator.shared import Ceiling as CeilingDefinition
 from task_generator.shared import (
     DynamicObstacle,
     Model,
@@ -194,6 +197,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._NS_ROBOT = Namespace(env_prefix)('Robots')
         self._NS_WALL = Namespace(env_prefix)('Walls')
         self._NS_FLOOR = Namespace(env_prefix)('Floors')
+        self._NS_CEILING = Namespace(env_prefix)('Ceilings')
 
         self.wall_counter = itertools.count()
         self.floor_counter = itertools.count()
@@ -204,6 +208,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             MovePedestrians=self.node.create_client_wrapper(MovePedestrians, "/isaac/MovePedestrians"),
             ResetWorld=self.node.create_client_wrapper(ResetWorld, "/isaac/ResetWorld"),
             UpdatePedestrians=self.node.create_client_wrapper(UpdatePedestrians, "/isaac/UpdatePedestrians"),
+            SpawnCeilings=self.node.create_client_wrapper(SpawnCeilings, "/isaac/SpawnCeilings"),
             SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "/isaac/SpawnFloors"),
             SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "/isaac/SpawnPedestrians"),
             SpawnPrims=self.node.create_client_wrapper(SpawnPrims, "/isaac/SpawnPrims"),
@@ -533,6 +538,34 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         res = bool(floors_res) and all(floors_res.ret)
         self._logger.debug("All floors spawned successfully.")
+        return res
+
+    async def spawn_ceilings(self, ceilings: Sequence[CeilingDefinition]) -> bool:
+        self._logger.debug("Attempting to spawn ceilings")
+
+        async def impl(ceiling: CeilingDefinition) -> Ceiling | None:
+            try:
+                pos = ceiling.pos.to_msg()
+                pos.z = ceiling.z
+                return Ceiling(
+                    name=self._NS_CEILING(ceiling.name),
+                    x_length=ceiling.x_length,
+                    y_length=ceiling.y_length,
+                    pos=pos,
+                    cast_shadows=ceiling.cast_shadows,
+                    material=material_to_msg(await ceiling.material.resolve()),
+                )
+
+            except Exception:
+                self._logger.error(f"Failed to spawn ceiling: {ceiling.name}\n{traceback.format_exc()}")
+                return None
+
+        ceilings_req = SpawnCeilings.Request()
+        ceilings_req.ceilings = list(filter(None, await asyncio.gather(*map(impl, ceilings))))
+        ceilings_res = await self._clients.SpawnCeilings.call_timeout(ceilings_req)
+
+        res = bool(ceilings_res) and all(ceilings_res.ret)
+        self._logger.debug("All ceilings spawned successfully.")
         return res
 
     async def spawn_box(self, name: str, size: tuple[float, float, float], pose: Pose) -> bool:
