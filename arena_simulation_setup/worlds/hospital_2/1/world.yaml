@@ -100,7 +100,7 @@ zones:
     size:
     - 2.0
     - 2.0
-    - 2.5
+    - 2.0
     destination: 0.elevator_ground
     door_side: +y
   entities:
