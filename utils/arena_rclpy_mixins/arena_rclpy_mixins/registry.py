@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import typing
 
-Key = typing.TypeVar('Key')
-Value = typing.TypeVar('Value')
+K = typing.TypeVar('K')
+V = typing.TypeVar('V')
 
 
-class ClassRegistry[K, V]:
+class ClassRegistry(typing.Generic[K, V]):
     """Lazy sync registry: loader returns a class, result cached on first get.
 
     Typical use:
@@ -57,7 +57,7 @@ class ClassRegistry[K, V]:
         return key in self._loaders
 
 
-class FactoryRegistry[K, V]:
+class FactoryRegistry(typing.Generic[K, V]):
     """Sync factory registry: loader constructs a fresh instance per get. Not cached.
 
     Typical use:
@@ -97,7 +97,7 @@ class FactoryRegistry[K, V]:
         return key in self._registry
 
 
-class AsyncFactoryRegistry[K, V]:
+class AsyncFactoryRegistry(typing.Generic[K, V]):
     """Async factory registry: loader constructs a fresh instance per get. Not cached.
 
     Typical use:
