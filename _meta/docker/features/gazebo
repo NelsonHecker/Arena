@@ -20,10 +20,14 @@ source_fn(){
 
 
 help(){
-    echo "Usage: $name <update|uninstall|source>"
+    echo "Usage: $name <install|update|uninstall|source>"
 }
 
 case "$1" in
+    install)
+        _feature_default_install "$name"
+        exit $?
+    ;;
     update)
         update
         exit $?

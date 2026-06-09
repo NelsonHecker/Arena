@@ -126,7 +126,7 @@ source_fn(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <update|uninstall|source|launch>"
+    echo "Usage: $name <install|update|uninstall|source|launch>"
 }
 if [ $# -lt 1 ]; then
     help
