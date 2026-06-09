@@ -19,8 +19,8 @@ from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import FrameNamespace
 from arena_robots.moveit_factory import build_moveit_params
 from arena_robots.Robot import RobotIdentifier
-from task_generator_msgs.msg import AdapterVizManifest, RobotDescriptor, RobotFleet
 from arena_viz import DisplayKind
+from task_generator_msgs.msg import AdapterVizManifest, RobotDescriptor, RobotFleet
 
 from rviz_utils.renderers import REGISTRY
 
@@ -164,6 +164,7 @@ class ConfigFileGenerator(ArenaMixinNode):
         published_topics = {t for t, _ in self.topics}
         displays: list[dict[str, object]] = []
 
+        env_groups: dict[str, dict[str, object]] = {}
         for d in self.viz_manifest.env_displays:
             try:
                 renderer = REGISTRY[DisplayKind(d.kind)]
@@ -173,8 +174,17 @@ class ConfigFileGenerator(ArenaMixinNode):
             if d.topic_must_exist and d.topic not in published_topics:
                 continue
             rendered = renderer(d, None)
-            if rendered is not None:
+            if rendered is None:
+                continue
+            if not d.group:
                 displays.append(rendered)
+                continue
+            group = env_groups.get(d.group)
+            if group is None:
+                group = {"Class": "rviz_common/Group", "Name": d.group, "Enabled": True, "Displays": []}
+                env_groups[d.group] = group
+                displays.append(group)
+            typing.cast("list[object]", group["Displays"]).append(rendered)
 
         robots_by_ns = {robot.ns: robot for robot in self.robots}
         entries_by_ns: dict[str, list] = {}

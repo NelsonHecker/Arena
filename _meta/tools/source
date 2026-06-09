@@ -407,6 +407,15 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 arena feature evaluation "$@"
                 result=$?
             ;;
+            preload)
+                if [ $# -lt 1 ]; then
+                    echo "Usage: arena preload <world_name> [--no-scenarios] [-v]" >&2
+                    result=1
+                else
+                    ros2 run arena_simulation_setup preload_world "$@"
+                    result=$?
+                fi
+            ;;
             *)
                 echo 'Usage: arena <benchmark|build|rebuild|demo|deps|update|launch|runtime|env|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
                 result=1

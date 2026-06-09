@@ -43,6 +43,8 @@ dependencies = [
     "chromadb",
     "colourings",
     "aiofiles",
+    "py-trees>=2.4.0",
+    "pyastar2d>=1.1.4",
     "hypothesis",
     "pathfinding3d>=0.7.2",
     "transformers>=5.5.4",

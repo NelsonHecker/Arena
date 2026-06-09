@@ -134,14 +134,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     def robots_manager(self) -> RobotsManager:
         return self._robots_manager
 
-    def __init__(
-        self,
-        namespace: str = "task_generator_node",
-    ):
+    def __init__(self):
         super().__init__("task_generator", automatically_declare_parameters_from_overrides=True)
         self.conf = Configuration(self)
 
-        self._namespace = Namespace(namespace)
+        self._namespace = Namespace(self.get_namespace())
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -433,6 +430,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             node=self,
             namespace=self._namespace,
             simulator=self._simulator,
+            realizer=realizer,
         )
 
         self._logger.info("Setting up environment manager")
@@ -528,16 +526,56 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             ),
         ]
         if human_sim != human_sim.__class__.DUMMY:
+            latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
+            # Canonical human models, shared by every backend and latched to match the
+            # converter's TRANSIENT_LOCAL publisher (survives paused resets, replays to late rviz).
             env_displays.append(
                 AdapterDisplay(
                     name="Pedestrians",
                     topic=f"{env_ns}/pedestrian_markers",
                     topic_type="visualization_msgs/MarkerArray",
                     kind=DisplayKind.PEDESTRIANS,
-                    style_json="",
+                    style_json=latched,
                     topic_must_exist=False,
+                    group="Pedestrians",
                 )
             )
+            # Backend-internal debug overlay, off by default.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Extra",
+                    topic=f"{env_ns}/pedestrian_markers/extra",
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.MARKER_ARRAY,
+                    style_json=StyleSpec(enabled=False).to_json(),
+                    topic_must_exist=False,
+                    group="Pedestrians",
+                )
+            )
+            # Static environment geometry: not pedestrians, own group.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Static",
+                    topic=f"{env_ns}/pedestrian_markers/static",
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.MARKER_ARRAY,
+                    style_json=latched,
+                    topic_must_exist=False,
+                    group="Static",
+                )
+            )
+            for leaf in ("static_walls", "static_objects"):
+                env_displays.append(
+                    AdapterDisplay(
+                        name=leaf.replace("_", " ").title(),
+                        topic=f"{env_ns}/pedestrian_markers/{leaf}",
+                        topic_type="visualization_msgs/MarkerArray",
+                        kind=DisplayKind.MARKER_ARRAY,
+                        style_json=latched,
+                        topic_must_exist=True,
+                        group="Static",
+                    )
+                )
 
         entries: list[AdapterEntry] = []
         for mgr in self._robots_manager.managers.values():

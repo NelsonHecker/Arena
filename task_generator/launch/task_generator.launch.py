@@ -13,7 +13,6 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
-from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import LaunchArgument
 from launch.actions import (
     ExecuteProcess,
@@ -23,7 +22,6 @@ from launch.actions import (
 )
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import PathJoinSubstitution
-from launch_ros.actions import PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 
 _REGISTER_RETRY_SEC = 1.0
@@ -244,6 +242,7 @@ def generate_launch_description():
             package="rviz_utils",
             executable="pedestrian_marker_publisher",
             name="pedestrian_marker_publisher",
+            namespace=os.path.dirname(allocated_ns),
             parameters=[
                 {"use_sim_time": True},
                 {"body_height": 1.6},
@@ -253,12 +252,8 @@ def generate_launch_description():
                 {"show_labels": True},
                 {"show_velocity_arrows": True},
                 {"show_orientation_arrows": True},
-                {"namespace": allocated_ns},
             ],
             output="screen",
-            condition=launch.conditions.IfCondition(
-                PythonExpression([f'"{human_val}" == "hunav"'])
-            ),
         )
 
         def _coerce(raw: str) -> object:
@@ -352,18 +347,13 @@ def generate_launch_description():
             ],
         )
 
-        inner_group = launch.actions.GroupAction([
-            PushRosNamespace(namespace=allocated_ns),
-            pedestrian_marker_node,
-        ])
-
         shutdown_on_node_exit = RegisterEventHandler(OnProcessExit(
             target_action=task_generator_node,
             on_exit=[launch.actions.Shutdown(reason="task_generator_node exited")],
         ))
 
         return [
-            IsolatedGroupAction([human_launch, inner_group, task_generator_node]),
+            IsolatedGroupAction([human_launch, pedestrian_marker_node, task_generator_node]),
             launch.actions.RegisterEventHandler(
                 debug_window_cb,
                 condition=launch.conditions.IfCondition(debug.substitution),

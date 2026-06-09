@@ -18,7 +18,8 @@ def test_registry_has_obstacles_entries():
     assert Constants.TaskMode.TM_Obstacles.RANDOM in OBSTACLES_MODES
     assert Constants.TaskMode.TM_Obstacles.SCENARIO in OBSTACLES_MODES
     assert Constants.TaskMode.TM_Obstacles.ENVIRONMENT in OBSTACLES_MODES
-    assert Constants.TaskMode.TM_Obstacles.PROMPT in OBSTACLES_MODES
+    # PROMPT is registered per-BaseHumanSimulator subclass via _register_task_modes,
+    # not centrally; see test_humansim_register.py.
 
 
 def test_registry_has_robots_entries():

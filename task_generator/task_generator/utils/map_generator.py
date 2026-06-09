@@ -79,7 +79,14 @@ def generate_rooms_for_side(side: str, num_rooms: int) -> list[dict]:
             door_end = door_start + DOOR_WIDTH
         else:
             door_start, door_end = current_x, current_x + w
-        room = {"x": round(current_x, 1), "y": round(y, 1), "w": w, "h": h, "side": side, "door_gap": (round(door_start, 1), round(door_end, 1))}
+        room = {
+            "x": round(current_x, 1),
+            "y": round(y, 1),
+            "w": w,
+            "h": h,
+            "side": side,
+            "door_gap": (round(door_start, 1), round(door_end, 1)),
+        }
         rooms.append(room)
         current_x += w
     return rooms
@@ -93,7 +100,12 @@ def generate_all_rooms() -> list[dict]:
 
 def room_to_zone(room: dict) -> dict:
     x, y, w, h = room["x"], room["y"], room["w"], room["h"]
-    polygon = [FlowList([x, y]), FlowList([x + w, y]), FlowList([x + w, y + h]), FlowList([x, y + h])]
+    polygon = [
+        FlowList([x, y]),
+        FlowList([x + w, y]),
+        FlowList([x + w, y + h]),
+        FlowList([x, y + h]),
+    ]
     return {"polygon": polygon}
 
 
@@ -139,7 +151,14 @@ def generate_hallway_walls(rooms: list[dict]) -> list[FlowList]:
         segments.append((current_x, MAP_WIDTH))
     for seg in segments:
         x1, x2 = seg
-        hallway_walls.append(FlowList([FlowList([round(x1, 1), HALLWAY_TOP]), FlowList([round(x2, 1), HALLWAY_TOP])]))
+        hallway_walls.append(
+            FlowList(
+                [
+                    FlowList([round(x1, 1), HALLWAY_TOP]),
+                    FlowList([round(x2, 1), HALLWAY_TOP]),
+                ]
+            )
+        )
 
     segments = []
     current_x = 0.0
@@ -152,7 +171,14 @@ def generate_hallway_walls(rooms: list[dict]) -> list[FlowList]:
         segments.append((current_x, MAP_WIDTH))
     for seg in segments:
         x1, x2 = seg
-        hallway_walls.append(FlowList([FlowList([round(x1, 1), HALLWAY_BOTTOM]), FlowList([round(x2, 1), HALLWAY_BOTTOM])]))
+        hallway_walls.append(
+            FlowList(
+                [
+                    FlowList([round(x1, 1), HALLWAY_BOTTOM]),
+                    FlowList([round(x2, 1), HALLWAY_BOTTOM]),
+                ]
+            )
+        )
     return hallway_walls
 
 
@@ -162,7 +188,15 @@ def save_yaml(data: object, filepath: str) -> None:
 
 
 def generate_map_yaml(filepath: str, map_name: str) -> None:
-    map_yaml = {"free_thresh": 0.196, "image": map_name + ".png", "negate": 0, "occupied_thresh": 0.65, "origin": [0, 0, 0], "resolution": RESOLUTION, "type": "indoor"}
+    map_yaml = {
+        "free_thresh": 0.196,
+        "image": map_name + ".png",
+        "negate": 0,
+        "occupied_thresh": 0.65,
+        "origin": [0, 0, 0],
+        "resolution": RESOLUTION,
+        "type": "indoor",
+    }
     save_yaml(map_yaml, filepath)
 
 
@@ -176,7 +210,12 @@ def draw_map_image(rooms: list[dict], all_walls: list[object], filepath: str) ->
         py = IMAGE_HEIGHT - y * PIXEL_SCALE
         return (px, py)
 
-    hallway_poly = [(0, HALLWAY_BOTTOM), (MAP_WIDTH, HALLWAY_BOTTOM), (MAP_WIDTH, HALLWAY_TOP), (0, HALLWAY_TOP)]
+    hallway_poly = [
+        (0, HALLWAY_BOTTOM),
+        (MAP_WIDTH, HALLWAY_BOTTOM),
+        (MAP_WIDTH, HALLWAY_TOP),
+        (0, HALLWAY_TOP),
+    ]
     pixel_hallway = [to_pixel(pt) for pt in hallway_poly]
     draw.polygon(pixel_hallway, fill="lightgray")
 
@@ -199,7 +238,7 @@ def main(args: list[str] | None = None) -> None:
     node = rclpy.create_node('map_generator')
 
     # Declare ROS2 parameters.
-    arena_ws_dir = os.environ['ARENA_WS_DIR']
+    arena_ws_dir = os.environ["ARENA_WS_DIR"]
     default_map_name = "map_" + str(random.randint(0, 1000))
     node.declare_parameter('map_name', default_map_name)
     map_name = node.get_parameter('map_name').value

@@ -15,7 +15,8 @@ class Constants:
     class HumanSimulator(Enum):
         DUMMY = "dummy"
         HUNAV = "hunav"  # Added Hunavsim
-        ISAAC = 'isaac'
+        ISAAC = "isaac"
+        ARENA = "arena"
 
     class TaskMode:
         @enum.unique

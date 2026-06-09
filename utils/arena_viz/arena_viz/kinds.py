@@ -9,6 +9,7 @@ class DisplayKind(enum.StrEnum):
     MAP = "map"
     TF = "tf"
     PEDESTRIANS = "pedestrians"
+    MARKER_ARRAY = "marker_array"  # generic MarkerArray passthrough; no pedestrian-namespace assumptions
     ROBOT_MODEL = "robot_model"
     ODOM = "odom"
     LASER_SCAN = "laser_scan"

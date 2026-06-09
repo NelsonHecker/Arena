@@ -59,6 +59,46 @@ Every subclass must implement:
 | `_remove_robot_impl(robots)` | human-sim side: deregister robots |
 | `_move_robot_impl(robots)` | human-sim side: update robot positions |
 
+## Visualization topics
+
+Pedestrian visualization flows through one data feed plus a few marker layers, all at
+env level (`<env_ns>/`) and shared by every backend:
+
+| Topic | Producer | QoS | Role |
+| --- | --- | --- | --- |
+| `arena_peds` | each backend (`publish_arena_peds`) | reliable, volatile | Pedestrian state feed (positions/velocities). Data, not markers. |
+| `pedestrian_markers` | `pedestrian_marker_publisher` node | reliable, transient-local, depth 1 | **Canonical** human models (mesh body + orientation/velocity arrows + labels), converted from `arena_peds`. Identical across hunav and arena_humansim. |
+| `pedestrian_markers/extra` | base class (`publish_markers`) | best-effort, volatile | Backend-internal debug overlay (e.g. arena_humansim forwards its planner viz). Off by default. |
+| `pedestrian_markers/static` | base class (`publish_static_markers`) | reliable, transient-local, depth 1 | Latched static scene as one combined topic. |
+| `pedestrian_markers/static_*` | adapter | reliable, transient-local, depth 1 | Latched static scene split per bucket (`/static_walls`, `/static_objects`, ...). |
+
+**Rendering contract.** The canonical human view is `pedestrian_markers`, produced by the standalone
+[`pedestrian_marker_publisher`](../../../../utils/rviz_utils/rviz_utils/scripts/pedestrian_marker_publisher.py)
+node, which subscribes `arena_peds` and emits mesh humans. It is latched (transient-local, no marker
+lifetime) so the models persist across paused resets and replay to a late-joining rviz; the per-frame
+`DELETEALL` clears departed pedestrians. Both backends feed the same converter, so the human model is
+identical regardless of simulator. `extra` is backend debug, disabled by default; enabling it alongside
+the canonical display intentionally double-draws the agents (mesh + debug geometry).
+
+**Display kinds** (`arena_viz.DisplayKind`):
+- `PEDESTRIANS` — the canonical `pedestrian_markers` display only; its renderer assumes the
+  `pedestrian_*` marker namespaces.
+- `MARKER_ARRAY` — generic MarkerArray passthrough, no namespace assumptions; used for `extra` and all
+  `static*` layers.
+
+The auto-rviz manifest ([`node.py` `_publish_viz_manifest`](../../node.py)) groups these into a
+**Pedestrians** folder (canonical display + `extra`, off) and a separate **Static** folder (`static`,
+`static_walls`, `static_objects`). The `pedestrian_markers/` prefix on the debug/static layers is
+historical, they are overlays, not pedestrian data.
+
+Current adapters:
+
+| Adapter | Static topics published |
+| --- | --- |
+| `hunav` | `pedestrian_markers/static` (single combined topic) |
+| `arena_humansim` | `pedestrian_markers/static_walls`, `pedestrian_markers/static_objects` |
+| `dummy`, `isaac` | none |
+
 ## PROMPT registration
 
 `TM_Prompt` is not registered centrally. Each `BaseHumanSimulator` subclass

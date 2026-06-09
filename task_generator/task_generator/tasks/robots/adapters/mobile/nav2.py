@@ -39,14 +39,14 @@ if TYPE_CHECKING:
             topic="{ns}/local_costmap/costmap",
             topic_type="nav_msgs/OccupancyGrid",
             kind=DisplayKind.MAP,
-            style_json=StyleSpec(alpha=0.7, extra={"rviz": {"Color Scheme": "costmap", "Draw Behind": False, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}}).to_json(),
+            style_json=StyleSpec(alpha=0.7, extra={"rviz": {"Color Scheme": "costmap"}}).to_json(),
         ),
         AdapterDisplayHint(
             name="Global Costmap",
             topic="{ns}/global_costmap/costmap",
             topic_type="nav_msgs/OccupancyGrid",
             kind=DisplayKind.MAP,
-            style_json=StyleSpec(alpha=0.7, enabled=False, extra={"rviz": {"Color Scheme": "costmap", "Draw Behind": False, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}}).to_json(),
+            style_json=StyleSpec(alpha=0.7, enabled=False, extra={"rviz": {"Color Scheme": "costmap"}}).to_json(),
         ),
         AdapterDisplayHint(
             name="Local Plan",

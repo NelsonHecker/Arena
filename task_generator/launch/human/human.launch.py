@@ -4,6 +4,8 @@ from launch_ros.substitutions import FindPackageShare
 
 from arena_bringup.substitutions import LaunchArgument, SelectAction
 
+from task_generator.constants import Constants
+
 
 def generate_launch_description():
 
@@ -18,17 +20,17 @@ def generate_launch_description():
     launch_human_simulator = SelectAction(launch.substitutions.LaunchConfiguration('simulator'))
 
     launch_human_simulator.add(
-        'dummy',
+        Constants.HumanSimulator.DUMMY.value,
         launch.actions.GroupAction([])
     )
 
     launch_human_simulator.add(
-        'isaac',
+        Constants.HumanSimulator.ISAAC.value,
         launch.actions.GroupAction([])
     )
 
     launch_human_simulator.add(
-        'hunav',
+        Constants.HumanSimulator.HUNAV.value,
         launch.actions.IncludeLaunchDescription(
             PathJoinSubstitution([
                 FindPackageShare('task_generator'),
@@ -37,6 +39,20 @@ def generate_launch_description():
             launch_arguments={
                 'use_sim_time': 'true',
                 'world_file': '',
+                **namespace.dict
+            }.items(),
+        )
+    )
+
+    launch_human_simulator.add(
+        Constants.HumanSimulator.ARENA.value,
+        launch.actions.IncludeLaunchDescription(
+            PathJoinSubstitution([
+                FindPackageShare('task_generator'),
+                'launch', 'human', 'arena_humansim', 'arena_humansim.launch.py',
+            ]),
+            launch_arguments={
+                'use_sim_time': 'true',
                 **namespace.dict
             }.items(),
         )

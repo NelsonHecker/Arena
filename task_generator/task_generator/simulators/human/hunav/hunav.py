@@ -33,8 +33,33 @@ from visualization_msgs.msg import Marker, MarkerArray
 from . import HunavDynamicObstacle
 
 
+def _create_robot_message() -> Agent:
+    """Creates a standard robot message for HuNav communication"""
+    robot_msg = Agent()
+    robot_msg.id = 0
+    robot_msg.name = "robot"
+    robot_msg.type = Agent.ROBOT
+    robot_msg.position.position.x = 0.0
+    robot_msg.position.position.y = 0.0
+    robot_msg.yaw = 0.0
+    robot_msg.radius = 0.3
+    return robot_msg
+
+
 class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyHumanSimulator):
     """HunavManager with debug logging for tracking execution flow"""
+
+    @classmethod
+    def _register_task_modes(cls):
+        from task_generator.constants import Constants
+        from task_generator.tasks.obstacles.prompt import NS, declare_schema
+        from task_generator.tasks.registry import OBSTACLES_MODES
+
+        @OBSTACLES_MODES.register(Constants.TaskMode.TM_Obstacles.PROMPT, namespace=NS, schema=declare_schema)
+        def _prompt() -> type:
+            from task_generator.tasks.obstacles.prompt.hunav import TM_Prompt
+
+            return TM_Prompt
 
     # Service Names
     SERVICE_COMPUTE_AGENT = "compute_agent"
@@ -54,24 +79,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     _get_agents_service: rclpy.node.Service
     _get_walls_service: rclpy.node.Service
 
-    # Publishers
-    _arena_peds_publisher: rclpy.node.Publisher
-    _wall_markers_publisher: rclpy.node.Publisher
-
-    _robot_msg: Agent
-
-    def _refresh_robot_msg(self) -> Agent:
-        """Update the shared robot Agent message"""
-        robot = next(iter(self.node.robots_manager.managers.values()), None)
-        if robot is None:
-            return self._robot_msg
-        self._robot_msg.radius = robot.radius
-        pose = robot.pose
-        if pose is not None:
-            self._robot_msg.position = pose.to_msg()
-            self._robot_msg.yaw = pose.orientation.to_yaw()
-        return self._robot_msg
-
     def __init__(self, *args: object, namespace: Namespace, simulator: BaseSim, **kwargs: object) -> None:
         """Initialize HunavManager with debug logging"""
         super().__init__(*args, namespace=namespace, simulator=simulator, **kwargs)
@@ -81,16 +88,15 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug("=== HUNAVMANAGER INIT START ===")
         self._logger.debug("Parent class initialized")
 
-        self._robot_msg = Agent()
-        self._robot_msg.id = 0
-        self._robot_msg.name = "robot"
-        self._robot_msg.type = Agent.ROBOT
-
         # Initialize collections
         self._logger.debug("Initializing collections...")
         self._pedestrians: dict[int, dict] = {}
-        self._wall_segments: list[WallSegment] = []
-        self._wall_points: list[Point] = []
+        self._explicit_wall_segments: dict[str, WallSegment] = {}
+        self._explicit_wall_points: dict[str, list[Point]] = {}
+        self._obstacle_wall_segments: dict[str, WallSegment] = {}
+        self._obstacle_wall_points: dict[str, list[Point]] = {}
+        self._wall_segments: dict[str, WallSegment] = {}
+        self._wall_points: dict[str, list[Point]] = {}
         self._agents_lock: asyncio.Lock = asyncio.Lock()
         self._agents_container: Agents = Agents()  # Container to hold all registered agents
         self._get_agents_container: Agents = Agents()  # Container specifically just to send the Agent attributes to Hunavsystemplugin
@@ -127,11 +133,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._logger.debug("Services setup complete")
         else:
             self._logger.error("Service setup failed!")
-
-        if self._setup_arena_peds_publisher():
-            self._logger.debug("Arena peds publisher setup complete")
-        else:
-            self._logger.error("Arena peds publisher setup failed!")
 
         self._logger.debug("Waiting for services to be ready...")
         await asyncio.sleep(2.0)
@@ -186,26 +187,16 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         self._logger.debug("=== SETUP_SERVICES COMPLETE ===")
         return True
 
-    def _setup_arena_peds_publisher(self) -> bool:
-        """Setup arena_peds publisher and loops - separate from services"""
-        try:
-            self._logger.debug("=== ARENA PEDS PUBLISHER SETUP START ===")
-
-            # Create publisher
-            self._arena_peds_publisher = self.node.create_publisher(Pedestrians, self._namespace("arena_peds"), 10)
-
-            self._wall_markers_publisher = self.node.create_publisher(MarkerArray, self._namespace('wall_markers'), 10)
-
-            self._logger.debug("=== ARENA PEDS PUBLISHER SETUP COMPLETE ===")
-            return True
-
-        except Exception as e:
-            self._logger.error(f"Arena peds publisher setup failed: {e}")
-            return False
-
     def _update_agent_obstacles(self, current_agents: Agents) -> Agents:
+        """Update agent closest_obs with latest obstacle data before HuNav call"""
+        from itertools import chain
+
+        all_wall_points = list(chain.from_iterable(self._wall_points.values()))
+
         for agent in current_agents.agents:
-            agent.closest_obs.extend(self._wall_points)
+            agent.closest_obs.extend(all_wall_points)
+            self._logger.debug(f"Updated agent {agent.name} with {len(agent.closest_obs)} obstacles")
+
         return current_agents
 
     async def _get_agents_callback(self, request: GetAgents.Request, response: GetAgents.Response) -> GetAgents.Response:
@@ -236,7 +227,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
     async def _get_walls_callback(self, request: GetWalls.Request, response: GetWalls.Response) -> GetWalls.Response:
         """Service callback für Wall-Segments"""
         del request
-        response.walls = self._wall_segments
+        response.walls = list(self._wall_segments.values())
         self._logger.debug(f"Sent {len(self._wall_segments)} wall segments")
         return response
 
@@ -255,9 +246,9 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             self._logger.error(f"Failed to update agent positions: {e}\n{traceback.format_exc()}")
 
     async def _spawn_obstacles_impl(self, obstacles: Sequence[Obstacle]) -> Sequence[Obstacle | None]:
-        self._logger.debug(f'Spawning walls for {len(obstacles)} obstacles')
+        self._logger.debug(f"Spawning walls for {len(obstacles)} obstacles")
 
-        async def obstacle_to_walls(obstacle: Obstacle) -> list[Wall]:
+        async def obstacle_to_walls(obstacle: Obstacle) -> list[tuple[str, Wall]]:
             try:
                 view = await obstacle.model.resolve()
                 bounds = view.bounds
@@ -269,25 +260,35 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 corners = np.array(bounds) @ rotation_mat.T
                 corners += np.array([[obstacle.pose.position.x, obstacle.pose.position.y]])
 
-                obstacle_walls: list[Wall] = []
-                for start, end in zip(corners, np.roll(corners, -1, axis=0), strict=False):
-                    obstacle_walls.append(Wall(start=Position(x=start[0], y=start[1]), end=Position(x=end[0], y=end[1])))
+                obstacle_walls: list[tuple[str, Wall]] = []
+                for i, (start, end) in enumerate(zip(corners, np.roll(corners, -1, axis=0), strict=False)):
+                    wall = Wall(
+                        start=Position(x=start[0], y=start[1]),
+                        end=Position(x=end[0], y=end[1]),
+                    )
+                    obstacle_walls.append((f"{obstacle.name}_wall_{i}", wall))
 
-                self._logger.debug(f'spawning wall segments for obstacle {obstacle.name}')
-                for wall in obstacle_walls:
-                    self._logger.debug(f'  Wall from ({wall.start.x:.2f}, {wall.start.y:.2f}) to ({wall.end.x:.2f}, {wall.end.y:.2f})')
+                self._logger.debug(f"spawning wall segments for obstacle {obstacle.name}")
+                for _name, wall in obstacle_walls:
+                    self._logger.debug(f"  Wall from ({wall.start.x:.2f}, {wall.start.y:.2f}) to ({wall.end.x:.2f}, {wall.end.y:.2f})")
 
                 return obstacle_walls
             except Exception as e:
                 self._logger.warning(f"failed to spawn bounding walls for obstacle '{obstacle.name}': {e}")
                 return []
 
-        self._logger.debug('Spawning walls for obstacles...')
+        self._logger.debug("Spawning walls for obstacles...")
         all_walls = await asyncio.gather(*(obstacle_to_walls(obs) for obs in obstacles))
-        self._logger.debug('Finished spawning walls for obstacles.')
+        self._logger.debug("Finished spawning walls for obstacles.")
 
-        for wall in [wall for walls in all_walls for wall in walls]:
-            self._add_wall(wall)
+        for name, wall in [entry for walls in all_walls for entry in walls]:
+            self._add_wall(
+                name,
+                wall,
+                self._obstacle_wall_segments,
+                self._obstacle_wall_points,
+            )
+        self._rebuild_wall_cache()
         return obstacles
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles: Sequence[DynamicObstacle]) -> Sequence[DynamicObstacle | None]:
@@ -369,7 +370,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 return results
 
             request = ComputeAgents.Request()
-            request.robot = self._refresh_robot_msg()
+            request.robot = _create_robot_message()
             request.current_agents = merged
             response = await self._compute_agents_client.call_timeout(request)
 
@@ -389,33 +390,70 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         points.append(end.to_msg())
         return points
 
-    def _add_wall(self, wall: Wall):
-        """Add a single wall segment to the local list and update wall points"""
+    def _rebuild_wall_cache(self):
+        """Merge explicit and obstacle wall dicts into the cached view."""
+        self._wall_segments = {
+            **self._explicit_wall_segments,
+            **self._obstacle_wall_segments,
+        }
+        self._wall_points = {**self._explicit_wall_points, **self._obstacle_wall_points}
+
+    def _add_wall(
+        self,
+        name: str,
+        wall: Wall,
+        segments: dict[str, WallSegment],
+        points: dict[str, list[Point]],
+    ):
+        """Add a single wall segment to the given dicts."""
         segment = WallSegment()
-        segment.id = len(self._wall_segments)
+        segment.id = len(segments)
         segment.start = wall.start.to_msg()
         segment.end = wall.end.to_msg()
         segment.length = (wall.start - wall.end).norm()
 
-        self._wall_segments.append(segment)
-        self._wall_points.extend(self._wall_to_points(wall.start, wall.end))
+        segments[name] = segment
+        points[name] = self._wall_to_points(wall.start, wall.end)
 
-        self._logger.debug(f"Added wall segment {segment.id} from ({segment.start.x:.2f}, {segment.start.y:.2f}) to ({segment.end.x:.2f}, {segment.end.y:.2f})")
-        self._logger.debug(f"Total wall segments: {len(self._wall_segments)}, Total wall points: {len(self._wall_points)}")
+        self._logger.debug(f"Added wall segment '{name}' from ({segment.start.x:.2f}, {segment.start.y:.2f}) to ({segment.end.x:.2f}, {segment.end.y:.2f})")
 
-    async def _spawn_walls_impl(self, walls: Sequence[Wall]) -> bool:
-        self._wall_segments = []
-        self._wall_points = []
+    async def _spawn_walls_impl(self, walls: typing.Mapping[str, Wall]) -> bool:
+        self._explicit_wall_segments = {}
+        self._explicit_wall_points = {}
 
-        for wall in walls:
-            self._add_wall(wall)
+        for name, wall in walls.items():
+            self._add_wall(
+                name,
+                wall,
+                self._explicit_wall_segments,
+                self._explicit_wall_points,
+            )
 
+        self._rebuild_wall_cache()
         self._logger.debug(f"Cached {len(self._wall_segments)} wall segments")
-        self._logger.debug(f"Wallsegments{self._wall_segments} ")
         return True
 
-    async def _remove_obstacles_impl(self) -> bool:
-        """Remove all spawned pedestrians from simulation safely"""
+    async def _remove_walls_impl(self, names: Sequence[str]) -> bool:
+        for name in names:
+            self._explicit_wall_segments.pop(name, None)
+            self._explicit_wall_points.pop(name, None)
+        self._rebuild_wall_cache()
+        self._logger.debug(f"Removed {len(names)} wall segments, {len(self._wall_segments)} remaining")
+        return True
+
+    async def _remove_obstacles_impl(self, names: Sequence[str]) -> bool:
+        """Remove obstacle-derived wall segments by obstacle name."""
+        for name in names:
+            keys = [k for k in self._obstacle_wall_segments if k.startswith(f"{name}_wall_")]
+            for k in keys:
+                self._obstacle_wall_segments.pop(k, None)
+                self._obstacle_wall_points.pop(k, None)
+        self._rebuild_wall_cache()
+        self._logger.debug(f"Removed obstacle walls for {len(names)} obstacles, {len(self._wall_segments)} wall segments remaining")
+        return True
+
+    async def _remove_pedestrians_impl(self) -> bool:
+        """Remove all spawned pedestrians from simulation safely."""
         self._logger.debug(f"=== REMOVING {len(self._pedestrians)} PEDESTRIANS ===")
 
         async with self._agents_lock:
@@ -541,7 +579,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                         # Create request
                         request = ComputeAgents.Request()
                         request.current_agents = current_agents
-                        request.robot = self._refresh_robot_msg()
+                        request.robot = _create_robot_message()
                         response = await self._compute_agents_client.call_timeout(request)
 
                         if response and response.updated_agents:
@@ -596,7 +634,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                         for ped in self._arena_pedestrians_container.pedestrians:
                             self._logger.debug(f"Publishing pedestrian {ped.name} at ({ped.pose.position.x}, {ped.pose.position.y}) with velocity ({ped.twist.linear.x}, {ped.twist.linear.y})")
 
-                        self._arena_peds_publisher.publish(self._arena_pedestrians_container)
+                        self.publish_arena_peds(self._arena_pedestrians_container)
                         self._publish_wall_markers()
 
         except asyncio.CancelledError:
@@ -609,7 +647,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         """Publish wall segments as visualization markers"""
         marker_array = MarkerArray()
 
-        for wall in self._wall_segments:
+        for wall in self._wall_segments.values():
             marker = Marker()
             marker.header.frame_id = "map"
             marker.header.stamp = self.node.sim_time.to_msg()
@@ -628,7 +666,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
 
             marker_array.markers.append(marker)
 
-        self._wall_markers_publisher.publish(marker_array)
+        self.publish_static_markers(marker_array)
 
     def _smooth_yaw(self, new_yaw: float, current_yaw: float) -> float:
         import math

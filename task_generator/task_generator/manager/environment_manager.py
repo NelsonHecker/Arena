@@ -15,6 +15,7 @@ from task_generator.shared import (
     DynamicObstacle,
     Obstacle,
     Pose,
+    Region,
     Robot,
 )
 from task_generator.simulators.human import BaseHumanSimulator
@@ -196,6 +197,29 @@ class EnvironmentManager(NodeInterface):
         await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
         self._sync_static_polygons()
 
+    async def respawn_world(self, world: WorldDescription):
+        """
+        Replace world obstacles atomically: old items are only cleaned
+        up after new ones have been spawned successfully.
+        """
+        old_walls, old_doors = self._human_simulator.unuse_world()
+        await self._simulator.remove_world()
+        await self.spawn_world_obstacles(world)
+        self._human_simulator.remove_stale_world(old_walls, old_doors)
+        await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
+
+    async def setup_regions(self, regions: Sequence[Region]) -> bool:
+        """
+        Configure regions (sources/sinks) on the human simulator.
+        """
+        return await self._human_simulator.setup_regions(regions)
+
+    async def remove_all_regions(self) -> bool:
+        """
+        Remove all tracked regions from the human simulator.
+        """
+        return await self._human_simulator.remove_all_regions()
+
     async def reset(self, purge: ObstacleLayer = ObstacleLayer.INUSE):
         """
         Unuse and remove all obstacles
@@ -209,7 +233,11 @@ class EnvironmentManager(NodeInterface):
         return await self._simulator.step(n)
 
     async def before_reset_episode(self) -> bool:
+        await self._human_simulator.pause()
         return await self._simulator.before_reset_episode()
 
     async def after_reset_episode(self) -> bool:
-        return await self._simulator.after_reset_episode()
+        try:
+            return await self._simulator.after_reset_episode()
+        finally:
+            await self._human_simulator.unpause()

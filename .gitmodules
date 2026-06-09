@@ -25,3 +25,8 @@
 	url = https://github.com/arena-robots/arena_robots.git
 	branch = jazzy
 	update = rebase
+[submodule "humansim"]
+	path = humansim
+	url = https://github.com/voshch/humansim.git
+	branch = master
+	update = rebase

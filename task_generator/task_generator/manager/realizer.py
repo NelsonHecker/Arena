@@ -73,6 +73,10 @@ class Realizer:
     def _prefix(self, *s: str) -> str:
         return str(FrameNamespace(self._config.prefix)(*(p for p in s if p)))
 
+    def prefix(self, *s: str) -> str:
+        """Public: return the env-prefixed identifier for ``s`` (no pose realization)."""
+        return self._prefix(*s)
+
     def _realize_position(self, position: Position, level_id: str = "") -> Position:
         level_x, level_y = self.get_level_origin(level_id)
         return Position(

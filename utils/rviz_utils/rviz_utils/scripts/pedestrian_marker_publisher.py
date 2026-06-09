@@ -38,12 +38,14 @@ class PedestrianMarkerPublisher(Node):
             depth=10,
         )
 
-        # QoS Settings for marker output
+        # QoS Settings for marker output: latched so the human models persist across
+        # paused resets and replay to a late-joining rviz. Per-frame DELETEALL handles
+        # removal of departed pedestrians, so the markers carry no self-expiry.
         marker_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
-            durability=QoSDurabilityPolicy.VOLATILE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=10,
+            depth=1,
         )
 
         # Build namespaced topic names
@@ -202,9 +204,6 @@ class PedestrianMarkerPublisher(Node):
         # Color
         # marker.color = color
 
-        # Lifetime
-        marker.lifetime.sec = 1
-
         return marker
 
     def _create_orientation_arrow(
@@ -236,9 +235,6 @@ class PedestrianMarkerPublisher(Node):
 
         # Color (blue for orientation)
         marker.color = ColorRGBA(r=0.0, g=0.0, b=1.0, a=0.8)  # Semi-transparent blue
-
-        # Lifetime
-        marker.lifetime.sec = 1
 
         return marker
 
@@ -279,9 +275,6 @@ class PedestrianMarkerPublisher(Node):
         # Color (bright for visibility)
         marker.color = ColorRGBA(r=1.0, g=0.5, b=0.0, a=1.0)  # Orange
 
-        # Lifetime
-        marker.lifetime.sec = 1
-
         return marker
 
     def _create_name_label(self, pedestrian: Pedestrian, pedestrian_id: int, body_height: float, header: Header) -> Marker:
@@ -307,9 +300,6 @@ class PedestrianMarkerPublisher(Node):
 
         # Color (white for visibility)
         marker.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
-
-        # Lifetime
-        marker.lifetime.sec = 1
 
         return marker
 

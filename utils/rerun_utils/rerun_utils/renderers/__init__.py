@@ -10,6 +10,7 @@ from rerun_utils.renderers import (  # noqa: F401 -- import to trigger @register
     imu,
     laser_scan,
     map,
+    marker_array,
     odom,
     path,
     pedestrians,

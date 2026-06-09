@@ -11,6 +11,18 @@ from rviz_utils.renderers._registry import register
 @register(DisplayKind.PEDESTRIANS)
 def render_pedestrians(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict[str, object] | None:
     style = StyleSpec.from_json(d.style_json)
+    rviz_extra: dict[str, object] = style.extra.get("rviz", {})
+    reliability = rviz_extra.get("Reliability Policy", "Best Effort")
+    durability = rviz_extra.get("Durability Policy", "Volatile")
+    namespaces = rviz_extra.get(
+        "Namespaces",
+        {
+            "pedestrian_meshes": True,
+            "pedestrian_orientation": True,
+            "pedestrian_velocity": True,
+            "pedestrian_labels": True,
+        },
+    )
     result: dict[str, object] = {
         "Class": "rviz_default_plugins/MarkerArray",
         "Name": d.name,
@@ -19,15 +31,13 @@ def render_pedestrians(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict
             "Value": d.topic,
             "Depth": 20,
             "History Policy": "Keep Last",
-            "Reliability Policy": "Best Effort",
-            "Durability Policy": "Volatile",
+            "Reliability Policy": reliability,
+            "Durability Policy": durability,
         },
-        "Namespaces": {
-            "pedestrian_meshes": True,
-            "pedestrian_arrows": True,
-            "pedestrian_labels": True,
-        },
+        "Namespaces": namespaces,
         "Value": True,
     }
-    result.update(style.extra.get("rviz", {}))
+    for k, v in rviz_extra.items():
+        if k not in ("Reliability Policy", "Durability Policy", "Namespaces"):
+            result[k] = v
     return result

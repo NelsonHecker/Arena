@@ -51,7 +51,7 @@ class Robot(Entity):
             return FrameNamespace(self.sim_path)
         if self.name:
             return FrameNamespace(self.name)
-        return FrameNamespace('')
+        return FrameNamespace("")
 
     @classmethod
     def from_setup(cls, setup: RobotSetupConfig, *, node: TaskGenerator) -> Robot:
@@ -61,7 +61,7 @@ class Robot(Entity):
         if setup.arm is not None:
             dict_value['arm'] = setup.arm  # consumed by parse
         dict_value.update(setup.extra)
-        dict_value['name'] = setup.name or ''
+        dict_value["name"] = setup.name or ""
         return cls.parse(dict_value, node=node)
 
     @classmethod
@@ -90,3 +90,11 @@ class Robot(Entity):
             record_data_dir=record_data,
             extra=value,
         )
+
+
+@attrs.define
+class Region:
+    name: str
+    type: str  # "source" | "sink"
+    polygon: list[Position] = attrs.field(factory=list)  # CCW vertices, 2D
+    config: dict = attrs.Factory(dict)  # type-specific passthrough
