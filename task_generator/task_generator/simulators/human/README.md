@@ -66,28 +66,31 @@ env level (`<env_ns>/`) and shared by every backend:
 
 | Topic | Producer | QoS | Role |
 | --- | --- | --- | --- |
-| `arena_peds` | each backend (`publish_arena_peds`) | reliable, volatile | Pedestrian state feed (positions/velocities). Data, not markers. |
-| `pedestrian_markers` | `pedestrian_marker_publisher` node | reliable, transient-local, depth 1 | **Canonical** human models (mesh body + orientation/velocity arrows + labels), converted from `arena_peds`. Identical across hunav and arena_humansim. |
+| `arena_peds` | each backend (`publish_arena_peds`) | reliable, volatile | Pedestrian state feed (positions/velocities), plus an optional `joint_state` skeleton override (empty by default). Data, not markers. |
+| `humans/bodies/tracked`, `humans/persons/*`, `humans/bodies/<id>/joint_states` | `hri_producer` node | per REP-155 | **Canonical** ROS4HRI projection of `arena_peds`: id lists, per-person engagement, per-body joint states, per-body URDF on param `human_description_<id>`, TF `body_<id>`. |
 | `pedestrian_markers/extra` | base class (`publish_markers`) | best-effort, volatile | Backend-internal debug overlay (e.g. arena_humansim forwards its planner viz). Off by default. |
 | `pedestrian_markers/static` | base class (`publish_static_markers`) | reliable, transient-local, depth 1 | Latched static scene as one combined topic. |
 | `pedestrian_markers/static_*` | adapter | reliable, transient-local, depth 1 | Latched static scene split per bucket (`/static_walls`, `/static_objects`, ...). |
 
-**Rendering contract.** The canonical human view is `pedestrian_markers`, produced by the standalone
-[`pedestrian_marker_publisher`](../../../../utils/rviz_utils/rviz_utils/scripts/pedestrian_marker_publisher.py)
-node, which subscribes `arena_peds` and emits mesh humans. It is latched (transient-local, no marker
-lifetime) so the models persist across paused resets and replay to a late-joining rviz; the per-frame
-`DELETEALL` clears departed pedestrians. Both backends feed the same converter, so the human model is
-identical regardless of simulator. `extra` is backend debug, disabled by default; enabling it alongside
-the canonical display intentionally double-draws the agents (mesh + debug geometry).
+**Rendering contract.** The canonical human view is an animated articulated skeleton, produced by the
+[`hri_producer`](../../../../utils/rviz_utils/rviz_utils/scripts/hri_producer.py) node, which subscribes
+`arena_peds` and projects it into the ROS4HRI (REP-155) `humans/` namespace: id lists, per-person
+engagement, and a per-body `robot_state_publisher` (pooled) driven from `humans/bodies/<id>/joint_states`
+against the `human_description` URDF rig. The [`hri_rviz/Skeletons3D`](https://github.com/ros4hri/hri_rviz)
+display renders one kinematic model per body. Joint states come from `arena_peds.joint_state` when an
+upstream backend supplies one (override, e.g. Isaac real bones), otherwise the producer synthesizes a
+fallback gait per the rig contract in [`JOINTS.md`](JOINTS.md). `extra` is backend debug, disabled by
+default.
 
 **Display kinds** (`arena_viz.DisplayKind`):
-- `PEDESTRIANS` — the canonical `pedestrian_markers` display only; its renderer assumes the
-  `pedestrian_*` marker namespaces.
+- `PEDESTRIANS` — the canonical `hri_rviz/Skeletons3D` skeleton display, keyed on the env `humans/`
+  namespace. Note: the upstream display uses absolute `/humans` paths via libhri, so per-env namespacing
+  is a known limitation.
 - `MARKER_ARRAY` — generic MarkerArray passthrough, no namespace assumptions; used for `extra` and all
   `static*` layers.
 
 The auto-rviz manifest ([`node.py` `_publish_viz_manifest`](../../node.py)) groups these into a
-**Pedestrians** folder (canonical display + `extra`, off) and a separate **Static** folder (`static`,
+**Pedestrians** folder (skeleton display + `extra`, off) and a separate **Static** folder (`static`,
 `static_walls`, `static_objects`). The `pedestrian_markers/` prefix on the debug/static layers is
 historical, they are overlays, not pedestrian data.
 

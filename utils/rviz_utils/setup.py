@@ -8,7 +8,7 @@ setup(
     name=package_name,
     version='0.0.0',
     # Packages to export
-    packages=[package_name, f'{package_name}.renderers'],
+    packages=[package_name, f'{package_name}.renderers', f'{package_name}.hri'],
     # Files we want to install, specifically launch files
     data_files=[
         # Install marker file in the package index
@@ -49,7 +49,7 @@ setup(
         'console_scripts': [
             'rviz_config = rviz_utils.scripts.rviz_config:main',
             'visualize_robot_model = rviz_utils.scripts.visualize_robot_model:main',
-            'pedestrian_marker_publisher = rviz_utils.scripts.pedestrian_marker_publisher:main',
+            'hri_producer = rviz_utils.scripts.hri_producer:main',
         ],
     },
 )
