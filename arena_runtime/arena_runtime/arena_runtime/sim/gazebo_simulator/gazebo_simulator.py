@@ -22,6 +22,7 @@ from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.Wall import WallSegment
 from arena_simulation_setup.utils.material import MdlUtil
 from geometry_msgs.msg import PoseWithCovarianceStamped
@@ -284,6 +285,16 @@ class GazeboSimulator(BaseSim):
             floor_sdf = _generate_floor_sdf(name, floor, textures)
             async with self._semaphore:
                 await self._spawn_sdf(name, floor_sdf, Pose())
+            self._walls_entities.append(name)
+        return True
+
+    async def spawn_ceilings(self, ceilings: Sequence[Ceiling]) -> bool:
+        for ceiling in ceilings:
+            name = self._realizer.realize(f"ceiling_{next(self._wall_counter)}")
+            textures = await self._resolve_wall_textures(ceiling.material)
+            ceiling_sdf = _generate_ceiling_sdf(name, ceiling, textures)
+            async with self._semaphore:
+                await self._spawn_sdf(name, ceiling_sdf, Pose())
             self._walls_entities.append(name)
         return True
 
@@ -870,6 +881,32 @@ def _generate_floor_sdf(name: str, floor: Floor, textures: dict[str, str]) -> st
                         </geometry>
                     </collision>
                     <pose>{floor.pos.x} {floor.pos.y} {center_z} 0 0 0</pose>
+                </link>
+                <static>true</static>
+            </model>
+        </sdf>
+        """
+
+
+def _generate_ceiling_sdf(name: str, ceiling: Ceiling, textures: dict[str, str]) -> str:
+    """SDF model with a single downward-facing plane, visible only from below."""
+    cast_shadows = 'true' if ceiling.cast_shadows else 'false'
+    return f"""
+        <sdf version="1.6">
+            <model name="{name}">
+                <pose>0 0 0 0 0 0</pose>
+                <link name="ceiling_link">
+                    <visual name="visual">
+                        <cast_shadows>{cast_shadows}</cast_shadows>
+                        <geometry>
+                            <plane>
+                                <normal>0 0 -1</normal>
+                                <size>{ceiling.x_length} {ceiling.y_length}</size>
+                            </plane>
+                        </geometry>
+                        {_wall_material_sdf(textures)}
+                    </visual>
+                    <pose>{ceiling.pos.x} {ceiling.pos.y} {ceiling.z} 0 0 0</pose>
                 </link>
                 <static>true</static>
             </model>

@@ -2,7 +2,7 @@ from arena_simulation_setup.utils.geometry import Orientation, Pose, Position
 
 from .entities import CustomDynamicObstacle, DynamicObstacle, Entity, Obstacle
 from .walls import Wall
-from .world import Door, Elevator, Floor
+from .world import Ceiling, Door, Elevator, Floor
 
 __all__ = [
     "Pose",
@@ -14,6 +14,7 @@ __all__ = [
     "CustomDynamicObstacle",
     "Wall",
     "Floor",
+    "Ceiling",
     "Elevator",
     "Door",
 ]

@@ -1,7 +1,7 @@
 import typing
 
 import attrs
-from arena_simulation_setup.shared import Elevator
+from arena_simulation_setup.shared import Ceiling, Elevator
 
 from task_generator.shared import (
     Door,
@@ -139,6 +139,16 @@ class Realizer:
         )
 
     @typing.overload
+    def realize(self, target: Ceiling, level_id: str = "") -> Ceiling: ...
+
+    def _realize_ceiling(self, ceiling: Ceiling, level_id: str = "") -> Ceiling:
+        return attrs.evolve(
+            ceiling,
+            name=self._prefix(ceiling.name, level_id),
+            pos=self._realize_position(ceiling.pos, level_id),
+        )
+
+    @typing.overload
     def realize(self, target: Door, level_id: str = "") -> Door: ...
 
     def _realize_door(self, door: Door, level_id: str = "") -> Door:
@@ -196,6 +206,9 @@ class Realizer:
 
         elif isinstance(target, Floor):
             res = self._realize_floor(target, level_id)
+
+        elif isinstance(target, Ceiling):
+            res = self._realize_ceiling(target, level_id)
 
         elif isinstance(target, Elevator):
             res = self._realize_elevator(target, level_id)

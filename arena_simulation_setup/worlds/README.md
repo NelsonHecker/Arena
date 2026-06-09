@@ -60,6 +60,12 @@ zones:
   entities:
     static: []                   # list of Obstacle
     dynamic: []                  # list of DynamicObstacle
+  ceiling: true                  # true by default, false to leave the zone open
+  ceiling_height: 2.0            # top height (m), derived from wall stack when absent
+  ceiling_cast_shadows: false    # false by default, true to occlude light
+  ceiling_material:              # MaterialIdentifier, defaults to Concrete_Smooth
+  - Concrete_Smooth
+  - {}
 ```
 
 A `Wall` entry with no `kind` field generates a plain wall segment using the

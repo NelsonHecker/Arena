@@ -7,6 +7,7 @@ from arena_rclpy_mixins.shared import FrameNamespace
 from arena_robots.Robot import RobotIdentifier
 from arena_robots.SetupFile import Config as RobotSetupConfig
 from arena_simulation_setup.shared import (  # noqa
+    Ceiling,
     CustomDynamicObstacle,
     Door,
     DynamicObstacle,
