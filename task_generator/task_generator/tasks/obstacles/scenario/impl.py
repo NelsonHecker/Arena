@@ -13,7 +13,7 @@ class TM_Scenario(TM_Obstacles):
 
     async def reset(self, **kwargs: object) -> Obstacles:
         scenario_name = self._config.value
-        world_description = self._ctx.world_manager.world
+        world_description = self._ctx.world_manager.world_compacted()
 
         safe_dist = self.node.conf.Obstacles.SAFE_DIST.value
         if safe_dist > 0:
