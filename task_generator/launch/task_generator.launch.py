@@ -118,7 +118,7 @@ def generate_launch_description():
     human = LaunchArgument(
         name="human",
         default_value="",
-        description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: hunav})",
+        description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: arena})",
     )
     robot = LaunchArgument(name="robot", default_value="auto")
     tm_robots = LaunchArgument(name="tm_robots", default_value="explore")
@@ -194,7 +194,7 @@ def generate_launch_description():
 
         human_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)
-        ) or {"dummy": "dummy", "gazebo": "hunav", "isaac": "hunav"}.get(arena_sim, "dummy")
+        ) or {"dummy": "dummy", "gazebo": "arena", "isaac": "arena"}.get(arena_sim, "dummy")
         mobile_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)
         ) or {"dummy": "none"}.get(arena_sim, "nav2")
