@@ -18,6 +18,7 @@ from arena_simulation_setup.utils.cattrs import (
     converter,
 )
 from arena_simulation_setup.utils.geometry import Pose, Position, Scale
+from arena_simulation_setup.utils.resolution import resolve_zone_point
 
 
 @attrs.define(auto_attribs=True, kw_only=True)
@@ -35,7 +36,9 @@ class Waypoint(Position):
         self.z = value.z
 
     @classmethod
-    def from_any(cls, obj: Union[Position, dict, 'Waypoint']) -> 'Waypoint':
+    def from_any(cls, obj: Union[Position, dict, str, 'Waypoint']) -> 'Waypoint':
+        if isinstance(obj, str):
+            return cls.from_position(pos=resolve_zone_point(obj))
         if isinstance(obj, Waypoint):
             return obj
         if isinstance(obj, Position):
