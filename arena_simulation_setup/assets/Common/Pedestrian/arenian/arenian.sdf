@@ -16,5 +16,13 @@
       <scale>1.0</scale>
       <interpolate_x>false</interpolate_x>
     </animation>
+
+    <!-- Stationary stand clip, played when the ped is idle so the body holds a
+         standing pose with light motion instead of a frozen walk frame. -->
+    <animation name="idle">
+      <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/stand.dae</filename>
+      <scale>1.0</scale>
+      <interpolate_x>false</interpolate_x>
+    </animation>
   </actor>
 </sdf>

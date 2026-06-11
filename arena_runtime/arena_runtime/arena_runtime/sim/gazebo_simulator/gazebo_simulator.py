@@ -18,7 +18,7 @@ import launch_ros
 import rclpy.impl.rcutils_logger
 import rclpy.time
 import tf2_ros
-from arena_people_msgs.msg import Pedestrian, Pedestrians
+from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
@@ -247,7 +247,8 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*map(self._move_entity, obstacles))
 
     async def pedestrian_move(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        return await asyncio.gather(*map(self._move_entity, pedestrians))
+        # Ped pose is owned by PedSkeletonPlugin (driven from the arena_peds topic).
+        return tuple(True for _ in pedestrians)
 
     async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
@@ -261,7 +262,8 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*(self._delete_entity(o.sim_path) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        return await asyncio.gather(*(self._delete_entity(p.sim_path) for p in pedestrians))
+        # PedSkeletonPlugin removes a ped's actor when its name leaves arena_peds.
+        return tuple(True for _ in pedestrians)
 
     async def robot_delete(self, robots: Sequence[Robot]) -> Sequence[bool]:
         for robot in robots:
@@ -269,14 +271,8 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*(self._delete_entity(robot.sim_path) for robot in robots))
 
     async def pedestrian_update(self, pedestrians: Pedestrians) -> Sequence[bool]:
-        async def impl(ped: Pedestrian) -> bool:
-            req = SetEntityPose.Request()
-            req.entity = EntityMsg(name=ped.name, type=EntityMsg.MODEL)
-            req.pose = ped.pose
-            res = await self._service_set_entity_pose.call_timeout(req)
-            return bool(res and res.success)
-
-        return await asyncio.gather(*(impl(p) for p in pedestrians.pedestrians))
+        # Ped pose is owned by PedSkeletonPlugin (driven from the arena_peds topic).
+        return tuple(True for _ in pedestrians.pedestrians)
 
     async def spawn_floors(self, floors: Sequence[Floor]) -> bool:
         for floor in floors:
