@@ -142,8 +142,7 @@ class ScenarioView(PathView):
         try:
             scenario = self.load_legacy()
             warnings.warn(
-                f"Scenario {self.scenario_path}: new-format load failed, falling back to legacy. Underlying error:\n"
-                f"{''.join(traceback.format_exception(type(load_exc), load_exc, load_exc.__traceback__))}",
+                f"Scenario {self.scenario_path}: new-format load failed, falling back to legacy. Underlying error:\n{''.join(traceback.format_exception(type(load_exc), load_exc, load_exc.__traceback__))}",
                 UserWarning,
                 stacklevel=2,
             )

@@ -16,7 +16,7 @@ Launched by `arena_runtime.launch.py` (namespace `/arena`, node name `arena`).
 
 Allocates integer env IDs and translates world extents into non-overlapping
 simulator slots. State per record: `env_id`, `fqn`, `placed`, `reference`,
-`slot_extent`, `prespawn`, `ready`, `draining`, `bootstrapped`, `last_heartbeat`.
+`slot_extent`, `prespawn`, `ready`, `draining`, `last_heartbeat`.
 
 Two-phase allocation:
 
@@ -87,8 +87,12 @@ Action: `purge_env` ([`PurgeEnv.action`](../../arena_runtime_msgs/action/PurgeEn
 
 `ArenaNode` also subscribes per env to `/<ns>/transition_event` (to track
 ACTIVE/INACTIVE/FINALIZED state) and `/<ns>/state/heartbeat` (to detect
-stale envs). A periodic timer evicts any bootstrapped env whose heartbeat exceeds
-`heartbeat_timeout_sec` (default 5 s).
+stale envs). A periodic timer applies `sweep_verdict` per record: a managed env
+whose wrapper process exited is evicted immediately, a pre-ready env (still
+bootstrapping, e.g. loading its world) is only evicted after
+`bootstrap_timeout_sec` (default 600 s) of heartbeat silence, and a ready env
+is evicted after `heartbeat_timeout_sec` (default 5 s), stretched to
+`reset_hold_timeout_sec` (default 30 s) while it holds a "reset" hold.
 
 When `env_n > 0` at startup the node self-orchestrates an initial fleet via
 `_spawn_initial_envs`; each spawned env has `headless=false` (stdout visible).
@@ -104,14 +108,15 @@ When `env_n > 0` at startup the node self-orchestrates an initial fleet via
    `reallocated=true` in the response means the env must translate all entity
    coordinates by the new `reference` offset.
 4. **Heartbeat** — env publishes [`Heartbeat.msg`](../../arena_runtime_msgs/msg/Heartbeat.msg)
-   on `<ns>/state/heartbeat`; `arena_node` marks the record `bootstrapped` on
-   first receipt and resets the timeout clock on each tick.
+   on `<ns>/state/heartbeat`; `arena_node` resets the timeout clock on each tick.
+   The clock starts at `reserve()` time, so an env is covered from registration.
 5. **Despawn** — caller sends `despawn_env`; `arena_node` publishes a
    `ShutdownRequest` the env observes and acts on via its own lifecycle.
-6. **Eviction** — on heartbeat timeout or lifecycle FINALIZED, `arena_node`
-   calls `start_eviction` (marks draining, releases holds, cleans up namespace
-   via `SimLifecycle`), then `complete_eviction` (frees the ID for reuse) and
-   publishes a final `ShutdownRequest`.
+6. **Eviction** — on a `sweep_verdict` reason or lifecycle FINALIZED,
+   `arena_node` calls `start_eviction` (marks draining, releases holds),
+   publishes a `ShutdownRequest`, awaits env disposal (reaping the wrapper
+   process for managed envs), and only then cleans up the namespace via
+   `SimLifecycle` and calls `complete_eviction` (frees the ID for reuse).
 
 ## See also
 
