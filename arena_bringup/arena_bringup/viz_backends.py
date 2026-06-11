@@ -47,11 +47,11 @@ def fleet_size(ns: str) -> int:
 
 
 def env_idx_from_ns(ns: str) -> int:
-    """Parse the trailing integer from an env namespace (`/env_3` → 3). 0 on failure."""
-    base = os.path.basename(ns)
-    head, _, tail = base.rpartition('_')
-    if head and tail.isdigit():
-        return int(tail)
+    """Parse the env index from a namespace (`/arena/env_3/task_generator_node` → 3). 0 on failure."""
+    for part in reversed(ns.strip('/').split('/')):
+        head, _, tail = part.rpartition('_')
+        if head and tail.isdigit():
+            return int(tail)
     return 0
 
 
