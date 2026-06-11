@@ -51,6 +51,7 @@ from task_generator.tasks import identifier_to_available
 from task_generator.tasks.obstacles import ObstacleKind
 from task_generator.tasks.registry import MODULE_MODES, OBSTACLES_MODES, ROBOTS_MODES
 from task_generator.tasks.task import Task
+from task_generator.utils.flags import flag_enabled
 
 from . import SafeCallbackNode
 
@@ -282,7 +283,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     def aiomonitor_config(self) -> dict[str, object] | None:
         # Skip when not in debug mode (no client attaches), and offset ports per
         # env_id so concurrent envs don't collide on the default 20101/2/3.
-        if not self.rosparam[bool].get("debug", False):
+        if not flag_enabled(self, "debug", "aiomonitor"):
             return None
         offset = max(self._env_id, 0) * 10
         return {
@@ -337,6 +338,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             )
 
             await self._world_manager.sync()
+            if flag_enabled(self, "debug", "map_server"):
+                await self._world_manager.require_map_server()
             await self._robots_manager.launch_pending()
             self._publish_viz_manifest()
 
