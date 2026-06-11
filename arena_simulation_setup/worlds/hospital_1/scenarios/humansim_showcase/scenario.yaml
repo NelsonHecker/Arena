@@ -127,9 +127,9 @@ regions:
   pharmacy_sink:
     type: sink
     polygon:
-      - {x: 6.0, y: 26.8}
-      - {x: 6.8, y: 25.8}
-      - {x: 6.8, y: 26.7}
-      - {x: 6.0, y: 26.7}
+      - {x: 5.8, y: 27.0}
+      - {x: 7.5, y: 27.0}
+      - {x: 7.5, y: 28.3}
+      - {x: 5.8, y: 28.3}
     config:
       capacity: 4
