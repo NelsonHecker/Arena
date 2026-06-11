@@ -66,6 +66,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._wall_counter = itertools.count()
         self._known_regions: dict[str, Region] = {}
         self._warned_unresolved_models: set[str] = set()
+        self._ped_model_uris: dict[str, str] = {}
 
         self._arena_peds_publisher = self.node.create_publisher(Pedestrians, self._namespace("arena_peds"), 10)
         self._marker_publisher = self.node.create_publisher(
@@ -112,6 +113,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             del self._gait_prev_stamp[stale]
 
         for ped in msg.pedestrians:
+            ped.model_uri = self._ped_model_uris.get(ped.name, "")
             if ped.joint_state.name:
                 continue
             prev = self._gait_prev_stamp.get(ped.id)
@@ -250,13 +252,22 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
     _PEDESTRIAN_FALLBACK: typing.ClassVar[str] = "arenian"
 
     async def _ensure_spawnable(self, obstacles: Sequence[DynamicObstacle]) -> Sequence[DynamicObstacle]:
-        """Swap unresolvable ped models for _PEDESTRIAN_FALLBACK."""
+        """Swap unresolvable ped models for _PEDESTRIAN_FALLBACK and record each
+        ped's resolved SDF path, which publish_arena_peds stamps as model_uri so
+        PedSkeletonPlugin can create the actor."""
+
+        async def _sdf_path(obs: DynamicObstacle) -> str | None:
+            view = await obs.model.resolve()
+            model = await view.model.get(ModelType.SDF)
+            if model.type is ModelType.UNKNOWN or model.path is None:
+                return None
+            return str(model.path)
 
         async def _resolve(obs: DynamicObstacle) -> DynamicObstacle:
             try:
-                view = await obs.model.resolve()
-                model = await view.model.get(ModelType.SDF)
-                if model.type is not ModelType.UNKNOWN:
+                path = await _sdf_path(obs)
+                if path is not None:
+                    self._record_ped_model(obs, path)
                     return obs
             except Exception as e:
                 if obs.model.name not in self._warned_unresolved_models:
@@ -270,9 +281,21 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                     self._logger.warning(
                         f"pedestrian model {obs.model.name!r} has no SDF; using fallback",
                     )
-            return attrs.evolve(obs, model=PedestrianIdentifier.parse(self._PEDESTRIAN_FALLBACK))
+            fallback = attrs.evolve(obs, model=PedestrianIdentifier.parse(self._PEDESTRIAN_FALLBACK))
+            try:
+                fallback_path = await _sdf_path(fallback)
+            except Exception:
+                fallback_path = None
+            self._record_ped_model(fallback, fallback_path or "")
+            return fallback
 
         return await asyncio.gather(*(_resolve(o) for o in obstacles))
+
+    def _record_ped_model(self, obs: DynamicObstacle, model_uri: str) -> None:
+        """Map both a ped's name and sim_path to its SDF path, since the published
+        ped name is one or the other depending on the simulator."""
+        self._ped_model_uris[obs.name] = model_uri
+        self._ped_model_uris[obs.sim_path] = model_uri
 
     async def spawn_world(
         self,

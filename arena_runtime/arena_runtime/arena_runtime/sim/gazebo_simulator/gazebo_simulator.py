@@ -227,7 +227,8 @@ class GazeboSimulator(BaseSim):
         return await asyncio.gather(*map(self._spawn_entity, obstacles))
 
     async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        return await asyncio.gather(*map(self._spawn_entity, pedestrians))
+        # Ped actors are created and removed by PedSkeletonPlugin from arena_peds.
+        return tuple(True for _ in pedestrians)
 
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
 

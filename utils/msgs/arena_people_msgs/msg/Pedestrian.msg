@@ -21,3 +21,6 @@ uint8 animation_state
 # Empty = synthesize fallback gait, non-empty = upstream override.
 sensor_msgs/JointState joint_state
 
+# Resolved local SDF path for this ped's actor, read once per name by the spawner.
+string model_uri
+

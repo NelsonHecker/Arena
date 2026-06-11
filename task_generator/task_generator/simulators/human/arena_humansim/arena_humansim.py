@@ -869,6 +869,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._bridge_agent_ids.clear()
             self._flow_agent_ids.clear()
             self._agent_names.clear()
+            self._ped_model_uris.clear()
             self._prev_agent_states = None
             self._curr_agent_states = None
             self._arena_pedestrians = Pedestrians()
