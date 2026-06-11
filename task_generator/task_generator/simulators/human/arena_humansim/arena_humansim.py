@@ -955,13 +955,14 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         return await self._add_walls(walls)
 
     async def _spawn_doors_impl(self, doors: Mapping[str, Door]) -> bool:
-        return await self._add_walls(doors)
+        # doors stay passable, update_doors closes them with __door_ walls
+        return True
 
     async def _remove_walls_impl(self, names: Sequence[str]) -> bool:
         return await self._remove_walls(names)
 
     async def _remove_doors_impl(self, names: Sequence[str]) -> bool:
-        return await self._remove_walls(names)
+        return True
 
     async def _add_walls(self, walls: Mapping[str, Wall]) -> bool:
         """Send wall/door segments to arena_humansim via AddWalls."""
