@@ -18,14 +18,17 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import os
 import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
+import numpy as np
 import xacro
 import yaml
 from ament_index_python.packages import get_package_share_directory
+from urdf_parser_py import urdf as urdf_parser
 
 if TYPE_CHECKING:
     import rclpy.node
@@ -33,6 +36,45 @@ if TYPE_CHECKING:
 _LOG = logging.getLogger(__name__)
 
 _DEFAULT_HEIGHT = 1.65
+
+
+def _origin_matrix(origin: urdf_parser.Pose | None) -> np.ndarray:
+    """4x4 homogeneous transform for a URDF joint origin (xyz + rpy)."""
+    m = np.eye(4)
+    if origin is None:
+        return m
+    r, p, y = origin.rpy or (0.0, 0.0, 0.0)
+    cr, sr = math.cos(r), math.sin(r)
+    cp, sp = math.cos(p), math.sin(p)
+    cy, sy = math.cos(y), math.sin(y)
+    m[:3, :3] = (
+        (cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr),
+        (sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr),
+        (-sp, cp * sr, cp * cr),
+    )
+    m[:3, 3] = origin.xyz or (0.0, 0.0, 0.0)
+    return m
+
+
+def _hip_to_foot_offset(urdf_xml: str) -> float:
+    """Distance to lift the hip-origin root so the lowest link frame sits at z=0.
+
+    Forward kinematics with every joint at zero (the standing pose), composing
+    only joint origin transforms.  The rig root `body` is the REP-155 hip frame,
+    so the legs reach below it, this is how far down the lowest link extends.
+    """
+    robot = urdf_parser.URDF.from_xml_string(urdf_xml)
+    root = robot.get_root()
+    world: dict[str, np.ndarray] = {root: np.eye(4)}
+    min_z = 0.0
+    stack = [root]
+    while stack:
+        parent = stack.pop()
+        for joint_name, child in robot.child_map.get(parent, ()):
+            world[child] = world[parent] @ _origin_matrix(robot.joint_map[joint_name].origin)
+            min_z = min(min_z, world[child][2, 3])
+            stack.append(child)
+    return -min_z
 
 
 @dataclasses.dataclass
@@ -62,6 +104,7 @@ class BodyPool:
         self._slots: list[_Slot] = []
         self._id_to_slot: dict[str, _Slot] = {}
         self._urdf: dict[str, str] = {}
+        self._foot_offset: dict[str, float] = {}
         self._hd_share: str = get_package_share_directory("human_description")
 
     def _generate_urdf(self, body_id: str, height: float) -> str:
@@ -136,6 +179,7 @@ class BodyPool:
 
         urdf = self._generate_urdf(body_id, height)
         self._urdf[body_id] = urdf
+        self._foot_offset[body_id] = _hip_to_foot_offset(urdf)
 
         free_slot: _Slot | None = None
         for slot in self._slots:
@@ -169,12 +213,17 @@ class BodyPool:
         """Release a body_id, terminating its rsp slot."""
         slot = self._id_to_slot.pop(body_id, None)
         self._urdf.pop(body_id, None)
+        self._foot_offset.pop(body_id, None)
         if slot is None:
             return
         self._terminate_slot(slot)
 
     def urdf_for(self, body_id: str) -> str | None:
         return self._urdf.get(body_id)
+
+    def foot_offset(self, body_id: str) -> float:
+        """Hip-to-floor lift for body_id, 0.0 if not assigned."""
+        return self._foot_offset.get(body_id, 0.0)
 
     def active_ids(self) -> frozenset[str]:
         return frozenset(self._id_to_slot.keys())
@@ -206,3 +255,4 @@ class BodyPool:
         self._slots.clear()
         self._id_to_slot.clear()
         self._urdf.clear()
+        self._foot_offset.clear()

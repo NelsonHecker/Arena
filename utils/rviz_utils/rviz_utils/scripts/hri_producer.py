@@ -194,7 +194,7 @@ class HriProducer(Node):
             tf.child_frame_id = f"body_{bid}"
             tf.transform.translation.x = ped.pose.position.x
             tf.transform.translation.y = ped.pose.position.y
-            tf.transform.translation.z = ped.pose.position.z
+            tf.transform.translation.z = ped.pose.position.z + self._pool.foot_offset(bid)
             tf.transform.rotation = ped.pose.orientation
             self._tf_broadcaster.sendTransform(tf)
 
