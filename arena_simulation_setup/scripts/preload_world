@@ -16,31 +16,36 @@ import traceback
 from pathlib import Path
 
 import yaml
-
 from arena_simulation_setup.tree import DynamicPaths, Identifier
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.tree.Wall import WallIdentifier
-from arena_simulation_setup.tree.World import World, WorldIdentifier
+from arena_simulation_setup.tree.World import (
+    MultiLevelWorldView,
+    WorldDescription,
+    WorldIdentifier,
+)
 
 
-def _world_identifiers(world_desc: object) -> list[Identifier]:
+def _world_identifiers(world_desc: WorldDescription) -> list[Identifier]:
     out: list[Identifier] = []
-    for zone in world_desc.zones:
-        out.append(zone.material)
-        for wall in zone.walls:
-            if wall.material is not None:
-                out.append(wall.material)
-            if wall.kind:
-                out.append(WallIdentifier(wall.kind))
-        for door in zone.doors:
-            out.append(door.material)
-        for elev in zone.elevators:
-            out.append(elev.material)
-        for entity in zone.entities.static:
-            out.append(entity.model)
-        for entity in zone.entities.dynamic:
-            out.append(entity.model)
+    for level in world_desc.all_levels:
+        for zone in level.zones:
+            out.append(zone.material)
+            out.append(zone.ceiling_material)
+            for wall in zone.walls:
+                if wall.material is not None:
+                    out.append(wall.material)
+                if wall.kind:
+                    out.append(WallIdentifier(wall.kind))
+            for door in zone.doors:
+                out.append(door.material)
+            for elev in zone.elevators:
+                out.append(elev.material)
+            for entity in zone.entities.static:
+                out.append(entity.model)
+            for entity in zone.entities.dynamic:
+                out.append(entity.model)
     return out
 
 
@@ -136,7 +141,7 @@ async def _resolve_all(identifiers: list[Identifier]) -> tuple[int, int]:
     return n_ok, total
 
 
-def _resolve_world(world_name: str) -> World:
+def _resolve_world(world_name: str) -> MultiLevelWorldView:
     """Locate a world directory, preferring the resolver chain and falling back to ARENA_DIR."""
     try:
         return WorldIdentifier(world_name).resolve_sync()
@@ -149,7 +154,7 @@ def _resolve_world(world_name: str) -> World:
     candidate = Path(arena_dir) / 'arena_simulation_setup' / 'worlds' / world_name
     if not (candidate / 'world.yaml').is_file():
         raise FileNotFoundError(f'world {world_name!r} not found at {candidate}')
-    return World(candidate)
+    return MultiLevelWorldView(candidate)
 
 
 def main() -> int:
@@ -167,7 +172,7 @@ def main() -> int:
     DynamicPaths.WORLD.path = world.path
 
     try:
-        world_desc = world.load()
+        world_desc = world.load(validate=False)
     except Exception:
         print(f'failed to load {world.world_path}:', file=sys.stderr)
         traceback.print_exc()
