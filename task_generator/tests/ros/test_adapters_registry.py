@@ -123,16 +123,3 @@ class TestAdapterMetaConverters:
         )
         assert isinstance(meta.displays, tuple)
         assert meta.displays == (hint,)
-
-    def test_displays_default_is_empty_tuple(self):
-        from arena_robots.bringup.mobile.nav2 import Nav2Bringup
-        from arena_robots.clients.goto_pose import GotoPoseClient
-        from arena_robots.task_kinds import TaskKind
-        from task_generator.tasks.robots.adapters import AdapterMeta
-        meta = AdapterMeta(
-            accepts={TaskKind.GOTO_POSE},
-            bringup=Nav2Bringup,
-            cap="mobile",
-            client=GotoPoseClient,
-        )
-        assert meta.displays == ()

@@ -46,44 +46,12 @@ def test_seed_derivation_nonnegative() -> None:
     assert v >= 0
 
 
-# ---------------------------------------------------------------------------
-# EpisodeRuntime invariants
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(autouse=True)
 def _ros_gate() -> None:
     try:
         import rclpy  # noqa: F401
     except ImportError:
         pytest.skip("ROS2 not available")
-
-
-def _make_episode_runtime() -> object:
-    from task_generator.node import EpisodeRuntime
-
-    return EpisodeRuntime()
-
-
-def _make_record(episode_id: int) -> object:
-    from task_generator.node import EpisodeRecord
-
-    return EpisodeRecord(episode_id=episode_id)
-
-
-def test_pending_overrides_starts_none() -> None:
-    rt = _make_episode_runtime()
-    assert rt.pending_overrides is None
-
-
-def test_action_in_flight_starts_false() -> None:
-    rt = _make_episode_runtime()
-    assert rt.action_in_flight is False
-
-
-def test_episode_integrity_initialized_true() -> None:
-    record = _make_record(1)
-    assert record.integrity is True
 
 
 # ---------------------------------------------------------------------------

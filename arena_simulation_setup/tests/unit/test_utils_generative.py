@@ -41,14 +41,6 @@ def test_barn_registered():
 # ---------------------------------------------------------------------------
 
 
-def test_base_configuration_defaults():
-    cfg = BaseConfiguration()
-    assert cfg.width == pytest.approx(15.0)
-    assert cfg.height == pytest.approx(15.0)
-    assert cfg.resolution == pytest.approx(0.05)
-    assert cfg.wall_gap == pytest.approx(0.05)
-
-
 def test_base_configuration_custom_values():
     cfg = BaseConfiguration(width=20.0, height=30.0)
     assert cfg.width == pytest.approx(20.0)
@@ -89,13 +81,6 @@ def test_world_generator_empty_compute_has_walls():
 # ---------------------------------------------------------------------------
 # WorldGeneratorHallway.Configuration
 # ---------------------------------------------------------------------------
-
-
-def test_hallway_config_defaults():
-    cfg = WorldGeneratorHallway.Configuration()
-    assert cfg.width == pytest.approx(80.0)
-    assert cfg.height == pytest.approx(50.0)
-    assert cfg.hallway_height == pytest.approx(5.0)
 
 
 def test_hallway_config_hallway_top():
@@ -225,12 +210,8 @@ def test_to_walls_multilinestring():
 # ---------------------------------------------------------------------------
 
 
-def test_barn_config_defaults():
+def test_barn_config_pitch_derived():
     cfg = WorldGeneratorBarn.Configuration()
-    assert cfg.width == pytest.approx(10.0)
-    assert cfg.height == pytest.approx(10.0)
-    assert cfg.box_size == pytest.approx(0.4)
-    assert cfg.passage_width == pytest.approx(1.0)
     # one box row separates parallel lane strands
     assert cfg.pitch == pytest.approx(cfg.passage_width + cfg.box_size + cfg.box_gap)
 

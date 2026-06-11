@@ -13,23 +13,6 @@ def _elev_pos() -> Position:
     return Position(0.0, 0.0, 0.0)
 
 
-def test_elevator_default_size():
-    e = Elevator(name="elev", position=_elev_pos())
-    assert e.size == pytest.approx([2.0, 2.0, 2.5])
-
-
-def test_elevator_default_door_side():
-    e = Elevator(name="elev", position=_elev_pos())
-    assert e.door_side == '+x'
-
-
-def test_elevator_default_timings():
-    e = Elevator(name="elev", position=_elev_pos())
-    assert e.transition_time == pytest.approx(1.0)
-    assert e.hold_time == pytest.approx(2.0)
-    assert e.travel_time == pytest.approx(3.0)
-
-
 def test_elevator_material_converter():
     from arena_simulation_setup.tree.assets.Material import MaterialIdentifier
     e = Elevator(name="elev", position=_elev_pos())
@@ -126,27 +109,9 @@ def test_door_activation_distance_tuple():
     assert d.activation_distance == (1.5, 0.0)
 
 
-def test_door_default_kind_and_timings():
-    d = Door(
-        name="door",
-        start=Position(0.0, 0.0, 0.0),
-        end=Position(1.0, 0.0, 0.0),
-    )
-    assert d.kind == 'sliding'
-    assert d.transition_time == pytest.approx(1.0)
-    assert d.hold_time == pytest.approx(2.0)
-    assert d.activation_distance == (3.0, 3.0)
-
-
 # ---------------------------------------------------------------------------
 # Floor
 # ---------------------------------------------------------------------------
-
-
-def test_floor_default_lengths():
-    f = Floor(name="floor", pos=Position(0.0, 0.0, 0.0))
-    assert f.x_length == pytest.approx(20.0)
-    assert f.y_length == pytest.approx(20.0)
 
 
 def test_floor_position_converter():

@@ -21,6 +21,7 @@ def _make_robot_manager_stub(pose, goal_tolerance_distance=0.3, goal_tolerance_a
     )
     return SimpleNamespace(
         pose=pose,
+        controls_orientation=True,
         node=SimpleNamespace(conf=SimpleNamespace(Robot=robot_conf)),
     )
 

@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _ros_gate():
+    try:
+        import rclpy  # noqa: F401
+    except ImportError:
+        pytest.skip("ROS2 not available")
+
+
+def _ctx(configs: dict[str, str]) -> SimpleNamespace:
+    return SimpleNamespace(launch_configurations=dict(configs))
+
+
+def _coerce(value: str) -> object:
+    return int(value) if value.lstrip("-").isdigit() else value
+
+
+def test_truthy_falsy():
+    from task_generator.utils.flags import truthy
+
+    for value in ("", " ", "0", "false", "FALSE", " no ", "off", 0, False, None):
+        assert truthy(value) is False
+
+
+def test_truthy_enabled():
+    from task_generator.utils.flags import truthy
+
+    for value in ("1", "true", "yes", "on", "no_obstacles", 1, True, 2):
+        assert truthy(value) is True
+
+
+def test_expand_shorthand_is_one():
+    from task_generator.utils.flags import expand_flag_namespace
+
+    assert expand_flag_namespace(_ctx({"optim": "a,b"}), "optim", _coerce) == {
+        "optim.a": 1,
+        "optim.b": 1,
+    }
+
+
+def test_expand_strips_blank_tokens():
+    from task_generator.utils.flags import expand_flag_namespace
+
+    assert expand_flag_namespace(_ctx({"optim": " a , ,b "}), "optim", _coerce) == {
+        "optim.a": 1,
+        "optim.b": 1,
+    }
+
+
+def test_expand_explicit_is_coerced():
+    from task_generator.utils.flags import expand_flag_namespace
+
+    assert expand_flag_namespace(_ctx({"optim.lod": "5"}), "optim", _coerce) == {"optim.lod": 5}
+
+
+def test_expand_explicit_wins_over_shorthand():
+    from task_generator.utils.flags import expand_flag_namespace
+
+    result = expand_flag_namespace(
+        _ctx({"optim": "no_obstacles", "optim.no_obstacles": "false"}),
+        "optim",
+        _coerce,
+    )
+    assert result == {"optim.no_obstacles": "false"}
+
+
+def test_expand_ignores_other_namespaces():
+    from task_generator.utils.flags import expand_flag_namespace
+
+    assert expand_flag_namespace(_ctx({"task.foo": "1", "debug.x": "1"}), "optim", _coerce) == {}
+
+
+def test_expand_absent_is_empty():
+    from task_generator.utils.flags import expand_flag_namespace
+
+    assert expand_flag_namespace(_ctx({}), "optim", _coerce) == {}

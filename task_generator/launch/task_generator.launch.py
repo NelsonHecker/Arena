@@ -5,7 +5,6 @@ import tempfile
 import time
 
 import launch
-import launch.conditions
 import launch.event_handlers
 import launch.substitutions
 import launch_ros.actions
@@ -14,6 +13,7 @@ from ament_index_python.packages import get_package_share_directory
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
 from arena_bringup.substitutions import LaunchArgument
+from task_generator.utils.flags import expand_flag_namespace, truthy
 from launch.actions import (
     ExecuteProcess,
     IncludeLaunchDescription,
@@ -135,7 +135,7 @@ def generate_launch_description():
     )
     tm_obstacles = LaunchArgument(name="tm_obstacles", default_value="random")
     tm_modules = LaunchArgument(name="tm_modules", default_value="rviz_ui")
-    optim = LaunchArgument(name="optim", default_value=os.environ.get("ARENA_OPTIM", ""))
+    LaunchArgument(name="optim", default_value=os.environ.get("ARENA_OPTIM", ""))
     world = LaunchArgument(name="world", default_value="map_empty")
     mobile = LaunchArgument(
         name="mobile",
@@ -153,7 +153,11 @@ def generate_launch_description():
         description="arm adapter kind",
     )
     record_data_dir = LaunchArgument(name="record_data_dir", default_value="")
-    debug = LaunchArgument(name="debug", default_value="False")
+    LaunchArgument(
+        name="debug",
+        default_value="",
+        description="comma list of debug tokens (e.g. aiomonitor,map_server); also debug.<token>:=true",
+    )
     auto_reset = LaunchArgument(
         name="auto_reset",
         default_value="true",
@@ -275,6 +279,10 @@ def generate_launch_description():
             if param_key not in dotted_overrides:
                 dotted_overrides[param_key] = sel_val
 
+        dotted_overrides.update(expand_flag_namespace(context, "optim", _coerce))
+        debug_flags = expand_flag_namespace(context, "debug", _coerce)
+        dotted_overrides.update(debug_flags)
+
         # launch_ros.normalize_parameters turns list values into tuples and
         # yaml.dump emits them with !!python/tuple, which rcl drops silently.
         # Bypass by writing our own params yaml and passing the path.
@@ -308,10 +316,8 @@ def generate_launch_description():
                     **tm_robots.str_param,
                     **tm_obstacles.str_param,
                     **tm_modules.str_param,
-                    **optim.str_param,
                     **world.str_param,
                     **record_data_dir.str_param,
-                    **debug.param(bool),
                     **auto_reset.param(bool),
                     **train_mode.param(bool),
                     "env_id": allocated_id,
@@ -346,14 +352,13 @@ def generate_launch_description():
             on_exit=[launch.actions.Shutdown(reason="task_generator_node exited")],
         ))
 
-        return [
+        env_actions: list[launch.LaunchDescriptionEntity] = [
             IsolatedGroupAction([human_launch, pedestrian_marker_node, task_generator_node]),
-            launch.actions.RegisterEventHandler(
-                debug_window_cb,
-                condition=launch.conditions.IfCondition(debug.substitution),
-            ),
-            shutdown_on_node_exit,
         ]
+        if truthy(debug_flags.get("debug.aiomonitor")):
+            env_actions.append(launch.actions.RegisterEventHandler(debug_window_cb))
+        env_actions.append(shutdown_on_node_exit)
+        return env_actions
 
     def _make_env(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:
         managed_val = launch.utilities.perform_substitutions(

@@ -28,6 +28,7 @@ def _stub(pose, tol_dist, tol_ang):
     )
     return SimpleNamespace(
         pose=pose,
+        controls_orientation=True,
         node=SimpleNamespace(conf=SimpleNamespace(Robot=robot_conf)),
     )
 
