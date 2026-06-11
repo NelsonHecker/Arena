@@ -193,7 +193,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         env_prefix = f"env_{self._env_id}"
         self._NS_PRIM = Namespace(env_prefix)('Obstacles')
-        self._NS_PEDESTRIAN = Namespace(env_prefix)('Pedestrians')
         self._NS_ROBOT = Namespace(env_prefix)('Robots')
         self._NS_WALL = Namespace(env_prefix)('Walls')
         self._NS_FLOOR = Namespace(env_prefix)('Floors')
@@ -420,7 +419,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         req = MovePedestrians.Request(
             pedestrians=[
                 Pedestrian(
-                    name=self._NS_PEDESTRIAN(p.name),
+                    name=p.sim_path,
                     pose=p.pose.to_msg(),
                 )
                 for p in pedestrians
@@ -445,7 +444,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        res = await self._clients.DeletePedestrians.call_timeout(DeletePedestrians.Request(names=[self._NS_PEDESTRIAN(p.name) for p in pedestrians]))
+        res = await self._clients.DeletePedestrians.call_timeout(DeletePedestrians.Request(names=[p.sim_path for p in pedestrians]))
         if res is None:
             return tuple(False for _ in pedestrians)
         return tuple(r == DeletePedestrians.Response.SUCCESS for r in res.results)
@@ -686,7 +685,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             items.append(
                 SpawnPedestrian(
                     pedestrian=Pedestrian(
-                        name=self._NS_PEDESTRIAN(pedestrian.name),
+                        name=pedestrian.sim_path,
                         pose=pedestrian.pose.to_msg(),
                     ),
                     model_ref=available_models[model_name],
@@ -704,7 +703,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             arena_people_msgs.msg.Pedestrians(
                 pedestrians=[
                     arena_people_msgs.msg.Pedestrian(
-                        name=ped.name,
+                        name=ped.sim_path,
                         pose=ped.pose.to_msg(),
                     )
                     for status, ped in zip(success, pedestrians, strict=False)
@@ -716,20 +715,16 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return success
 
     async def pedestrian_update(self, pedestrians: arena_people_msgs.msg.Pedestrians) -> Sequence[bool]:
-        req = UpdatePedestrians.Request(
-            pedestrians=[
-                Pedestrian(
-                    name=self._NS_PEDESTRIAN(ped.name),
-                    pose=ped.pose,
-                    twist=ped.twist,
-                )
-                for ped in pedestrians.pedestrians
-            ]
-        )
+        # Published ped names are already sim_paths, matching the spawn key.
+        req = UpdatePedestrians.Request(pedestrians=list(pedestrians.pedestrians))
         res = await self._clients.UpdatePedestrians.call_timeout(req)
         if res is None:
             return tuple(False for _ in pedestrians.pedestrians)
-        return tuple(r == UpdatePedestrians.Response.SUCCESS for r in res.results)
+        results = tuple(r == UpdatePedestrians.Response.SUCCESS for r in res.results)
+        if not all(results):
+            missed = [p.name for p, ok in zip(pedestrians.pedestrians, results, strict=False) if not ok]
+            self._logger.warning(f"UpdatePedestrians missed {missed}", throttle_duration_sec=10.0)
+        return results
 
     async def _delete_entity(self, name: str) -> bool:
         self._logger.debug(f"Attempting to delete prim {name}")
