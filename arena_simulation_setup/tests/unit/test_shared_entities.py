@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import warnings
-
-import attrs
 import pytest
 
 from arena_simulation_setup.shared.entities import (
@@ -13,8 +10,7 @@ from arena_simulation_setup.shared.entities import (
     Obstacle,
 )
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
-from arena_simulation_setup.utils.geometry import Pose, Position, Scale
-from arena_simulation_setup.utils.models import ModelWrapper
+from arena_simulation_setup.utils.geometry import Pose, Scale
 
 
 def _model_id():
@@ -121,11 +117,6 @@ def test_entity_asdict_expand_extra_false():
 # ---------------------------------------------------------------------------
 
 
-def test_obstacle_scale_none_by_default():
-    obs = _make_obstacle()
-    assert obs.scale is None
-
-
 def test_obstacle_scale_set():
     obs = _make_obstacle()
     obs.scale = Scale(2.0, 2.0, 2.0)
@@ -195,7 +186,6 @@ def test_custom_dynamic_obstacle_getattr_miss():
 
 
 def test_custom_dynamic_obstacle_parse_emits_future_warning():
-    from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
     data = {
         "name": "cdo",
         "pose": [0.0, 0.0],

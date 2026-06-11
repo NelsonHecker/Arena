@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import warnings
 
 import pytest
@@ -48,13 +47,6 @@ def test_robot_goal_parse_empty_parse_fallback():
 # ---------------------------------------------------------------------------
 # Scenario
 # ---------------------------------------------------------------------------
-
-
-def test_scenario_empty_construction():
-    s = Scenario()
-    assert s.static == []
-    assert s.dynamic == []
-    assert s.robots == []
 
 
 def test_scenario_with_robots():

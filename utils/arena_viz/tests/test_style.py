@@ -30,7 +30,7 @@ def test_color_tuple_coerced():
 
 def test_all_kinds_enumerated():
     expected = {
-        "map", "tf", "pedestrians", "robot_model", "odom",
+        "map", "tf", "pedestrians", "marker_array", "robot_model", "odom",
         "laser_scan", "points3d", "image", "imu", "foot_contact",
         "path", "pose", "polygon", "trajectory", "planning_scene",
     }

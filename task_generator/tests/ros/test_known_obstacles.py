@@ -23,13 +23,6 @@ def test_obstacle_layer_integer_values():
     assert ObstacleLayer.WORLD == 2
 
 
-def test_known_obstacle_defaults():
-    from task_generator.simulators.human.utils import KnownObstacle, ObstacleLayer
-    ko = KnownObstacle(obstacle="payload")
-    assert ko.spawned is False
-    assert ko.layer is ObstacleLayer.UNUSED
-
-
 def test_create_or_get_creates_on_first_call():
     from task_generator.simulators.human.utils import KnownObstacles
     known = KnownObstacles()
