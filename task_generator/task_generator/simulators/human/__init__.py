@@ -65,6 +65,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._known_doors = KnownObstacles[Door]()
         self._wall_counter = itertools.count()
         self._known_regions: dict[str, Region] = {}
+        self._warned_unresolved_models: set[str] = set()
 
         self._arena_peds_publisher = self.node.create_publisher(Pedestrians, self._namespace("arena_peds"), 10)
         self._marker_publisher = self.node.create_publisher(
@@ -258,13 +259,17 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 if model.type is not ModelType.UNKNOWN:
                     return obs
             except Exception as e:
-                self._logger.warning(
-                    f"pedestrian {obs.name!r}: model {obs.model.name!r} unresolved ({e}); using fallback",
-                )
+                if obs.model.name not in self._warned_unresolved_models:
+                    self._warned_unresolved_models.add(obs.model.name)
+                    self._logger.warning(
+                        f"pedestrian model {obs.model.name!r} unresolved ({e}); using fallback",
+                    )
             else:
-                self._logger.warning(
-                    f"pedestrian {obs.name!r}: model {obs.model.name!r} has no SDF; using fallback",
-                )
+                if obs.model.name not in self._warned_unresolved_models:
+                    self._warned_unresolved_models.add(obs.model.name)
+                    self._logger.warning(
+                        f"pedestrian model {obs.model.name!r} has no SDF; using fallback",
+                    )
             return attrs.evolve(obs, model=PedestrianIdentifier.parse(self._PEDESTRIAN_FALLBACK))
 
         return await asyncio.gather(*(_resolve(o) for o in obstacles))
