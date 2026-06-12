@@ -352,6 +352,15 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                             source "$feature_path" uninstall "$@"
                             result=$?
                         ;;
+                        launch)
+                            if ! _feature_registry has "$fname"; then
+                                echo "$fname is not installed; run 'arena feature $fname install' first." >&2
+                                result=1
+                            else
+                                ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
+                                result=$?
+                            fi
+                        ;;
                         *)
                             ($SHELL -c "source '$SOURCE_FILE' > /dev/null 2>&1 && $shell '$feature_path' $*")
                             result=$?

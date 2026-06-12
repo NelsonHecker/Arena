@@ -55,7 +55,7 @@ uninstall(){
 
 # === MAIN SCRIPT ===
 help(){
-  echo "Usage: $name <install|update|uninstall|source>"
+  echo "Usage: $name <install|update|uninstall|source|launch>"
 }
 if [ $# -lt 1 ]; then
   help
@@ -78,6 +78,10 @@ case "$1" in
   source)
     source_fn
     return $?
+    ;;
+  launch)
+    shift
+    exec ros2 launch arena_bringup gazebo.launch.py "$@"
     ;;
   *)
     help

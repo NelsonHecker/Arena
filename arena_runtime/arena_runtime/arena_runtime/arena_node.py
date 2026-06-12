@@ -33,7 +33,7 @@ from std_msgs.msg import Bool
 
 from arena_runtime.constants import SimSimulator
 from arena_runtime.holds import HoldRegistry
-from arena_runtime.registry import EnvRegistry, _extent_eq
+from arena_runtime.registry import EnvRegistry, _extent_eq, sweep_verdict
 from arena_runtime.sim import LifecycleRegistry, SimLifecycle
 from arena_runtime.sim.dummy_simulator import DummyHost
 
@@ -125,6 +125,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         period = self.rosparam[float].get("heartbeat_period_sec", 1.0)
         self.rosparam[float].get("heartbeat_timeout_sec", 5.0)
         self.rosparam[float].get("reset_hold_timeout_sec", 30.0)
+        self.rosparam[float].get("bootstrap_timeout_sec", 600.0)
         slot_buffer = self.rosparam[float].get("slot_buffer", 5.0)
 
         self._env_registry = EnvRegistry(slot_buffer=slot_buffer)
@@ -345,15 +346,24 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
     async def _check_heartbeats(self) -> None:
         timeout = self.rosparam[float].get("heartbeat_timeout_sec", 5.0)
         reset_timeout = self.rosparam[float].get("reset_hold_timeout_sec", 30.0)
+        bootstrap_timeout = self.rosparam[float].get("bootstrap_timeout_sec", 600.0)
         now = self.wall_time
         for env_id, record in self._env_registry.items():
-            if record.draining or not record.bootstrapped:
-                continue
             elapsed = (now - Time.from_msg(record.last_heartbeat)).to_seconds()
+            env = self._envs.get(env_id)
+            process_alive = env.popen.poll() is None if env is not None and env.popen is not None else None
             # an env mid-reset blocks its loop for seconds; tolerate longer while it holds "reset", but still cap it
-            effective = reset_timeout if self._holds.has(record.fqn, "reset") else timeout
-            if elapsed > effective:
-                await self._evict(env_id, "heartbeat_timeout")
+            reason = sweep_verdict(
+                record,
+                elapsed=elapsed,
+                has_reset_hold=self._holds.has(record.fqn, "reset"),
+                process_alive=process_alive,
+                heartbeat_timeout=timeout,
+                reset_timeout=reset_timeout,
+                bootstrap_timeout=bootstrap_timeout,
+            )
+            if reason is not None:
+                await self._evict(env_id, reason)
 
     async def _evict(self, env_id: int, reason: str) -> None:
         if not self._env_registry.start_eviction(env_id):
@@ -373,16 +383,20 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             await self._lifecycle.unpause()
         self._publish_state()
 
-        await self._lifecycle.cleanup_namespace(self._lifecycle.env_prefix(env_id))
-
-        env = self._envs.pop(env_id, None)
-        self._env_registry.complete_eviction(env_id)
-        self._publish_envs()
-
         self._publish_shutdown_request(env_id, reason)
 
+        env = self._envs.pop(env_id, None)
         if env is not None:
-            asyncio.create_task(env.dispose(self, grace_seconds=15.0))
+            if env.popen is not None:
+                await env.dispose(self, grace_seconds=15.0)
+            else:
+                await env.dispose(self, grace_seconds=0.0)
+                await asyncio.sleep(2.0)  # give external env time to observe shutdown_request
+
+        await self._lifecycle.cleanup_namespace(self._lifecycle.env_prefix(env_id))
+
+        self._env_registry.complete_eviction(env_id)
+        self._publish_envs()
 
         self.get_logger().info(f"evicted env_{env_id} ({reason})")
 
@@ -489,6 +503,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             env_id, namespace = self._env_registry.reserve(
                 requested_env_id=requested,
                 requested_ns=requested_ns,
+                now=self.wall_time.to_msg(),
             )
         except ValueError as e:
             response.success = False
@@ -597,6 +612,7 @@ sys.exit(ls.run())
             env_id, namespace = self._env_registry.reserve(
                 requested_env_id=None,
                 requested_ns=requested_ns,
+                now=self.wall_time.to_msg(),
             )
         except ValueError as e:
             response.success = False

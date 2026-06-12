@@ -7,7 +7,6 @@ import attrs
 import numpy as np
 import shapely
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
-from arena_simulation_setup.utils.geometry import sample_point_in_polygon
 from shapely.geometry import Point
 
 from task_generator.shared import DynamicObstacle, Obstacle, Orientation, Pose, Position
@@ -429,17 +428,9 @@ class TM_Environment(TM_Obstacles):
                                 obstacle_x = x + rot_x
                                 obstacle_y = y + rot_y
 
-                                # Resolve waypoints: strings are zone labels, lists are coordinates
-                                rng = self.node.conf.General.RNG.value
-                                resolved_waypoints = []
-                                for wp in entity.get("waypoints", []):
-                                    if isinstance(wp, str):
-                                        vertices = world.lookup_zone_polygon(wp)
-                                        if vertices is None:
-                                            raise ValueError(f"zone ref '{wp}' not found in world")
-                                        resolved_waypoints.append(sample_point_in_polygon(vertices, rng))
-                                    else:
-                                        resolved_waypoints.append(Position(x=wp[0], y=wp[1]))
+                                # strings are zone refs, lists are coordinates
+                                resolver = world.point_resolver(self.node.conf.General.RNG.value)
+                                resolved_waypoints = [resolver.resolve(wp) if isinstance(wp, str) else Position(x=wp[0], y=wp[1]) for wp in entity.get("waypoints", [])]
 
                                 obs_name = f"G_{group_name}_{idx}_{n_groups}_{entity['model']}_{g}"
                                 new_obstacle = DynamicObstacle(

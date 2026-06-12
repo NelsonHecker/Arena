@@ -96,24 +96,40 @@ regions:
 
   reception_sink:
     type: sink
-    ref: reception
+    polygon:
+      - {x: 5.6, y: 1.0}
+      - {x: 7.4, y: 1.0}
+      - {x: 7.4, y: 4.0}
+      - {x: 5.6, y: 4.0}
     config:
       capacity: -1
 
   waiting_sink:
     type: sink
-    ref: waiting_area
+    polygon:
+      - {x: 21.2, y: 4.6}
+      - {x: 22.8, y: 4.6}
+      - {x: 22.8, y: 7.8}
+      - {x: 21.2, y: 7.8}
     config:
       capacity: 8
 
   pharmacy_sink:
     type: sink
-    ref: pharmacy
+    polygon:
+      - {x: 5.8, y: 27.0}
+      - {x: 7.5, y: 27.0}
+      - {x: 7.5, y: 28.3}
+      - {x: 5.8, y: 28.3}
     config:
       capacity: 5
 
   nurse_rest_sink:
     type: sink
-    ref: nurse_resting_room
+    polygon:
+      - {x: 14.3, y: 6.0}
+      - {x: 16.3, y: 6.0}
+      - {x: 16.3, y: 9.0}
+      - {x: 14.3, y: 9.0}
     config:
       capacity: 3

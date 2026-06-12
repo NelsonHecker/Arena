@@ -502,6 +502,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
         # Clear agents container (if not already done)
         self._agents_container.agents.clear()  # type: ignore
         self._arena_pedestrians_container.pedestrians.clear()  # type: ignore
+        self._ped_model_uris.clear()
 
         self._last_updated_agents = None
         self._last_smooth_yaws = {}

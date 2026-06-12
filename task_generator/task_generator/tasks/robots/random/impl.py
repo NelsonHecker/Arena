@@ -23,14 +23,16 @@ class TM_Random(TM_Robots):
             )
 
         if len(ROBOT_POSITIONS) < len(self._ctx.robots):
-            to_generate = 2 * (len(self._ctx.robots) - len(ROBOT_POSITIONS))
+            n_missing = len(self._ctx.robots) - len(ROBOT_POSITIONS)
+            rng = self.node.conf.General.RNG.value
 
-            orientations = 2 * math.pi * self.node.conf.General.RNG.value.random(to_generate)
-            positions = self._ctx.world_manager.get_positions_on_map(n=to_generate, safe_dist=biggest_robot)
+            goal_positions = self._ctx.world_manager.get_positions_on_map(n=n_missing, safe_dist=0)
+            start_positions = self._ctx.world_manager.get_positions_on_map(n=n_missing, safe_dist=biggest_robot)
 
-            generated_positions = [Pose(position, Orientation.from_yaw(orientation)) for (orientation, position) in zip(orientations, positions, strict=False)]
+            starts = [Pose(p, Orientation.from_yaw(2 * math.pi * rng.random())) for p in start_positions]
+            goals = [Pose(p, Orientation.from_yaw(2 * math.pi * rng.random())) for p in goal_positions]
 
-            ROBOT_POSITIONS += list(zip(generated_positions[::2], generated_positions[1::2], strict=False))
+            ROBOT_POSITIONS += list(zip(starts, goals, strict=False))
 
         for robot, pos in zip(self._ctx.robots.values(), ROBOT_POSITIONS, strict=False):
             self._start_poses[robot.name] = pos[0]

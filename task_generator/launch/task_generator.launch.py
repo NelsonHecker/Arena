@@ -118,7 +118,7 @@ def generate_launch_description():
     human = LaunchArgument(
         name="human",
         default_value="",
-        description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: hunav})",
+        description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: arena})",
     )
     robot = LaunchArgument(name="robot", default_value="auto")
     tm_robots = LaunchArgument(name="tm_robots", default_value="explore")
@@ -194,7 +194,7 @@ def generate_launch_description():
 
         human_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)
-        ) or {"dummy": "dummy", "gazebo": "hunav", "isaac": "hunav"}.get(arena_sim, "dummy")
+        ) or {"dummy": "dummy", "gazebo": "arena", "isaac": "arena"}.get(arena_sim, "dummy")
         mobile_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)
         ) or {"dummy": "none"}.get(arena_sim, "nav2")
@@ -244,18 +244,12 @@ def generate_launch_description():
 
         pedestrian_marker_node = launch_ros.actions.Node(
             package="rviz_utils",
-            executable="pedestrian_marker_publisher",
-            name="pedestrian_marker_publisher",
+            executable="hri_producer",
+            name="hri_producer",
             namespace=os.path.dirname(allocated_ns),
             parameters=[
                 {"use_sim_time": True},
-                {"body_height": 1.6},
-                {"body_radius": 0.25},
-                {"head_radius": 0.15},
-                {"arrow_length": 0.6},
-                {"show_labels": True},
-                {"show_velocity_arrows": True},
-                {"show_orientation_arrows": True},
+                {"max_bodies": 32},
             ],
             output="screen",
         )

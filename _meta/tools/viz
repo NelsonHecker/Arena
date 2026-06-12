@@ -57,7 +57,8 @@ def discover_envs() -> list[str]:
 
 
 def matches(ns: str, target: str) -> bool:
-    return ns == target or ns == f"/{target}" or os.path.basename(ns) == target
+    env_ns = os.path.dirname(ns)
+    return target in (ns, env_ns, env_ns.lstrip("/")) or os.path.basename(env_ns) == target
 
 
 def wait_for_env(target: str | None) -> list[str]:
@@ -156,7 +157,7 @@ def main() -> int:
         if len(nodes) > 1:
             print("arena viz: multiple envs running, pass <env_id> or --all:", file=sys.stderr)
             for n in nodes:
-                print(f"  {n}", file=sys.stderr)
+                print(f"  {os.path.dirname(n)}", file=sys.stderr)
             return 1
         chosen = nodes[0]
     else:
@@ -167,3 +168,7 @@ def main() -> int:
         print(f"arena viz: attaching to {chosen}", file=sys.stderr)
         os.execvp(cmds[0][0], cmds[0])
     return attach_all([chosen], viz_args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

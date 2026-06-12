@@ -9,6 +9,11 @@ from copy import deepcopy
 
 import cattrs
 
+from arena_simulation_setup.utils.resolution import activate_resolver
+
+if typing.TYPE_CHECKING:
+    from arena_simulation_setup.utils.geometry import PointResolver
+
 _active_converter: contextvars.ContextVar[ArenaConverter] = contextvars.ContextVar('_active_converter')
 
 
@@ -19,6 +24,11 @@ class ArenaConverter(cattrs.Converter):
         super().__init__(*args, **kwargs)
         self._encoders: dict[type, typing.Callable] = {}
         self._decoders: list[tuple[typing.Callable[[type], bool], typing.Callable]] = []
+        self._resolver: PointResolver | None = None
+
+    def set_resolver(self, resolver: PointResolver | None) -> None:
+        """Bind a zone resolver, activated while this converter structures values."""
+        self._resolver = resolver
 
     @property
     def type_encoders(self) -> dict[type, typing.Callable]:
@@ -69,14 +79,16 @@ class ArenaConverter(cattrs.Converter):
     def structure(self, obj: object, cl: type) -> object:
         token = _active_converter.set(self)
         try:
-            return super().structure(obj, cl)
+            with activate_resolver(self._resolver):
+                return super().structure(obj, cl)
         finally:
             _active_converter.reset(token)
 
     def structure_attrs_fromdict(self, obj: Mapping[str, object], cl: type) -> object:
         token = _active_converter.set(self)
         try:
-            return super().structure_attrs_fromdict(obj, cl)
+            with activate_resolver(self._resolver):
+                return super().structure_attrs_fromdict(obj, cl)
         finally:
             _active_converter.reset(token)
 

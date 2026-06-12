@@ -1,6 +1,9 @@
 import itertools
 import os
 import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -41,6 +44,14 @@ def generate_launch_description():
 
     headless = LaunchArgument(
         'headless',
+    )
+
+    # Injects PedSkeletonPlugin into the world SDF so gpu_lidar perceives
+    # articulated pedestrians. ped_skeleton_enabled:=false to disable.
+    ped_skeleton_enabled = LaunchArgument(
+        'ped_skeleton_enabled',
+        default_value='true',
+        description='Enable pedestrian skeletal articulation plugin (PedSkeletonPlugin)',
     )
 
     # Set environment variables
@@ -120,9 +131,48 @@ def generate_launch_description():
         else_value=desired_world,
     )
 
+    def _inject_ped_skeleton_plugin(world_sdf_path: str, enabled: bool) -> str:
+        """Return a patched world SDF path with PedSkeletonPlugin injected.
+
+        Parses the world SDF, appends the plugin element to the <world> element,
+        writes a temp file, and returns its path. When disabled, returns the
+        original path unchanged.
+        """
+        if not enabled:
+            return world_sdf_path
+
+        try:
+            tree = ET.parse(world_sdf_path)
+            root = tree.getroot()
+            world_el = root.find('world')
+            if world_el is None:
+                return world_sdf_path
+
+            plugin_el = ET.SubElement(world_el, 'plugin')
+            plugin_el.set('filename', 'PedSkeletonPlugin')
+            plugin_el.set('name', 'arena_gz_plugins::PedSkeletonPlugin')
+            enabled_el = ET.SubElement(plugin_el, 'enabled')
+            enabled_el.text = 'true'
+
+            tmp = tempfile.NamedTemporaryFile(
+                mode='wb', suffix='.sdf', delete=False,
+                prefix='arena_world_',
+            )
+            tree.write(tmp, xml_declaration=True, encoding='utf-8')
+            tmp.close()
+            return tmp.name
+
+        except Exception as exc:
+            # Non-fatal: fall back to original world without the plugin.
+            print(f'[gazebo.launch] PedSkeletonPlugin injection failed: {exc}', file=sys.stderr)
+            return world_sdf_path
+
     def _launch_gazebo(context, *args, **kwargs):
         resolved_world = context.perform_substitution(world_path)
         headless_val = context.perform_substitution(headless.substitution)
+        skeleton_val = context.perform_substitution(ped_skeleton_enabled.substitution)
+        skeleton_on = skeleton_val.lower() not in ('false', '0')
+        resolved_world = _inject_ped_skeleton_plugin(resolved_world, skeleton_on)
         engine = _select_render_engine()
         gz_args = resolved_world + f" -r --render-engine {engine}"
         if headless_val.lower() in ("true", "1"):
@@ -158,6 +208,22 @@ def generate_launch_description():
         }],
     )
 
+    # Point gz-sim at <install>/lib so it can load PedSkeletonPlugin.
+    try:
+        arena_gz_plugins_lib = os.path.join(
+            get_package_share_directory('arena_gz_plugins'), '..', '..', 'lib'
+        )
+        arena_gz_plugins_lib = os.path.normpath(arena_gz_plugins_lib)
+    except Exception:
+        arena_gz_plugins_lib = ''
+
+    existing_plugin_path = os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', '')
+    gz_plugin_path = (
+        f"{arena_gz_plugins_lib}:{existing_plugin_path}"
+        if arena_gz_plugins_lib and existing_plugin_path
+        else (arena_gz_plugins_lib or existing_plugin_path)
+    )
+
     # Return the LaunchDescription with all the nodes/actions
 
     return LaunchDescription(
@@ -165,11 +231,15 @@ def generate_launch_description():
             use_sim_time,
             world,
             headless,
+            ped_skeleton_enabled,
             # SetEnvironmentVariable(
             #     "GZ_SIM_PHYSICS_ENGINE_PATH", GZ_SIM_PHYSICS_ENGINE_PATH
             # ),
             SetEnvironmentVariable(
                 "GZ_SIM_RESOURCE_PATH", GZ_SIM_RESOURCE_PATHS_COMBINED
+            ),
+            SetEnvironmentVariable(
+                "GZ_SIM_SYSTEM_PLUGIN_PATH", gz_plugin_path
             ),
             gazebo,
             # robot_state_publisher,

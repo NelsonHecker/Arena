@@ -30,7 +30,7 @@ from arena_simulation_setup.tree.assets.Material import (
     MaterialIdentifier,
 )
 from arena_simulation_setup.utils.cattrs import ArenaConverter, converter
-from arena_simulation_setup.utils.geometry import Orientation, Pose, Position, sample_point_in_polygon
+from arena_simulation_setup.utils.geometry import PointResolver, Position
 
 from .Map import Map
 from .Scenario import RegionAssignment, ScenarioView
@@ -181,6 +181,29 @@ class LevelDescription:
                     return elevator.cabin_corners()
         return None
 
+    def zone_ref_names(self) -> list[str]:
+        """Every name resolvable by lookup_zone_polygon (zones, doors, elevators)."""
+        names: list[str] = []
+        for zone in self.zones:
+            names.append(zone.name)
+            names.extend(door.name for door in zone.doors)
+            names.extend(elevator.name for elevator in zone.elevators)
+        return names
+
+    def point_resolver(
+        self,
+        rng: np.random.Generator,
+        *,
+        is_valid: typing.Callable[[Position], bool] | None = None,
+    ) -> PointResolver:
+        """Resolver that samples a point inside a named zone/door/elevator polygon."""
+        return PointResolver(
+            lookup=self.lookup_zone_polygon,
+            rng=rng,
+            is_valid=is_valid,
+            candidates=self.zone_ref_names,
+        )
+
     def zone_converter(
         self,
         rng: np.random.Generator,
@@ -189,32 +212,12 @@ class LevelDescription:
     ) -> ArenaConverter:
         """Return a converter that resolves zone/door/elevator names to geometry.
 
-        String values for Pose/Position fields are resolved by sampling a
-        random point within the named zone polygon. RegionAssignment dicts
-        with a ``ref`` key get their polygon resolved from the floor.
+        String values for Pose/Position/Waypoint fields are resolved by the active
+        PointResolver (a random point sampled within the named zone polygon).
+        RegionAssignment dicts with a ``ref`` key get their polygon resolved here.
         """
         lookup = self.lookup_zone_polygon
-
-        base_pose_hook = converter.get_structure_hook(Pose)
-        base_position_hook = converter.get_structure_hook(Position)
         base_region_hook = converter.get_structure_hook(RegionAssignment)
-
-        def pose_hook(v: object, t: type) -> Pose:
-            if isinstance(v, str):
-                polygon = lookup(v)
-                if polygon is None:
-                    raise ValueError(f"zone ref '{v}' not found in world")
-                pt = sample_point_in_polygon(polygon, rng, is_valid=is_valid)
-                return Pose(position=pt, orientation=Orientation.identity())
-            return base_pose_hook(v, t)
-
-        def position_hook(v: object, t: type) -> Position:
-            if isinstance(v, str):
-                polygon = lookup(v)
-                if polygon is None:
-                    raise ValueError(f"zone ref '{v}' not found in world")
-                return sample_point_in_polygon(polygon, rng, is_valid=is_valid)
-            return base_position_hook(v, t)
 
         def region_hook(v: object, t: type) -> RegionAssignment:
             if isinstance(v, dict) and 'ref' in v:
@@ -226,8 +229,7 @@ class LevelDescription:
             return base_region_hook(v, t)
 
         c = converter.copy()
-        c.register_structure_hook(Pose, pose_hook)
-        c.register_structure_hook(Position, position_hook)
+        c.set_resolver(self.point_resolver(rng, is_valid=is_valid))
         c.register_structure_hook(RegionAssignment, region_hook)
         return c
 

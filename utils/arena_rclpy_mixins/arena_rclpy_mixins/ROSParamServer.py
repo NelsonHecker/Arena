@@ -12,7 +12,7 @@ T = typing.TypeVar('T')
 U = typing.TypeVar('U')
 
 
-class ROSParamT[T](abc.ABC):
+class ROSParamT(abc.ABC, typing.Generic[T]):
     @abc.abstractmethod
     def __init__(
         self,
@@ -59,7 +59,7 @@ class ROSParamT[T](abc.ABC):
         """
 
 
-class _ROSParam[T](ROSParamT[T]):
+class _ROSParam(ROSParamT[T]):
     """
     Wrapper that handles callbacks.
     """
@@ -140,7 +140,7 @@ class _ROSParam[T](ROSParamT[T]):
 counter = 0
 
 
-class _rosparam[T]:
+class _rosparam(typing.Generic[T]):
     """
     Light-weight stateless interface for singular typed rosparam actions (short-lived).
     Runtime checks are not performed.

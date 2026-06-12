@@ -1,7 +1,5 @@
 import launch.actions
 import launch.substitutions
-from launch.substitutions import PathJoinSubstitution
-from launch_ros.substitutions import FindPackageShare
 
 import launch
 import launch_ros.actions
@@ -43,30 +41,35 @@ def generate_launch_description():
 
     launch_simulator.add(
         SimSimulator.GAZEBO.value,
-        launch.actions.IncludeLaunchDescription(
-            PathJoinSubstitution([
-                FindPackageShare('arena_bringup'),
-                'launch', 'simulator', 'sim', 'gazebo', 'gazebo.launch.py',
-            ]),
-            launch_arguments={
-                **use_sim_time.dict,
-                **headless.dict,
-                **world.dict,
-            }.items(),
+        launch.actions.ExecuteProcess(
+            cmd=['bash', '-c', [
+                launch.substitutions.TextSubstitution(text='arena feature gazebo launch use_sim_time:='),
+                use_sim_time.substitution,
+                launch.substitutions.TextSubstitution(text=' headless:='),
+                headless.substitution,
+                launch.substitutions.TextSubstitution(text=' world:='),
+                world.substitution,
+            ]],
+            sigterm_timeout=launch.substitutions.LaunchConfiguration('sigterm_timeout', default='5'),
+            sigkill_timeout=launch.substitutions.LaunchConfiguration('sigkill_timeout', default='5'),
+            on_exit=[launch.actions.Shutdown()],
+            output='log',
         )
     )
 
     launch_simulator.add(
         SimSimulator.ISAAC.value,
-        launch.actions.IncludeLaunchDescription(
-            PathJoinSubstitution([
-                FindPackageShare('arena_bringup'),
-                'launch', 'simulator', 'sim', 'isaac', 'isaac.launch.py',
-            ]),
-            launch_arguments={
-                'use_sim_time': use_sim_time.substitution,
-                'headless': headless.substitution,
-            }.items(),
+        launch.actions.ExecuteProcess(
+            cmd=['bash', '-c', [
+                launch.substitutions.TextSubstitution(text='arena feature isaac launch headless:='),
+                headless.substitution,
+                launch.substitutions.TextSubstitution(text=' log_level:='),
+                launch.substitutions.LaunchConfiguration('log_level', default='debug'),
+            ]],
+            sigterm_timeout=launch.substitutions.LaunchConfiguration('sigterm_timeout', default='5'),
+            sigkill_timeout=launch.substitutions.LaunchConfiguration('sigkill_timeout', default='5'),
+            on_exit=[launch.actions.Shutdown()],
+            output='log',
         )
     )
 

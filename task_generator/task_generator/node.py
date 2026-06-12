@@ -524,21 +524,19 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 topic="",
                 topic_type="",
                 kind=DisplayKind.TF,
-                style_json="",
+                style_json=StyleSpec(enabled=False).to_json(),
                 topic_must_exist=False,
             ),
         ]
         if human_sim != human_sim.__class__.DUMMY:
             latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
-            # Canonical human models, shared by every backend and latched to match the
-            # converter's TRANSIENT_LOCAL publisher (survives paused resets, replays to late rviz).
             env_displays.append(
                 AdapterDisplay(
                     name="Pedestrians",
-                    topic=f"{env_ns}/pedestrian_markers",
-                    topic_type="visualization_msgs/MarkerArray",
+                    topic=f"{env_ns}/humans",
+                    topic_type="",
                     kind=DisplayKind.PEDESTRIANS,
-                    style_json=latched,
+                    style_json=StyleSpec().to_json(),
                     topic_must_exist=False,
                     group="Pedestrians",
                 )
