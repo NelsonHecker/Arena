@@ -302,9 +302,11 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         inv = 1.0 - alpha
         prev_by_id = {a.agent_id: a for a in prev.agents}
 
+        # stamp with the time the lerped pose corresponds to, receivers dead-reckon from it
+        pose_ns = prev_ns + int(alpha * dt_ns)
         msg = AgentStatesMsg()
-        msg.header.stamp.sec = int(now_ns // int(1e9))
-        msg.header.stamp.nanosec = int(now_ns % int(1e9))
+        msg.header.stamp.sec = int(pose_ns // int(1e9))
+        msg.header.stamp.nanosec = int(pose_ns % int(1e9))
         msg.header.frame_id = "map"
 
         for curr_a in curr.agents:
