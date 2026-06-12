@@ -73,8 +73,11 @@ def generate_launch_description():
     staging_path = os.path.join(package_root, '..', 'staging')
     os.makedirs(staging_path, exist_ok=True)
 
-    import subprocess
-    subprocess.run(['ros2', 'run', 'arena_simulation_setup', 'model_staging', staging_path])
+    from arena_simulation_setup.staging import stage
+    try:
+        stage(staging_path)
+    except Exception as exc:
+        print(f'[gazebo.launch] model staging failed: {exc}', file=sys.stderr)
 
     GZ_SIM_RESOURCE_PATHS = [
         os.path.join(staging_path),

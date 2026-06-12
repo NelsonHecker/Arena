@@ -44,7 +44,7 @@ arena_isaac:   run_isaacsim.launch.py                         (Isaac Sim app)
 
 - Reached via `arena feature gazebo launch`, so it only runs when the gazebo
   feature is installed.
-- Stages models via `arena_simulation_setup model_staging` at Python-load time.
+- Stages models via `arena_simulation_setup.staging.stage()` at Python-load time.
 - Sets `GZ_SIM_RESOURCE_PATH` and `GAZEBO_MODEL_PATH` from the staging
   directory plus `arena_robots` and any declared deps.
 - Resolves the world SDF: looks for
