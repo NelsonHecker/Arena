@@ -716,7 +716,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def pedestrian_update(self, pedestrians: arena_people_msgs.msg.Pedestrians) -> Sequence[bool]:
         # Published ped names are already sim_paths, matching the spawn key.
-        req = UpdatePedestrians.Request(pedestrians=list(pedestrians.pedestrians))
+        req = UpdatePedestrians.Request(pedestrians=list(pedestrians.pedestrians), stamp=pedestrians.header.stamp)
         res = await self._clients.UpdatePedestrians.call_timeout(req)
         if res is None:
             return tuple(False for _ in pedestrians.pedestrians)
