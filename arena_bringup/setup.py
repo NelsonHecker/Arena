@@ -1,6 +1,6 @@
 import os
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 package_name = 'arena_bringup'
 
@@ -36,7 +36,7 @@ def recursive_walk(base_dir, *, destination=None, relative_to=None):
 setup(
     name=package_name,
     version='0.0.0',
-    packages=[package_name],
+    packages=find_packages(where='.', include=[f'{package_name}*']),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),

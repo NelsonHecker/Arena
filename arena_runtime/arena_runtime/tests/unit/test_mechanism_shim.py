@@ -425,8 +425,8 @@ def test_just_arrived_occupant_holds_door_open():
     assert dr.last_trigger_sim_time == 5.0
 
 
-def test_new_occupant_with_just_arrived_resident_can_depart():
-    """Fresh entrant (r2) triggers depart even though r is just_arrived."""
+def test_just_arrived_resident_blocks_depart_for_new_entrant():
+    """Fresh entrant (r2) must wait: departing would teleport the just_arrived r right back."""
     a = _elev_runtime(_elevator(name="a", destination="b"), destination="b")
     a.just_arrived = {"r": True}
     dr = _door_runtime(_door(name="a/door"), kind="sliding")
@@ -436,7 +436,8 @@ def test_new_occupant_with_just_arrived_resident_can_depart():
         occupants=[("r", (0.0, 0.0)), ("r2", (0.0, 0.0))],
         near_door=False, outside_trigger=False, now=5.0,
     )
-    assert a.departing
+    assert not a.departing
+    assert dr.last_trigger_sim_time == 5.0
 
 
 def test_closing_abort_holds_door_when_inside_occupant_near_door():
@@ -670,8 +671,9 @@ def test_tick_full_round_trip():
     # Mark robot as arrived at B (clear just_arrived for re-departure).
     runtimes["b"].just_arrived.clear()
     # Leg 2: robot now in B (B's door open from arrival), robot stays in B.
+    # Full cycle needs hold(2) + close(1) + travel(3) + open(1) > 200 ticks.
     now, jobs2 = _run_ticks(
-        runtimes, doors, start=now, n=200,
+        runtimes, doors, start=now, n=250,
         occupants={"b": [("r1", (10.0, 0.0))]},
     )
     assert len(jobs2) == 1
