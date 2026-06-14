@@ -204,7 +204,7 @@ class DrlAdapter(MobileAdapter):
 
         await super().wait_until_ready(robot, node_paths)
 
-    async def _teardown_edge_node(self) -> None:
+    async def teardown(self) -> None:
         import asyncio  # noqa: PLC0415
 
         if self._run_loop_task is not None:

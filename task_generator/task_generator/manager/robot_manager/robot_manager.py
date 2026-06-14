@@ -508,5 +508,11 @@ class RobotManager(NodeInterface):
         pass
 
     async def destroy(self):
+        results = await asyncio.gather(
+            *(a.teardown() for a in self._adapter_instances),
+            return_exceptions=True,
+        )
+        for adapter, result in zip(self._adapter_instances, results, strict=True):
+            if isinstance(result, Exception):
+                self._logger.warning(f"adapter {adapter.kind!r} teardown failed: {result!r}")
         await self._environment_manager.remove_robot((self.robot,))
-        # TODO kill node in navigation stack
