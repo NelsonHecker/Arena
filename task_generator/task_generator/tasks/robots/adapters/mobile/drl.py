@@ -172,6 +172,7 @@ class DrlAdapter(MobileAdapter):
             target_frame="map",
             cmd_vel_topic=self.bringup.cmd_vel_topic,
             is_holonomic=is_holonomic,
+            simulation_namespace=robot.node.get_namespace(),
         )
         robot.node.executor.add_node(edge_node)
 
