@@ -80,3 +80,44 @@ def test_expand_absent_is_empty():
     from task_generator.utils.flags import expand_flag_namespace
 
     assert expand_flag_namespace(_ctx({}), "optim", _coerce) == {}
+
+
+def _node(params: dict[str, object]) -> SimpleNamespace:
+    by_prefix = {k: SimpleNamespace(value=v) for k, v in params.items()}
+    return SimpleNamespace(get_parameters_by_prefix=lambda _ns: by_prefix)
+
+
+def test_obstacles_optim_coerce():
+    from task_generator.utils.flags import ObstaclesOptim
+
+    cases = {
+        # ints (shorthand `optim:=obstacles` lands as 1) and clamping
+        0: ObstaclesOptim.FULL,
+        1: ObstaclesOptim.BBOX,
+        2: ObstaclesOptim.NONE,
+        5: ObstaclesOptim.NONE,
+        -3: ObstaclesOptim.FULL,
+        # alias names, case-insensitive, plus numeric strings
+        "full": ObstaclesOptim.FULL,
+        "bbox": ObstaclesOptim.BBOX,
+        "BBOX": ObstaclesOptim.BBOX,
+        "none": ObstaclesOptim.NONE,
+        "no_obstacles": ObstaclesOptim.NONE,
+        "2": ObstaclesOptim.NONE,
+        "": ObstaclesOptim.FULL,
+        "garbage": ObstaclesOptim.FULL,
+    }
+    for value, expected in cases.items():
+        assert ObstaclesOptim.coerce(value) is expected
+
+
+def test_obstacles_optim_level_reads_param():
+    from task_generator.utils.flags import ObstaclesOptim, obstacles_optim_level
+
+    assert obstacles_optim_level(_node({})) is ObstaclesOptim.FULL
+    assert obstacles_optim_level(_node({"obstacles": "bbox"})) is ObstaclesOptim.BBOX
+    assert obstacles_optim_level(_node({"obstacles": 1})) is ObstaclesOptim.BBOX
+    # legacy optim.no_obstacles still maps to NONE when obstacles is unset
+    assert obstacles_optim_level(_node({"no_obstacles": "1"})) is ObstaclesOptim.NONE
+    # explicit obstacles wins over the legacy flag
+    assert obstacles_optim_level(_node({"obstacles": "full", "no_obstacles": "1"})) is ObstaclesOptim.FULL

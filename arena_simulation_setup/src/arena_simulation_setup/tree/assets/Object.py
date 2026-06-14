@@ -56,6 +56,21 @@ class ObjectView(PathView):
         (min_x, max_x), (min_y, max_y), _ = bbox
         return [(min_x, min_y), (min_x, max_y), (max_x, max_y), (max_x, min_y)]
 
+    @cached_property
+    def bbox(self) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+        """3D bounding box as (size, center) in obstacle-local frame, or None if
+        annotation.yaml is absent or lacks a bounding_box."""
+        ann = self.annotation
+        if ann is None:
+            return None
+        bbox = ann.get('bounding_box')
+        if bbox is None:
+            return None
+        (min_x, max_x), (min_y, max_y), (min_z, max_z) = bbox
+        size = (max_x - min_x, max_y - min_y, max_z - min_z)
+        center = ((min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2)
+        return size, center
+
 
 @attrs.define(eq=False, hash=False)
 class ObjectIdentifier(DomainAssetIdentifier[ObjectView]):

@@ -20,7 +20,7 @@ from task_generator.shared import (
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
-from task_generator.utils.flags import flag_enabled
+from task_generator.utils.flags import ObstaclesOptim, obstacles_optim_level
 
 
 class EnvironmentManager(NodeInterface):
@@ -49,9 +49,9 @@ class EnvironmentManager(NodeInterface):
         self._static_polygons = {}
 
     @property
-    def _no_obstacles(self) -> bool:
-        """optim.no_obstacles: silently skip all static obstacle spawns."""
-        return flag_enabled(self.node, "optim", "no_obstacles")
+    def _skip_obstacles(self) -> bool:
+        """optim.obstacles=none: silently skip all static obstacle spawns."""
+        return obstacles_optim_level(self.node) >= ObstaclesOptim.NONE
 
     def realize(self, target: object) -> object:
         return self._realizer.realize(target)
@@ -126,7 +126,7 @@ class EnvironmentManager(NodeInterface):
                 ceilings.append(self._realizer.realize(ceiling, fid))
         elevators = tuple(self._realizer.realize(e, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for e in level.all_elevators)
         statics = tuple(self._realizer.realize(s, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for s in level.all_static_entities)
-        if self._no_obstacles:
+        if self._skip_obstacles:
             statics = ()
 
         line_strings: list[shapely.LineString] = []
@@ -172,7 +172,7 @@ class EnvironmentManager(NodeInterface):
         """
         Loads given obstacles into the simulator.
         """
-        if self._no_obstacles:
+        if self._skip_obstacles:
             return
         realized = tuple(self._realizer.realize(obstacle, obstacle.level_id or "") for obstacle in setups)
         await self._cache_polygons(realized)
