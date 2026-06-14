@@ -61,6 +61,24 @@ def planner_submodules(arena: Path) -> dict[str, list[str]]:
     return out
 
 
+def planner_kinds(arena: Path) -> dict[str, str]:
+    """{planner_name: kind} from the SDK .gitmodules `kind` tag, defaulting to 'bridge'."""
+    sdk_gitmodules = arena / _SDK_SUBDIR / ".gitmodules"
+    if not sdk_gitmodules.is_file():
+        return {}
+    cfg = configparser.ConfigParser()
+    cfg.read(sdk_gitmodules)
+    out: dict[str, str] = {}
+    for section in cfg.sections():
+        if not section.startswith("submodule "):
+            continue
+        planners = cfg[section].get("planner", "").split()
+        kind = cfg[section].get("kind", "bridge").strip()
+        for planner in planners:
+            out[planner] = kind
+    return out
+
+
 def _directory_scan(arena: Path) -> list[str]:
     """Return planner names from dirs containing planner.py under the planners subdir."""
     root = arena / _PLANNERS_SUBDIR
@@ -105,6 +123,7 @@ def _git(args: list[str], arena: Path, *, check: bool = True) -> int:
 
 def cmd_ls(arena: Path, _args) -> int:
     subs = planner_submodules(arena)
+    kinds = planner_kinds(arena)
     status = submodule_status(arena)
     for planner in all_planners(arena):
         if _is_local_only(planner, subs):
@@ -114,12 +133,14 @@ def cmd_ls(arena: Path, _args) -> int:
             print(f"{marker} {planner} (local)")
         else:
             pending = any(status.get(p) == "uninit" for p in subs.get(planner, []))
-            print(f"{'[ ]' if pending else '[x]'} {planner}")
+            suffix = " (nav2)" if kinds.get(planner) == "nav2" else ""
+            print(f"{'[ ]' if pending else '[x]'} {planner}{suffix}")
     return 0
 
 
 def cmd_add(arena: Path, args) -> int:
     subs = planner_submodules(arena)
+    kinds = planner_kinds(arena)
     if args.all:
         if args.names:
             print("planners: --all is mutually exclusive with planner names", file=sys.stderr)
@@ -162,11 +183,15 @@ def cmd_add(arena: Path, args) -> int:
         _git(["-c", "protocol.file.allow=always",
               "submodule", "update", "--init", "--checkout", _SDK_SUBDIR], arena)
         sdk = arena / _SDK_SUBDIR
+        kind = kinds.get(planner, "bridge")
         for p in paths:
             sub_path = Path(p).relative_to(_SDK_SUBDIR).as_posix()
             _git(["-c", "protocol.file.allow=always",
                   "submodule", "update", "--init", "--checkout", sub_path], sdk)
-            _fetch_weights(arena / p)
+            if kind != "nav2":
+                _fetch_weights(arena / p)
+        if kind == "nav2":
+            print(f"planners: '{planner}' is a native Nav2 controller, rebuild the workspace: arena build")
     return rc
 
 
