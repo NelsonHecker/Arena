@@ -21,14 +21,15 @@ class TM_Explore(TM_Random):
     @property
     async def done(self) -> bool:
         """Roll over completed robots to fresh goals; teleport timed-out robots."""
+        rng = self.node.conf.General.RNG.stream("robots", "explore")
         for robot, manager in self._ctx.robots.items():
             if await manager.is_done:
                 waypoint = self._ctx.world_manager.get_position_on_map(safe_dist=manager.safe_distance, forbid=False)
-                await self._set_goal(robot, Pose(waypoint, Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)))
+                await self._set_goal(robot, Pose(waypoint, Orientation.from_yaw(rng.random() * 2 * math.pi)))
 
             elif (self.node.sim_time.sec - self._timeouts.get(robot, Time()).sec) >= self.node.conf.Robot.TIMEOUT.value:
                 waypoint = self._ctx.world_manager.get_position_on_map(safe_dist=manager.safe_distance, forbid=False)
-                await self._set_position(robot, Pose(waypoint, Orientation.from_yaw(self.node.conf.General.RNG.value.random() * 2 * math.pi)))
+                await self._set_position(robot, Pose(waypoint, Orientation.from_yaw(rng.random() * 2 * math.pi)))
 
         return False
 

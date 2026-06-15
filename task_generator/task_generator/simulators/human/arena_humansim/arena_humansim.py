@@ -5,7 +5,6 @@ import math
 import traceback
 from collections.abc import Mapping, Sequence
 
-import numpy as np
 import yaml
 from arena_humansim_msgs.msg import (
     AgentState as AgentStateMsg,
@@ -85,6 +84,7 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
 )
 from task_generator.constants import Constants
+from task_generator.constants.rng import stable_int
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle, resolve_agent_type_path
@@ -199,7 +199,6 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         )
 
         self._next_id: int = 1
-        self._rng: np.random.Generator = np.random.default_rng(42)
 
         self._agents_lock: asyncio.Lock = asyncio.Lock()
         self._prev_agent_states: AgentStatesMsg | None = None
@@ -462,7 +461,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                         if new_ids:
                             agents_by_id = {a.agent_id: a for a in states.agents}
                             to_spawn: list[DynamicObstacle] = []
-                            for aid in new_ids:
+                            for aid in sorted(new_ids):
                                 self._flow_agent_ids.add(aid)
                                 obs = self._make_flow_dynamic_obstacle(agents_by_id[aid])
                                 self._agent_names[aid] = obs.sim_path
@@ -471,7 +470,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
                         if gone_ids:
                             to_delete: list[DynamicObstacle] = []
-                            for aid in gone_ids:
+                            for aid in sorted(gone_ids):
                                 self._flow_agent_ids.discard(aid)
                                 self._agent_names.pop(aid, None)
                                 to_delete.append(self._runtime_obstacle(name=f"flow_{aid}", pose=Pose(Position(0.0, 0.0))))
@@ -504,7 +503,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         msg.header.frame_id = "map"
         for robot in self._dirty_robots.values():
             a = AgentStateMsg()
-            a.agent_id = hash(robot.name) & 0x7FFFFFFF
+            a.agent_id = stable_int(robot.name) & 0x7FFFFFFF
             yaw = robot.pose.orientation.to_yaw()
             a.pose = Pose2DMsg(
                 x=robot.pose.position.x,
@@ -788,7 +787,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             agent_msg.velocity = Vector3(x=0.0, y=0.0, z=0.0)
 
             parsed = ArenaHumanDynamicObstacle.from_dynamic_obstacle(obstacle)
-            params = parsed.sample_params(self._rng) if parsed is not None else None
+            params = parsed.sample_params(self.node.conf.General.RNG.stream("humansim", obstacle.sim_path)) if parsed is not None else None
 
             if params is not None:
                 agent_msg.desired_velocity = params.desired_velocity

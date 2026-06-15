@@ -37,7 +37,7 @@ class TM_Scenario(TM_Obstacles):
 
         # Build a converter that resolves zone refs to concrete geometry
         zone_conv = world_description.zone_converter(
-            self.node.conf.General.RNG.value,
+            self.node.conf.General.RNG.stream("obstacles", "scenario"),
             is_valid=is_valid,
         )
 

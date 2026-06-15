@@ -66,18 +66,20 @@ class TM_Random(TM_Obstacles):
 
         """
 
+        rng = self.node.conf.General.RNG.stream("obstacles", "random")
+
         N_STATIC_OBSTACLES: int = kwargs.get(
             "N_STATIC_OBSTACLES",
-            self.node.conf.General.RNG.value.integers(*self._config.N_STATIC_OBSTACLES.value, endpoint=True),
+            rng.integers(*self._config.N_STATIC_OBSTACLES.value, endpoint=True),
         )
         N_INTERACTIVE_OBSTACLES: int = kwargs.get(
             "N_INTERACTIVE_OBSTACLES",
-            self.node.conf.General.RNG.value.integers(*self._config.N_INTERACTIVE_OBSTACLES.value, endpoint=True),
+            rng.integers(*self._config.N_INTERACTIVE_OBSTACLES.value, endpoint=True),
         )
 
         N_DYNAMIC_OBSTACLES: int = kwargs.get(
             "N_DYNAMIC_OBSTACLES",
-            self.node.conf.General.RNG.value.integers(*self._config.N_DYNAMIC_OBSTACLES.value, endpoint=True),
+            rng.integers(*self._config.N_DYNAMIC_OBSTACLES.value, endpoint=True),
         )
 
         class ModelList(dict[str, float]):
@@ -139,7 +141,7 @@ class TM_Random(TM_Obstacles):
             safe_dist=1,
         )
 
-        positions = map(lambda pos: Pose(pos, orientation=Orientation.from_yaw(2 * np.pi * self.node.conf.General.RNG.value.random())), spawn_points)
+        positions = map(lambda pos: Pose(pos, orientation=Orientation.from_yaw(2 * np.pi * rng.random())), spawn_points)
         waypoints = iter(waypoint_points)
 
         obstacles: list[Obstacle] = []
@@ -153,7 +155,7 @@ class TM_Random(TM_Obstacles):
                     model=model,
                     pose=next(positions),
                 )
-                for model in self.node.conf.General.RNG.value.choice(
+                for model in rng.choice(
                     a=MODELS_STATIC_OBSTACLES.a,
                     p=MODELS_STATIC_OBSTACLES.p,
                     size=N_STATIC_OBSTACLES,
@@ -170,7 +172,7 @@ class TM_Random(TM_Obstacles):
                     model=model,
                     pose=next(positions),
                 )
-                for model in self.node.conf.General.RNG.value.choice(
+                for model in rng.choice(
                     a=MODELS_INTERACTIVE_OBSTACLES.a,
                     p=MODELS_INTERACTIVE_OBSTACLES.p,
                     size=N_INTERACTIVE_OBSTACLES,
@@ -192,7 +194,7 @@ class TM_Random(TM_Obstacles):
                     pose=next(positions),
                 )
                 for i, model in enumerate(
-                    self.node.conf.General.RNG.value.choice(
+                    rng.choice(
                         a=MODELS_DYNAMIC_OBSTACLES.a,
                         p=MODELS_DYNAMIC_OBSTACLES.p,
                         size=N_DYNAMIC_OBSTACLES,

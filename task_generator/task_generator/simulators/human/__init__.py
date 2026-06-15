@@ -108,7 +108,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         stamp = now.to_msg()
 
         current_ids: set[int] = {ped.id for ped in msg.pedestrians}
-        for stale in set(self._gait_prev_stamp) - current_ids:
+        for stale in sorted(set(self._gait_prev_stamp) - current_ids):
             self._gait.forget(stale)
             del self._gait_prev_stamp[stale]
 

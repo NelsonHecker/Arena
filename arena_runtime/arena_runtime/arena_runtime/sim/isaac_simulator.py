@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import itertools
 import math
 import os
@@ -719,7 +720,9 @@ class IsaacSimulator(BaseSim, NodeInterface):
             if pedestrian.model.name in available_models:
                 model_name = pedestrian.model.name
             else:
-                model_name = random.choice(tuple(available_models.keys()))
+                _sorted_keys = sorted(available_models)
+                _seed = int.from_bytes(hashlib.blake2b(pedestrian.sim_path.encode(), digest_size=8).digest(), "big")
+                model_name = random.Random(_seed).choice(_sorted_keys)
             items.append(
                 SpawnPedestrian(
                     pedestrian=Pedestrian(
