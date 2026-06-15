@@ -14,6 +14,12 @@ def _is_path_agent_type(name: str) -> bool:
     return "/" in name or name.endswith(".yaml")
 
 
+def resolve_agent_type_path(agent_type: str, included_from: Path | None) -> str:
+    if included_from is not None and _is_path_agent_type(agent_type) and not Path(agent_type).is_absolute():
+        return str((Path(included_from) / agent_type).resolve())
+    return agent_type
+
+
 _WAYPOINT_MODE_MAP = {
     "repeat": WaypointsMsg.MODE_REPEAT,
     "reverse": WaypointsMsg.MODE_REVERSE,
@@ -69,11 +75,7 @@ class ArenaHumanDynamicObstacle:
 
     @staticmethod
     def _resolve_agent_type_path(agent_type: str, obs: DynamicObstacle) -> str:
-        if _is_path_agent_type(agent_type) and not Path(agent_type).is_absolute():
-            included_from = getattr(obs, "included_from", None)
-            if included_from is not None:
-                return str((Path(included_from) / agent_type).resolve())
-        return agent_type
+        return resolve_agent_type_path(agent_type, getattr(obs, "included_from", None))
 
     @staticmethod
     def _parse_waypoint_mode(extra: dict) -> int:

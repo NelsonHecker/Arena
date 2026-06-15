@@ -42,7 +42,8 @@ class TM_Scenario(TM_Obstacles):
         )
 
         # Load and structure the scenario with zone-aware conversion
-        scenario = WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario(scenario_name).resolve_sync().load(converter=zone_conv)
+        scenario_view = WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario(scenario_name).resolve_sync()
+        scenario = scenario_view.load(converter=zone_conv)
 
         # Set up regions
         regions = [
@@ -51,6 +52,7 @@ class TM_Scenario(TM_Obstacles):
                 type=r.type,
                 polygon=list(r.polygon),
                 config=r.config,
+                included_from=scenario_view.path,
             )
             for name, r in scenario.regions.items()
         ]
