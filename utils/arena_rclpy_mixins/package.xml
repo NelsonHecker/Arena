@@ -13,6 +13,8 @@
   <depend>rclpy</depend>
   <depend>lifecycle_msgs</depend>
   <depend>rcl_interfaces</depend>
+  <depend>python3-attrs</depend>
+  <depend>python3-typing-extensions</depend>
 
   <export>
     <build_type>ament_python</build_type>
