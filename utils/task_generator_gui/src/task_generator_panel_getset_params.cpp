@@ -68,7 +68,7 @@ namespace task_generator_gui
     void TaskGeneratorPanel::getScenarios(const std::string &world_name)
     {
         (void)world_name;
-        // Scenarios are fetched lazily via fetchCatalog("scenarios") in rebuildParamTree.
+        // Scenarios are fetched lazily via fetchCatalog("scenarios") in DynamicParamTree::rebuild.
     }
 
     void TaskGeneratorPanel::setTMObstaclesParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req)
@@ -78,7 +78,7 @@ namespace task_generator_gui
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
         req.tm_obstacles     = tm_value;
-        req.obstacles_params = collectParamsFor(param_widgets_obstacles_, param_types_obstacles_);
+        req.obstacles_params = DynamicParamTree::collectParams(param_widgets_obstacles_, param_types_obstacles_);
     }
 
     void TaskGeneratorPanel::setTMRobotsParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req)
@@ -88,25 +88,7 @@ namespace task_generator_gui
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
         req.tm_robots     = tm_value;
-        req.robots_params = collectParamsFor(param_widgets_robots_, param_types_robots_);
-    }
-
-    bool TaskGeneratorPanel::generateWorld()
-    {
-        // generateWorld is called from a button click on the Qt thread; the caller (generateWorldButtonActivated)
-        // immediately follows with pushQueueEpisode(), so we need the result synchronously here.
-        // Use sendRequest which blocks on a std::future without spinning a separate node.
-        auto resp = sendRequest<std_srvs::srv::Trigger>(
-            generate_world_client,
-            std::make_shared<std_srvs::srv::Trigger::Request>(),
-            "/world_generator/generate_world");
-        if (resp)
-        {
-            RCLCPP_DEBUG(node->get_logger(), "Successfully generated world");
-            return true;
-        }
-        RCLCPP_ERROR(node->get_logger(), "Failed to generate world");
-        return false;
+        req.robots_params = DynamicParamTree::collectParams(param_widgets_robots_, param_types_robots_);
     }
 
     void TaskGeneratorPanel::getParams()

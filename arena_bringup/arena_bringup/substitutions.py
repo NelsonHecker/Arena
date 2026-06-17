@@ -317,7 +317,7 @@ class _YAMLReplacer:
         while str_v is not None:
             if (match := re.match(r'^\$\{(.*)\}$', str_v)) is None:  # not a full-length substitution
                 value: typing.Any = str_v
-                # Defaults from `${var:-literal}` are written in YAML syntax — coerce
+                # Defaults from `${var:-literal}` are written in YAML syntax - coerce
                 # so numeric/bool defaults round-trip as their parsed type instead of
                 # leaking strings into typed ROS parameters. `strict_string` keeps the
                 # inter-string concatenation path on raw strings.

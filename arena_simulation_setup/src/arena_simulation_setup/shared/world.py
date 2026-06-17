@@ -21,7 +21,7 @@ def _activation_distance_converter(x: float | typing.Sequence[float]) -> tuple[f
 @attrs.define
 class Elevator(Named):
     position: Position = attrs.field(converter=Position.converter)
-    size: list[float] = attrs.field(factory=lambda: [2.0, 2.0, 2.5])
+    size: list[float] = attrs.field(factory=lambda: [2.0, 2.0, 2.0])
     door_side: typing.Literal['+x', '-x', '+y', '-y'] = '+x'
     material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('elevator'))
     destination: str = attrs.field(default="")
@@ -77,3 +77,13 @@ class Floor(Named):
     x_length: float = attrs.field(converter=float, default=20.0)
     y_length: float = attrs.field(converter=float, default=20.0)
     material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('floor'))
+
+
+@attrs.define
+class Ceiling(Named):
+    pos: Position = attrs.field(converter=Position.converter)
+    x_length: float = attrs.field(converter=float, default=20.0)
+    y_length: float = attrs.field(converter=float, default=20.0)
+    z: float = attrs.field(converter=float, default=2.0)
+    cast_shadows: bool = attrs.field(default=False)
+    material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('ceiling'))

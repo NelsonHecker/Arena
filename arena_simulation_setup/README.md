@@ -30,6 +30,32 @@ pedestrian agents, and environment templates through the types defined here.
 
 Scripts live under [scripts/](scripts).
 
+## Pedestrian assets and skeletal articulation
+
+### arenian actor
+
+`assets/Common/Pedestrian/arenian/arenian.sdf` defines the default Gazebo
+pedestrian as an SDF `<actor>` with a `walk.dae` skin (Mingfei/Fuel) and a named
+`walk` animation clip.  Earlier it was a static `<model>`; the actor form is
+required so Gazebo registers the skinned mesh and the clip that `PedSkeletonPlugin`
+scrubs.
+
+**gpu_lidar implication.** Arena's lidar sensor is `gpu_lidar`, a rendering
+sensor that forces a server-side render scene even in headless mode.  Because
+`PedSkeletonPlugin` positions and animates the actor in that scene, the robot's
+lidar perceives a moving, articulated body, not a static box or capsule, making
+the in-sim animation perceptually load-bearing in headless RL training, not only
+cosmetic.
+
+`PedSkeletonPlugin` (package `arena_gz_plugins`) is the gz-sim 8 C++ plugin that
+subscribes `arena_peds`, positions each actor via `TrajectoryPose`, and scrubs the
+`walk` clip via `AnimationTime` phased to the ped's speed.  gz-sim 8 has no
+supported per-bone path for actors, so the true articulated gait stays the
+ROS4HRI/rviz and Isaac view.  Enabled by default via the `ped_skeleton_enabled`
+launch arg in `arena_bringup`.  The plugin lives in its own repo,
+[arena_gz_plugins](https://github.com/voshch/arena_gz_plugins), pulled into the
+workspace via `_meta/repos/gazebo.repos`.
+
 ## Internals
 
 Key `Identifier` types from `arena_simulation_setup.tree`:

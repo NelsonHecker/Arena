@@ -1,5 +1,6 @@
 import abc
 import enum
+import random
 import typing
 
 import pydantic
@@ -14,6 +15,7 @@ class WorldGeneratorType(enum.Enum):
 
     EMPTY = "empty"
     HALLWAY = "hallway"
+    BARN = "barn"
 
 
 class BaseConfiguration(pydantic.BaseModel):
@@ -28,8 +30,12 @@ class WorldGeneratorImpl(abc.ABC):
     Abstract base class for world generators.
     """
 
-    def __init__(self, configuration: dict) -> None:
+    config: BaseConfiguration
+    rng: random.Random
+
+    def __init__(self, configuration: dict, rng: random.Random) -> None:
         super().__init__()
+        self.rng = rng
         self.configure(configuration)
 
     @abc.abstractmethod
@@ -37,6 +43,15 @@ class WorldGeneratorImpl(abc.ABC):
 
     @abc.abstractmethod
     def compute(self) -> LevelDescription: ...
+
+    def files(self) -> dict[str, bytes]:
+        """Auxiliary artifacts packed into the world tar by relative path; none by default."""
+        return {}
+
+    def params(self) -> dict[str, typing.Any]:
+        """Episode binding applied when this world is queued: tm_robots/tm_obstacles plus
+        robots_params/obstacles_params leaf dicts. Empty (default) leaves the prior episode untouched."""
+        return {}
 
 
 class WorldGenerator:
@@ -51,16 +66,33 @@ class WorldGenerator:
 
         return wrap
 
+    @classmethod
+    def available(cls) -> list[WorldGeneratorType]:
+        return list(cls.__registry.keys())
+
+    @classmethod
+    def config_model(cls, generator: WorldGeneratorType) -> type[BaseConfiguration]:
+        if generator not in cls.__registry:
+            raise ValueError(f"Generator {generator} has no implementation")
+        return cls.__registry[generator]().Configuration
+
     def compute(self) -> LevelDescription:
         return self._active.compute()
 
-    def update_generator(self, generator: WorldGeneratorType, configuration: dict):
+    def files(self) -> dict[str, bytes]:
+        return self._active.files()
+
+    def params(self) -> dict[str, typing.Any]:
+        return self._active.params()
+
+    def update_generator(self, generator: WorldGeneratorType, configuration: dict, seed: int = -1):
         if generator not in self.__registry:
             raise ValueError(f"Generator {generator} has no implementation")
-        self._active: WorldGeneratorImpl = self.__registry[generator]()(configuration)
+        rng = random.Random(seed if seed >= 0 else None)  # negative seed = nondeterministic
+        self._active: WorldGeneratorImpl = self.__registry[generator]()(configuration, rng)
 
-    def __init__(self, generator: WorldGeneratorType, configuration: dict):
-        self.update_generator(generator, configuration)
+    def __init__(self, generator: WorldGeneratorType, configuration: dict, seed: int = -1):
+        self.update_generator(generator, configuration, seed)
 
 
 @WorldGenerator.register(WorldGeneratorType.EMPTY)
@@ -75,3 +107,10 @@ def lazy_Hallway() -> type[WorldGeneratorImpl]:
     from .hallway import WorldGeneratorHallway
 
     return WorldGeneratorHallway
+
+
+@WorldGenerator.register(WorldGeneratorType.BARN)
+def lazy_Barn() -> type[WorldGeneratorImpl]:
+    from .barn import WorldGeneratorBarn
+
+    return WorldGeneratorBarn

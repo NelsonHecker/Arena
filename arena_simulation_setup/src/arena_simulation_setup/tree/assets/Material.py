@@ -71,10 +71,11 @@ class Material:
         'wall': MaterialIdentifier('Marble'),
         'floor': MaterialIdentifier('Porcelain_Tile_4'),
         'door': MaterialIdentifier('Aluminum_Anodized'),
+        'ceiling': MaterialIdentifier('Concrete_Smooth'),
     }
 
     @classmethod
-    def default(cls, context: typing.Literal['floor', 'wall', 'door'] | str = '') -> MaterialIdentifier:
+    def default(cls, context: typing.Literal['floor', 'wall', 'door', 'ceiling'] | str = '') -> MaterialIdentifier:
         return cls.__DEFAULTS.get(context, cls.__DEFAULT)
 
     def asdict(self) -> dict:

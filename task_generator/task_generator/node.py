@@ -24,7 +24,10 @@ import tf2_ros
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_robots.Sensor import SensorType
 from arena_runtime.sim import BaseSim, SimulatorRegistry
+from arena_viz.kinds import DisplayKind
+from arena_viz.style import StyleSpec
 from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterValue
 from rcl_interfaces.msg import Parameter as RclParameter
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
@@ -48,6 +51,7 @@ from task_generator.tasks import identifier_to_available
 from task_generator.tasks.obstacles import ObstacleKind
 from task_generator.tasks.registry import MODULE_MODES, OBSTACLES_MODES, ROBOTS_MODES
 from task_generator.tasks.task import Task
+from task_generator.utils.flags import flag_enabled
 
 from . import SafeCallbackNode
 
@@ -131,14 +135,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     def robots_manager(self) -> RobotsManager:
         return self._robots_manager
 
-    def __init__(
-        self,
-        namespace: str = "task_generator_node",
-    ):
+    def __init__(self):
         super().__init__("task_generator", automatically_declare_parameters_from_overrides=True)
         self.conf = Configuration(self)
 
-        self._namespace = Namespace(namespace)
+        self._namespace = Namespace(self.get_namespace())
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -282,7 +283,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     def aiomonitor_config(self) -> dict[str, object] | None:
         # Skip when not in debug mode (no client attaches), and offset ports per
         # env_id so concurrent envs don't collide on the default 20101/2/3.
-        if not self.rosparam[bool].get("debug", False):
+        if not flag_enabled(self, "debug", "aiomonitor"):
             return None
         offset = max(self._env_id, 0) * 10
         return {
@@ -337,6 +338,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             )
 
             await self._world_manager.sync()
+            if flag_enabled(self, "debug", "map_server"):
+                await self._world_manager.require_map_server()
             await self._robots_manager.launch_pending()
             self._publish_viz_manifest()
 
@@ -430,6 +433,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             node=self,
             namespace=self._namespace,
             simulator=self._simulator,
+            realizer=realizer,
         )
 
         self._logger.info("Setting up environment manager")
@@ -493,10 +497,117 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._pub_state_episode.publish(msg)
 
     def _publish_viz_manifest(self) -> None:
+        """Publish the env-level and per-robot display manifest."""
+        _SENSOR_KIND: dict[str, DisplayKind] = {
+            SensorType.LASERSCAN: DisplayKind.LASER_SCAN,
+            SensorType.POINTCLOUD: DisplayKind.POINTS_3D,
+            SensorType.IMAGE: DisplayKind.IMAGE,
+            SensorType.DEPTH: DisplayKind.IMAGE,
+            SensorType.IMU: DisplayKind.IMU,
+            SensorType.CONTACT: DisplayKind.FOOT_CONTACT,
+        }
+
+        env_ns = self.get_namespace()
+        human_sim = self.conf.Arena.HUMAN.value
+
+        env_displays: list[AdapterDisplay] = [
+            AdapterDisplay(
+                name="Map",
+                topic=str(self.service_namespace("map")),
+                topic_type="nav_msgs/OccupancyGrid",
+                kind=DisplayKind.MAP,
+                style_json=StyleSpec(alpha=0.7).to_json(),
+                topic_must_exist=False,
+            ),
+            AdapterDisplay(
+                name="TF",
+                topic="",
+                topic_type="",
+                kind=DisplayKind.TF,
+                style_json=StyleSpec(enabled=False).to_json(),
+                topic_must_exist=False,
+            ),
+        ]
+        if human_sim != human_sim.__class__.DUMMY:
+            latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
+            env_displays.append(
+                AdapterDisplay(
+                    name="Pedestrians",
+                    topic=f"{env_ns}/humans",
+                    topic_type="",
+                    kind=DisplayKind.PEDESTRIANS,
+                    style_json=StyleSpec().to_json(),
+                    topic_must_exist=False,
+                    group="Pedestrians",
+                )
+            )
+            # Backend-internal debug overlay, off by default.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Extra",
+                    topic=f"{env_ns}/pedestrian_markers/extra",
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.MARKER_ARRAY,
+                    style_json=StyleSpec(enabled=False).to_json(),
+                    topic_must_exist=False,
+                    group="Pedestrians",
+                )
+            )
+            # Static environment geometry: not pedestrians, own group.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Static",
+                    topic=f"{env_ns}/pedestrian_markers/static",
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.MARKER_ARRAY,
+                    style_json=latched,
+                    topic_must_exist=False,
+                    group="Static",
+                )
+            )
+            for leaf in ("static_walls", "static_objects"):
+                env_displays.append(
+                    AdapterDisplay(
+                        name=leaf.replace("_", " ").title(),
+                        topic=f"{env_ns}/pedestrian_markers/{leaf}",
+                        topic_type="visualization_msgs/MarkerArray",
+                        kind=DisplayKind.MARKER_ARRAY,
+                        style_json=latched,
+                        topic_must_exist=True,
+                        group="Static",
+                    )
+                )
+
         entries: list[AdapterEntry] = []
         for mgr in self._robots_manager.managers.values():
             ns_value = str(mgr.namespace)
             robot_value = mgr.name
+
+            sensor_displays: list[AdapterDisplay] = []
+            for sensor in mgr.robot_view.model_params.sensors:
+                kind = _SENSOR_KIND.get(sensor.type)
+                if kind is None:
+                    continue
+                raw_topic = sensor.topic.replace("${namespace}", ns_value)
+                sensor_displays.append(
+                    AdapterDisplay(
+                        name=sensor.name,
+                        topic=raw_topic,
+                        topic_type="",
+                        kind=kind,
+                        style_json="",
+                        topic_must_exist=True,
+                    )
+                )
+            if sensor_displays:
+                entries.append(
+                    AdapterEntry(
+                        robot_ns=ns_value,
+                        adapter_kind="_sensors",
+                        displays=sensor_displays,
+                    )
+                )
+
             for adapter in mgr._adapter_instances:
 
                 def _subst(s: str, ns_value: str = ns_value, robot_value: str = robot_value) -> str:
@@ -507,20 +618,20 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                         name=hint.name,
                         topic=_subst(hint.topic),
                         topic_type=hint.topic_type,
-                        rviz_class=hint.rviz_class,
-                        config_json=_subst(hint.config_json),
+                        kind=hint.kind,
+                        style_json=_subst(hint.style_json),
                         topic_must_exist=hint.topic_must_exist,
                     )
                     for hint in adapter.displays
                 ]
                 entries.append(
                     AdapterEntry(
-                        robot_ns=str(mgr.namespace),
+                        robot_ns=ns_value,
                         adapter_kind=adapter.kind,
                         displays=displays,
                     )
                 )
-        self._pub_state_viz_manifest.publish(AdapterVizManifest(entries=entries))
+        self._pub_state_viz_manifest.publish(AdapterVizManifest(env_displays=env_displays, entries=entries))
 
     def set_episode_info(self, info: str) -> None:
         self._episodes.current.outcome_info = info
@@ -638,7 +749,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             record = self._episodes.current
             await self.hold("reset")
             try:
-                if record.world and record.world != self._world_manager.loaded_world:
+                if record.world:
                     await self._world_manager.apply_world(record.world)
                 await self._task.reset(world=record.world, seed=record.seed)
             finally:

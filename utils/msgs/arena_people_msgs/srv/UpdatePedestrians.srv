@@ -1,6 +1,8 @@
 # Continuous per-tick state. Receivers treat as smooth motion —
 # no animation-phase reset, no trajectory re-seed.
 arena_people_msgs/Pedestrian[] pedestrians
+# Sim-time stamp the poses were computed at, zero = unstamped.
+builtin_interfaces/Time stamp
 ---
 uint8 SUCCESS=0
 uint8 NOT_FOUND=1

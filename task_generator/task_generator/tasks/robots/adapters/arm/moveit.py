@@ -11,6 +11,8 @@ from arena_robots.clients.play_gesture import PlayGestureClient
 from arena_robots.clients.reach_pose import ReachPoseClient
 from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import PlayGesture, ReachPose
+from arena_viz.kinds import DisplayKind
+from arena_viz.style import StyleSpec
 
 from task_generator.tasks.robots.adapters import Adapter, AdapterDisplayHint, AdapterMeta
 from task_generator.tasks.robots.request import PlayGesturePhase, ReachPhase
@@ -33,15 +35,14 @@ _log = logging.getLogger(__name__)
             name="Planned Trajectory",
             topic="{ns}/move_group/display_planned_path",
             topic_type="moveit_msgs/DisplayTrajectory",
-            rviz_class="moveit_rviz_plugin/Trajectory",
-            config_json='{"Robot Description": "{robot}.robot_description"}',
+            kind=DisplayKind.TRAJECTORY,
         ),
         AdapterDisplayHint(
             name="Planning Scene",
             topic="{ns}/monitored_planning_scene",
             topic_type="moveit_msgs/PlanningScene",
-            rviz_class="moveit_rviz_plugin/PlanningScene",
-            config_json='{"Robot Description": "{robot}.robot_description", "Enabled": false}',
+            kind=DisplayKind.PLANNING_SCENE,
+            style_json=StyleSpec(enabled=False).to_json(),
         ),
     ),
 )

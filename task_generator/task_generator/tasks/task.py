@@ -205,13 +205,13 @@ class Task(NodeInterface):
             await self.environment_manager.before_reset_episode()
 
             try:
+                self.node._apply_staged_params()
+
                 if (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
                     self.set_tm_robots(new_tm_robots)
 
                 if (new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value) != self.__param_tm_obstacles:
                     self.set_tm_obstacles(new_tm_obstacles)
-
-                self.node._apply_staged_params()
 
                 for module in self.__modules:
                     module.before_reset()

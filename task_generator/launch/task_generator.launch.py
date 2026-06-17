@@ -5,7 +5,6 @@ import tempfile
 import time
 
 import launch
-import launch.conditions
 import launch.event_handlers
 import launch.substitutions
 import launch_ros.actions
@@ -13,8 +12,8 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
-from arena_bringup.future import PythonExpression
 from arena_bringup.substitutions import LaunchArgument
+from task_generator.utils.flags import expand_flag_namespace, truthy
 from launch.actions import (
     ExecuteProcess,
     IncludeLaunchDescription,
@@ -23,7 +22,6 @@ from launch.actions import (
 )
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import PathJoinSubstitution
-from launch_ros.actions import PushRosNamespace
 from launch_ros.substitutions import FindPackageShare
 
 _REGISTER_RETRY_SEC = 1.0
@@ -112,7 +110,7 @@ def generate_launch_description():
         description="Explicit ns path (e.g. for sim2real); empty = auto-generate.",
     )
 
-    sim = LaunchArgument(name="sim", default_value="dummy", description="[dummy, gazebo, isaac]")
+    sim = LaunchArgument(name="sim", default_value="gazebo", description="[dummy, gazebo, isaac]")
     # human/mobile defaults are derived from arena's authoritative `sim` (the value
     # arena_node actually configured), not from this launch's local `sim` arg, which only
     # affects how the env *requests* registration. Empty here means "use arena_sim".
@@ -120,9 +118,9 @@ def generate_launch_description():
     human = LaunchArgument(
         name="human",
         default_value="",
-        description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: hunav})",
+        description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: arena})",
     )
-    robot = LaunchArgument(name="robot", default_value="jackal")
+    robot = LaunchArgument(name="robot", default_value="auto")
     tm_robots = LaunchArgument(name="tm_robots", default_value="explore")
     task_config = LaunchArgument(name="task_config", default_value="")
     episodes = LaunchArgument(
@@ -137,7 +135,7 @@ def generate_launch_description():
     )
     tm_obstacles = LaunchArgument(name="tm_obstacles", default_value="random")
     tm_modules = LaunchArgument(name="tm_modules", default_value="rviz_ui")
-    optim = LaunchArgument(name="optim", default_value=os.environ.get("ARENA_OPTIM", ""))
+    LaunchArgument(name="optim", default_value=os.environ.get("ARENA_OPTIM", ""))
     world = LaunchArgument(name="world", default_value="map_empty")
     mobile = LaunchArgument(
         name="mobile",
@@ -155,7 +153,11 @@ def generate_launch_description():
         description="arm adapter kind",
     )
     record_data_dir = LaunchArgument(name="record_data_dir", default_value="")
-    debug = LaunchArgument(name="debug", default_value="False")
+    LaunchArgument(
+        name="debug",
+        default_value="",
+        description="comma list of debug tokens (e.g. aiomonitor,map_server); also debug.<token>:=true",
+    )
     auto_reset = LaunchArgument(
         name="auto_reset",
         default_value="true",
@@ -192,7 +194,7 @@ def generate_launch_description():
 
         human_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)
-        ) or {"dummy": "dummy", "gazebo": "hunav", "isaac": "hunav"}.get(arena_sim, "dummy")
+        ) or {"dummy": "dummy", "gazebo": "arena", "isaac": "arena"}.get(arena_sim, "dummy")
         mobile_val = launch.utilities.perform_substitutions(
             context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)
         ) or {"dummy": "none"}.get(arena_sim, "nav2")
@@ -242,23 +244,14 @@ def generate_launch_description():
 
         pedestrian_marker_node = launch_ros.actions.Node(
             package="rviz_utils",
-            executable="pedestrian_marker_publisher",
-            name="pedestrian_marker_publisher",
+            executable="hri_producer",
+            name="hri_producer",
+            namespace=os.path.dirname(allocated_ns),
             parameters=[
                 {"use_sim_time": True},
-                {"body_height": 1.6},
-                {"body_radius": 0.25},
-                {"head_radius": 0.15},
-                {"arrow_length": 0.6},
-                {"show_labels": True},
-                {"show_velocity_arrows": True},
-                {"show_orientation_arrows": True},
-                {"namespace": allocated_ns},
+                {"max_bodies": 32},
             ],
             output="screen",
-            condition=launch.conditions.IfCondition(
-                PythonExpression([f'"{human_val}" == "hunav"'])
-            ),
         )
 
         def _coerce(raw: str) -> object:
@@ -285,6 +278,10 @@ def generate_launch_description():
             param_key = f"robot.mobile.{sel_key}"
             if param_key not in dotted_overrides:
                 dotted_overrides[param_key] = sel_val
+
+        dotted_overrides.update(expand_flag_namespace(context, "optim", _coerce))
+        debug_flags = expand_flag_namespace(context, "debug", _coerce)
+        dotted_overrides.update(debug_flags)
 
         # launch_ros.normalize_parameters turns list values into tuples and
         # yaml.dump emits them with !!python/tuple, which rcl drops silently.
@@ -319,10 +316,8 @@ def generate_launch_description():
                     **tm_robots.str_param,
                     **tm_obstacles.str_param,
                     **tm_modules.str_param,
-                    **optim.str_param,
                     **world.str_param,
                     **record_data_dir.str_param,
-                    **debug.param(bool),
                     **auto_reset.param(bool),
                     **train_mode.param(bool),
                     "env_id": allocated_id,
@@ -352,24 +347,18 @@ def generate_launch_description():
             ],
         )
 
-        inner_group = launch.actions.GroupAction([
-            PushRosNamespace(namespace=allocated_ns),
-            pedestrian_marker_node,
-        ])
-
         shutdown_on_node_exit = RegisterEventHandler(OnProcessExit(
             target_action=task_generator_node,
             on_exit=[launch.actions.Shutdown(reason="task_generator_node exited")],
         ))
 
-        return [
-            IsolatedGroupAction([human_launch, inner_group, task_generator_node]),
-            launch.actions.RegisterEventHandler(
-                debug_window_cb,
-                condition=launch.conditions.IfCondition(debug.substitution),
-            ),
-            shutdown_on_node_exit,
+        env_actions: list[launch.LaunchDescriptionEntity] = [
+            IsolatedGroupAction([human_launch, pedestrian_marker_node, task_generator_node]),
         ]
+        if truthy(debug_flags.get("debug.aiomonitor")):
+            env_actions.append(launch.actions.RegisterEventHandler(debug_window_cb))
+        env_actions.append(shutdown_on_node_exit)
+        return env_actions
 
     def _make_env(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:
         managed_val = launch.utilities.perform_substitutions(

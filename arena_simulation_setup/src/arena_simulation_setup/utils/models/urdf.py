@@ -38,6 +38,18 @@ def _strip_sensors(root: ET.Element, tokens: set[str]) -> None:
                 parent.remove(child)
 
 
+def _ensure_effort_state(root: ET.Element) -> None:
+    for control in root.iter():
+        if control.tag.rpartition('}')[-1] != 'ros2_control':
+            continue
+        for joint in control:
+            if joint.tag.rpartition('}')[-1] != 'joint':
+                continue
+            has_effort = any(child.tag.rpartition('}')[-1] == 'state_interface' and child.attrib.get('name') == 'effort' for child in joint)
+            if not has_effort:
+                ET.SubElement(joint, 'state_interface', {'name': 'effort'})
+
+
 class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
     @classmethod
     async def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
@@ -121,6 +133,8 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
 
             if optim_tokens:
                 _strip_sensors(root, optim_tokens)
+
+            _ensure_effort_state(root)
 
             ser = ET.tostring(root, encoding="utf-8", method="xml", xml_declaration=True)
             async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".urdf", mode="wb") as tmp:

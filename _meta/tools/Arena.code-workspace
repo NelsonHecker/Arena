@@ -44,6 +44,10 @@
       "path": "src/Arena/arena_robots"
     },
     {
+      "name": "humansim",
+      "path": "src/Arena/humansim"
+    },
+    {
       "name": "hunav",
       "path": "src/deps/hunav"
     },

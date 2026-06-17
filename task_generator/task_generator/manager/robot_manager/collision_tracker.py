@@ -80,7 +80,7 @@ class CollisionTrackerNode(rclpy.node.Node):
         self._pub_events = self.create_publisher(arena_robots_msgs.msg.CollisionEvents, 'collision_events', 10)
         self._sub_peds = self.create_subscription(
             arena_people_msgs.msg.Pedestrians,
-            str(robot_manager.namespace('arena_peds')),
+            str(robot_manager.namespace.simulation_ns('arena_peds')),
             self._on_peds,
             10,
         )

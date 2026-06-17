@@ -332,7 +332,7 @@ class WorldManager(NodeInterface):
 
         return [level_map.tf_grid2pos((int(row), int(col))) for row, col in cells]
 
-    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True, level_id: str = "") -> Position:
-        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid, level_id=level_id)[0]
+    def get_position_on_map(self, safe_dist: float, forbidden_zones: list[PositionRadius] | None = None, forbid: bool = True, level_id: str = "", polygon: shapely.Polygon | None = None) -> Position:
+        return self.get_positions_on_map(n=1, safe_dist=safe_dist, forbidden_zones=forbidden_zones, forbid=forbid, level_id=level_id, polygon=polygon)[0]
 
     id_gen = itertools.count()

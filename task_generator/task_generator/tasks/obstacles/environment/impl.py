@@ -338,26 +338,24 @@ class TM_Environment(TM_Obstacles):
         dynamic_obstacles: list[DynamicObstacle] = []
 
         world = self._ctx.world_manager.world_compacted()
+
         if zones := world.zones:
             rooms = [shapely.Polygon(zone.corners) for zone in zones]
+            zone_name_to_polygon = {zone.name: shapely.Polygon(zone.corners) for zone in zones}
         else:
             rooms = [shapely.Polygon(room) for room in self._create_rooms_from_walls()]
-            # if not rooms:
-            # print("[WARNING] No rooms found! (check your walls data)")
-            # return _ParsedConfig(
-            #     static=static_obstacles,
-            #     dynamic=dynamic_obstacles
-            # )
-        # print(len(rooms))
-        # print(rooms)
+            zone_name_to_polygon = {}
 
         groups = dict(environment)["groups"]
-        groups_selection = random.choices(groups, k=len(rooms))
-        groups_iter = iter(groups_selection)
 
-        # self.visualize_rooms(walls, rooms)
-        for idx, room_polygon in enumerate(rooms):
-            group = next(groups_iter)
+        # Build (group, room) pairs respecting zone constraints
+        group_room_pairs: list[tuple[dict, shapely.Polygon]] = []
+        for room_polygon in rooms:
+            eligible_groups = [g for g in groups if "zones" not in g or any(zone_name_to_polygon.get(z, shapely.Polygon()).equals(room_polygon) for z in g["zones"])]
+            if eligible_groups:
+                group_room_pairs.append((random.choice(eligible_groups), room_polygon))
+
+        for idx, (group, room_polygon) in enumerate(group_room_pairs):
             # print(group)
             group_name = group["name"]
             group_size = group["size"]  # [width, height]
@@ -394,10 +392,10 @@ class TM_Environment(TM_Obstacles):
                             rotation_deg=0,
                         ):
                             # Possible angles: 0°, 60°, 90°, 120°, 180°, ...
-                            rotation_deg = self.node.conf.General.RNG.value.choice(group.get('rotations', [0]))
+                            rotation_deg = self.node.conf.General.RNG.value.choice(group.get("rotations", [0]))
 
-                            group_static_entities = group.get("entities", {}).get('static', [])
-                            group_dynamic_entities = group.get('entities', {}).get('dynamic', [])
+                            group_static_entities = group.get("entities", {}).get("static", [])
+                            group_dynamic_entities = group.get("entities", {}).get("dynamic", [])
                             for j, entity in enumerate(group_static_entities):
                                 ex_off, ey_off, e_theta = entity["position"]
 
@@ -412,14 +410,16 @@ class TM_Environment(TM_Obstacles):
                                 obs_name = f"G_{group_name}_{idx}_{n_groups}_{entity['model']}_{j}"
                                 new_obstacle = Obstacle(
                                     name=obs_name,
-                                    pose=Pose(Position(x=obstacle_x, y=obstacle_y), Orientation.from_yaw(rot_theta)),
+                                    pose=Pose(
+                                        Position(x=obstacle_x, y=obstacle_y),
+                                        Orientation.from_yaw(rot_theta),
+                                    ),
                                     model=entity["model"],
                                     extra={},
                                 )
                                 static_obstacles.append(new_obstacle)
                             for g, entity in enumerate(group_dynamic_entities):
                                 ex_off, ey_off, e_theta = entity["position"]
-                                print(entity['model'])
                                 radians = math.radians(rotation_deg)
                                 rot_x = ex_off * math.cos(radians) - ey_off * math.sin(radians)
                                 rot_y = ex_off * math.sin(radians) + ey_off * math.cos(radians)
@@ -428,17 +428,32 @@ class TM_Environment(TM_Obstacles):
                                 obstacle_x = x + rot_x
                                 obstacle_y = y + rot_y
 
+                                # strings are zone refs, lists are coordinates
+                                resolver = world.point_resolver(self.node.conf.General.RNG.value)
+                                resolved_waypoints = [resolver.resolve(wp) if isinstance(wp, str) else Position(x=wp[0], y=wp[1]) for wp in entity.get("waypoints", [])]
+
                                 obs_name = f"G_{group_name}_{idx}_{n_groups}_{entity['model']}_{g}"
                                 new_obstacle = DynamicObstacle(
                                     name=obs_name,
-                                    pose=Pose(Position(x=obstacle_x, y=obstacle_y), Orientation.from_yaw(rot_theta)),
+                                    pose=Pose(
+                                        Position(x=obstacle_x, y=obstacle_y),
+                                        Orientation.from_yaw(rot_theta),
+                                    ),
                                     model=entity["model"],
-                                    waypoints=entity['waypoints'],
+                                    waypoints=resolved_waypoints,
                                     extra={},
                                 )
                                 dynamic_obstacles.append(new_obstacle)
 
-                            self._mark_region_occupied(occupancy_grid, x, y, group_size[0], group_size[1], margin=margin, rotation_deg=rotation_deg)
+                            self._mark_region_occupied(
+                                occupancy_grid,
+                                x,
+                                y,
+                                group_size[0],
+                                group_size[1],
+                                margin=margin,
+                                rotation_deg=rotation_deg,
+                            )
 
                             n_groups += 1
                     x += step_x

@@ -69,8 +69,29 @@ Key points:
 - `material` on a zone accepts the same forms as `MaterialIdentifier`: a plain
   string `Concrete_Smooth`, or a two-element list `[name, modifiers_dict]`.
 - Multiple zones share a single flat `zones` list. Zone boundaries are defined
-  only by their `corners` polygon and their `walls` list — there is no
-  explicit parent–child relationship.
+  only by their `corners` polygon and their `walls` list, with no explicit
+  parent-child relationship.
+
+### Ceilings
+
+Add a ceiling to any zone with these optional keys:
+
+```yaml
+  ceiling: true                # true by default, set false to leave the zone open
+  ceiling_height: 3.0          # top height in metres, omit to derive from wall stack
+  ceiling_cast_shadows: false  # false by default, true to let the ceiling occlude light
+  ceiling_material:            # MaterialIdentifier, defaults to Concrete_Smooth
+  - Concrete_Smooth
+  - {}
+```
+
+With `ceiling_height` absent, the height is the tallest wall top in the zone
+(`max(segment.start.z + segment.height)` over the zone walls), falling back to
+`2.0` m when the zone has no walls.
+
+Ceilings are opaque from below and transparent from above. They are visual-only
+(no collision). With `ceiling_cast_shadows` false the ceiling does not occlude
+the sun, so interiors stay lit without global illumination.
 
 Full field reference: [worlds/README.md](worlds/README.md).
 

@@ -1,0 +1,83 @@
+#ifndef TASK_GENERATOR_GUI_UTILS_DYNAMIC_PARAM_TREE_HPP
+#define TASK_GENERATOR_GUI_UTILS_DYNAMIC_PARAM_TREE_HPP
+
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp/parameter_client.hpp"
+
+#include <rcl_interfaces/msg/parameter.hpp>
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
+#include <rcl_interfaces/msg/parameter_type.hpp>
+
+#include <QTreeWidget>
+#include <QWidget>
+
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace task_generator_gui
+{
+
+struct RebuildState
+{
+    uint64_t generation{0};
+    std::string namespace_prefix;
+
+    std::vector<std::string>                              param_names;
+    std::vector<rcl_interfaces::msg::ParameterDescriptor> descriptors;
+    std::vector<rclcpp::Parameter>                        values;
+
+    std::mutex                                            mtx;
+    std::set<std::string>                                 needed_catalogs;
+    std::unordered_map<std::string, std::vector<std::string>> catalog_cache;
+    std::atomic<int>                                      pending_catalogs{0};
+
+    std::atomic<bool>                                     have_descriptors{false};
+    std::atomic<bool>                                     have_values{false};
+};
+
+class DynamicParamTree
+{
+public:
+    using CatalogFetcher = std::function<void(const std::string& catalog,
+                            std::function<void(std::vector<std::string>)> cb)>;
+    using ChangeCallback = std::function<void(const std::string& leaf)>;
+
+    DynamicParamTree(rclcpp::Node::SharedPtr node,
+                     std::shared_ptr<rclcpp::AsyncParametersClient> params_client,
+                     QTreeWidget* tree,
+                     std::unordered_map<std::string, QWidget*>* widget_map,
+                     std::unordered_map<std::string, uint8_t>* type_map,
+                     ChangeCallback on_changed,
+                     CatalogFetcher catalog_fetcher = nullptr);
+
+    void rebuild(const std::string& namespace_prefix);
+
+    static std::vector<rcl_interfaces::msg::Parameter> collectParams(
+        const std::unordered_map<std::string, QWidget*>& widget_map,
+        const std::unordered_map<std::string, uint8_t>& type_map);
+
+    static void setWidgetValueFromParam(QWidget* w, const rcl_interfaces::msg::Parameter& p);
+
+private:
+    void buildTreeWidgets(const std::shared_ptr<RebuildState>& state);
+
+    rclcpp::Node::SharedPtr                           node_;
+    std::shared_ptr<rclcpp::AsyncParametersClient>    params_client_;
+    QTreeWidget*                                      tree_;
+    std::unordered_map<std::string, QWidget*>*        widget_map_;
+    std::unordered_map<std::string, uint8_t>*         type_map_;
+    ChangeCallback                                    on_changed_;
+    CatalogFetcher                                    catalog_fetcher_;
+
+    uint64_t rebuild_gen_{0};
+};
+
+} // namespace task_generator_gui
+
+#endif // TASK_GENERATOR_GUI_UTILS_DYNAMIC_PARAM_TREE_HPP

@@ -9,7 +9,7 @@ Defined in [`SCHEMA.yaml`](SCHEMA.yaml):
 
 ```yaml
 task_modes:
-  - kind: STRING          # TM_Robots kind — matches Constants.TaskMode.TM_Robots enum value
+  - kind: STRING          # TM_Robots kind - matches Constants.TaskMode.TM_Robots enum value
     produces: GOTO_POSE   # task kind produced; matched against robot.accepts
     assignments:          # list of robot names to pin; [] means pool (greedy allocation)
       - ROBOT_NAME
@@ -33,12 +33,12 @@ order (specs earlier in the list get priority during pool allocation).
 See [task_generator/task_generator/tasks/robots/README.md](../../../task_generator/task_generator/tasks/robots/README.md#fleet-manager)
 for the full description. Summary:
 
-1. **Pinned first** — robots named in `assignments` are bound to that spec.
+1. **Pinned first** - robots named in `assignments` are bound to that spec.
    Their `accepts` must include the spec's `produces`; duplicate pins are an
    error.
-2. **Pool next** — unpinned robots join the first unpinned spec whose
+2. **Pool next** - unpinned robots join the first unpinned spec whose
    `produces` is in their `accepts`. Greedy / first-fit.
-3. **Null sink** — a spec with `kind: null` absorbs all still-unallocated
+3. **Null sink** - a spec with `kind: null` absorbs all still-unallocated
    robots.
 
 ## Legacy shorthand
@@ -60,7 +60,7 @@ If both `task_config` and `tm_robots` are set explicitly, `task_config` wins.
 
 | File | Description |
 |---|---|
-| [`SCHEMA.yaml`](SCHEMA.yaml) | Schema / template — not a runnable config |
+| [`SCHEMA.yaml`](SCHEMA.yaml) | Schema / template - not a runnable config |
 | [`default.yaml`](default.yaml) | Single `explore` mode, pool allocation, no pinning |
 
 ## Examples
@@ -75,7 +75,7 @@ task_modes:
     config: {}
 ```
 
-Two-fleet split — jackal_0 follows a scenario, everything else explores:
+Two-fleet split - jackal_0 follows a scenario, everything else explores:
 
 ```yaml
 task_modes:

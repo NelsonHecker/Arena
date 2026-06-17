@@ -11,6 +11,8 @@ from arena_robots.bringup.mobile.nav2 import Nav2Bringup
 from arena_robots.clients.goto_pose import GotoPoseClient
 from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import GotoPose
+from arena_viz.kinds import DisplayKind
+from arena_viz.style import StyleSpec
 from nav2_msgs.srv import ClearCostmapAroundRobot, ClearEntireCostmap
 
 from task_generator.manager.world_manager.shims import requires_map_server
@@ -36,29 +38,29 @@ if TYPE_CHECKING:
             name="Local Costmap",
             topic="{ns}/local_costmap/costmap",
             topic_type="nav_msgs/OccupancyGrid",
-            rviz_class="rviz_default_plugins/Map",
-            config_json=('{"Color Scheme": "costmap", "Draw Behind": false, "Alpha": 0.7, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}'),
+            kind=DisplayKind.MAP,
+            style_json=StyleSpec(alpha=0.7, extra={"rviz": {"Color Scheme": "costmap"}}).to_json(),
         ),
         AdapterDisplayHint(
             name="Global Costmap",
             topic="{ns}/global_costmap/costmap",
             topic_type="nav_msgs/OccupancyGrid",
-            rviz_class="rviz_default_plugins/Map",
-            config_json=('{"Enabled": false, "Color Scheme": "costmap", "Draw Behind": false, "Alpha": 0.7, "Topic": {"Depth": 20, "History Policy": "Keep Last", "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}'),
+            kind=DisplayKind.MAP,
+            style_json=StyleSpec(alpha=0.7, enabled=False, extra={"rviz": {"Color Scheme": "costmap"}}).to_json(),
         ),
         AdapterDisplayHint(
             name="Local Plan",
             topic="{ns}/local_plan",
             topic_type="nav_msgs/Path",
-            rviz_class="rviz_default_plugins/Path",
-            config_json='{"Color": "255; 0; 0", "Line Width": 0.05}',
+            kind=DisplayKind.PATH,
+            style_json=StyleSpec(color=(255, 0, 0), line_width=0.05).to_json(),
         ),
         AdapterDisplayHint(
             name="Robot Footprint",
             topic="{ns}/local_costmap/published_footprint",
             topic_type="geometry_msgs/PolygonStamped",
-            rviz_class="rviz_default_plugins/Polygon",
-            config_json='{"Alpha": 1.0}',
+            kind=DisplayKind.POLYGON,
+            style_json=StyleSpec(alpha=1.0).to_json(),
         ),
     ],
 )

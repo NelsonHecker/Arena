@@ -9,6 +9,7 @@ import numpy as np
 from typing_extensions import Self
 
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable
+from arena_simulation_setup.utils.resolution import resolve_zone_point
 
 try:
     import geometry_msgs
@@ -110,8 +111,12 @@ class Position(Parseable, Idempotent, Vector3):
     def parse(cls, value: geometry_msgs.msg.Point | Sequence[float]) -> Self:
         """
         parse value into Position
-        formats: [x,y], [x,y,z]
+        formats: [x,y], [x,y,z], zone ref name
         """
+        if isinstance(value, str):
+            point = resolve_zone_point(value)
+            return cls(x=point.x, y=point.y, z=point.z)
+
         if isinstance(value, geometry_msgs.msg.Point):
             return cls.from_msg(value)
 
@@ -284,8 +289,11 @@ class Pose(Parseable, Idempotent):
     def parse(cls, value: geometry_msgs.msg.Pose | Sequence[float] | Sequence[Sequence[float]]) -> Self:
         """
         parse value into Pose
-        formats: [x,y], [x,y,yaw], [x,y,z,roll,pitch,yaw], [x,y,z,w,x,y,z], [[*position], [*orientation]]
+        formats: [x,y], [x,y,yaw], [x,y,z,roll,pitch,yaw], [x,y,z,w,x,y,z], [[*position], [*orientation]], zone ref name
         """
+        if isinstance(value, str):
+            return cls(position=resolve_zone_point(value), orientation=Orientation.identity())
+
         if isinstance(value, geometry_msgs.msg.Pose):
             return cls.from_msg(value)
 
@@ -454,6 +462,24 @@ def sample_point_in_polygon(
         stacklevel=2,
     )
     return last
+
+
+@attrs.define
+class PointResolver:
+    """Resolves zone/door/elevator names to a sampled point within their polygon."""
+
+    lookup: typing.Callable[[str], list[Position] | None]
+    rng: np.random.Generator
+    is_valid: typing.Callable[[Position], bool] | None = None
+    candidates: typing.Callable[[], typing.Iterable[str]] | None = None
+
+    def resolve(self, name: str) -> Position:
+        polygon = self.lookup(name)
+        if polygon is None:
+            known = sorted(self.candidates()) if self.candidates is not None else []
+            hint = f"; known refs: {', '.join(known)}" if known else ""
+            raise ValueError(f"zone ref {name!r} not found in world{hint}")
+        return sample_point_in_polygon(polygon, self.rng, is_valid=self.is_valid)
 
 
 def angle_diff(a: float, b: float) -> float:

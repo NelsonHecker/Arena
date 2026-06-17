@@ -51,6 +51,10 @@ help(){
 }
 
 case "$1" in
+    install)
+        _feature_default_install "$name"
+        exit $?
+    ;;
     update)
         update
         exit $?

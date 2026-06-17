@@ -7,6 +7,7 @@ import shapely
 import shapely.affinity
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
+from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.World import LevelDescription, WorldDescription
 
 from task_generator.manager.realizer import Realizer
@@ -14,10 +15,12 @@ from task_generator.shared import (
     DynamicObstacle,
     Obstacle,
     Pose,
+    Region,
     Robot,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
+from task_generator.utils.flags import ObstaclesOptim, obstacles_optim_level
 
 
 class EnvironmentManager(NodeInterface):
@@ -44,6 +47,11 @@ class EnvironmentManager(NodeInterface):
 
         self._walls_geometry = shapely.MultiLineString()
         self._static_polygons = {}
+
+    @property
+    def _skip_obstacles(self) -> bool:
+        """optim.obstacles=none: silently skip all static obstacle spawns."""
+        return obstacles_optim_level(self.node) >= ObstaclesOptim.NONE
 
     def realize(self, target: object) -> object:
         return self._realizer.realize(target)
@@ -110,8 +118,16 @@ class EnvironmentManager(NodeInterface):
         walls = tuple(self._realizer.realize(w, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for w in level.all_walls)
         doors = tuple(self._realizer.realize(d, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for d in level.all_doors)
         floors = tuple(self._realizer.realize(f, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for f in level.all_floors)
+        ceilings: list[Ceiling] = []
+        for fid, level in _world.levels.items():
+            if not _match_level_id(fid):
+                continue
+            for ceiling in await level.all_ceilings():
+                ceilings.append(self._realizer.realize(ceiling, fid))
         elevators = tuple(self._realizer.realize(e, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for e in level.all_elevators)
         statics = tuple(self._realizer.realize(s, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for s in level.all_static_entities)
+        if self._skip_obstacles:
+            statics = ()
 
         line_strings: list[shapely.LineString] = []
         for w in walls:
@@ -135,6 +151,8 @@ class EnvironmentManager(NodeInterface):
         futures: list[typing.Awaitable] = []
         if floors:
             futures.append(self._simulator.spawn_floors(floors))
+        if ceilings:
+            futures.append(self._simulator.spawn_ceilings(ceilings))
         if walls or doors:
             futures.append(self._human_simulator.spawn_world(walls, doors))
         futures.append(self._human_simulator.spawn_obstacles(statics, layer=ObstacleLayer.WORLD))
@@ -154,6 +172,8 @@ class EnvironmentManager(NodeInterface):
         """
         Loads given obstacles into the simulator.
         """
+        if self._skip_obstacles:
+            return
         realized = tuple(self._realizer.realize(obstacle, obstacle.level_id or "") for obstacle in setups)
         await self._cache_polygons(realized)
         await self._human_simulator.spawn_obstacles(realized)
@@ -187,6 +207,29 @@ class EnvironmentManager(NodeInterface):
         await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
         self._sync_static_polygons()
 
+    async def respawn_world(self, world: WorldDescription):
+        """
+        Replace world obstacles atomically: old items are only cleaned
+        up after new ones have been spawned successfully.
+        """
+        old_walls, old_doors = self._human_simulator.unuse_world()
+        await self._simulator.remove_world()
+        await self.spawn_world_obstacles(world)
+        self._human_simulator.remove_stale_world(old_walls, old_doors)
+        await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
+
+    async def setup_regions(self, regions: Sequence[Region]) -> bool:
+        """
+        Configure regions (sources/sinks) on the human simulator.
+        """
+        return await self._human_simulator.setup_regions(regions)
+
+    async def remove_all_regions(self) -> bool:
+        """
+        Remove all tracked regions from the human simulator.
+        """
+        return await self._human_simulator.remove_all_regions()
+
     async def reset(self, purge: ObstacleLayer = ObstacleLayer.INUSE):
         """
         Unuse and remove all obstacles
@@ -200,7 +243,11 @@ class EnvironmentManager(NodeInterface):
         return await self._simulator.step(n)
 
     async def before_reset_episode(self) -> bool:
+        await self._human_simulator.pause()
         return await self._simulator.before_reset_episode()
 
     async def after_reset_episode(self) -> bool:
-        return await self._simulator.after_reset_episode()
+        try:
+            return await self._simulator.after_reset_episode()
+        finally:
+            await self._human_simulator.unpause()

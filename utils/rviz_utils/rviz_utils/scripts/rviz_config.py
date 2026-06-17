@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 import asyncio
-import json
 import os
 import signal
 import sys
@@ -20,9 +19,10 @@ from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.shared import FrameNamespace
 from arena_robots.moveit_factory import build_moveit_params
 from arena_robots.Robot import RobotIdentifier
+from arena_viz import DisplayKind
 from task_generator_msgs.msg import AdapterVizManifest, RobotDescriptor, RobotFleet
 
-from rviz_utils.utils import Utils
+from rviz_utils.renderers import REGISTRY
 
 
 class ConfigFileGenerator(ArenaMixinNode):
@@ -129,6 +129,7 @@ class ConfigFileGenerator(ArenaMixinNode):
                         arguments=['-d', config_file],
                         parameters=rviz_parameters,
                         output="screen",
+                        additional_env={"LIBGL_ALWAYS_SOFTWARE": "1"},
                     ),
                 ]
             )
@@ -139,9 +140,9 @@ class ConfigFileGenerator(ArenaMixinNode):
 
     def _collect_moveit_params(self) -> dict[str, object]:
         """Mirror each arm robot's MoveIt config into rviz2 under a robot-named
-        prefix. Per-display ``Robot Description`` properties (see the moveit
-        adapter's display hints) point at ``<robot>.robot_description`` so
-        every arm robot gets its own Trajectory/PlanningScene display."""
+        prefix. Per-display ``Robot Description`` properties point at
+        ``<robot>.robot_description`` so every arm robot gets its own
+        Trajectory/PlanningScene display."""
         combined: dict[str, object] = {}
         arm_names: list[str] = []
         for robot in self.robots:
@@ -157,128 +158,68 @@ class ConfigFileGenerator(ArenaMixinNode):
             self.get_logger().info(f"injecting MoveIt params into rviz2 for: {arm_names}")
         return combined
 
-    def _create_pedestrian_group(self) -> dict[str, object]:
-        """Creates a Pedestrian Group with stylized human visualizations"""
-
-        pedestrian_group = {'Class': 'rviz_common/Group', 'Name': 'Pedestrians', 'Enabled': True, 'Displays': []}
-
-        # Check if pedestrian topics exist
-        pedestrian_topics = []
-        for topic_name, topic_types in self.topics:
-            if topic_name.endswith('/arena_peds') and 'arena_people_msgs/msg/Pedestrians' in topic_types:
-                pedestrian_topics.append((topic_name, 'arena_people_msgs/msg/Pedestrians'))
-            # Check for converted pedestrian markers
-            elif topic_name.endswith('/pedestrian_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
-                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
-            elif topic_name.endswith('/wall_markers') and 'visualization_msgs/msg/MarkerArray' in topic_types:
-                pedestrian_topics.append((topic_name, 'visualization_msgs/msg/MarkerArray'))
-            # Check for legacy people topics (fallback)
-            elif topic_name.endswith('/people') and 'people_msgs/msg/People' in topic_types:
-                pedestrian_topics.append((topic_name, 'people_msgs/msg/People'))
-            elif topic_name.endswith('/human_states') and 'hunav_msgs/msg/Agents' in topic_types:
-                pedestrian_topics.append((topic_name, 'hunav_msgs/msg/Agents'))
-
-        if not pedestrian_topics:
-            self.get_logger().info("No pedestrian topics found. Pedestrian group will be empty.")
-            return pedestrian_group
-
-        # Add displays for found pedestrian topics
-        # Add displays for found pedestrian topics
-        for topic_name, topic_type in pedestrian_topics:
-            if topic_type == 'arena_people_msgs/msg/Pedestrians':
-                self.get_logger().info(f"Found arena_peds topic: {topic_name} - using pedestrian_markers")
-                # Note: We rely on pedestrian_marker_publisher to convert this to MarkerArray
-
-            elif topic_type == 'visualization_msgs/msg/MarkerArray':
-                # Use MarkerArray display for converted pedestrian markers
-                display = Utils.Displays.pedestrians(topic_name, name=os.path.basename(topic_name), enabled=not topic_name.endswith('/wall_markers'))
-                pedestrian_group['Displays'].append(display)
-                self.get_logger().info(f"Added MarkerArray display for pedestrians: {topic_name}")
-
-            elif topic_type == 'people_msgs/msg/People':
-                # Add raw people display as fallback
-                display = Utils.Displays.pedestrians_raw(topic_name)
-                pedestrian_group['Displays'].append(display)
-                self.get_logger().info(f"Added raw People display: {topic_name}")
-
-            elif topic_type == 'hunav_msgs/msg/Agents':
-                # Could add custom agent display here if needed
-                self.get_logger().info(f"Found HuNav agents topic: {topic_name} (not yet implemented)")
-
-        # Add TF display for pedestrian frames (disabled fallback only)
-        tf_display = {
-            'Class': 'rviz_default_plugins/TF',
-            'Name': 'Pedestrian TF Frames',
-            'Enabled': False,  # Disabled by default since we have proper markers
-            'Frame Timeout': 15,
-            'Marker Scale': 0.3,
-            'Show Arrows': True,
-            'Show Axes': False,
-            'Show Names': True,
-        }
-        pedestrian_group['Displays'].append(tf_display)
-
-        return pedestrian_group
-
     def create_config(self) -> str:
-        default_file = self._read_default_file()
-
-        # cache
+        skeleton = self._read_default_file()
         self.topics = self.get_topic_names_and_types()
+        published_topics = {t for t, _ in self.topics}
+        displays: list[dict[str, object]] = []
 
-        displays = []
+        env_groups: dict[str, dict[str, object]] = {}
+        for d in self.viz_manifest.env_displays:
+            try:
+                renderer = REGISTRY[DisplayKind(d.kind)]
+            except KeyError:
+                self.get_logger().warning(f"no rviz renderer for kind {d.kind!r}, skipping {d.name!r}")
+                continue
+            if d.topic_must_exist and d.topic not in published_topics:
+                continue
+            rendered = renderer(d, None)
+            if rendered is None:
+                continue
+            if not d.group:
+                displays.append(rendered)
+                continue
+            group = env_groups.get(d.group)
+            if group is None:
+                group = {"Class": "rviz_common/Group", "Name": d.group, "Enabled": True, "Displays": []}
+                env_groups[d.group] = group
+                displays.append(group)
+            typing.cast("list[object]", group["Displays"]).append(rendered)
 
-        # Add the map display
-        displays.append(
-            {
-                'Class': 'rviz_default_plugins/Map',
-                'Enabled': True,
-                'Name': 'Map',
-                'Topic': {
-                    'Value': os.path.join(self._TASKGEN_NODE, 'map'),
-                    'Depth': 20,
-                    'History Policy': 'Keep Last',
-                    'Reliability Policy': 'Reliable',
-                    'Durability Policy': 'Transient Local',
-                },
-                'Use Timestamp': False,
-                'Alpha': 0.7,
-                'Draw Behind': True,
+        robots_by_ns = {robot.ns: robot for robot in self.robots}
+        entries_by_ns: dict[str, list] = {}
+        for entry in self.viz_manifest.entries:
+            entries_by_ns.setdefault(entry.robot_ns, []).append(entry)
+
+        for robot_ns, robot_entries in entries_by_ns.items():
+            robot = robots_by_ns.get(robot_ns)
+            if robot is None:
+                self.get_logger().warning(f"manifest entry for unknown robot ns {robot_ns!r}, skipping")
+                continue
+            group: dict[str, object] = {
+                "Class": "rviz_common/Group",
+                "Name": f"Robot: {robot.name}",
+                "Enabled": True,
+                "Displays": [],
             }
-        )
+            for entry in robot_entries:
+                for d in entry.displays:
+                    try:
+                        renderer = REGISTRY[DisplayKind(d.kind)]
+                    except KeyError:
+                        self.get_logger().warning(f"no rviz renderer for kind {d.kind!r}, skipping {d.name!r}")
+                        continue
+                    if d.topic_must_exist and d.topic not in published_topics:
+                        continue
+                    rendered = renderer(d, robot)
+                    if rendered is not None:
+                        group["Displays"].append(rendered)
+            displays.append(group)
 
-        # Add TF display
-        displays.append({'Class': 'rviz_default_plugins/TF', 'Enabled': False, 'Name': 'TF', 'Frame Timeout': 15, 'Marker Scale': 1.0, 'Show Arrows': True, 'Show Axes': True, 'Show Names': False})
-
-        published_topics = [topic[0] for topic in self.get_topic_names_and_types()]
-
-        for robot in self.robots:
-            robot_group = self._create_robot_group(robot)
-            displays.append(robot_group)
-
-        # HUNAVSIM: pedestrian group
-        pedestrian_group = self._create_pedestrian_group()
-        displays.append(pedestrian_group)
-
-        # PedSim configuration - commented out but kept for future use
-        # try:
-        #     if not self.has_parameter('pedsim'):
-        #         self.declare_parameter('pedsim', False)
-        #     if self.get_parameter('pedsim').value:
-        #         displays.append(Config.TRACKED_PERSONS)
-        #         displays.append(Config.TRACKED_GROUPS)
-        #         displays.append(Config.PEDSIM_WALLS)
-        #         displays.append(Config.PEDSIM_WAYPOINTS)
-        # except Exception as e:
-        #     self.get_logger().warn(f"Error checking pedsim parameter: {e}")
-
-        default_file["Visualization Manager"]["Views"]["Current"] = self._build_view()
-
-        default_file["Visualization Manager"]["Displays"] = displays
-
-        file_path = self._tmp_config_file(default_file, prefix=f"env{self._env_id}_")
+        skeleton["Visualization Manager"]["Displays"] = displays
+        skeleton["Visualization Manager"]["Views"]["Current"] = self._build_view()
+        file_path = self._tmp_config_file(skeleton, prefix=f"env{self._env_id}_")
         self.get_logger().info(f'created config file at {file_path}')
-
         return file_path
 
     def _target_robot_frame(self) -> str | None:
@@ -345,119 +286,6 @@ class ConfigFileGenerator(ArenaMixinNode):
             'Value': True,
             'Yaw': python_yaw,
         }
-
-    def _start_setup_callback(self, request: object, response: object) -> object:
-        self.get_logger().info("Service callback triggered.")
-        file_path = self.create_config()
-        self._send_load_config(file_path)
-        return response
-
-    def _create_robot_group(self, robot: RobotDescriptor) -> dict[str, object]:
-        """Creates a Robot Group with all visualizations for a robot"""
-        color = Utils.get_random_rviz_color()
-        robot_ns = robot.ns
-        robot_name = robot.name
-
-        robot_group = {'Class': 'rviz_common/Group', 'Name': f'Robot: {robot_name}', 'Enabled': True, 'Displays': []}
-
-        # TF Prefix must match the prefix used by robot_state_publisher.
-        tf_prefix = FrameNamespace(robot.frame).raw()
-        robot_model_topic = f'{robot_ns}/robot_description'
-        robot_group['Displays'].append(Utils.Displays.robot_model(topic=robot_model_topic, robot_name=robot_name, tf_prefix=tf_prefix))
-
-        # Add odometry visualization
-        odom_topic = f'{robot_ns}/odom'
-        robot_group['Displays'].append(Utils.Displays.odom(odom_topic, color))
-
-        # adapter-declared displays for this robot
-        published_topic_names = {t for t, _ in self.topics}
-        for entry in self.viz_manifest.entries:
-            if entry.robot_ns != robot_ns:
-                continue
-            for entry_display in entry.displays:
-                if entry_display.topic_must_exist and entry_display.topic not in published_topic_names:
-                    self.get_logger().info(f"skipping display {entry_display.name!r} for {robot_name}: topic {entry_display.topic} not advertised")
-                    continue
-                display: dict[str, object] = {
-                    'Class': entry_display.rviz_class,
-                    'Name': entry_display.name,
-                    'Enabled': True,
-                }
-                if entry_display.config_json:
-                    display.update(json.loads(entry_display.config_json))
-                topic = display.get('Topic')
-                if isinstance(topic, dict):
-                    topic['Value'] = entry_display.topic
-                else:
-                    display['Topic'] = {'Value': entry_display.topic}
-                robot_group['Displays'].append(display)
-
-        # SENSORS
-        # Map of message types to display creator methods - include all sensor types
-        sensor_displays = {
-            'sensor_msgs/msg/LaserScan': Utils.Displays.laser_scan,
-            'sensor_msgs/msg/PointCloud2': Utils.Displays.pointcloud,
-            'sensor_msgs/msg/PointCloud': Utils.Displays.pointcloud_legacy,
-            # 'sensor_msgs/msg/Imu': Utils.imu,                          # will be optimised soon
-            'foot_contact_msgs/msg/FootContact': Utils.Displays.footcontact,
-            'sensor_msgs/msg/Image': Utils.Displays.image,
-            # Add more sensor types as needed
-        }
-
-        # Track sensor counts for color assignment
-        sensor_counts = {}
-
-        # Improved topic discovery for robot sensors
-        robot_topics = []
-
-        # Try to discover topics using node-based approach first
-        try:
-            # Get all nodes in the system
-            node_names_and_namespaces = self.get_node_names_and_namespaces()
-
-            # Filter for nodes related to this robot
-            robot_nodes = []
-
-            for node_name, node_namespace in node_names_and_namespaces:
-                if node_namespace == robot_ns:
-                    robot_nodes.append((node_name, node_namespace))
-
-            self.get_logger().info(f"Found {len(robot_nodes)} nodes for robot {robot_name}")
-
-            # Get topics from each robot node
-            for node_name, node_namespace in robot_nodes:
-                try:
-                    node_topics = self.get_publisher_names_and_types_by_node(node_name, node_namespace)
-                    robot_topics.extend(node_topics)
-                except Exception as e:
-                    self.get_logger().debug(f"Failed to get topics from {node_namespace}/{node_name}: {e}")
-        except Exception as e:
-            self.get_logger().warning(f"Failed to get topics by node: {e}")
-
-        # Fall back to namespace filtering if node-based discovery failed
-        if not robot_topics:
-            robot_topics = [(t, types) for t, types in self.topics if t.startswith(robot_ns)]
-            self.get_logger().info(f"Found {len(robot_topics)} topics using namespace filtering")
-
-        # Add displays for all discovered sensors
-        for topic_name, topic_types in robot_topics:
-            for topic_type in topic_types:
-                if topic_type in sensor_displays:
-                    # Track count for this sensor type (for color assignment)
-                    if topic_type not in sensor_counts:
-                        sensor_counts[topic_type] = 0
-                    else:
-                        sensor_counts[topic_type] += 1
-
-                    # Get display with appropriate color
-                    display_creator = sensor_displays[topic_type]
-                    sensor_color = Utils.get_sensor_color(topic_type, sensor_counts[topic_type])
-                    display = display_creator(topic_name, sensor_color)
-
-                    robot_group['Displays'].append(display)
-                    break  # Use first matching type
-
-        return robot_group
 
     def _read_default_file(self) -> dict[str, object]:
         package_path = get_package_share_directory("rviz_utils")

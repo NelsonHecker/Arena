@@ -1,7 +1,7 @@
 import typing
 
 import attrs
-from arena_simulation_setup.shared import Elevator
+from arena_simulation_setup.shared import Ceiling, Elevator
 
 from task_generator.shared import (
     Door,
@@ -47,10 +47,9 @@ class Realizer:
                 raise KeyError(f"level_id {level_id} is not registered on realizer")
             self._level_origins[level_id] = (x, y)
 
-    def register_floor(self, level_id: str, x: float = 0.0, y: float = 0.0):
-        if level_id in self._level_origins.keys():
-            raise RuntimeError(f"tried to register level {level_id} that is already registered on the realizer")
-        self._level_origins[level_id] = (x, y)
+    def reset_level_origins(self, origins: dict[str, tuple[float, float]]) -> None:
+        """Replace the per-level origin table, dropping any levels from a prior world."""
+        self._level_origins = {str(level_id): (float(x), float(y)) for level_id, (x, y) in origins.items()}
 
     def get_config(self) -> "Realizer._Configuration":
         return self._config
@@ -73,6 +72,10 @@ class Realizer:
 
     def _prefix(self, *s: str) -> str:
         return str(FrameNamespace(self._config.prefix)(*(p for p in s if p)))
+
+    def prefix(self, *s: str) -> str:
+        """Public: return the env-prefixed identifier for ``s`` (no pose realization)."""
+        return self._prefix(*s)
 
     def _realize_position(self, position: Position, level_id: str = "") -> Position:
         level_x, level_y = self.get_level_origin(level_id)
@@ -140,6 +143,16 @@ class Realizer:
         )
 
     @typing.overload
+    def realize(self, target: Ceiling, level_id: str = "") -> Ceiling: ...
+
+    def _realize_ceiling(self, ceiling: Ceiling, level_id: str = "") -> Ceiling:
+        return attrs.evolve(
+            ceiling,
+            name=self._prefix(ceiling.name, level_id),
+            pos=self._realize_position(ceiling.pos, level_id),
+        )
+
+    @typing.overload
     def realize(self, target: Door, level_id: str = "") -> Door: ...
 
     def _realize_door(self, door: Door, level_id: str = "") -> Door:
@@ -197,6 +210,9 @@ class Realizer:
 
         elif isinstance(target, Floor):
             res = self._realize_floor(target, level_id)
+
+        elif isinstance(target, Ceiling):
+            res = self._realize_ceiling(target, level_id)
 
         elif isinstance(target, Elevator):
             res = self._realize_elevator(target, level_id)

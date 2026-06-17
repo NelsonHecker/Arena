@@ -33,6 +33,7 @@ from arena_rclpy_mixins.shared import Namespace
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
+    Ceiling,
     Floor,
     Material,
     Prim,
@@ -42,14 +43,17 @@ from isaacsim_msgs.srv import (
     DeletePrims,
     EditPrims,
     ResetWorld,
+    SpawnCeilings,
     SpawnFloors,
     SpawnPrims,
     SpawnUrdf,
     SpawnUsd,
     SpawnWalls,
 )
+from task_generator.shared import Ceiling as CeilingDefinition
 from task_generator.shared import (
     DynamicObstacle,
+    Model,
     ModelType,
     Obstacle,
     Orientation,
@@ -59,6 +63,7 @@ from task_generator.shared import (
 )
 from task_generator.shared import Floor as FloorDefinition
 from task_generator.shared import Wall as WallDefinition
+from task_generator.utils.flags import ObstaclesOptim, obstacles_optim_level
 
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim, SimLifecycle
@@ -68,6 +73,8 @@ from arena_runtime.sim._control import (
     render_ros2_control_yaml,
     twist_stamper_node,
 )
+from arena_runtime.sim._interface import resolve_obstacle_box
+from arena_runtime.sim._walls import realize_renderable
 
 """
 IsaacHost is constructed once by arena_node and owns process-singleton resources for Isaac: the lifecycle (pause/unpause/cleanup) and the pause/unpause/delete service clients.
@@ -181,6 +188,20 @@ def material_to_msg(material: arena_simulation_setup.tree.assets.Material.Materi
     )
 
 
+def _offset_pose(pose: Pose, center: tuple[float, float, float]) -> Pose:
+    """Box pose with the bbox centre applied in the obstacle's local frame."""
+    cx, cy, cz = center
+    yaw = pose.orientation.to_yaw()
+    return Pose(
+        position=Position(
+            x=pose.position.x + cx * math.cos(yaw) - cy * math.sin(yaw),
+            y=pose.position.y + cx * math.sin(yaw) + cy * math.cos(yaw),
+            z=pose.position.z + cz,
+        ),
+        orientation=pose.orientation,
+    )
+
+
 class IsaacSimulator(BaseSim, NodeInterface):
     def __init__(self, *args: object, **kwargs: object) -> None:
         """Initialize IsaacSimulator"""
@@ -188,10 +209,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         env_prefix = f"env_{self._env_id}"
         self._NS_PRIM = Namespace(env_prefix)('Obstacles')
-        self._NS_PEDESTRIAN = Namespace(env_prefix)('Pedestrians')
         self._NS_ROBOT = Namespace(env_prefix)('Robots')
         self._NS_WALL = Namespace(env_prefix)('Walls')
         self._NS_FLOOR = Namespace(env_prefix)('Floors')
+        self._NS_CEILING = Namespace(env_prefix)('Ceilings')
 
         self.wall_counter = itertools.count()
         self.floor_counter = itertools.count()
@@ -202,6 +223,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             MovePedestrians=self.node.create_client_wrapper(MovePedestrians, "/isaac/MovePedestrians"),
             ResetWorld=self.node.create_client_wrapper(ResetWorld, "/isaac/ResetWorld"),
             UpdatePedestrians=self.node.create_client_wrapper(UpdatePedestrians, "/isaac/UpdatePedestrians"),
+            SpawnCeilings=self.node.create_client_wrapper(SpawnCeilings, "/isaac/SpawnCeilings"),
             SpawnFloors=self.node.create_client_wrapper(SpawnFloors, "/isaac/SpawnFloors"),
             SpawnPedestrians=self.node.create_client_wrapper(SpawnPedestrians, "/isaac/SpawnPedestrians"),
             SpawnPrims=self.node.create_client_wrapper(SpawnPrims, "/isaac/SpawnPrims"),
@@ -374,7 +396,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
 
-        async def impl(obstacle: Obstacle) -> Prim | None:
+        async def build_prim(obstacle: Obstacle) -> Prim | None:
             try:
                 model = await (await obstacle.model.resolve()).model.get([ModelType.USD])
                 if model.type is ModelType.UNKNOWN:
@@ -394,17 +416,39 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 prim.scale.z = obstacle.scale.z
             return prim
 
-        prims = await asyncio.gather(*map(impl, obstacles))
+        level = obstacles_optim_level(self.node)
+        boxes = (
+            await asyncio.gather(*(resolve_obstacle_box(o) for o in obstacles))
+            if level is ObstaclesOptim.BBOX
+            else [None] * len(obstacles)
+        )
+        box_indices = [i for i, box in enumerate(boxes) if box is not None]
+        mesh_indices = [i for i, box in enumerate(boxes) if box is None]
 
+        results: list[bool] = [False] * len(obstacles)
+
+        # flat cube, bbox offset folded into the spawn pose (statics are delete+respawned, not moved)
+        async def spawn_one_box(i: int) -> bool:
+            obstacle = obstacles[i]
+            size, center = typing.cast(tuple, boxes[i])
+            if obstacle.scale is not None:
+                s = (obstacle.scale.x, obstacle.scale.y, obstacle.scale.z)
+                size = tuple(d * f for d, f in zip(size, s, strict=True))
+                center = tuple(c * f for c, f in zip(center, s, strict=True))
+            return bool(await self.spawn_box(self._NS_PRIM(obstacle.name), size, _offset_pose(obstacle.pose, center)))
+
+        for i, ok in zip(box_indices, await asyncio.gather(*(spawn_one_box(i) for i in box_indices)), strict=True):
+            results[i] = bool(ok)
+
+        prims = await asyncio.gather(*(build_prim(obstacles[i]) for i in mesh_indices))
         req = SpawnPrims.Request()
         req.prims = list(filter(None, prims))
-        response = await self._clients.SpawnPrims.call_timeout(req)
-        if response is None:
-            return tuple(False for _ in obstacles)
+        if req.prims and (response := await self._clients.SpawnPrims.call_timeout(req)) is not None:
+            response_iter = iter(response.ret)
+            for i, prim in zip(mesh_indices, prims, strict=True):
+                results[i] = (prim is not None) and bool(next(response_iter))
 
-        response_iter = iter(response.ret)
-
-        return tuple((a is not None) and next(response_iter) for a in prims)
+        return tuple(results)
 
     async def obstacle_move(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return await self._move_entities([(self._NS_PRIM(o.name), o.pose) for o in obstacles])
@@ -413,7 +457,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         req = MovePedestrians.Request(
             pedestrians=[
                 Pedestrian(
-                    name=self._NS_PEDESTRIAN(p.name),
+                    name=p.sim_path,
                     pose=p.pose.to_msg(),
                 )
                 for p in pedestrians
@@ -438,7 +482,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return await asyncio.gather(*(self._delete_entity(self._NS_PRIM(o.name)) for o in obstacles))
 
     async def pedestrian_delete(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
-        res = await self._clients.DeletePedestrians.call_timeout(DeletePedestrians.Request(names=[self._NS_PEDESTRIAN(p.name) for p in pedestrians]))
+        res = await self._clients.DeletePedestrians.call_timeout(DeletePedestrians.Request(names=[p.sim_path for p in pedestrians]))
         if res is None:
             return tuple(False for _ in pedestrians)
         return tuple(r == DeletePedestrians.Response.SUCCESS for r in res.results)
@@ -474,12 +518,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 self._logger.error(f"Failed to spawn wall: {e}\n{traceback.format_exc()}")
                 return None
 
-        async def create_obstacle(obstacle: ObstacleDefinition) -> Prim | None:
+        async def create_obstacle(item: tuple[ObstacleDefinition, Model]) -> Prim | None:
+            obstacle, model = item
             try:
                 prim_name = self._realizer.realize(f"obstacle_{next(self.wall_counter)}")
-                model = await (await obstacle.model.resolve()).model.get(ModelType.USD)
-                if model.type is ModelType.UNKNOWN:
-                    return None
                 assert model.path is not None, f"USD model {model.name} must have a valid file path"
                 prim = Prim()
                 prim.usd_path = str(model.path)
@@ -492,7 +534,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 return None
 
         async def create_wall(wall: WallDefinition) -> tuple[typing.Iterator[object], typing.Iterator[object]]:
-            segments, obstacles = await wall.assets()
+            segments, obstacles = await realize_renderable(wall, (ModelType.USD,))
             return map(create_segment, segments), map(create_obstacle, obstacles)
 
         wall_futures = await asyncio.gather(*map(create_wall, walls))
@@ -533,6 +575,34 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
         res = bool(floors_res) and all(floors_res.ret)
         self._logger.debug("All floors spawned successfully.")
+        return res
+
+    async def spawn_ceilings(self, ceilings: Sequence[CeilingDefinition]) -> bool:
+        self._logger.debug("Attempting to spawn ceilings")
+
+        async def impl(ceiling: CeilingDefinition) -> Ceiling | None:
+            try:
+                pos = ceiling.pos.to_msg()
+                pos.z = ceiling.z
+                return Ceiling(
+                    name=self._NS_CEILING(ceiling.name),
+                    x_length=ceiling.x_length,
+                    y_length=ceiling.y_length,
+                    pos=pos,
+                    cast_shadows=ceiling.cast_shadows,
+                    material=material_to_msg(await ceiling.material.resolve()),
+                )
+
+            except Exception:
+                self._logger.error(f"Failed to spawn ceiling: {ceiling.name}\n{traceback.format_exc()}")
+                return None
+
+        ceilings_req = SpawnCeilings.Request()
+        ceilings_req.ceilings = list(filter(None, await asyncio.gather(*map(impl, ceilings))))
+        ceilings_res = await self._clients.SpawnCeilings.call_timeout(ceilings_req)
+
+        res = bool(ceilings_res) and all(ceilings_res.ret)
+        self._logger.debug("All ceilings spawned successfully.")
         return res
 
     async def spawn_box(self, name: str, size: tuple[float, float, float], pose: Pose) -> bool:
@@ -653,7 +723,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             items.append(
                 SpawnPedestrian(
                     pedestrian=Pedestrian(
-                        name=self._NS_PEDESTRIAN(pedestrian.name),
+                        name=pedestrian.sim_path,
                         pose=pedestrian.pose.to_msg(),
                     ),
                     model_ref=available_models[model_name],
@@ -671,7 +741,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             arena_people_msgs.msg.Pedestrians(
                 pedestrians=[
                     arena_people_msgs.msg.Pedestrian(
-                        name=ped.name,
+                        name=ped.sim_path,
                         pose=ped.pose.to_msg(),
                     )
                     for status, ped in zip(success, pedestrians, strict=False)
@@ -683,20 +753,16 @@ class IsaacSimulator(BaseSim, NodeInterface):
         return success
 
     async def pedestrian_update(self, pedestrians: arena_people_msgs.msg.Pedestrians) -> Sequence[bool]:
-        req = UpdatePedestrians.Request(
-            pedestrians=[
-                Pedestrian(
-                    name=self._NS_PEDESTRIAN(ped.name),
-                    pose=ped.pose,
-                    twist=ped.twist,
-                )
-                for ped in pedestrians.pedestrians
-            ]
-        )
+        # Published ped names are already sim_paths, matching the spawn key.
+        req = UpdatePedestrians.Request(pedestrians=list(pedestrians.pedestrians), stamp=pedestrians.header.stamp)
         res = await self._clients.UpdatePedestrians.call_timeout(req)
         if res is None:
             return tuple(False for _ in pedestrians.pedestrians)
-        return tuple(r == UpdatePedestrians.Response.SUCCESS for r in res.results)
+        results = tuple(r == UpdatePedestrians.Response.SUCCESS for r in res.results)
+        if not all(results):
+            missed = [p.name for p, ok in zip(pedestrians.pedestrians, results, strict=False) if not ok]
+            self._logger.warning(f"UpdatePedestrians missed {missed}", throttle_duration_sec=10.0)
+        return results
 
     async def _delete_entity(self, name: str) -> bool:
         self._logger.debug(f"Attempting to delete prim {name}")

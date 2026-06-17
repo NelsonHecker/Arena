@@ -92,6 +92,10 @@ class RobotManager(NodeInterface):
         return self._goal_pos
 
     @property
+    def controls_orientation(self) -> bool:
+        return self._adapter.controls_orientation if self._adapter is not None else True
+
+    @property
     def pose(self) -> Pose | None:
         """Current robot pose in the map frame (None during reset/respawn windows)."""
         base = self.frame(self._config.model_params.base_frame).raw()

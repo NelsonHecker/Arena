@@ -27,11 +27,14 @@ class Mod_OverrideRobot(TM_Module):
     def _reset_timeout(self, index: int):
         self._timeouts[index] = self.node.sim_time
 
+    def _to_abstract(self, frame_id: str, pose: Pose) -> Pose:
+        return self.node._realizer.ezilear(pose) if frame_id == 'map' else pose
+
     async def _cb_set_position(self, pos: geometry_msgs.PoseWithCovarianceStamped):
-        await self._task.set_robot_position(Pose.from_msg(pos.pose.pose))
+        await self._task.set_robot_position(self._to_abstract(pos.header.frame_id, Pose.from_msg(pos.pose.pose)))
 
     async def _cb_set_goal(self, pos: geometry_msgs.PoseStamped):
-        await self._task.set_robot_goal(Pose.from_msg(pos.pose))
+        await self._task.set_robot_goal(self._to_abstract(pos.header.frame_id, Pose.from_msg(pos.pose)))
 
     def _cb_new_scenario(self, *args: object, **kwargs: object) -> None:
         self._task.force_reset()  # type: ignore

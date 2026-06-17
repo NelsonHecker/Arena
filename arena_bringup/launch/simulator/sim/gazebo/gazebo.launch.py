@@ -1,15 +1,31 @@
 import itertools
 import os
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable
+from launch.actions import IncludeLaunchDescription, LogInfo, OpaqueFunction, SetEnvironmentVariable
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 from arena_bringup.future import IfElseSubstitution, PythonExpression  # noqa
 from arena_bringup.substitutions import LaunchArgument
+
+
+def _select_render_engine() -> str:
+    """ogre2 renders PBR materials but needs a real GL device; ogre1 is the software-safe fallback.
+    Forced-software GL (LIBGL_ALWAYS_SOFTWARE) segfaults ogre2's GL3Plus backend, so it pins ogre1."""
+    if os.environ.get("LIBGL_ALWAYS_SOFTWARE", "0").lower() in ("1", "true"):
+        return "ogre"
+    try:
+        subprocess.run(["nvidia-smi"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    except Exception:
+        return "ogre"
+    return "ogre2"
 
 
 def generate_launch_description():
@@ -28,6 +44,14 @@ def generate_launch_description():
 
     headless = LaunchArgument(
         'headless',
+    )
+
+    # Injects PedSkeletonPlugin into the world SDF so gpu_lidar perceives
+    # articulated pedestrians. ped_skeleton_enabled:=false to disable.
+    ped_skeleton_enabled = LaunchArgument(
+        'ped_skeleton_enabled',
+        default_value='true',
+        description='Enable pedestrian skeletal articulation plugin (PedSkeletonPlugin)',
     )
 
     # Set environment variables
@@ -49,8 +73,11 @@ def generate_launch_description():
     staging_path = os.path.join(package_root, '..', 'staging')
     os.makedirs(staging_path, exist_ok=True)
 
-    import subprocess
-    subprocess.run(['ros2', 'run', 'arena_simulation_setup', 'model_staging', staging_path])
+    from arena_simulation_setup.staging import stage
+    try:
+        stage(staging_path)
+    except Exception as exc:
+        print(f'[gazebo.launch] model staging failed: {exc}', file=sys.stderr)
 
     GZ_SIM_RESOURCE_PATHS = [
         os.path.join(staging_path),
@@ -107,10 +134,50 @@ def generate_launch_description():
         else_value=desired_world,
     )
 
+    def _inject_ped_skeleton_plugin(world_sdf_path: str, enabled: bool) -> str:
+        """Return a patched world SDF path with PedSkeletonPlugin injected.
+
+        Parses the world SDF, appends the plugin element to the <world> element,
+        writes a temp file, and returns its path. When disabled, returns the
+        original path unchanged.
+        """
+        if not enabled:
+            return world_sdf_path
+
+        try:
+            tree = ET.parse(world_sdf_path)
+            root = tree.getroot()
+            world_el = root.find('world')
+            if world_el is None:
+                return world_sdf_path
+
+            plugin_el = ET.SubElement(world_el, 'plugin')
+            plugin_el.set('filename', 'PedSkeletonPlugin')
+            plugin_el.set('name', 'arena_gz_plugins::PedSkeletonPlugin')
+            enabled_el = ET.SubElement(plugin_el, 'enabled')
+            enabled_el.text = 'true'
+
+            tmp = tempfile.NamedTemporaryFile(
+                mode='wb', suffix='.sdf', delete=False,
+                prefix='arena_world_',
+            )
+            tree.write(tmp, xml_declaration=True, encoding='utf-8')
+            tmp.close()
+            return tmp.name
+
+        except Exception as exc:
+            # Non-fatal: fall back to original world without the plugin.
+            print(f'[gazebo.launch] PedSkeletonPlugin injection failed: {exc}', file=sys.stderr)
+            return world_sdf_path
+
     def _launch_gazebo(context, *args, **kwargs):
         resolved_world = context.perform_substitution(world_path)
         headless_val = context.perform_substitution(headless.substitution)
-        gz_args = resolved_world + " -r --render-engine ogre"
+        skeleton_val = context.perform_substitution(ped_skeleton_enabled.substitution)
+        skeleton_on = skeleton_val.lower() not in ('false', '0')
+        resolved_world = _inject_ped_skeleton_plugin(resolved_world, skeleton_on)
+        engine = _select_render_engine()
+        gz_args = resolved_world + f" -r --render-engine {engine}"
         if headless_val.lower() in ("true", "1"):
             gz_args += " -s"
         include = IncludeLaunchDescription(
@@ -125,7 +192,7 @@ def generate_launch_description():
                 "physics-engine": "gz-physics-dartsim",
             }.items(),
         )
-        return [include]
+        return [LogInfo(msg=f"gazebo render engine: {engine} (ogre2 = PBR/textures, needs GPU)"), include]
 
     gazebo = OpaqueFunction(function=_launch_gazebo)
 
@@ -144,6 +211,22 @@ def generate_launch_description():
         }],
     )
 
+    # Point gz-sim at <install>/lib so it can load PedSkeletonPlugin.
+    try:
+        arena_gz_plugins_lib = os.path.join(
+            get_package_share_directory('arena_gz_plugins'), '..', '..', 'lib'
+        )
+        arena_gz_plugins_lib = os.path.normpath(arena_gz_plugins_lib)
+    except Exception:
+        arena_gz_plugins_lib = ''
+
+    existing_plugin_path = os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', '')
+    gz_plugin_path = (
+        f"{arena_gz_plugins_lib}:{existing_plugin_path}"
+        if arena_gz_plugins_lib and existing_plugin_path
+        else (arena_gz_plugins_lib or existing_plugin_path)
+    )
+
     # Return the LaunchDescription with all the nodes/actions
 
     return LaunchDescription(
@@ -151,11 +234,15 @@ def generate_launch_description():
             use_sim_time,
             world,
             headless,
+            ped_skeleton_enabled,
             # SetEnvironmentVariable(
             #     "GZ_SIM_PHYSICS_ENGINE_PATH", GZ_SIM_PHYSICS_ENGINE_PATH
             # ),
             SetEnvironmentVariable(
                 "GZ_SIM_RESOURCE_PATH", GZ_SIM_RESOURCE_PATHS_COMBINED
+            ),
+            SetEnvironmentVariable(
+                "GZ_SIM_SYSTEM_PLUGIN_PATH", gz_plugin_path
             ),
             gazebo,
             # robot_state_publisher,

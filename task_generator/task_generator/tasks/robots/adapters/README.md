@@ -60,6 +60,43 @@ there, not as constructor arguments.
    fires before `get_adapter` runs.
 5. Set `mobile: <kind>` (or `adapters: {mobile: <kind>}`) in the scenario robot entry or `robot_setup.yaml`.
 
+## Declaring visualization displays
+
+Adapters surface displays to any visualizer (rviz, rerun, ...) through
+`AdapterDisplayHint` entries. The base `Adapter` already declares
+`ROBOT_MODEL` + `ODOM`, and `MobileAdapter` adds `POSE` (goal) + `PATH`
+(plan), so subclasses only declare adapter-owned displays.
+
+```python
+from arena_viz import DisplayKind, StyleSpec
+
+@AdapterMeta.attach(
+    accepts={TaskKind.GOTO_POSE},
+    bringup=MyBringup,
+    client=GotoPoseClient,
+    cap="mobile",
+    displays=[
+        AdapterDisplayHint(
+            name="Local Plan",
+            topic="{ns}/local_plan",
+            topic_type="nav_msgs/Path",
+            kind=DisplayKind.PATH,
+            style_json=StyleSpec(color=(255, 0, 0), line_width=0.05).to_json(),
+        ),
+    ],
+)
+class MyAdapter(MobileAdapter):
+    ...
+```
+
+`{ns}` and `{robot}` in `topic` / `style_json` are substituted at manifest
+publish time. `kind` is a canonical [`DisplayKind`](../../../../../utils/arena_viz/arena_viz/kinds.py)
+value; each visualizer ships a renderer per kind. `style_json` is a
+serialized [`StyleSpec`](../../../../../utils/arena_viz/arena_viz/style.py) —
+viz-neutral fields (color, alpha, line_width, enabled) plus an `extra`
+escape hatch keyed by visualizer (`extra={"rviz": {"Color Scheme": "costmap"}}`)
+for the rare per-viz nudge.
+
 ## Opting into the collision tracker
 
 `CollisionTrackerNode` (in

@@ -1,7 +1,7 @@
 # arena_bringup Python helpers
 
 The `arena_bringup` Python package provides launch-time primitives used
-throughout `arena_bringup/launch/`. None of these are ROS nodes — they are
+throughout `arena_bringup/launch/`. None of these are ROS nodes - they are
 pure launch-system utilities imported at Python-load time.
 
 ## actions.py
@@ -15,7 +15,7 @@ A `GroupAction` subclass that wraps its children with
 `PushEnvironment` / `PopEnvironment`. Any launch configuration or environment
 variable set inside the group does not leak to the parent scope.
 
-Typical use in `arena_runtime.launch.py` — the simulator is wrapped so its arg mutations are scoped:
+Typical use in `arena_runtime.launch.py` - the simulator is wrapped so its arg mutations are scoped:
 
 ```python
 IsolatedGroupAction([launch_simulator])
@@ -36,7 +36,7 @@ Extends `DeclareLaunchArgument` with:
 | `.param(type_)` | `{name: ParameterValue(..., value_type=type_)}` | Typed ROS parameter |
 | `.str_param` | `{name: ParameterValue(..., str)}` | Shorthand string param |
 
-`LaunchArgument.auto_append(ld_items)` — call once at the top of a launch
+`LaunchArgument.auto_append(ld_items)` - call once at the top of a launch
 file; subsequent `LaunchArgument(...)` calls append themselves automatically
 to `ld_items`, so every argument declaration appears in the description.
 
@@ -44,13 +44,13 @@ Typical use:
 
 ```python
 LaunchArgument.auto_append(ld_items)
-sim = LaunchArgument(name='sim', default_value='dummy')
+sim = LaunchArgument(name='sim', default_value='gazebo')
 # sim is both declared and appended to ld_items
 ```
 
 ### `SelectAction`
 
-A `launch.Action` that holds a `str → list[Action]` registry and executes
+A `launch.Action` that holds a `str -> list[Action]` registry and executes
 only the actions registered under the key that matches a substitution at
 launch time.
 

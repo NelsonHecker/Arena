@@ -43,6 +43,8 @@ dependencies = [
     "chromadb",
     "colourings",
     "aiofiles",
+    "py-trees>=2.4.0",
+    "pyastar2d>=1.1.4",
     "hypothesis",
     "pathfinding3d>=0.7.2",
     "transformers>=5.5.4",
@@ -108,6 +110,7 @@ ignore = ["E501", "E402", "F841", "E731", "PYI051", "E741", "UP035"]
 
 [tool.ruff.lint.per-file-ignores]
 "arena_simulation_setup/**/*.py" = ["UP"]
+"utils/arena_rclpy_mixins/**/*.py" = ["UP046", "UP047"]
 
 [tool.ruff.lint.flake8-annotations]
 suppress-none-returning = true

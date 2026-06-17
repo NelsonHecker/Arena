@@ -1,6 +1,6 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
-from task_generator.shared import Door, DynamicObstacle, Obstacle, Robot, Wall
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
 
 
@@ -19,18 +19,36 @@ class DummyHumanSimulator(BaseHumanSimulator):
 
     async def _remove_obstacles_impl(
         self,
+        names: Sequence[str],
+    ) -> bool:
+        return True
+
+    async def _remove_pedestrians_impl(
+        self,
     ) -> bool:
         return True
 
     async def _spawn_walls_impl(
         self,
-        walls: Sequence[Wall],
+        walls: Mapping[str, Wall],
     ) -> bool:
         return True
 
     async def _spawn_doors_impl(
         self,
-        doors: Sequence[Door],
+        doors: Mapping[str, Door],
+    ) -> bool:
+        return True
+
+    async def _remove_walls_impl(
+        self,
+        names: Sequence[str],
+    ) -> bool:
+        return True
+
+    async def _remove_doors_impl(
+        self,
+        names: Sequence[str],
     ) -> bool:
         return True
 
@@ -51,3 +69,15 @@ class DummyHumanSimulator(BaseHumanSimulator):
         robots: Sequence[Robot],
     ) -> Sequence[bool]:
         return (True,) * len(robots)
+
+    async def _add_regions_impl(
+        self,
+        regions: Sequence[Region],
+    ) -> bool:
+        return True
+
+    async def _remove_regions_impl(
+        self,
+        regions: Sequence[Region],
+    ) -> bool:
+        return True

@@ -27,7 +27,6 @@ class EnvRecord:
     prespawn: tuple[float, float] = (0.0, 0.0)
     ready: bool = False
     draining: bool = False
-    bootstrapped: bool = False
     last_heartbeat: builtin_interfaces.msg.Time = attrs.Factory(builtin_interfaces.msg.Time)
 
 
@@ -59,6 +58,8 @@ class EnvRegistry:
         self,
         requested_env_id: int | None = None,
         requested_ns: str | None = None,
+        *,
+        now: builtin_interfaces.msg.Time,
     ) -> tuple[int, str]:
         if requested_env_id is not None:
             if requested_env_id in self._records:
@@ -82,6 +83,7 @@ class EnvRegistry:
         self._records[env_id] = EnvRecord(
             env_id=env_id,
             fqn=f"/{namespace}",
+            last_heartbeat=now,
         )
         return env_id, namespace
 
@@ -229,7 +231,6 @@ class EnvRegistry:
         record = self._records.get(env_id)
         if record is not None:
             record.last_heartbeat = stamp
-            record.bootstrapped = True
 
     def update_ready(self, env_id: int, ready: bool) -> None:
         record = self._records.get(env_id)
@@ -253,3 +254,24 @@ class EnvRegistry:
             msg.last_heartbeat = record.last_heartbeat
             result.append(msg)
         return result
+
+
+def sweep_verdict(
+    record: EnvRecord,
+    *,
+    elapsed: float,
+    has_reset_hold: bool,
+    process_alive: bool | None,
+    heartbeat_timeout: float,
+    reset_timeout: float,
+    bootstrap_timeout: float,
+) -> str | None:
+    """Return the eviction reason, or None to keep the env alive."""
+    if record.draining:
+        return None
+    if process_alive is False:
+        return "process_exited"
+    if not record.ready:
+        return "bootstrap_timeout" if elapsed > bootstrap_timeout else None
+    budget = reset_timeout if has_reset_hold else heartbeat_timeout
+    return "heartbeat_timeout" if elapsed > budget else None

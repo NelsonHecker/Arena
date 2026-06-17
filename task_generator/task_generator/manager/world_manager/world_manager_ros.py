@@ -84,6 +84,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
     _cli: ClientWrapper | None
     _cli_confirm_world: ClientWrapper
     _world_name: str
+    _world_mtime: float
     _map_server_present: bool
     _map_render_memo: dict[str, tuple[bytes, str]]
 
@@ -151,31 +152,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         t.transform.rotation.w = 1.0
         self.node._static_tf_broadcaster.sendTransform(t)
 
-    def _ensure_realizer_floors(self, world: World.WorldDescription) -> None:
-        """Ensure the Realizer has a zero-origin entry for every level id.
-
-        Single-level worlds often use a level id like "0"; register it so
-        `get_level_origin()` does not raise before explicit origins are loaded.
-        """
-        realizer: Realizer = self.node._realizer
-        for level_id in world.level_ids:
-            try:
-                realizer.register_floor(str(level_id), x=0.0, y=0.0)
-            except RuntimeError:
-                pass
-
-    def _seed_realizer_level_origins(self, origins: dict[str, tuple[float, float]] | None) -> None:
-        """Populate the Realizer with the per-level origins from the loaded world."""
-        if not origins:
-            return
-        realizer: Realizer = self.node._realizer
-        for level_id, origin in origins.items():
-            try:
-                realizer.set_origin(float(origin[0]), float(origin[1]), level_id=str(level_id))
-            except KeyError:
-                realizer.register_floor(str(level_id), x=float(origin[0]), y=float(origin[1]))
-
-    def _render_world_map(
+    async def _render_world_map(
         self,
         world_name: str,
         description: World.LevelDescription,
@@ -184,27 +161,34 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """Render (map.png bytes, map.yaml text) for a world, memoized per world for this process."""
         cached = self._map_render_memo.get(world_name)
         if cached is None:
-            cached = description.render_map_files(level_origins=level_origins, resolution=_DEFAULT_RESOLUTION)
+            # rasterizing a large world is CPU-heavy; keep it off the event loop
+            cached = await asyncio.to_thread(description.render_map_files, level_origins=level_origins, resolution=_DEFAULT_RESOLUTION)
             self._map_render_memo[world_name] = cached
         return cached
 
     async def apply_world(self, world_name: str) -> bool:
         """Synchronously swap to `world_name`. Must be called inside `_run_reset_cycle`'s hold."""
-        self._logger.info(f'World change requested: {world_name}')
-
-        if world_name == self._world_name:
-            return True
-
         bare_name, level_filter = World.WorldIdentifier.parse(world_name)
         world_view = await World.WorldIdentifier(bare_name).resolve()
+        mtimes = [p.stat().st_mtime for p in Path(world_view.path).glob('*/world.yaml')]
+        mtime = max(mtimes) if mtimes else 0.0
+
+        if world_name == self._world_name and mtime == self._world_mtime:
+            return True
+
+        self._logger.info(f'World change requested: {world_name}')
+
+        # regeneration reuses the name but rewrites world.yaml; drop the stale render
+        self._map_render_memo.pop(world_name, None)
+
         world = world_view.load(level_filter=level_filter)
         world.apply_elevator_door_sides()
         level_origins = world_view.level_origins()
-        self._seed_realizer_level_origins(level_origins)
-        compacted_description = world.compact_world(origins=level_origins if level_origins is not None else {fid: (0.0, 0.0) for fid in world.level_ids})
+        origins = level_origins if level_origins is not None else {fid: (0.0, 0.0) for fid in world.level_ids}
+        self.node._realizer.reset_level_origins(origins)
+        compacted_description = world.compact_world(origins=origins)
 
         multi_level_map = self._load_multi_level_map(Path(world_view.path))
-        self._ensure_realizer_floors(world)
         floors = [floor for level in world.all_levels for floor in level.all_floors]
         extent = arena_runtime_msgs.msg.WorldExtent()
         if floors:
@@ -244,6 +228,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_level_map)
 
         self._world_name = world_name
+        self._world_mtime = mtime
         self.node.rosparam[str].set('world', world_name)
 
         if self._map_server_present and compacted_description is not None:
@@ -256,7 +241,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
     async def _push_world_to_map_server(self, description: World.LevelDescription, level_origins: dict[str, tuple[float, float]] | None = None) -> None:
         """Render+shift+LoadMap. Caller guarantees map_server is present."""
-        png_bytes, map_yaml_text = self._render_world_map(self._world_name, description, level_origins=level_origins)
+        png_bytes, map_yaml_text = await self._render_world_map(self._world_name, description, level_origins=level_origins)
         tmp_map = self._shift_map(png_bytes, map_yaml_text)
         try:
             map_yaml = os.path.join(tmp_map.name, 'map.yaml')
@@ -367,6 +352,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             world_description=World.WorldDescription.from_levels(World.LevelDescription()),
         )
         self._world_name = ''
+        self._world_mtime = 0.0
         self._cli = None
         self._map_server_present = False
         self._map_server_lock = asyncio.Lock()

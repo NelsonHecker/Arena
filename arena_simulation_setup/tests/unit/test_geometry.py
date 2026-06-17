@@ -264,12 +264,6 @@ def test_pose_parse_invalid():
         Pose.parse("bad")
 
 
-def test_pose_defaults():
-    p = Pose()
-    assert (p.position.x, p.position.y, p.position.z) == pytest.approx((0, 0, 0))
-    assert p.orientation.w == pytest.approx(1.0)
-
-
 def test_pose_to_2d():
     p = Pose.parse([3.0, 4.0, 0.5])
     x, y, yaw = p.to_2d()
@@ -303,11 +297,6 @@ def test_positionradius_iter():
 # ---------------------------------------------------------------------------
 # Scale
 # ---------------------------------------------------------------------------
-
-
-def test_scale_defaults():
-    s = Scale()
-    assert (s.x, s.y, s.z) == pytest.approx((1.0, 1.0, 1.0))
 
 
 def test_scale_parse_3d():

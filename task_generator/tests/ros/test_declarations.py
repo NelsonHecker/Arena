@@ -38,7 +38,7 @@ def _last(node: _StubNode) -> tuple[str, object, object]:
 
 def test_declare_int_pair() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_int_pair
+    from arena_rclpy_mixins.declarations import declare_int_pair
 
     node = _StubNode()
     declare_int_pair(node, "task.random.static.n", [5, 15], label="Static count", description="counts")
@@ -52,7 +52,7 @@ def test_declare_int_pair() -> None:
 
 def test_declare_float_pair() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_float_pair
+    from arena_rclpy_mixins.declarations import declare_float_pair
 
     node = _StubNode()
     declare_float_pair(node, "task.x.range", [0.0, 1.0])
@@ -63,7 +63,7 @@ def test_declare_float_pair() -> None:
 
 def test_declare_catalog() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_catalog
+    from arena_rclpy_mixins.declarations import declare_catalog
 
     node = _StubNode()
     declare_catalog(node, "task.scenario.file", "default", catalog="scenarios", label="Scenario file")
@@ -75,7 +75,7 @@ def test_declare_catalog() -> None:
 
 def test_declare_catalog_array_empty_default() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_catalog_array
+    from arena_rclpy_mixins.declarations import declare_catalog_array
 
     node = _StubNode()
     declare_catalog_array(node, "task.random.static.models", [], catalog="objects")
@@ -87,7 +87,7 @@ def test_declare_catalog_array_empty_default() -> None:
 
 def test_declare_enum() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_enum
+    from arena_rclpy_mixins.declarations import declare_enum
 
     node = _StubNode()
     declare_enum(node, "task.prompt.generation_mode", "arena",
@@ -100,7 +100,7 @@ def test_declare_enum() -> None:
 
 def test_declare_int_with_range() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_int
+    from arena_rclpy_mixins.declarations import declare_int
 
     node = _StubNode()
     declare_int(node, "task.x.count", 5, lo=0, hi=10, step=2, label="Count")
@@ -114,7 +114,7 @@ def test_declare_int_with_range() -> None:
 
 
 def test_declare_int_without_range() -> None:
-    from task_generator.tasks.declarations import declare_int
+    from arena_rclpy_mixins.declarations import declare_int
 
     node = _StubNode()
     declare_int(node, "task.x.count", 5)
@@ -124,7 +124,7 @@ def test_declare_int_without_range() -> None:
 
 def test_declare_double_with_range() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_double
+    from arena_rclpy_mixins.declarations import declare_double
 
     node = _StubNode()
     declare_double(node, "task.x.gain", 0.5, lo=0.0, hi=1.0, step=0.1)
@@ -137,7 +137,7 @@ def test_declare_double_with_range() -> None:
 
 def test_declare_string() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_string
+    from arena_rclpy_mixins.declarations import declare_string
 
     node = _StubNode()
     declare_string(node, "task.prompt.user_prompt", "default", label="Prompt")
@@ -148,7 +148,7 @@ def test_declare_string() -> None:
 
 def test_declare_bool() -> None:
     import rclpy
-    from task_generator.tasks.declarations import declare_bool
+    from arena_rclpy_mixins.declarations import declare_bool
 
     node = _StubNode()
     declare_bool(node, "task.x.enabled", True)
@@ -158,7 +158,7 @@ def test_declare_bool() -> None:
 
 
 def test_label_omitted_when_empty() -> None:
-    from task_generator.tasks.declarations import declare_int_pair
+    from arena_rclpy_mixins.declarations import declare_int_pair
 
     node = _StubNode()
     declare_int_pair(node, "task.x.n", [0, 1])

@@ -26,6 +26,7 @@ services:
       - DISPLAY
       - UV_LINK_MODE=copy
       - UV_PYTHON_INSTALL_DIR=/opt/arena_ws/.uv-python
+      - AMENT_CMAKE_VENV_UV_OVERRIDES=/opt/arena_ws/src/Arena/_meta/docker/uv-overrides.txt
       - ARENA_IMAGE
       - ARENA_IMAGE_TAG
       - ARENA_PROJECT_NAME
@@ -36,6 +37,7 @@ services:
       - HOST_ARENA_DATA_DIR
       - ARENA_DATA_DIR=/opt/arena_ws/data
       - ROSNAV_AGENTS_DIR=/opt/arena_ws/data/agents
+      - HF_HOME=/opt/arena_ws/data/hf
       - LLM_API_ENDPOINT
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - CYCLONEDDS_URI=file:///opt/arena_ws/src/Arena/_meta/docker/cyclonedds.xml

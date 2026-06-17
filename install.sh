@@ -42,7 +42,7 @@ echo 'Building Arena...'
 cd $ARENA_WS_DIR
 printf '%s\n' \
     'arena feature robots install' \
-    'arena feature robots add jackal turtlebot' \
+    'arena feature robots add jackal turtlebot mpo700' \
     'exit' \
 | source arena
 

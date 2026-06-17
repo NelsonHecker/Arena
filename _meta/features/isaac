@@ -126,7 +126,7 @@ source_fn(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <update|uninstall|source|launch>"
+    echo "Usage: $name <install|update|uninstall|source|launch>"
 }
 if [ $# -lt 1 ]; then
     help
@@ -136,6 +136,10 @@ case "$1" in
     launch)
         shift
         exec ros2 launch arena_isaac run_isaacsim.launch.py "$@"
+    ;;
+    install)
+        _feature_default_install "$name"
+        exit $?
     ;;
     update)
         update

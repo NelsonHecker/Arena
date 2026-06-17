@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import abc
+import contextvars
 import traceback
 import typing
+from collections.abc import Mapping
 from copy import deepcopy
 
 import cattrs
+
+from arena_simulation_setup.utils.resolution import activate_resolver
+
+if typing.TYPE_CHECKING:
+    from arena_simulation_setup.utils.geometry import PointResolver
+
+_active_converter: contextvars.ContextVar[ArenaConverter] = contextvars.ContextVar('_active_converter')
 
 
 class ArenaConverter(cattrs.Converter):
@@ -15,6 +24,11 @@ class ArenaConverter(cattrs.Converter):
         super().__init__(*args, **kwargs)
         self._encoders: dict[type, typing.Callable] = {}
         self._decoders: list[tuple[typing.Callable[[type], bool], typing.Callable]] = []
+        self._resolver: PointResolver | None = None
+
+    def set_resolver(self, resolver: PointResolver | None) -> None:
+        """Bind a zone resolver, activated while this converter structures values."""
+        self._resolver = resolver
 
     @property
     def type_encoders(self) -> dict[type, typing.Callable]:
@@ -61,6 +75,27 @@ class ArenaConverter(cattrs.Converter):
             self._decoders.insert(0, (predicate, func))
             # return super().register_structure_hook_func(predicate, func)
         return super().register_structure_hook(cl, *args, **kwargs)
+
+    def structure(self, obj: object, cl: type[T]) -> T:
+        token = _active_converter.set(self)
+        try:
+            with activate_resolver(self._resolver):
+                return super().structure(obj, cl)
+        finally:
+            _active_converter.reset(token)
+
+    def structure_attrs_fromdict(self, obj: Mapping[str, object], cl: type) -> object:
+        token = _active_converter.set(self)
+        try:
+            with activate_resolver(self._resolver):
+                return super().structure_attrs_fromdict(obj, cl)
+        finally:
+            _active_converter.reset(token)
+
+    @staticmethod
+    def current() -> ArenaConverter:
+        """Return the converter currently performing structuring, or the module default."""
+        return _active_converter.get(converter)
 
 
 converter = ArenaConverter()
@@ -166,6 +201,7 @@ class Parseable:
 
             def try_parse(value: object, target_type: type) -> object:
                 errors: list[Exception] = []
+                c = ArenaConverter.current()
                 # check idempotence
                 try:
                     if isinstance(value, target_type):
@@ -182,7 +218,7 @@ class Parseable:
                 # try "normal" attrs structuring
                 try:
                     if isinstance(value, dict):
-                        return converter.structure_attrs_fromdict(value, target_type)
+                        return c.structure_attrs_fromdict(value, target_type)
                 except Exception as e:
                     errors.append(e)
 

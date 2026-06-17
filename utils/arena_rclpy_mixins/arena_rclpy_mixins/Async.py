@@ -190,7 +190,7 @@ class AsyncUtil:
 ServiceT = typing.TypeVar('ServiceT')
 
 
-class ClientWrapper[ServiceT]:
+class ClientWrapper(typing.Generic[ServiceT]):
     """Async wrapper around rclpy.client.Client."""
 
     def __init__(self, node: AsyncNode, client: rclpy.client.Client, timeout: float = 60.0):
@@ -236,7 +236,7 @@ class ClientWrapper[ServiceT]:
 ActionT = typing.TypeVar('ActionT')
 
 
-class ActionClientWrapper[ActionT]:
+class ActionClientWrapper(typing.Generic[ActionT]):
     """Async wrapper around rclpy.action.ActionClient."""
 
     def __init__(self, node: AsyncNode, action_client: rclpy.action.ActionClient, timeout: float = 60.0):

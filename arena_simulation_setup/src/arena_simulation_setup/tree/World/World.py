@@ -3,6 +3,7 @@ import logging
 import math
 import os
 import tarfile
+import time
 import typing
 from collections.abc import Iterator
 from copy import deepcopy
@@ -15,6 +16,7 @@ from typing_extensions import Self
 
 from arena_simulation_setup import ASS_DIR
 from arena_simulation_setup.shared import (
+    Ceiling,
     Door,
     DynamicObstacle,
     Elevator,
@@ -28,7 +30,7 @@ from arena_simulation_setup.tree.assets.Material import (
     MaterialIdentifier,
 )
 from arena_simulation_setup.utils.cattrs import ArenaConverter, converter
-from arena_simulation_setup.utils.geometry import Orientation, Pose, Position, sample_point_in_polygon
+from arena_simulation_setup.utils.geometry import PointResolver, Position
 
 from .Map import Map
 from .Scenario import RegionAssignment, ScenarioView
@@ -66,6 +68,13 @@ class LevelDescription:
         doors: list[Door] = attrs.field(factory=list)
         elevators: list[Elevator] = attrs.field(factory=list)
         entities: WorldEntities = attrs.field(factory=WorldEntities)
+        ceiling: bool = attrs.field(default=True)
+        ceiling_height: float | None = attrs.field(default=None)
+        ceiling_cast_shadows: bool = attrs.field(default=False)
+        ceiling_material: MaterialIdentifier = attrs.field(
+            converter=MaterialIdentifier.converter,
+            default=Material.default('ceiling'),
+        )
 
         @property
         def floor(self) -> Floor:
@@ -95,6 +104,41 @@ class LevelDescription:
     @property
     def all_floors(self) -> typing.Iterable[Floor]:
         return (zone.floor for zone in self.zones)
+
+    async def all_ceilings(self) -> list[Ceiling]:
+        result: list[Ceiling] = []
+        for zone in self.zones:
+            if not zone.ceiling:
+                continue
+            if not zone.corners:
+                continue
+            x_min = min(corner.x for corner in zone.corners)
+            y_min = min(corner.y for corner in zone.corners)
+            x_max = max(corner.x for corner in zone.corners)
+            y_max = max(corner.y for corner in zone.corners)
+            pos = Position(x=(x_min + x_max) / 2, y=(y_min + y_max) / 2)
+            x_length = x_max - x_min
+            y_length = y_max - y_min
+            if zone.ceiling_height is not None:
+                z = zone.ceiling_height
+            else:
+                z = 2.0
+                for wall in zone.walls:
+                    segments, _ = await wall.assets()
+                    for segment in segments:
+                        z = max(z, segment.start.z + segment.height)
+            result.append(
+                Ceiling(
+                    name=zone.name,
+                    pos=pos,
+                    x_length=x_length,
+                    y_length=y_length,
+                    z=z,
+                    cast_shadows=zone.ceiling_cast_shadows,
+                    material=zone.ceiling_material,
+                )
+            )
+        return result
 
     @property
     def all_static_entities(self) -> typing.Iterable[Obstacle]:
@@ -137,6 +181,29 @@ class LevelDescription:
                     return elevator.cabin_corners()
         return None
 
+    def zone_ref_names(self) -> list[str]:
+        """Every name resolvable by lookup_zone_polygon (zones, doors, elevators)."""
+        names: list[str] = []
+        for zone in self.zones:
+            names.append(zone.name)
+            names.extend(door.name for door in zone.doors)
+            names.extend(elevator.name for elevator in zone.elevators)
+        return names
+
+    def point_resolver(
+        self,
+        rng: np.random.Generator,
+        *,
+        is_valid: typing.Callable[[Position], bool] | None = None,
+    ) -> PointResolver:
+        """Resolver that samples a point inside a named zone/door/elevator polygon."""
+        return PointResolver(
+            lookup=self.lookup_zone_polygon,
+            rng=rng,
+            is_valid=is_valid,
+            candidates=self.zone_ref_names,
+        )
+
     def zone_converter(
         self,
         rng: np.random.Generator,
@@ -145,32 +212,12 @@ class LevelDescription:
     ) -> ArenaConverter:
         """Return a converter that resolves zone/door/elevator names to geometry.
 
-        String values for Pose/Position fields are resolved by sampling a
-        random point within the named zone polygon. RegionAssignment dicts
-        with a ``ref`` key get their polygon resolved from the floor.
+        String values for Pose/Position/Waypoint fields are resolved by the active
+        PointResolver (a random point sampled within the named zone polygon).
+        RegionAssignment dicts with a ``ref`` key get their polygon resolved here.
         """
         lookup = self.lookup_zone_polygon
-
-        base_pose_hook = converter.get_structure_hook(Pose)
-        base_position_hook = converter.get_structure_hook(Position)
         base_region_hook = converter.get_structure_hook(RegionAssignment)
-
-        def pose_hook(v: object, t: type) -> Pose:
-            if isinstance(v, str):
-                polygon = lookup(v)
-                if polygon is None:
-                    raise ValueError(f"zone ref '{v}' not found in world")
-                pt = sample_point_in_polygon(polygon, rng, is_valid=is_valid)
-                return Pose(position=pt, orientation=Orientation.identity())
-            return base_pose_hook(v, t)
-
-        def position_hook(v: object, t: type) -> Position:
-            if isinstance(v, str):
-                polygon = lookup(v)
-                if polygon is None:
-                    raise ValueError(f"zone ref '{v}' not found in world")
-                return sample_point_in_polygon(polygon, rng, is_valid=is_valid)
-            return base_position_hook(v, t)
 
         def region_hook(v: object, t: type) -> RegionAssignment:
             if isinstance(v, dict) and 'ref' in v:
@@ -182,8 +229,7 @@ class LevelDescription:
             return base_region_hook(v, t)
 
         c = converter.copy()
-        c.register_structure_hook(Pose, pose_hook)
-        c.register_structure_hook(Position, position_hook)
+        c.set_resolver(self.point_resolver(rng, is_valid=is_valid))
         c.register_structure_hook(RegionAssignment, region_hook)
         return c
 
@@ -861,22 +907,29 @@ class MultiLevelWorldView(PathView):
 
         if not hasattr(tarfile, 'data_filter'):
             tarball.extractall(self.path)
-            return self.path
+        else:
+            _filter = tarfile.data_filter
+            if map_only:
 
-        _filter = tarfile.data_filter
-        if map_only:
-
-            def map_only_filter(member: tarfile.TarInfo, destpath: str) -> tarfile.TarInfo | None:
-                if not tarfile.data_filter(member, destpath):
+                def map_only_filter(member: tarfile.TarInfo, destpath: str) -> tarfile.TarInfo | None:
+                    if not tarfile.data_filter(member, destpath):
+                        return None
+                    parts = member.name.split('/', 1)
+                    if len(parts) == 2 and parts[1] in {'map.png', 'map.yaml'}:
+                        return member
                     return None
-                parts = member.name.split('/', 1)
-                if len(parts) == 2 and parts[1] in {'map.png', 'map.yaml'}:
-                    return member
-                return None
 
-            _filter = map_only_filter
+                _filter = map_only_filter
 
-        tarball.extractall(self.path, filter=_filter)
+            tarball.extractall(self.path, filter=_filter)
+
+        # tar members carry epoch-0 mtime; stamp extracted files with the write time so a re-saved world is detectable
+        now = time.time()
+        for member in tarball.getmembers():
+            extracted = os.path.join(self.path, member.name)
+            if member.isfile() and os.path.exists(extracted):
+                os.utime(extracted, (now, now))
+
         return self.path
 
     def level_origins(self) -> dict[str, tuple[float, float]] | None:

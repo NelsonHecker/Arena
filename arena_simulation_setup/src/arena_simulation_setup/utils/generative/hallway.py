@@ -1,5 +1,4 @@
 import logging
-import random
 from collections.abc import Iterable
 
 import shapely
@@ -23,17 +22,13 @@ class WorldGeneratorHallway(WorldGeneratorImpl):
         # Room parameters (for each side)
         rooms_per_side: int = 7
 
-        # For "big" rooms (first and last)
-        big_min_width: float = 18.0
-        big_max_width: float = 28.0
-        big_min_height: float = 12.0
-        big_max_height: float = 20.0
+        # For "big" rooms (first and last); (min, max)
+        big_width: tuple[float, float] = (18.0, 28.0)
+        big_height: tuple[float, float] = (12.0, 20.0)
 
-        # For "small" rooms (intermediate ones)
-        small_min_width: float = 6.0
-        small_max_width: float = 12.0
-        small_min_height: float = 7.0
-        small_max_height: float = 14.0
+        # For "small" rooms (intermediate ones); (min, max)
+        small_width: tuple[float, float] = (6.0, 12.0)
+        small_height: tuple[float, float] = (7.0, 14.0)
 
         # door width
         door_width: float = 2.5
@@ -84,11 +79,11 @@ class WorldGeneratorHallway(WorldGeneratorImpl):
 
         for i in range(num_rooms):
             if i == 0 or i == num_rooms - 1:
-                w = random.uniform(self.config.big_min_width, self.config.big_max_width)
-                h = random.uniform(self.config.big_min_height, self.config.big_max_height)
+                w = self.rng.uniform(*self.config.big_width)
+                h = self.rng.uniform(*self.config.big_height)
             else:
-                w = random.uniform(self.config.small_min_width, self.config.small_max_width)
-                h = random.uniform(self.config.small_min_height, self.config.small_max_height)
+                w = self.rng.uniform(*self.config.small_width)
+                h = self.rng.uniform(*self.config.small_height)
             widths.append(w)
             heights.append(h)
 
@@ -107,7 +102,7 @@ class WorldGeneratorHallway(WorldGeneratorImpl):
                 y = self.config.hallway_bottom - h
                 door_y = self.config.hallway_bottom
             if w > self.config.door_width:
-                door_start = random.uniform(current_x + self.config.door_width, current_x + w - self.config.door_width)
+                door_start = self.rng.uniform(current_x + self.config.door_width, current_x + w - self.config.door_width)
                 door_end = door_start + self.config.door_width
             else:
                 door_start, door_end = current_x, current_x + w

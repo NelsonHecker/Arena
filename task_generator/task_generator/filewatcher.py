@@ -78,8 +78,8 @@ def run(namespace: str | None = None):
 
             rospy.logdebug("SENSING CHANGE OF TASK_MODE PARAMS")
 
-            if 'ros__parameters' in content:
-                set_ros_params(content['ros__parameters'])
+            if "ros__parameters" in content:
+                set_ros_params(content["ros__parameters"])
 
         def on_modified(self, event: watchdog.events.FileSystemEvent) -> None:
             @safe_callback

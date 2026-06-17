@@ -16,6 +16,9 @@ setup(
         ('share/' + package_name, ['package.xml']),
     ],
     install_requires=['setuptools'],
+    extras_require={
+        'test': ['pytest>=7'],
+    },
     zip_safe=True,
     maintainer='voshch',
     maintainer_email='dev@voshch.dev',

@@ -48,7 +48,16 @@ def update_freespace_indices_maze(map_: nav_msgs.OccupancyGrid) -> tuple[np.ndar
     width_in_cell, height_in_cell = map_.info.width, map_.info.height
     map_2d = np.reshape(map_.data, (height_in_cell, width_in_cell))
     # height range and width range
-    wall_occupancy = np.array([[1.25, 12.65, 10.6, 10.8], [-4.45, 18.35, 16.3, 16.5], [-4.45, 18.35, 4.9, 5.1], [12.55, 12.75, -0.7, 22.1], [1.15, 1.35, -0.7, 22.1], [6.85, 7.05, 5.0, 16.4]])
+    wall_occupancy = np.array(
+        [
+            [1.25, 12.65, 10.6, 10.8],
+            [-4.45, 18.35, 16.3, 16.5],
+            [-4.45, 18.35, 4.9, 5.1],
+            [12.55, 12.75, -0.7, 22.1],
+            [1.15, 1.35, -0.7, 22.1],
+            [6.85, 7.05, 5.0, 16.4],
+        ]
+    )
     size = wall_occupancy.shape[0]
     for ranges in wall_occupancy:
         height_low = int(ranges[0] / map_.info.resolution)

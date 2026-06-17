@@ -7,9 +7,9 @@ CLI for managing planner submodules of the `arena_planners` SDK. Each planner is
 ```sh
 arena feature planners ls                    # list available planners (registered + locally-present)
 arena feature planners check                 # init/uninit status for each
-arena feature planners add <name> [<name>…]  # init submodule(s) + fetch HF weights
+arena feature planners add <name> [<name>…]  # init submodule(s) + fetch HF weights (alias: install)
 arena feature planners add --all             # init every registered planner
-arena feature planners rm <name>             # deinit submodule (keeps the gitmodules entry)
+arena feature planners rm <name>             # deinit submodule (alias: uninstall <name>; keeps the gitmodules entry)
 arena feature planners update                # git submodule update --recursive within the SDK
 arena feature planners uninstall             # deinit every initialized planner
 ```
