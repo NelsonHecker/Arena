@@ -61,38 +61,13 @@ def planner_submodules(arena: Path) -> dict[str, list[str]]:
     return out
 
 
-def _directory_scan(arena: Path) -> list[str]:
-    """Return planner names from dirs containing planner.py under the planners subdir."""
-    root = arena / _PLANNERS_SUBDIR
-    if not root.is_dir():
-        return []
-    names: list[str] = []
-    for entry in sorted(root.iterdir()):
-        if not entry.is_dir():
-            continue
-        if entry.name.startswith("."):
-            continue
-        if entry.name.endswith("_wrap"):
-            continue
-        if (entry / "planner.py").is_file():
-            names.append(entry.name)
-    return names
-
-
 def _path_planners(arena: Path) -> dict[str, set[str]]:
-    """{path: {planners tagging it}} — reverse of planner_submodules for sharing checks."""
+    """{path: {planners tagging it}} (reverse of planner_submodules for sharing checks)."""
     out: dict[str, set[str]] = {}
     for planner, paths in planner_submodules(arena).items():
         for p in paths:
             out.setdefault(p, set()).add(planner)
     return out
-
-
-def all_planners(arena: Path) -> list[str]:
-    """Union of submodule-registered and locally-present planners, sorted."""
-    names: set[str] = set(planner_submodules(arena).keys())
-    names |= set(_directory_scan(arena))
-    return sorted(names)
 
 
 def _is_local_only(planner: str, subs: dict[str, list[str]]) -> bool:
@@ -103,19 +78,16 @@ def _git(args: list[str], arena: Path, *, check: bool = True) -> int:
     return subprocess.run(["git", *args], cwd=arena, check=check).returncode
 
 
+def _cli(arena: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run the arena_planners CLI (the registry + weights SSOT) from source."""
+    pkg_parent = arena / _SDK_SUBDIR / "arena_planners"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(p for p in (str(pkg_parent), env.get("PYTHONPATH", "")) if p)
+    return subprocess.run([sys.executable, "-m", "arena_planners", *args], cwd=arena, env=env, check=False)
+
+
 def cmd_ls(arena: Path, _args) -> int:
-    subs = planner_submodules(arena)
-    status = submodule_status(arena)
-    for planner in all_planners(arena):
-        if _is_local_only(planner, subs):
-            local = arena / _PLANNERS_SUBDIR / planner
-            installed = (local / ".venv").is_dir()
-            marker = "[x]" if installed else "[ ]"
-            print(f"{marker} {planner} (local)")
-        else:
-            pending = any(status.get(p) == "uninit" for p in subs.get(planner, []))
-            print(f"{'[ ]' if pending else '[x]'} {planner}")
-    return 0
+    return _cli(arena, "ls").returncode
 
 
 def cmd_add(arena: Path, args) -> int:
@@ -166,31 +138,12 @@ def cmd_add(arena: Path, args) -> int:
             sub_path = Path(p).relative_to(_SDK_SUBDIR).as_posix()
             _git(["-c", "protocol.file.allow=always",
                   "submodule", "update", "--init", "--checkout", sub_path], sdk)
-            _fetch_weights(arena / p)
+        _fetch_weights(arena, planner)
     return rc
 
 
-def _fetch_weights(planner_dir: Path) -> None:
-    """Download each file in `<planner_dir>/weights.yaml` via huggingface_hub."""
-    manifest = planner_dir / "weights.yaml"
-    if not manifest.is_file():
-        return
-    import yaml
-    from huggingface_hub import hf_hub_download
-    with open(manifest) as f:
-        data = yaml.safe_load(f) or {}
-    for entry in data.get("files") or []:
-        repo = entry["repo"]
-        filename = entry["filename"]
-        dest = planner_dir / entry["dest"]
-        if dest.is_file():
-            continue
-        cached = hf_hub_download(repo_id=repo, filename=filename)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if dest.is_symlink() or dest.exists():
-            dest.unlink()
-        dest.symlink_to(cached)
-        print(f"planners: {repo}/{filename} -> {dest.relative_to(planner_dir)}")
+def _fetch_weights(arena: Path, planner: str) -> None:
+    _cli(arena, "fetch", planner)
 
 
 def cmd_rm(arena: Path, args) -> int:
@@ -258,35 +211,22 @@ def cmd_uninstall(arena: Path, _args) -> int:
 def cmd_check(arena: Path, args) -> int:
     subs = planner_submodules(arena)
     status = submodule_status(arena)
-    names = all_planners(arena)
-    if not names:
+    if not subs:
         if not args.quiet:
-            print("planners: no planners registered or present locally")
+            print("planners: no planners registered")
         return 0
     rc = 0
-    for planner in names:
-        if _is_local_only(planner, subs):
-            local = arena / _PLANNERS_SUBDIR / planner
-            present = (local / "planner.py").is_file()
-            if present:
-                if not args.quiet:
-                    print(f"[x] {planner}: local directory")
-            else:
-                if not args.quiet:
-                    print(f"[ ] {planner}: local directory missing planner.py")
-                rc = 1
-        else:
-            paths = subs.get(planner, [])
-            pending = [p for p in paths if status.get(p) != "init"]
-            if pending:
-                if not args.quiet:
-                    for p in pending:
-                        print(f"[ ] {planner}: {p} not initialized")
-                rc = 1
-            else:
-                if not args.quiet:
-                    for p in paths:
-                        print(f"[x] {planner}: {p}")
+    for planner in sorted(subs):
+        paths = subs[planner]
+        pending = [p for p in paths if status.get(p) != "init"]
+        if pending:
+            rc = 1
+            if not args.quiet:
+                for p in pending:
+                    print(f"[ ] {planner}: {p} not initialized")
+        elif not args.quiet:
+            for p in paths:
+                print(f"[x] {planner}: {p}")
     return rc
 
 
