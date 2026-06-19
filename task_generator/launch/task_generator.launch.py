@@ -153,11 +153,13 @@ def generate_launch_description():
         description="arm adapter kind",
     )
     record_data_dir = LaunchArgument(name="record_data_dir", default_value="")
+    disable_auto_recorder = LaunchArgument(name="disable_auto_recorder", default_value="false")
     LaunchArgument(
         name="debug",
         default_value="",
         description="comma list of debug tokens (e.g. aiomonitor,map_server); also debug.<token>:=true",
     )
+    debug = LaunchArgument(name="debug", default_value="False")
     auto_reset = LaunchArgument(
         name="auto_reset",
         default_value="true",
@@ -347,13 +349,34 @@ def generate_launch_description():
             ],
         )
 
+        data_recorder_process = launch.actions.ExecuteProcess(
+            cmd=[
+                'ros2', 'run', 'arena_evaluation', 'record',
+                '--ros-args',
+                '-p', 'use_sim_time:=true',
+                '-p', ['record_data_dir:=', record_data_dir.substitution],
+                '-r', ['__ns:=/', allocated_ns],
+            ],
+            output='screen',
+            condition=launch.conditions.IfCondition(
+                launch.substitutions.PythonExpression([
+                    "'", record_data_dir.substitution, "' != '' and '", disable_auto_recorder.substitution, "' != 'true'"
+                ])
+            )
+        )
+
+        inner_group = launch.actions.GroupAction([
+            PushRosNamespace(namespace=allocated_ns),
+            pedestrian_marker_node,
+        ])
+
         shutdown_on_node_exit = RegisterEventHandler(OnProcessExit(
             target_action=task_generator_node,
             on_exit=[launch.actions.Shutdown(reason="task_generator_node exited")],
         ))
 
         env_actions: list[launch.LaunchDescriptionEntity] = [
-            IsolatedGroupAction([human_launch, pedestrian_marker_node, task_generator_node]),
+            IsolatedGroupAction([human_launch, pedestrian_marker_node, task_generator_node, data_recorder_process]),
         ]
         if truthy(debug_flags.get("debug.aiomonitor")):
             env_actions.append(launch.actions.RegisterEventHandler(debug_window_cb))
