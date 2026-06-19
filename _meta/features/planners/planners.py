@@ -91,6 +91,20 @@ def _is_local_only(planner: str, subs: dict[str, list[str]]) -> bool:
     return planner not in subs
 
 
+def _local_planners(arena: Path, subs: dict[str, list[str]]) -> list[str]:
+    """Local planner dirs (a planner.py) under the planners subdir, excluding registered submodules."""
+    root = arena / _PLANNERS_SUBDIR
+    if not root.is_dir():
+        return []
+    names: list[str] = []
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir() or entry.name.startswith(".") or entry.name.endswith("_wrap"):
+            continue
+        if entry.name not in subs and (entry / "planner.py").is_file():
+            names.append(entry.name)
+    return names
+
+
 def _git(args: list[str], arena: Path, *, check: bool = True) -> int:
     return subprocess.run(["git", *args], cwd=arena, check=check).returncode
 
@@ -114,7 +128,7 @@ def cmd_add(arena: Path, args) -> int:
         if args.names:
             print("planners: --all is mutually exclusive with planner names", file=sys.stderr)
             return 2
-        names = sorted(subs)
+        names = sorted(subs) + _local_planners(arena, subs)
     else:
         if not args.names:
             print("planners: specify planner name(s) or --all", file=sys.stderr)
@@ -125,11 +139,7 @@ def cmd_add(arena: Path, args) -> int:
         if _is_local_only(planner, subs):
             local = arena / _PLANNERS_SUBDIR / planner
             if (local / "planner.py").is_file():
-                print(
-                    f"planners: '{planner}' is a local directory; "
-                    f"submodule must be added via `git submodule add ...` first",
-                    file=sys.stderr,
-                )
+                _fetch_weights(arena, planner)
             else:
                 available = sorted(subs)
                 avail_str = ", ".join(available) if available else "(none)"
@@ -137,7 +147,7 @@ def cmd_add(arena: Path, args) -> int:
                     f"planners: planner '{planner}' not found. Available: [{avail_str}].",
                     file=sys.stderr,
                 )
-            rc = 1
+                rc = 1
             continue
         paths = subs.get(planner)
         if paths is None:
