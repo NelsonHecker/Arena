@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import attrs
@@ -98,3 +99,4 @@ class Region:
     type: str  # "source" | "sink"
     polygon: list[Position] = attrs.field(factory=list)  # CCW vertices, 2D
     config: dict = attrs.Factory(dict)  # type-specific passthrough
+    included_from: Path | None = None

@@ -76,7 +76,7 @@ class ArenaConverter(cattrs.Converter):
             # return super().register_structure_hook_func(predicate, func)
         return super().register_structure_hook(cl, *args, **kwargs)
 
-    def structure(self, obj: object, cl: type) -> object:
+    def structure(self, obj: object, cl: type[T]) -> T:
         token = _active_converter.set(self)
         try:
             with activate_resolver(self._resolver):

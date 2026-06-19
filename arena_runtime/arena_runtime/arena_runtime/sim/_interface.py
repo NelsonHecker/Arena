@@ -22,6 +22,22 @@ if typing.TYPE_CHECKING:
     from arena_rclpy_mixins import ArenaMixinNode
 
 
+_BOX_FLOOR_CLEARANCE = 0.01  # keep the box base off the floor plane to avoid z-fight / poke-through
+
+
+async def resolve_obstacle_box(obstacle: Obstacle) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+    """Obstacle's annotated bbox as (size, center), or None to fall back to the mesh.
+    z is grounded so the base rests just above pose.z, elevated geometry keeps its height."""
+    try:
+        view = await obstacle.model.resolve()
+    except FileNotFoundError:
+        return None
+    if view.bbox is None:
+        return None
+    size, (cx, cy, cz) = view.bbox
+    return size, (cx, cy, max(cz, size[2] / 2 + _BOX_FLOOR_CLEARANCE))
+
+
 @typing.runtime_checkable
 class HumanSimulator(typing.Protocol):
     """Capabilities the mechanism layer reads from the attached human simulator."""

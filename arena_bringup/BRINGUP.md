@@ -320,17 +320,22 @@ Default is `gazebo`. Valid values:
 
 Two open, dev-oriented flag namespaces. `debug:=a,b` is shorthand for
 `debug.a:=1 debug.b:=1` (same for `optim`); the dotted form is canonical and
-wins on conflict, so `optim:=no_obstacles optim.no_obstacles:=false` leaves it
-off. Unknown flags are silently ignored - these are throwaway testing knobs, not
-a supported experiment surface.
+wins on conflict, so `optim:=obstacles optim.obstacles:=full` leaves obstacles
+at full fidelity. Unknown flags are silently ignored - these are throwaway
+testing knobs, not a supported experiment surface.
 
 | Flag | Effect |
 |---|---|
 | `debug:=aiomonitor` | Open an aiomonitor console on the env's asyncio loop (port `20101 + env_id*10`). |
 | `debug:=map_server` | Force-launch the map server even when no adapter requested it. |
-| `optim:=no_obstacles` | Silently skip all static obstacle spawns (world + episode). Pedestrians, walls, and floors are kept. |
+| `optim.obstacles:=bbox` | Spawn static obstacles as bounding-box primitives (read from each asset's `annotation.yaml`) instead of full meshes; assets without a `bounding_box` annotation fall back to the mesh. |
+| `optim.obstacles:=none` | Silently skip all static obstacle spawns (world + episode). Pedestrians, walls, and floors are kept. |
 
-Combine freely: `debug:=aiomonitor,map_server`, `optim:=no_obstacles`, or the
+`optim.obstacles` is a graded knob: `full` (default, `0`), `bbox` (`1`), `none`
+(`2`); pass the alias or the number. Bare `optim:=obstacles` is shorthand for
+`bbox`. The legacy `optim:=no_obstacles` still maps to `none`.
+
+Combine freely: `debug:=aiomonitor,map_server`, `optim.obstacles:=bbox`, or the
 dotted equivalents. `optim:=no_camera` / `optim:=no_lidar` also exist (they strip
 those sensors from the robot URDF on the simulator side) but are best-effort and
 unsupported.

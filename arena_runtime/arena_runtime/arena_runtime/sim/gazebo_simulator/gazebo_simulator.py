@@ -43,6 +43,7 @@ from task_generator.shared import (
     Robot,
     Wall,
 )
+from task_generator.utils.flags import ObstaclesOptim, obstacles_optim_level
 
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
@@ -51,6 +52,7 @@ from arena_runtime.sim._control import (
     render_ros2_control_yaml,
     twist_stamper_node,
 )
+from arena_runtime.sim._interface import resolve_obstacle_box
 from arena_runtime.sim._walls import realize_renderable
 
 from .robot_bridge import BridgeConfiguration
@@ -224,7 +226,21 @@ class GazeboSimulator(BaseSim):
         return render_ros2_control_yaml(config_uri, robot.sim_path, frame_prefix)
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
-        return await asyncio.gather(*map(self._spawn_entity, obstacles))
+        level = obstacles_optim_level(self.node)
+        return await asyncio.gather(*(self._spawn_obstacle(o, level) for o in obstacles))
+
+    async def _spawn_obstacle(self, obstacle: Obstacle, level: ObstaclesOptim) -> bool:
+        if level is ObstaclesOptim.BBOX and (box := await resolve_obstacle_box(obstacle)) is not None:
+            return await self._spawn_box_obstacle(obstacle, *box)
+        return await self._spawn_entity(obstacle)
+
+    async def _spawn_box_obstacle(self, obstacle: Obstacle, size: tuple[float, float, float], center: tuple[float, float, float]) -> bool:
+        sdf = _generate_box_sdf(obstacle.sim_path, size, center)
+        async with self._semaphore:
+            ok = await self._spawn_sdf(obstacle.sim_path, sdf, obstacle.pose)
+        if ok:
+            self.entities[obstacle.name] = obstacle
+        return ok
 
     async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
         # Ped actors are created and removed by PedSkeletonPlugin from arena_peds.
@@ -934,6 +950,7 @@ _BOX_SDF_TEMPLATE = """
     <model name="{name}">
         <static>true</static>
         <link name="link">
+            <pose>{cx} {cy} {cz} 0 0 0</pose>
             <visual name="visual">
                 <geometry><box><size>{sx} {sy} {sz}</size></box></geometry>
                 {material}
@@ -947,6 +964,7 @@ _BOX_SDF_TEMPLATE = """
 """
 
 
-def _generate_box_sdf(name: str, size: tuple[float, float, float]) -> str:
+def _generate_box_sdf(name: str, size: tuple[float, float, float], center: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> str:
     sx, sy, sz = size
-    return _BOX_SDF_TEMPLATE.format(name=name, sx=sx, sy=sy, sz=sz, material=_wall_material_sdf(None))
+    cx, cy, cz = center
+    return _BOX_SDF_TEMPLATE.format(name=name, sx=sx, sy=sy, sz=sz, cx=cx, cy=cy, cz=cz, material=_wall_material_sdf(None))

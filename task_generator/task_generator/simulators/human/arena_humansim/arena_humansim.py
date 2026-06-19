@@ -87,7 +87,7 @@ from rclpy.qos import (
 from task_generator.constants import Constants
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
-from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle
+from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle, resolve_agent_type_path
 from visualization_msgs.msg import MarkerArray
 
 
@@ -602,7 +602,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         tmpl.desired_velocity_max = vel.get("max", 1.5) if isinstance(vel, dict) else float(vel)
         tmpl.agent_radius = raw_tmpl.get("agent_radius", 0.35)
         tmpl.behavior_tree = raw_tmpl.get("behavior_tree", "default")
-        tmpl.agent_type = raw_tmpl.get("agent_type", "adult")
+        tmpl.agent_type = resolve_agent_type_path(raw_tmpl.get("agent_type", "adult"), region.included_from)
         for sa in raw_tmpl.get("sink_affinity", []):
             tmpl.sink_affinity.append(SinkAffinityMsg(sink_name=sa.get("sink", ""), weight=sa.get("weight", 1.0)))
         src_msg.agent = tmpl
@@ -696,38 +696,40 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         world_objects_request = AddWorldObjects.Request()
         for obstacle, resolved in zip(obstacles, resolved_paths, strict=False):
             try:
-                if isinstance(resolved, BaseException):
-                    raise resolved
-                annotation_path = resolved / "annotation.yaml"
-                with open(annotation_path) as f:
-                    annotation: dict = yaml.safe_load(f.read())
-
-                (x_min, x_max), (y_min, y_max), (z_min, z_max) = annotation["bounding_box"]
-
-                obstacle_type = annotation.get("name", "") or annotation.get("desc", "")
-
-                msg = ObstacleConfigMsg()
-                msg.name = obstacle.sim_path
-                msg.pose = Pose2DMsg(
+                pose = Pose2DMsg(
                     x=obstacle.pose.position.x,
                     y=obstacle.pose.position.y,
                     theta=obstacle.pose.orientation.to_yaw(),
                 )
-                msg.bb_x_min = float(x_min)
-                msg.bb_x_max = float(x_max)
-                msg.bb_y_min = float(y_min)
-                msg.bb_y_max = float(y_max)
-                msg.bb_z_min = float(z_min)
-                msg.bb_z_max = float(z_max)
-                msg.interaction_types = [str(h) for h in annotation.get("hoi", [])]
-                msg.obstacle_type = obstacle_type
-                obstacles_request.obstacles.append(msg)
+
+                obstacle_type = ""
+                try:
+                    if isinstance(resolved, BaseException):
+                        raise resolved
+                    with open(resolved / "annotation.yaml") as f:
+                        annotation: dict = yaml.safe_load(f.read())
+                    (x_min, x_max), (y_min, y_max), (z_min, z_max) = annotation["bounding_box"]
+                    obstacle_type = annotation.get("name", "") or annotation.get("desc", "")
+                    msg = ObstacleConfigMsg()
+                    msg.name = obstacle.sim_path
+                    msg.pose = pose
+                    msg.bb_x_min = float(x_min)
+                    msg.bb_x_max = float(x_max)
+                    msg.bb_y_min = float(y_min)
+                    msg.bb_y_max = float(y_max)
+                    msg.bb_z_min = float(z_min)
+                    msg.bb_z_max = float(z_max)
+                    msg.interaction_types = [str(h) for h in annotation.get("hoi", [])]
+                    msg.obstacle_type = obstacle_type
+                    obstacles_request.obstacles.append(msg)
+                except Exception as e:
+                    self._logger.warning(f"Failed to build obstacle bbox for '{obstacle.sim_path}': {e}")
 
                 extra = obstacle.extra
                 info = WorldObjectInfoMsg()
                 info.object_id = obstacle.sim_path
                 info.type = str(extra.get("type", obstacle_type))
-                info.pose = msg.pose
+                info.pose = pose
                 info.capacity = int(extra.get("capacity", 1))
                 satisfies: dict = extra.get("satisfies") or {}
                 info.satisfies_keys = list(satisfies.keys())
@@ -743,7 +745,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     info.formation_param_values = [float(v) for v in formation_params.values()]
                 world_objects_request.objects.append(info)
             except Exception as e:
-                self._logger.warning(f"Failed to build obstacle config for '{obstacle.sim_path}': {e}")
+                self._logger.warning(f"Failed to build world object for '{obstacle.sim_path}': {e}")
 
         if obstacles_request.obstacles:
             try:
