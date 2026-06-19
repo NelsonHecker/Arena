@@ -382,6 +382,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     async def teardown(self) -> None:
         self._heartbeat_timer.cancel()
+        await self._robots_manager.teardown()
 
     async def hold(self, reason: str) -> None:
         req = arena_runtime_msgs.srv.LifecycleHold.Request()

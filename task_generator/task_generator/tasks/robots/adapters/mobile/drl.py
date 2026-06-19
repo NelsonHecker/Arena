@@ -172,6 +172,7 @@ class DrlAdapter(MobileAdapter):
             target_frame="map",
             cmd_vel_topic=self.bringup.cmd_vel_topic,
             is_holonomic=is_holonomic,
+            simulation_namespace=robot.node.get_namespace(),
         )
         robot.node.executor.add_node(edge_node)
 
@@ -204,7 +205,7 @@ class DrlAdapter(MobileAdapter):
 
         await super().wait_until_ready(robot, node_paths)
 
-    async def _teardown_edge_node(self) -> None:
+    async def teardown(self) -> None:
         import asyncio  # noqa: PLC0415
 
         if self._run_loop_task is not None:

@@ -22,13 +22,13 @@ fi
 case "$1" in
     add|update)
         python3 "$_py" "$@" || exit $?
-        arena deps && arena build
+        arena deps && arena build --executor sequential
         exit $?
     ;;
     install)
         shift
         python3 "$_py" add "$@" || exit $?
-        arena deps && arena build
+        arena deps && arena build --executor sequential
         exit $?
     ;;
     rm|ls|check)
