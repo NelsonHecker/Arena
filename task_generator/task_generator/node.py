@@ -711,7 +711,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             self.rosparam[str].set("robot", ",".join(overrides.robots))
 
         resolved_world = world or self._world_manager.loaded_world or self._episodes.current.world
-        resolved_seed = seed if seed >= 0 else _derive_seed(self._episodes.run_seed, resolved_world, new_id)
+        run_seed = self.rosparam[str].get("run_seed", "") or self._episodes.run_seed
+        resolved_seed = seed if seed >= 0 else _derive_seed(run_seed, resolved_world, new_id)
 
         current_robots = self.conf.TaskMode.TM_ROBOTS.value.value if self.conf.TaskMode.TM_ROBOTS.value else ""
         current_obstacles = self.conf.TaskMode.TM_OBSTACLES.value.value if self.conf.TaskMode.TM_OBSTACLES.value else ""

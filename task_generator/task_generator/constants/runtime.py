@@ -4,6 +4,7 @@ from arena_rclpy_mixins.ROSParamServer import ROSParamServer
 from arena_runtime.constants import SimSimulator
 
 from . import Constants
+from .rng import EpisodeRng
 
 
 def Configuration(server: ROSParamServer) -> type:
@@ -45,11 +46,8 @@ def Configuration(server: ROSParamServer) -> type:
                 10,
             )
 
-            RNG = server.ROSParam[np.random.Generator](
-                'rng',
-                -1,
-                parse=lambda x: np.random.default_rng(x) if x >= 0 else np.random.default_rng(),
-            )
+            RNG = EpisodeRng()
+
             DESIRED_EPISODES = server.ROSParam[float](
                 'episodes',
                 -1,

@@ -18,6 +18,7 @@ try:
         _occupancy_to_available,
         _sample_grid_positions,
     )
+    from task_generator.constants.rng import EpisodeRng
     from task_generator.shared import Position, PositionRadius
 except ImportError:
     pytestmark = pytest.mark.skip(reason="ROS2 not available")
@@ -156,8 +157,9 @@ class TestGetPositionsOnMap:
         wm = WorldManager.__new__(WorldManager)
         wm._map = make_map(grid, resolution=resolution)
         wm._detected_walls = None
-        rng = np.random.default_rng(seed)
-        fake_node = SimpleNamespace(conf=SimpleNamespace(General=SimpleNamespace(RNG=SimpleNamespace(value=rng))))
+        episode_rng = EpisodeRng()
+        episode_rng.reseed(seed)
+        fake_node = SimpleNamespace(conf=SimpleNamespace(General=SimpleNamespace(RNG=episode_rng)))
         wm._NodeInterface__node = fake_node  # NodeInterface uses name-mangled storage
         return wm
 
@@ -231,8 +233,9 @@ class TestRenderedSampling:
         wm._map = WorldMap.from_world_description(level, resolution=0.05, time=Time())
         wm._multi_map = None
         wm._detected_walls = None
-        rng = np.random.default_rng(seed)
-        wm._NodeInterface__node = SimpleNamespace(conf=SimpleNamespace(General=SimpleNamespace(RNG=SimpleNamespace(value=rng))))
+        episode_rng = EpisodeRng()
+        episode_rng.reseed(seed)
+        wm._NodeInterface__node = SimpleNamespace(conf=SimpleNamespace(General=SimpleNamespace(RNG=episode_rng)))
         return wm
 
     def test_positions_land_inside_rendered_zone(self):

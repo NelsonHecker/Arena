@@ -24,7 +24,7 @@ class TM_Random(TM_Robots):
 
         if len(ROBOT_POSITIONS) < len(self._ctx.robots):
             n_missing = len(self._ctx.robots) - len(ROBOT_POSITIONS)
-            rng = self.node.conf.General.RNG.value
+            rng = self.node.conf.General.RNG.stream("robots", "random")
 
             goal_positions = self._ctx.world_manager.get_positions_on_map(n=n_missing, safe_dist=0)
             start_positions = self._ctx.world_manager.get_positions_on_map(n=n_missing, safe_dist=biggest_robot)

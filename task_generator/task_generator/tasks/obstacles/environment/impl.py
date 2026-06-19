@@ -1,5 +1,4 @@
 import math
-import random
 from collections import defaultdict
 
 import arena_simulation_setup.tree.configs.environment
@@ -331,6 +330,7 @@ class TM_Environment(TM_Obstacles):
         occupancy_grid[min_y:max_y, min_x:max_x] = 1  # Mark all as occupied
 
     def _parse_environment(self, environment_file: str) -> _ParsedConfig:
+        rng = self.node.conf.General.RNG.stream("obstacles", "environment")
 
         environment = arena_simulation_setup.tree.configs.environment.EnvironmentIdentifier(environment_file).resolve_sync()
 
@@ -353,7 +353,8 @@ class TM_Environment(TM_Obstacles):
         for room_polygon in rooms:
             eligible_groups = [g for g in groups if "zones" not in g or any(zone_name_to_polygon.get(z, shapely.Polygon()).equals(room_polygon) for z in g["zones"])]
             if eligible_groups:
-                group_room_pairs.append((random.choice(eligible_groups), room_polygon))
+                eligible_groups_sorted = sorted(eligible_groups, key=lambda g: g["name"])
+                group_room_pairs.append((eligible_groups_sorted[rng.integers(len(eligible_groups_sorted))], room_polygon))
 
         for idx, (group, room_polygon) in enumerate(group_room_pairs):
             # print(group)
@@ -392,7 +393,7 @@ class TM_Environment(TM_Obstacles):
                             rotation_deg=0,
                         ):
                             # Possible angles: 0°, 60°, 90°, 120°, 180°, ...
-                            rotation_deg = self.node.conf.General.RNG.value.choice(group.get("rotations", [0]))
+                            rotation_deg = rng.choice(group.get("rotations", [0]))
 
                             group_static_entities = group.get("entities", {}).get("static", [])
                             group_dynamic_entities = group.get("entities", {}).get("dynamic", [])
@@ -429,7 +430,7 @@ class TM_Environment(TM_Obstacles):
                                 obstacle_y = y + rot_y
 
                                 # strings are zone refs, lists are coordinates
-                                resolver = world.point_resolver(self.node.conf.General.RNG.value)
+                                resolver = world.point_resolver(rng)
                                 resolved_waypoints = [resolver.resolve(wp) if isinstance(wp, str) else Position(x=wp[0], y=wp[1]) for wp in entity.get("waypoints", [])]
 
                                 obs_name = f"G_{group_name}_{idx}_{n_groups}_{entity['model']}_{g}"
