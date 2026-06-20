@@ -1,5 +1,6 @@
 import itertools
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,18 @@ from launch_ros.substitutions import FindPackageShare
 
 from arena_bringup.future import IfElseSubstitution, PythonExpression  # noqa
 from arena_bringup.substitutions import LaunchArgument
+
+# Appended to gz's default gui.config so the ViewportCamera GUI plugin loads
+# alongside the stock GUI (see _render_gui_config).
+_VIEWPORT_GUI_PLUGIN = """\
+<plugin filename="ViewportCamera" name="Arena viewport camera">
+  <gz-gui>
+    <title>Arena viewport camera</title>
+    <property type="bool" key="showTitleBar">true</property>
+    <property type="string" key="state">docked</property>
+  </gz-gui>
+</plugin>
+"""
 
 
 def _select_render_engine() -> str:
@@ -170,6 +183,37 @@ def generate_launch_description():
             print(f'[gazebo.launch] PedSkeletonPlugin injection failed: {exc}', file=sys.stderr)
             return world_sdf_path
 
+    def _render_gui_config(engine: str) -> str | None:
+        """Derive a gui.config from gz's effective default (~/.gz/sim/8/gui.config) by
+        appending the ViewportCamera plugin and pinning the render engine, written to a
+        temp file for --gui-config. gz only writes that default on its first GUI run, so
+        until it exists we return None (no --gui-config) and the plugin loads from the
+        next launch on."""
+        default = os.path.join(os.path.expanduser('~'), '.gz', 'sim', '8', 'gui.config')
+        if not os.path.isfile(default):
+            print(
+                '[gazebo.launch] no ~/.gz/sim/8/gui.config yet; viewport camera plugin '
+                'loads from the next gz GUI launch',
+                file=sys.stderr,
+            )
+            return None
+        try:
+            with open(default) as f:
+                content = f.read()
+            # The default pins ogre2; match it to the engine actually selected.
+            content = re.sub(r'<engine>[^<]*</engine>', f'<engine>{engine}</engine>', content)
+            # gz config is a flat list of top-level elements, so append the plugin verbatim.
+            content = content.rstrip() + '\n\n' + _VIEWPORT_GUI_PLUGIN.strip() + '\n'
+            tmp = tempfile.NamedTemporaryFile(
+                mode='w', suffix='.config', delete=False, prefix='arena_gui_',
+            )
+            tmp.write(content)
+            tmp.close()
+            return tmp.name
+        except Exception as exc:
+            print(f'[gazebo.launch] gui.config derive failed: {exc}', file=sys.stderr)
+            return None
+
     def _launch_gazebo(context, *args, **kwargs):
         resolved_world = context.perform_substitution(world_path)
         headless_val = context.perform_substitution(headless.substitution)
@@ -180,6 +224,10 @@ def generate_launch_description():
         gz_args = resolved_world + f" -r --render-engine {engine}"
         if headless_val.lower() in ("true", "1"):
             gz_args += " -s"
+        else:
+            gui_config = _render_gui_config(engine)
+            if gui_config is not None:
+                gz_args += f" --gui-config {gui_config}"
         include = IncludeLaunchDescription(
             PathJoinSubstitution([
                 FindPackageShare('ros_gz_sim'),
@@ -227,6 +275,14 @@ def generate_launch_description():
         else (arena_gz_plugins_lib or existing_plugin_path)
     )
 
+    # The ViewportCamera GUI plugin loads from the same <install>/lib via GZ_GUI_PLUGIN_PATH.
+    existing_gui_plugin_path = os.environ.get('GZ_GUI_PLUGIN_PATH', '')
+    gz_gui_plugin_path = (
+        f"{arena_gz_plugins_lib}:{existing_gui_plugin_path}"
+        if arena_gz_plugins_lib and existing_gui_plugin_path
+        else (arena_gz_plugins_lib or existing_gui_plugin_path)
+    )
+
     # Return the LaunchDescription with all the nodes/actions
 
     return LaunchDescription(
@@ -243,6 +299,9 @@ def generate_launch_description():
             ),
             SetEnvironmentVariable(
                 "GZ_SIM_SYSTEM_PLUGIN_PATH", gz_plugin_path
+            ),
+            SetEnvironmentVariable(
+                "GZ_GUI_PLUGIN_PATH", gz_gui_plugin_path
             ),
             gazebo,
             # robot_state_publisher,

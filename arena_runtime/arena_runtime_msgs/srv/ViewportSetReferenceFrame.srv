@@ -1,0 +1,11 @@
+# Set the frame the viewport camera's pose stream and set_view are expressed in.
+uint8 FULL=0            # inherit the reference's full orientation
+uint8 YAW_ONLY=1        # inherit only its yaw, keep the offset level
+uint8 POSITION_ONLY=2   # inherit position only, world-aligned orientation
+string entity           # scene entity (sim_path) to attach to; empty selects a constant frame
+geometry_msgs/Pose pose # constant reference pose, used when entity is empty and has_pose is true
+bool has_pose           # entity empty: true uses pose, false latches the current world pose
+uint8 mode              # FULL, YAW_ONLY or POSITION_ONLY
+---
+bool success
+string message

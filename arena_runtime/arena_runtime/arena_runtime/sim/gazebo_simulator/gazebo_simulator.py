@@ -22,11 +22,15 @@ from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_runtime_msgs.msg import ViewportView
+from arena_runtime_msgs.srv import ViewportSetProjection, ViewportSetReferenceFrame, ViewportSetView
 from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.Wall import WallSegment
 from arena_simulation_setup.utils.material import MdlUtil
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped, Quaternion
+from geometry_msgs.msg import Pose as RosPose
 from launch import LaunchDescription
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from ros_gz_interfaces.msg import Entity as EntityMsg
 from ros_gz_interfaces.msg import EntityFactory, WorldControl
 from ros_gz_interfaces.srv import ControlWorld, DeleteEntity, SetEntityPose, SpawnEntity
@@ -56,6 +60,12 @@ from arena_runtime.sim._interface import resolve_obstacle_box
 from arena_runtime.sim._walls import realize_renderable
 
 from .robot_bridge import BridgeConfiguration
+
+_VIEWPORT_STREAM_QOS = QoSProfile(
+    depth=1,
+    history=HistoryPolicy.KEEP_LAST,
+    reliability=ReliabilityPolicy.BEST_EFFORT,
+)
 
 
 class GazeboHost(SimLifecycle):
@@ -196,6 +206,8 @@ class GazeboSimulator(BaseSim):
         self._agent_robots: dict[str, str] = {}
         self._mechanism_tf_buffer = tf2_ros.Buffer()
         self._mechanism_tf_listener = tf2_ros.TransformListener(self._mechanism_tf_buffer, self.node)
+
+        self._viewport_camera_pose: Pose | None = None
 
     async def before_reset_episode(self) -> bool:
         return True
@@ -375,6 +387,94 @@ class GazeboSimulator(BaseSim):
 
     async def delete_box(self, name: str) -> bool:
         return await self._delete_entity(name)
+
+    # ViewportITF: drives the gz GUI user-camera over the ViewportCamera plugin's
+    # /arena/viewport/* services. The viewport is global (one GUI), so every env's
+    # adapter shares the same backend, and the services only exist while the GUI runs,
+    # hence the short-timeout clients that fail soft when headless.
+
+    async def viewport_set_view(
+        self,
+        eye: tuple[float, float, float],
+        target: tuple[float, float, float],
+        fov: float = 0.0,
+    ) -> bool:
+        request = ViewportSetView.Request()
+        request.eye = Point(x=float(eye[0]), y=float(eye[1]), z=float(eye[2]))
+        request.target = Point(x=float(target[0]), y=float(target[1]), z=float(target[2]))
+        request.fov = float(fov)
+        return await self._viewport_call(self._service_viewport_set_view, request)
+
+    _REFERENCE_MODES = {
+        "full": ViewportSetReferenceFrame.Request.FULL,
+        "yaw": ViewportSetReferenceFrame.Request.YAW_ONLY,
+        "position": ViewportSetReferenceFrame.Request.POSITION_ONLY,
+    }
+
+    @staticmethod
+    def _ros_pose(pose: Pose) -> RosPose:
+        return RosPose(
+            position=Point(x=pose.position.x, y=pose.position.y, z=pose.position.z),
+            orientation=Quaternion(
+                w=pose.orientation.w,
+                x=pose.orientation.x,
+                y=pose.orientation.y,
+                z=pose.orientation.z,
+            ),
+        )
+
+    async def viewport_set_reference_frame(
+        self,
+        entity: str = "",
+        pose: Pose | None = None,
+        mode: str = "full",
+    ) -> bool:
+        request = ViewportSetReferenceFrame.Request()
+        request.entity = entity
+        request.has_pose = pose is not None
+        if pose is not None:
+            request.pose = self._ros_pose(pose)
+        request.mode = self._REFERENCE_MODES[mode]
+        return await self._viewport_call(self._service_viewport_set_reference_frame, request)
+
+    def viewport_stream_view(
+        self,
+        pose: Pose,
+        world_orientation: bool = False,
+        fov: float = 0.0,
+    ) -> bool:
+        msg = ViewportView()
+        msg.pose = self._ros_pose(pose)
+        msg.world_orientation = bool(world_orientation)
+        msg.fov = float(fov)
+        self._publisher_viewport_view.publish(msg)
+        return True
+
+    async def viewport_set_projection(self, projection: str) -> bool:
+        request = ViewportSetProjection.Request()
+        request.projection = projection
+        return await self._viewport_call(self._service_viewport_set_projection, request)
+
+    def viewport_camera_pose(self) -> Pose | None:
+        return self._viewport_camera_pose
+
+    async def _viewport_call(self, service: ClientWrapper, request: object) -> bool:
+        try:
+            result = await service.call_timeout(request)
+        except Exception as e:
+            self._logger.warning(f"viewport service call failed: {e}")
+            return False
+        if result is None:
+            self._logger.warning("viewport service unavailable, is the gazebo GUI running?")
+            return False
+        return result.success
+
+    def _on_viewport_camera_pose(self, msg: PoseStamped) -> None:
+        position, orientation = msg.pose.position, msg.pose.orientation
+        self._viewport_camera_pose = Pose(
+            position=Position(x=position.x, y=position.y, z=position.z),
+            orientation=Orientation(w=orientation.w, x=orientation.x, y=orientation.y, z=orientation.z),
+        )
 
     # IMPL
 
@@ -783,6 +883,14 @@ class GazeboSimulator(BaseSim):
 
         await asyncio.gather(*futures)
         self._logger.info("All Gazebo services are available now.")
+
+        # Viewport camera control is optional (GUI-only) and must not gate readiness:
+        # short timeout so calls fail soft when no GUI is up, and no ensure() here.
+        self._service_viewport_set_view = self.node.create_client_wrapper(ViewportSetView, "/arena/viewport/set_view", timeout=3.0)
+        self._service_viewport_set_reference_frame = self.node.create_client_wrapper(ViewportSetReferenceFrame, "/arena/viewport/set_reference_frame", timeout=3.0)
+        self._service_viewport_set_projection = self.node.create_client_wrapper(ViewportSetProjection, "/arena/viewport/set_projection", timeout=3.0)
+        self._publisher_viewport_view = self.node.create_publisher(ViewportView, "/arena/viewport/cmd_view", _VIEWPORT_STREAM_QOS)
+        self.node.create_subscription(PoseStamped, "/arena/viewport/camera_pose", self._on_viewport_camera_pose, 10)
 
     async def shutdown(self) -> None:
         await self.stop_mechanisms()
