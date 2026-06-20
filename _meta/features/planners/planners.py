@@ -179,9 +179,22 @@ def _fetch_weights(arena: Path, planner: str) -> None:
 
 def cmd_rm(arena: Path, args) -> int:
     subs = planner_submodules(arena)
+    if args.all:
+        if args.names:
+            print("planners: --all is mutually exclusive with planner names", file=sys.stderr)
+            return 2
+        names = sorted(subs)
+    else:
+        if not args.names:
+            print("planners: specify planner name(s) or --all", file=sys.stderr)
+            return 2
+        names = args.names
+    remove_set = set(names)
     shared = _path_planners(arena)
+    sdk = arena / _SDK_SUBDIR
+    done: set[str] = set()
     rc = 0
-    for planner in args.names:
+    for planner in names:
         if _is_local_only(planner, subs):
             local = arena / _PLANNERS_SUBDIR / planner
             if (local / "planner.py").is_file():
@@ -208,16 +221,19 @@ def cmd_rm(arena: Path, args) -> int:
             )
             rc = 1
             continue
-        sdk = arena / _SDK_SUBDIR
         for p in paths:
-            others = shared.get(p, set()) - {planner}
+            if p in done:
+                continue
+            # keep a shared path only if some planner outside this removal batch still tags it
+            others = shared.get(p, set()) - remove_set
             if others and not args.force:
                 print(f"planners: keeping '{p}' (still tagged by: {', '.join(sorted(others))})")
                 continue
             if others:
-                print(f"planners: force-removing '{p}' (also pending: {', '.join(sorted(others))})")
+                print(f"planners: force-removing '{p}' (also tagged by: {', '.join(sorted(others))})")
             sub_path = Path(p).relative_to(_SDK_SUBDIR).as_posix()
             _git(["submodule", "deinit", "-f", sub_path], sdk, check=False)
+            done.add(p)
     return rc
 
 
@@ -271,7 +287,8 @@ def main() -> int:
     p_add.add_argument("names", nargs="*")
     p_add.add_argument("--all", action="store_true", help="fetch every planner")
     p_rm = sub.add_parser("rm")
-    p_rm.add_argument("names", nargs="+")
+    p_rm.add_argument("names", nargs="*")
+    p_rm.add_argument("--all", action="store_true", help="remove every planner")
     p_rm.add_argument("-f", "--force", action="store_true",
                       help="deinit shared paths too; co-tagged planners become pending")
     p_check = sub.add_parser("check")

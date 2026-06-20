@@ -9,7 +9,7 @@ help(){
     echo ""
     echo "Per-robot submodule management (mesh assets + upstream deps)."
     echo "  add <name...>     clone robot's submodules (alias: install)"
-    echo "  rm <name...>      deinit robot's submodules (alias: uninstall <name...>)"
+    echo "  rm <name...|--all>  deinit robot's submodules (alias: uninstall <name...>)"
     echo "  ls                list robots, [x] ready, [ ] pending"
     echo "  check [--all]     verify all package://arena_robots/... URIs resolve"
     echo "  update            refresh initialized robot submodules"

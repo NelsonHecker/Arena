@@ -9,7 +9,7 @@ help(){
     echo ""
     echo "Per-planner submodule management."
     echo "  add <name...>     clone planner's submodules (alias: install)"
-    echo "  rm <name...>      deinit planner's submodules (alias: uninstall <name...>)"
+    echo "  rm <name...|--all>  deinit planner's submodules (alias: uninstall <name...>)"
     echo "  ls                list planners, [x] ready, [ ] pending"
     echo "  check [--all]     verify planner submodules are initialized"
     echo "  update            refresh initialized planner submodules"
