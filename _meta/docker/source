@@ -16,6 +16,7 @@ mkdir -p "$ARENA_WS_DIR/build"
 mkdir -p "$ARENA_WS_DIR/install"
 mkdir -p "$ARENA_WS_DIR/log"
 mkdir -p "$ARENA_WS_DIR/.uv-python"
+mkdir -p "$ARENA_WS_DIR/.uv-cache"
 
 HOST_UID=$(id -u)
 export HOST_UID
