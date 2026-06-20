@@ -1,0 +1,8 @@
+# Snap the GUI viewport camera to an exact pose, render, and return that frame.
+geometry_msgs/Pose pose   # camera pose in the current reference frame
+bool world_orientation    # true keeps the aim world-stable, false rotates it with the reference
+float64 fov               # horizontal field of view, radians; <= 0 leaves it unchanged
+---
+bool success
+string message
+sensor_msgs/Image image   # rendered frame at the snapped pose (rgb8)

@@ -1,0 +1,9 @@
+# A single continuous establishing take: settle into a framing, orbit once, hold.
+params:
+  target: [0.0, 0.0, 0.5]
+  radius: 6.0
+  elevation_deg: 30.0
+timeline:
+  - look:  { eye: ["${radius}", "${radius}", 3.0], target: "${target}" }
+  - orbit: { radius: "${radius}", elevation_deg: "${elevation_deg}", center: "${target}", duration: 8.0, ease: inout }
+  - hold:  { duration: 1.5 }

@@ -7,6 +7,7 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rcl_interfaces REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 ament_auto_find_build_dependencies()
 
@@ -26,10 +27,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   srv/LifecycleUnpauseWindow.srv
   srv/RegisterEnv.srv
   srv/SpawnEnv.srv
+  srv/ViewportCapture.srv
   srv/ViewportSetProjection.srv
   srv/ViewportSetReferenceFrame.srv
   srv/ViewportSetView.srv
-  DEPENDENCIES std_msgs geometry_msgs builtin_interfaces rcl_interfaces
+  DEPENDENCIES std_msgs geometry_msgs builtin_interfaces rcl_interfaces sensor_msgs
 )
 
 
