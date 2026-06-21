@@ -19,6 +19,8 @@ services:
     environment:
       - DISPLAY
       - TMPDIR=/tmp/shared
+      - OMNICLIENT_HUB_MODE=disabled
+      - GLIBC_TUNABLES=glibc.rtld.dynamic_sort=1
       - QT_X11_NO_MITSHM=1
       - UV_LINK_MODE=copy
       - AMENT_CMAKE_VENV_UV_OVERRIDES=/opt/arena_ws/src/Arena/_meta/docker/uv-overrides.txt
