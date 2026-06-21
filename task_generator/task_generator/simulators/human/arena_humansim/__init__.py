@@ -7,6 +7,7 @@ from arena_humansim.core.agents.loader import load_agent_type_from_file
 from arena_humansim_msgs.msg import Waypoint as WaypointMsg
 from arena_humansim_msgs.msg import Waypoints as WaypointsMsg
 from geometry_msgs.msg import Pose2D as Pose2DMsg
+
 from task_generator.shared import DynamicObstacle
 
 

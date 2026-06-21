@@ -17,6 +17,8 @@ from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.utils.models import ModelType
+from visualization_msgs.msg import MarkerArray
+
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
@@ -26,7 +28,6 @@ from task_generator.simulators.human.utils import (
     KnownObstacles,
     ObstacleLayer,
 )
-from visualization_msgs.msg import MarkerArray
 
 
 class BaseHumanSimulator(NodeInterface, abc.ABC):
