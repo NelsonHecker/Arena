@@ -365,10 +365,6 @@ def generate_launch_description():
             )
         )
 
-        inner_group = launch.actions.GroupAction([
-            PushRosNamespace(namespace=allocated_ns),
-            pedestrian_marker_node,
-        ])
 
         shutdown_on_node_exit = RegisterEventHandler(OnProcessExit(
             target_action=task_generator_node,
