@@ -16,6 +16,7 @@ mkdir -p "$ARENA_WS_DIR/build"
 mkdir -p "$ARENA_WS_DIR/install"
 mkdir -p "$ARENA_WS_DIR/log"
 mkdir -p "$ARENA_WS_DIR/.uv-python"
+mkdir -p "$ARENA_WS_DIR/.uv-cache"
 
 HOST_UID=$(id -u)
 export HOST_UID
@@ -96,7 +97,11 @@ do_run(){
         arena_docker_compose exec "$arena_service" /entrypoint.sh \
             bash --rcfile /opt/arena_ws/src/Arena/_meta/docker/features/docker/rcfile -i
     else
-        arena_docker_compose exec -T "$arena_service" /entrypoint.sh bash --norc "$@"
+        # non-tty
+        arena_docker_compose exec -T "$arena_service" /entrypoint.sh bash --norc -c '
+            source /opt/arena_ws/source >/dev/null
+            if [ "$#" -gt 0 ]; then exec bash "$@"; else exec bash -s; fi
+        ' bash "$@"
     fi
     return $?
 }

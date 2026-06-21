@@ -239,6 +239,10 @@ class Adapter(ABC):
     async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
         return None
 
+    async def teardown(self) -> None:
+        """Release any out-of-band resources this adapter owns (subprocesses, threads). Called on robot destroy and env shutdown."""
+        return None
+
 
 __all__ = [
     "ADAPTERS",

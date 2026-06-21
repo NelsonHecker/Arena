@@ -328,6 +328,14 @@ class RobotsManager(NodeInterface):
         )
         return self._diff
 
+    async def teardown(self) -> None:
+        """Destroy every robot manager, releasing adapter-owned resources (planner subprocesses, navstacks)."""
+        await asyncio.gather(
+            *(mgr.destroy() for mgr in self._managers.values()),
+            return_exceptions=True,
+        )
+        self._managers.clear()
+
     async def set_up(self):
         """Set up the robot managers."""
         futures: list[typing.Awaitable] = []

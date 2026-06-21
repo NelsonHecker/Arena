@@ -199,6 +199,8 @@ class Task(NodeInterface):
         try:
             self.__reset_start.publish(std_msgs.Empty())
 
+            self.node.conf.General.RNG.reseed(int(kwargs["seed"]))
+
             await self.robots_manager.set_up()
             await self.robots_manager.launch_pending()
 
@@ -222,7 +224,7 @@ class Task(NodeInterface):
                     *(
                         mgr.reset(
                             ResetContext(
-                                rng=self.node.conf.General.RNG.value,
+                                rng=self.node.conf.General.RNG.stream("robot-adapter", name),
                                 start_pose=self.__tm_robots.start_poses.get(name),
                                 episode_index=self.node._episodes.current.episode_id,
                             )

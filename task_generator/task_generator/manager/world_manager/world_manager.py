@@ -298,7 +298,7 @@ class WorldManager(NodeInterface):
             fork.occupy(*level_map.tf_posr2rect(zone))
 
         safe_dist_cells = safe_dist / self.resolution
-        rng = self.node.conf.General.RNG.value
+        rng = self.node.conf.General.RNG.stream("world", "positions")
         available = _occupancy_to_available(fork.grid, safe_dist_cells)
 
         if len(available) and (polygon is not None or level_polygons is not None):

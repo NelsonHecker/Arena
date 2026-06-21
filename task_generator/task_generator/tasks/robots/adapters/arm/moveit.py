@@ -59,7 +59,7 @@ class MoveItArmAdapter(Adapter):
                 if not arms:
                     raise ValueError(f"random ReachPhase requested but robot {robot.name!r} has no arm cap")
                 (arm,) = arms.values()
-                rng = robot.node.conf.General.RNG.value
+                rng = robot.node.conf.General.RNG.stream("arm", robot.name)
                 goal.target = sample_reach_target(arm, robot.frame, rng)
             elif phase.target is not None:
                 goal.target = phase.target
@@ -122,5 +122,5 @@ def _pick_random_gesture(robot: RobotManager) -> str:
             sorted(available_poses),
         )
         return ""
-    rng = robot.node.conf.General.RNG.value
+    rng = robot.node.conf.General.RNG.stream("arm", robot.name)
     return str(rng.choice(supported))

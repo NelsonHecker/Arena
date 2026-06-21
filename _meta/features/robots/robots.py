@@ -136,22 +136,38 @@ def cmd_add(arena: Path, args) -> int:
 
 def cmd_rm(arena: Path, args) -> int:
     subs = robot_submodules(arena)
+    if args.all:
+        if args.names:
+            print("robots: --all is mutually exclusive with robot names", file=sys.stderr)
+            return 2
+        names = sorted(subs)
+    else:
+        if not args.names:
+            print("robots: specify robot name(s) or --all", file=sys.stderr)
+            return 2
+        names = args.names
+    remove_set = set(names)
     shared = _path_robots(arena)
     sdk = arena / _SDK_SUBDIR
-    for robot in args.names:
+    done: set[str] = set()
+    for robot in names:
         paths = subs.get(robot)
         if not paths:
             print(f"robots: '{robot}' has no submodules — nothing to remove")
             continue
         for p in paths:
-            others = shared.get(p, set()) - {robot}
+            if p in done:
+                continue
+            # keep a shared path only if some robot outside this removal batch still tags it
+            others = shared.get(p, set()) - remove_set
             if others and not args.force:
                 print(f"robots: keeping '{p}' (still tagged by: {', '.join(sorted(others))})")
                 continue
             if others:
-                print(f"robots: force-removing '{p}' (also pending: {', '.join(sorted(others))})")
+                print(f"robots: force-removing '{p}' (also tagged by: {', '.join(sorted(others))})")
             sub_path = Path(p).relative_to(_SDK_SUBDIR).as_posix()
             _git(["submodule", "deinit", "-f", sub_path], sdk, check=False)
+            done.add(p)
     return 0
 
 
@@ -401,7 +417,8 @@ def main() -> int:
     p_add.add_argument("names", nargs="*")
     p_add.add_argument("--all", action="store_true", help="fetch every robot")
     p_rm = sub.add_parser("rm")
-    p_rm.add_argument("names", nargs="+")
+    p_rm.add_argument("names", nargs="*")
+    p_rm.add_argument("--all", action="store_true", help="remove every robot")
     p_rm.add_argument("-f", "--force", action="store_true",
                       help="deinit shared paths too; co-tagged robots become pending")
     p = sub.add_parser("check")

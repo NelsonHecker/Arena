@@ -33,7 +33,7 @@ Called once during node init; the returned class is stored as `node.conf`.
 Config = Configuration(server)
 # access via:
 Config.Arena.SIM.value        # reads/writes the ROS param
-Config.General.RNG.value      # numpy Generator
+Config.General.RNG.stream("obstacles", "random")   # independent numpy Generator per key
 ```
 
 ### `Config.Arena`
@@ -50,8 +50,12 @@ Config.General.RNG.value      # numpy Generator
 | --- | --- | --- | --- |
 | `WAIT_FOR_SERVICE_TIMEOUT` | `timeout_wait_for_service` | `30` | seconds |
 | `MAX_RESET_FAIL_TIMES` | `max_reset_fail_times` | `10` | |
-| `RNG` | `rng` | `-1` | parsed to `np.random.default_rng(seed)`; `-1` means unseeded |
 | `DESIRED_EPISODES` | `episodes` | `-1` | parsed to `inf` when negative |
+
+`RNG` is not a ROS param: it is an `EpisodeRng` re-rooted each reset on the
+per-episode seed (derived from the `run_seed` param via blake2b). Call
+`RNG.stream(*key)` for an independent, reproducible generator keyed by a stable
+label, so draw order and concurrency cannot affect a given stream.
 
 ### `Config.Obstacles`
 

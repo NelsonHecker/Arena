@@ -9,7 +9,7 @@ help(){
     echo ""
     echo "Per-planner submodule management."
     echo "  add <name...>     clone planner's submodules (alias: install)"
-    echo "  rm <name...>      deinit planner's submodules (alias: uninstall <name...>)"
+    echo "  rm <name...|--all>  deinit planner's submodules (alias: uninstall <name...>)"
     echo "  ls                list planners, [x] ready, [ ] pending"
     echo "  check [--all]     verify planner submodules are initialized"
     echo "  update            refresh initialized planner submodules"
@@ -22,13 +22,13 @@ fi
 case "$1" in
     add|update)
         python3 "$_py" "$@" || exit $?
-        arena deps && arena build
+        arena deps && arena build --executor sequential
         exit $?
     ;;
     install)
         shift
         python3 "$_py" add "$@" || exit $?
-        arena deps && arena build
+        arena deps && arena build --executor sequential
         exit $?
     ;;
     rm|ls|check)

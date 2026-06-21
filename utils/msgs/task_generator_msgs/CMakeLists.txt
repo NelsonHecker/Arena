@@ -11,14 +11,29 @@ find_package(rcl_interfaces REQUIRED)
 
 ament_auto_find_build_dependencies()
 
-file(GLOB MSG_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "msg/*.msg")
-file(GLOB SRV_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "srv/*.srv")
-file(GLOB ACTION_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "action/*.action")
-
 rosidl_generate_interfaces(${PROJECT_NAME}
-  ${MSG_FILES}
-  ${SRV_FILES}
-  ${ACTION_FILES}
+  msg/AdapterDisplay.msg
+  msg/AdapterEntry.msg
+  msg/AdapterVizManifest.msg
+  msg/EpisodeRecord.msg
+  msg/RobotDescriptor.msg
+  msg/RobotFleet.msg
+  srv/GetTaskModes.srv
+  srv/Pause.srv
+  srv/QueryDynamicObstacles.srv
+  srv/QueryEnvironments.srv
+  srv/QueryParametrizeds.srv
+  srv/QueryRobots.srv
+  srv/QueryScenarios.srv
+  srv/QueryStaticObstacles.srv
+  srv/QueryTaskModes.srv
+  srv/QueryWorlds.srv
+  srv/QueueEpisode.srv
+  srv/ResetEpisode.srv
+  srv/SpawnDynamic.srv
+  srv/SpawnRobot.srv
+  srv/SpawnStatic.srv
+  action/RunEpisode.action
   DEPENDENCIES std_msgs geometry_msgs diagnostic_msgs builtin_interfaces rcl_interfaces
 )
 
