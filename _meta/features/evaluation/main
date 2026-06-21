@@ -19,7 +19,7 @@ uninstall(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <install|update|uninstall|source|launch|list|status|tail>"
+    echo "Usage: $name <install|update|uninstall|source|launch|list|status|tail|run|process|report|plot>"
     echo ""
     echo "arena_evaluation for recording, metrics, and benchmarking."
     echo "This enables:"
@@ -31,6 +31,10 @@ help(){
     echo "  list      -- list available evaluations"
     echo "  status    -- show status of a running or completed evaluation"
     echo "  tail      -- stream live output of a running evaluation"
+    echo "  run       -- process recording and generate HTML report"
+    echo "  process   -- process recording to generate metrics.parquet"
+    echo "  report    -- generate HTML report from processed metrics"
+    echo "  plot      -- generate static PNG plots from processed metrics"
 }
 if [ $# -lt 1 ]; then
     help
@@ -75,6 +79,11 @@ case "$1" in
         _feature_registry require "$name" || exit 1
         shift
         ros2 run arena_evaluation evaluation_cli tail "$@"
+        exit $?
+    ;;
+    run|process|report|plot)
+        _feature_registry require "$name" || exit 1
+        ros2 run arena_evaluation evaluation "$@"
         exit $?
     ;;
     *)

@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from arena_runtime.sim import BaseSim
 from arena_runtime.sim.isaac_simulator import IsaacSimulator
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+
 from task_generator.shared import DynamicObstacle, ModelWrapper
 from task_generator.simulators.human.dummy import DummyHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer

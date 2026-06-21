@@ -8,6 +8,7 @@ import hunav_msgs.msg
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+
 from task_generator.shared import DynamicObstacle, Pose, Position
 
 

@@ -39,6 +39,16 @@ def generate_launch_description():
         default_value='False',
     )
 
+    record_data_dir = LaunchArgument(
+        name='record_data_dir',
+        default_value='',
+    )
+
+    disable_auto_recorder = LaunchArgument(
+        name='disable_auto_recorder',
+        default_value='false',
+    )
+
     launch_sim = launch.actions.IncludeLaunchDescription(
         PathJoinSubstitution([
             FindPackageShare('arena_bringup'),
