@@ -103,6 +103,7 @@ class ConfigFileGenerator(ArenaMixinNode):
                         package="rviz2",
                         executable="rviz2",
                         name="rviz2",
+                        namespace=self._TASKGEN_NODE,
                         arguments=['-d', config_file],
                         parameters=rviz_parameters,
                         output="screen",
@@ -232,53 +233,27 @@ class ConfigFileGenerator(ArenaMixinNode):
     def _build_view(self) -> dict[str, object]:
         view = str(self.get_parameter('view').value)
 
+        target = '<Fixed Frame>'
         if view in ('robot', 'robot3p'):
-            target = self._target_robot_frame()
-            if target is None:
+            robot_frame = self._target_robot_frame()
+            if robot_frame is None:
                 view = 'map'
+            else:
+                target = robot_frame
 
-        if view == 'robot':
-            return {
-                'Class': 'rviz_default_plugins/Orbit',
-                'Distance': 8.0,
-                'Focal Point': {'X': 0.0, 'Y': 0.0, 'Z': 0.0},
-                'Name': 'Current View',
-                'Near Clip Distance': 0.01,
-                'Pitch': 0.9,
-                'Target Frame': target,
-                'Value': True,
-                'Yaw': 3.14,
-            }
-
-        if view == 'robot3p':
-            return {
-                'Class': 'rviz_default_plugins/ThirdPersonFollower',
-                'Distance': 8.0,
-                'Focal Point': {'X': 0.0, 'Y': 0.0, 'Z': 0.0},
-                'Name': 'Current View',
-                'Near Clip Distance': 0.01,
-                'Pitch': 0.5,
-                'Target Frame': target,
-                'Value': True,
-                'Yaw': 3.14,
-            }
-
-        python_yaw: float = 3.8
-        try:
-            python_yaw = sum(2 * (i % 2 - 0.5) * float(d) / 10**i for i, d in enumerate(sys.version.split(' ', 1)[0].split('.')))  # i am going insane
-        except BaseException:
-            pass
-        return {
-            'Class': 'rviz_default_plugins/Orbit',
-            'Distance': 50.0,
-            'Focal Point': {'X': 15.0, 'Y': 10.0, 'Z': 0.0},
+        base: dict[str, object] = {
+            'Class': 'rviz_viewport_control/ViewportControl',
             'Name': 'Current View',
             'Near Clip Distance': 0.01,
-            'Pitch': 0.9,
-            'Target Frame': '<Fixed Frame>',
+            'Target Frame': target,
             'Value': True,
-            'Yaw': python_yaw,
         }
+
+        if view == 'robot':
+            return {**base, 'Distance': 8.0, 'Focal Point': {'X': 0.0, 'Y': 0.0, 'Z': 0.0}, 'Pitch': 0.9, 'Yaw': 3.14}
+        if view == 'robot3p':
+            return {**base, 'Distance': 8.0, 'Focal Point': {'X': 0.0, 'Y': 0.0, 'Z': 0.0}, 'Pitch': 0.5, 'Yaw': 3.14}
+        return {**base, 'Distance': 50.0, 'Focal Point': {'X': 15.0, 'Y': 10.0, 'Z': 0.0}, 'Pitch': 0.9, 'Yaw': 3.8}
 
     def _read_default_file(self) -> dict[str, object]:
         package_path = get_package_share_directory("rviz_utils")

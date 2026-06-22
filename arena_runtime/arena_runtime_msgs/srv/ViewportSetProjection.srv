@@ -1,5 +1,0 @@
-# Set the viewport camera projection.
-string projection              # "perspective" or "orthographic"
----
-bool success
-string message

@@ -357,7 +357,7 @@ timeline:
 The interface is fully generic: one positional name dispatches verbs, shots,
 and files uniformly.
 
-### `arena cam <name> [key=value ...] [--ns NS]`
+### `arena cam <name> [key=value ...] [--sim] [--viz [ENV_ID]]`
 
 Run a verb, a shot, or a YAML file against the live sim.
 
@@ -366,14 +366,23 @@ Run a verb, a shot, or a YAML file against the live sim.
   on disk routes the argument through `load_shot`; otherwise it is a
   registry lookup (verbs first, then shots).
 - `key=value` tokens are params passed to the verb or shot.
-- `--ns NS` sets the viewport namespace (default `/arena`).
+- Target flags select which viewport cameras the shot drives:
+  - no flag drives everything (the sim GUI camera and every env's rviz camera);
+  - `--sim` drives only the sim GUI camera (`/arena/viewport/*`);
+  - `--viz` drives every rviz camera, `--viz <env_id>` just one;
+  - the flags compose, e.g. `--sim --viz 0`.
+
+  The sim camera is in world coordinates. Each rviz camera is per-env, so a shot
+  in absolute coordinates is localized into each env's frame (the registry
+  `reference` offset) before being sent. Record mode needs the selection to
+  resolve to a single camera.
 
 ```
 arena cam look eye=8,8,6 target=0,0,0.5
 arena cam orbit radius=4 elevation_deg=30 sweep_deg=360 duration=8
 arena cam establishing radius=8
-arena cam tour duration=12 --ns /arena
-arena cam shots/my_shot.yaml radius=5
+arena cam tour duration=12 --sim
+arena cam shots/my_shot.yaml radius=5 --viz 0
 ```
 
 **Param coercion** for `key=value` tokens:

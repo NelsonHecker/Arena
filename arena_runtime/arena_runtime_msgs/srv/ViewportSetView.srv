@@ -1,7 +1,0 @@
-# Aim the GUI viewport camera to look from `eye` toward `target` (one-shot, snaps).
-geometry_msgs/Point eye        # camera position, current reference frame
-geometry_msgs/Point target     # look-at point, current reference frame
-float64 fov                    # horizontal field of view, radians; <= 0 leaves it unchanged
----
-bool success
-string message

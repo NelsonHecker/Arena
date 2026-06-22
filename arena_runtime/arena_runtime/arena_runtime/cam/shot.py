@@ -24,14 +24,15 @@ from pathlib import Path
 import yaml
 
 from .camera import Camera
+from .client import TargetSelection
 from .shots import desugar, substitute
 
 
-def load_shot(path: str | Path, arena_ns: str = "/arena") -> Camera:
+def load_shot(path: str | Path, targets: TargetSelection) -> Camera:
     """Parse a shot YAML file into a ready-to-play `Camera`."""
     spec = yaml.safe_load(Path(path).read_text()) or {}
     args = spec.get("params", {})
-    cam = Camera(arena_ns=arena_ns)
+    cam = Camera(targets)
     for step in desugar(spec):
         (name, raw), = step.items()
         cam.add(name, substitute(raw, args))

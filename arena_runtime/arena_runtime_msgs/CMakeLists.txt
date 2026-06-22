@@ -18,7 +18,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   msg/HoldEntry.msg
   msg/HoldRegistry.msg
   msg/ShutdownRequest.msg
-  msg/ViewportView.msg
   msg/WorldExtent.msg
   srv/CleanupEnv.srv
   srv/ConfirmWorld.srv
@@ -27,10 +26,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   srv/LifecycleUnpauseWindow.srv
   srv/RegisterEnv.srv
   srv/SpawnEnv.srv
-  srv/ViewportCapture.srv
-  srv/ViewportSetProjection.srv
-  srv/ViewportSetReferenceFrame.srv
-  srv/ViewportSetView.srv
   DEPENDENCIES std_msgs geometry_msgs builtin_interfaces rcl_interfaces sensor_msgs
 )
 

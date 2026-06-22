@@ -2,7 +2,7 @@
 
 One command shape for everything:
 
-    arena cam <name> [key=value ...] [--ns NS]   # name is a verb, a shot, or a .yaml file
+    arena cam <name> [key=value ...] [--sim] [--viz [ENV_ID]]   # name is verb, shot, or .yaml
     arena cam <name> ... record=<dir> [fps=30] [-f]   # render to a PPM frame sequence instead
     arena cam list                               # catalog of verbs and shots
     arena cam show <name>                        # parameters of a verb or shot
@@ -12,6 +12,11 @@ Params are bare `key=value` (coerced: number / x,y,z tuple / bool / string);
 launcher options are `--flags`. Nested or list-valued params live in a shot file.
 The reserved params `record` (output dir) and `fps` switch from live playback to
 deterministic capture.
+
+Targets select which viewport cameras the shot drives. With no flag it drives
+everything: the sim GUI camera plus every env's rviz camera. `--sim` is sim only,
+`--viz` is all rviz cameras, `--viz <env_id>` is one env's, and the flags compose.
+Record needs the selection to resolve to a single camera.
 """
 
 from __future__ import annotations
@@ -23,9 +28,28 @@ import sys
 
 import yaml
 
-from arena_runtime.cam import Camera, load_shot
+from arena_runtime.cam import Camera, TargetSelection, load_shot
 from arena_runtime.cam.registry import PRIMITIVES
 from arena_runtime.cam.shots import SHOTS
+
+# Sentinel for `--viz` given with no env id (all vizes), distinct from `--viz` absent.
+_VIZ_ALL = object()
+
+
+def _resolve_targets(sim_flag: bool, viz_arg: object) -> TargetSelection:
+    """Map the --sim / --viz flags to a selection. No flag drives everything."""
+    viz_given = viz_arg is not None
+    if not sim_flag and not viz_given:
+        return TargetSelection(include_sim=True, viz_all=True, viz_env=None)
+    if viz_arg is _VIZ_ALL:
+        return TargetSelection(include_sim=sim_flag, viz_all=True, viz_env=None)
+    if viz_given:
+        try:
+            env_id = int(str(viz_arg))
+        except (TypeError, ValueError):
+            raise SystemExit(f"--viz expects an env id, got {viz_arg!r}") from None
+        return TargetSelection(include_sim=sim_flag, viz_all=False, viz_env=env_id)
+    return TargetSelection(include_sim=True, viz_all=False, viz_env=None)
 
 
 def _coerce(token: str) -> object:
@@ -87,7 +111,11 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="arena cam", description="Arena viewport-camera CLI")
     parser.add_argument("name", nargs="?", help="verb, shot, or .yaml file (or 'list' / 'show')")
     parser.add_argument("params", nargs="*", metavar="key=value", help="verb or shot parameters")
-    parser.add_argument("--ns", default="/arena", metavar="NS", help="arena namespace")
+    parser.add_argument("--sim", action="store_true", help="drive the sim GUI camera")
+    parser.add_argument(
+        "--viz", nargs="?", const=_VIZ_ALL, default=None, metavar="ENV_ID",
+        help="drive rviz cameras: bare for all, or an env id for one",
+    )
     parser.add_argument("-f", "--force", action="store_true", help="overwrite a non-empty record dir")
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -103,7 +131,8 @@ def main(argv: list[str] | None = None) -> None:
     record = params.pop("record", None)
     fps = float(params.pop("fps", 30.0))
 
-    cam = load_shot(args.name, arena_ns=args.ns) if _is_path(args.name) else Camera(args.ns).add(args.name, params)
+    targets = _resolve_targets(args.sim, args.viz)
+    cam = load_shot(args.name, targets) if _is_path(args.name) else Camera(targets).add(args.name, params)
     if record is not None:
         try:
             cam.record(str(record), fps=fps, force=args.force)

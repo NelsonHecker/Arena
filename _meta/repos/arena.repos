@@ -115,3 +115,9 @@ repositories:
     type: git
     url: https://github.com/voshch/rviz_display_control.git
     version: jazzy
+
+  # generic viewport/camera control for rviz2 + shared viewport_control_msgs
+  deps/rviz_viewport_control:
+    type: git
+    url: https://github.com/voshch/rviz_viewport_control.git
+    version: jazzy

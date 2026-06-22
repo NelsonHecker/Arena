@@ -1,31 +1,38 @@
-"""ROS 2 client for the Arena viewport camera (`/arena/viewport/*`).
+"""ROS 2 client for the Arena viewport cameras.
 
-`CamNode` wraps the viewport services and the `cmd_view` stream so the `Camera`
-facade can drive the GUI user-camera from an external process. It runs via
-`run_main`: `setup` ensures the services, plays the timeline, then shuts down.
+`CamNode` fans a single `Camera` timeline out across one or more viewport surfaces:
+the sim GUI camera at `/arena/viewport/*` and any number of per-env rviz cameras at
+`/arena/env_<id>/task_generator_node/viewport/*`. The `Camera` facade authors the
+shot in world coordinates. Each endpoint subtracts its env's world origin (the
+registry `reference`) so the same absolute shot lands at the matching place in every
+env. Entity-anchored steps pass through untouched, since each backend resolves the
+entity in its own frame. The sim endpoint has a zero offset.
 
-It drives a segment two ways. LIVE: stream keyframes on `cmd_view`, paced by
-wall-clock. RECORD: walk the segment at a fixed fps and `capture` each frame
-synchronously, so the output is deterministic and independent of render speed.
+It runs via `run_main`: `setup` discovers the selected endpoints, plays the timeline,
+then shuts down. A segment drives two ways. LIVE: stream keyframes on `cmd_view`,
+paced by wall-clock. RECORD: walk the segment at a fixed fps and `capture` each frame
+synchronously, so the output is deterministic. Record requires a single endpoint.
 """
 
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import typing
 
 import rclpy
 from arena_rclpy_mixins import ArenaMixinNode
-from arena_runtime_msgs.msg import ViewportView
-from arena_runtime_msgs.srv import (
+from arena_runtime_msgs.msg import EnvRegistry
+from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
+from rclpy.duration import Duration
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from viewport_control_msgs.msg import ViewportView
+from viewport_control_msgs.srv import (
     ViewportCapture,
     ViewportSetProjection,
     ViewportSetReferenceFrame,
     ViewportSetView,
 )
-from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
-from rclpy.duration import Duration
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from . import curves
 from .curves import Quat, Vec3
@@ -44,6 +51,13 @@ if typing.TYPE_CHECKING:
 # Best-effort, deep queue: the plugin buffers keyframes, so none should be dropped.
 _STREAM_QOS = QoSProfile(depth=64, history=HistoryPolicy.KEEP_LAST, reliability=ReliabilityPolicy.BEST_EFFORT)
 
+# Match the latched EnvRegistry publisher so the env reference table arrives at once.
+_ENVS_QOS = QoSProfile(depth=1, history=HistoryPolicy.KEEP_LAST, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+
+_ARENA_ROOT = "/arena"
+_ENVS_TOPIC = "/arena/state/envs"
+_VIEW_SUFFIX = "/viewport/set_view"
+
 _REFERENCE_MODES = {
     "full": ViewportSetReferenceFrame.Request.FULL,
     "yaw": ViewportSetReferenceFrame.Request.YAW_ONLY,
@@ -58,6 +72,26 @@ _FRAME_RATE = 60.0
 _LEAD = 0.3
 
 
+@dataclasses.dataclass(frozen=True)
+class TargetSelection:
+    """Which viewport surfaces a shot drives. Resolved against the live graph in setup."""
+
+    include_sim: bool
+    viz_all: bool
+    viz_env: int | None
+
+
+def _env_id_from_ns(ns: str) -> int | None:
+    """Parse the env index from a viewport namespace (`/arena/env_3/...` -> 3)."""
+    for part in ns.strip("/").split("/"):
+        if part.startswith("env_"):
+            try:
+                return int(part[len("env_"):])
+            except ValueError:
+                return None
+    return None
+
+
 def _ros_pose(position: Vec3, quat: Quat) -> Pose:
     return Pose(
         position=Point(x=float(position[0]), y=float(position[1]), z=float(position[2])),
@@ -65,41 +99,93 @@ def _ros_pose(position: Vec3, quat: Quat) -> Pose:
     )
 
 
+class _Endpoint:
+    """One viewport surface: its namespace, its world->local offset, and ROS handles."""
+
+    def __init__(self, node: CamNode, ns: str, offset: tuple[float, float]) -> None:
+        self.ns = ns
+        self._ox, self._oy = offset
+        self.set_view = node.create_client_wrapper(ViewportSetView, f"{ns}/viewport/set_view", timeout=10.0)
+        self.set_reference = node.create_client_wrapper(
+            ViewportSetReferenceFrame, f"{ns}/viewport/set_reference_frame", timeout=10.0
+        )
+        self.set_projection = node.create_client_wrapper(
+            ViewportSetProjection, f"{ns}/viewport/set_projection", timeout=10.0
+        )
+        # Generous timeout: a capture round-trips a full rendered frame.
+        self.capture = node.create_client_wrapper(ViewportCapture, f"{ns}/viewport/capture", timeout=30.0)
+        self.cmd_view = node.create_publisher(ViewportView, f"{ns}/viewport/cmd_view", _STREAM_QOS)
+        self._pose: tuple[Vec3, Quat] | None = None
+        node.create_subscription(PoseStamped, f"{ns}/viewport/camera_pose", self._on_pose, 10)
+
+    def _on_pose(self, msg: PoseStamped) -> None:
+        p, q = msg.pose.position, msg.pose.orientation
+        self._pose = ((p.x, p.y, p.z), (q.w, q.x, q.y, q.z))
+
+    def localize(self, position: Vec3) -> Vec3:
+        """World coords -> this env's local frame (pure planar offset, no rotation)."""
+        return (position[0] - self._ox, position[1] - self._oy, position[2])
+
+    def world_pose(self) -> tuple[Vec3, Quat] | None:
+        """Latest camera pose lifted back into world coords, or None if not yet seen."""
+        if self._pose is None:
+            return None
+        (x, y, z), q = self._pose
+        return ((x + self._ox, y + self._oy, z), q)
+
+
 class CamNode(ArenaMixinNode):
-    """Standalone node that plays a `Camera` timeline against `/arena/viewport/*`."""
+    """Standalone node that plays a `Camera` timeline against the selected viewports."""
 
     def __init__(
         self,
         *,
         timeline: Camera,
-        arena_ns: str = "/arena",
+        targets: TargetSelection,
         node_name: str = "arena_cam",
         record: tuple[str, float] | None = None,
     ) -> None:
         super().__init__(node_name)
         self._timeline = timeline
-        ns = arena_ns.rstrip("/")
-        self._set_view = self.create_client_wrapper(ViewportSetView, f"{ns}/viewport/set_view", timeout=10.0)
-        self._set_reference = self.create_client_wrapper(
-            ViewportSetReferenceFrame, f"{ns}/viewport/set_reference_frame", timeout=10.0
-        )
-        self._set_projection = self.create_client_wrapper(
-            ViewportSetProjection, f"{ns}/viewport/set_projection", timeout=10.0
-        )
-        # Generous timeout: a capture round-trips a full rendered frame.
-        self._capture = self.create_client_wrapper(ViewportCapture, f"{ns}/viewport/capture", timeout=30.0)
-        self._cmd_view = self.create_publisher(ViewportView, f"{ns}/viewport/cmd_view", _STREAM_QOS)
-        self._camera_pose: tuple[Vec3, Quat] | None = None
-        self.create_subscription(PoseStamped, f"{ns}/viewport/camera_pose", self._on_camera_pose, 10)
+        self._selection = targets
         self._recorder = Recorder(*record) if record is not None else None
+        self._env_refs: dict[int, tuple[float, float]] = {}
+        self._endpoints: list[_Endpoint] = []
+        # True while an entity anchor is active: poses are already in that frame, so
+        # they must not be localized (the env offset only applies to world coords).
+        self._anchored = False
 
     async def setup(self) -> None:
-        if not await self._set_view.ensure(timeout_sec=10.0):
-            self.get_logger().error("no /arena/viewport/* services, is the gazebo GUI up? (headless has none)")
-        elif self._recorder is not None and not await self._capture.ensure(timeout_sec=10.0):
-            self.get_logger().error("no /arena/viewport/capture service, rebuild the plugin for record mode")
+        self.create_subscription(EnvRegistry, _ENVS_TOPIC, self._on_envs, _ENVS_QOS)
+
+        found = await self._await_endpoints()
+        if not found:
+            self.get_logger().error("no viewport targets found, is the sim GUI / rviz up? (headless sim has none)")
+            rclpy.try_shutdown()
+            return
+        if self._recorder is not None and len(found) != 1:
+            self.get_logger().error(
+                f"record needs exactly one target, found {len(found)}, narrow with --sim or --viz <env_id>"
+            )
+            rclpy.try_shutdown()
+            return
+
+        self._endpoints = [_Endpoint(self, ns, offset) for ns, offset in found]
+        reachable: list[_Endpoint] = []
+        for endpoint in self._endpoints:
+            if await endpoint.set_view.ensure(timeout_sec=10.0):
+                reachable.append(endpoint)
+            else:
+                self.get_logger().warning(f"{endpoint.ns}/viewport did not answer, skipping")
+        self._endpoints = reachable
+
+        if not self._endpoints:
+            self.get_logger().error("no reachable viewport targets")
+        elif self._recorder is not None and not await self._endpoints[0].capture.ensure(timeout_sec=10.0):
+            self.get_logger().error("no viewport/capture service, rebuild the plugin for record mode")
         else:
-            self.get_logger().info(f"viewport connected, {'recording' if self._recorder else 'playing'} shot")
+            names = ", ".join(endpoint.ns for endpoint in self._endpoints)
+            self.get_logger().info(f"viewport connected ({names}), {'recording' if self._recorder else 'playing'} shot")
             await asyncio.sleep(0.3)  # let a camera_pose arrive to seed the cursor
             await self._timeline.run(self)
             if rclpy.ok():
@@ -109,52 +195,102 @@ class CamNode(ArenaMixinNode):
                     self.get_logger().info("shot complete")
         rclpy.try_shutdown()
 
+    def _on_envs(self, msg: EnvRegistry) -> None:
+        self._env_refs = {r.env_id: (float(r.reference[0]), float(r.reference[1])) for r in msg.envs}
+
+    async def _await_endpoints(self) -> list[tuple[str, tuple[float, float]]]:
+        """Wait for the selected viewport surfaces to appear, then resolve their offsets."""
+        waited = 0.0
+        while rclpy.ok():
+            if self._find_targets():
+                await asyncio.sleep(1.0)  # settle to catch stragglers and let the env table land
+                return self._find_targets()
+            await asyncio.sleep(0.5)
+            waited += 0.5
+            if waited >= 10.0 and (waited % 10.0) < 0.5:
+                self.get_logger().warning(f"arena cam: waiting for viewport targets ({waited:.0f}s elapsed)")
+        return []
+
+    def _find_targets(self) -> list[tuple[str, tuple[float, float]]]:
+        out: list[tuple[str, tuple[float, float]]] = []
+        for name, _types in self.get_service_names_and_types():
+            if not name.endswith(_VIEW_SUFFIX):
+                continue
+            ns = name[: -len(_VIEW_SUFFIX)]
+            if ns == _ARENA_ROOT:
+                if self._selection.include_sim:
+                    out.append((ns, (0.0, 0.0)))
+                continue
+            env_id = _env_id_from_ns(ns)
+            if env_id is None:
+                continue
+            if self._selection.viz_all or self._selection.viz_env == env_id:
+                out.append((ns, self._env_refs.get(env_id, (0.0, 0.0))))
+        return out
+
     def ok(self) -> bool:
         """False once the rclpy context is shutting down, so streaming stops cleanly."""
         return rclpy.ok()
 
-    def _on_camera_pose(self, msg: PoseStamped) -> None:
-        p, q = msg.pose.position, msg.pose.orientation
-        self._camera_pose = ((p.x, p.y, p.z), (q.w, q.x, q.y, q.z))
-
     def camera_pose(self) -> tuple[Vec3, Quat] | None:
-        """Latest viewport camera world pose (position, quat), or None if not yet seen."""
-        return self._camera_pose
+        """A representative camera world pose to seed the cursor, or None if not yet seen."""
+        for endpoint in self._endpoints:
+            pose = endpoint.world_pose()
+            if pose is not None:
+                return pose
+        return None
+
+    def _local(self, endpoint: _Endpoint, position: Vec3) -> Vec3:
+        """World coords -> endpoint-local, unless an entity anchor is active (already local)."""
+        return position if self._anchored else endpoint.localize(position)
 
     # low-level verbs ------------------------------------------------------
 
     async def look(self, eye: Vec3, target: Vec3, fov: float = 0.0) -> bool:
         if self._recorder is not None:
-            return await self._record_frame(eye, curves.look_at_quat(eye, target), False, fov)
-        req = ViewportSetView.Request()
-        req.eye = Point(x=float(eye[0]), y=float(eye[1]), z=float(eye[2]))
-        req.target = Point(x=float(target[0]), y=float(target[1]), z=float(target[2]))
-        req.fov = float(fov)
-        return await self._call(self._set_view, req)
+            return await self._record_frame(self._endpoints[0], eye, curves.look_at_quat(eye, target), False, fov)
+        ok = True
+        for endpoint in self._endpoints:
+            req = ViewportSetView.Request()
+            eye_local, target_local = self._local(endpoint, eye), self._local(endpoint, target)
+            req.eye = Point(x=float(eye_local[0]), y=float(eye_local[1]), z=float(eye_local[2]))
+            req.target = Point(x=float(target_local[0]), y=float(target_local[1]), z=float(target_local[2]))
+            req.fov = float(fov)
+            ok = await self._call(endpoint.set_view, req) and ok
+        return ok
 
     async def set_reference(self, entity: str = "", pose: tuple[Vec3, Quat] | None = None, mode: str = "full") -> bool:
-        req = ViewportSetReferenceFrame.Request()
-        req.entity = entity
-        req.has_pose = pose is not None
-        if pose is not None:
-            req.pose = _ros_pose(pose[0], pose[1])
-        req.mode = _REFERENCE_MODES[mode]
-        return await self._call(self._set_reference, req)
+        self._anchored = bool(entity)
+        ok = True
+        for endpoint in self._endpoints:
+            req = ViewportSetReferenceFrame.Request()
+            req.entity = entity
+            req.has_pose = pose is not None
+            if pose is not None:
+                req.pose = _ros_pose(self._local(endpoint, pose[0]), pose[1])
+            req.mode = _REFERENCE_MODES[mode]
+            ok = await self._call(endpoint.set_reference, req) and ok
+        return ok
 
     async def set_projection(self, projection: str) -> bool:
-        req = ViewportSetProjection.Request()
-        req.projection = projection
-        return await self._call(self._set_projection, req)
+        ok = True
+        for endpoint in self._endpoints:
+            req = ViewportSetProjection.Request()
+            req.projection = projection
+            ok = await self._call(endpoint.set_projection, req) and ok
+        return ok
 
     def stream(self, position: Vec3, quat: Quat, world_orientation: bool = False, fov: float = 0.0) -> None:
         if not rclpy.ok():
             return
-        msg = ViewportView()
-        msg.target_time = (self.get_clock().now() + Duration(seconds=_LEAD)).to_msg()
-        msg.pose = _ros_pose(position, quat)
-        msg.world_orientation = bool(world_orientation)
-        msg.fov = float(fov)
-        self._cmd_view.publish(msg)
+        stamp = (self.get_clock().now() + Duration(seconds=_LEAD)).to_msg()
+        for endpoint in self._endpoints:
+            msg = ViewportView()
+            msg.target_time = stamp
+            msg.pose = _ros_pose(self._local(endpoint, position), quat)
+            msg.world_orientation = bool(world_orientation)
+            msg.fov = float(fov)
+            endpoint.cmd_view.publish(msg)
 
     async def drive(self, duration: float, world_orientation: bool, frame_at: Frame) -> None:
         """Play one segment by sampling `frame_at(t)` over t in [0, 1].
@@ -165,12 +301,13 @@ class CamNode(ArenaMixinNode):
         the whole move in slow motion.
         """
         if self._recorder is not None:
+            endpoint = self._endpoints[0]
             frames = max(1, round(duration * self._recorder.fps))
             for i in range(frames):
                 if not rclpy.ok():
                     return
                 pos, quat, fov = frame_at((i + 1) / frames)
-                if not await self._record_frame(pos, quat, world_orientation, fov):
+                if not await self._record_frame(endpoint, pos, quat, world_orientation, fov):
                     return
             return
         if duration <= 0.0:
@@ -188,19 +325,23 @@ class CamNode(ArenaMixinNode):
                 break
             await asyncio.sleep(period)
 
-    async def capture(self, position: Vec3, quat: Quat, world_orientation: bool, fov: float) -> object | None:
+    async def capture(
+        self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float
+    ) -> object | None:
         req = ViewportCapture.Request()
-        req.pose = _ros_pose(position, quat)
+        req.pose = _ros_pose(self._local(endpoint, position), quat)
         req.world_orientation = bool(world_orientation)
         req.fov = float(fov)
         try:
-            return await self._capture.call_timeout(req)
+            return await endpoint.capture.call_timeout(req)
         except Exception as e:
             self.get_logger().warning(f"capture call failed: {e}")
             return None
 
-    async def _record_frame(self, position: Vec3, quat: Quat, world_orientation: bool, fov: float) -> bool:
-        res = await self.capture(position, quat, world_orientation, fov)
+    async def _record_frame(
+        self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float
+    ) -> bool:
+        res = await self.capture(endpoint, position, quat, world_orientation, fov)
         if res is None or not res.success:
             detail = "service timed out" if res is None else res.message
             self.get_logger().warning(f"capture failed ({detail}), stopping record")

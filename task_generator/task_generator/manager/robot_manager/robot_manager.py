@@ -249,6 +249,10 @@ class RobotManager(NodeInterface):
         return self._robot.frame
 
     @property
+    def base_frame(self) -> str:
+        return self.frame(self._config.model_params.base_frame).raw()
+
+    @property
     def accepts(self) -> frozenset[TaskKind]:
         """Task kinds this robot's bound adapters can dispatch."""
         return frozenset(self._adapters.keys())

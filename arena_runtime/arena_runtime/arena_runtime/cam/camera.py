@@ -15,7 +15,7 @@ import math
 from collections.abc import Callable, Sequence
 
 from . import curves
-from .client import CamNode
+from .client import CamNode, TargetSelection
 from .curves import Quat, Vec3
 from .record import record_dir
 from .registry import primitive
@@ -417,8 +417,8 @@ class _Zoom(_Segment):
 class Camera:
     """Author a camera shot as a chain of `add(verb, ...)` calls, then `play()` it."""
 
-    def __init__(self, arena_ns: str = "/arena") -> None:
-        self._ns = arena_ns
+    def __init__(self, targets: TargetSelection) -> None:
+        self._targets = targets
         self._actions: list[_Action] = []
 
     def add(self, name: str, params: object = None, /, **kwargs: object) -> Camera:
@@ -433,7 +433,7 @@ class Camera:
 
     def play(self) -> None:
         """Connect to the live sim, run the shot, disconnect. Blocks until done."""
-        CamNode.run_main(timeline=self, arena_ns=self._ns)
+        CamNode.run_main(timeline=self, targets=self._targets)
 
     def record(self, out_dir: str, fps: float = 30.0, force: bool = False) -> None:
         """Render the shot to a numbered PPM sequence, one capture per frame.
@@ -443,7 +443,7 @@ class Camera:
         directory is not empty unless `force`. Blocks until done.
         """
         path = record_dir(out_dir, force)
-        CamNode.run_main(timeline=self, arena_ns=self._ns, record=(str(path), float(fps)))
+        CamNode.run_main(timeline=self, targets=self._targets, record=(str(path), float(fps)))
 
     async def run(self, node: CamNode) -> None:
         """Execute the queued actions against a connected node (called by CamNode.setup)."""

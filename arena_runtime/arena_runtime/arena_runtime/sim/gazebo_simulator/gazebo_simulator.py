@@ -22,8 +22,6 @@ from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
-from arena_runtime_msgs.msg import ViewportView
-from arena_runtime_msgs.srv import ViewportSetProjection, ViewportSetReferenceFrame, ViewportSetView
 from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.Wall import WallSegment
 from arena_simulation_setup.utils.material import MdlUtil
@@ -48,6 +46,8 @@ from task_generator.shared import (
     Wall,
 )
 from task_generator.utils.flags import ObstaclesOptim, obstacles_optim_level
+from viewport_control_msgs.msg import ViewportView
+from viewport_control_msgs.srv import ViewportSetProjection, ViewportSetReferenceFrame, ViewportSetView
 
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (

@@ -198,6 +198,14 @@ class HriProducer(Node):
             tf.transform.rotation = ped.pose.orientation
             self._tf_broadcaster.sendTransform(tf)
 
+            if ped.name:
+                alias = TransformStamped()
+                alias.header.stamp = stamp
+                alias.header.frame_id = f"body_{bid}"
+                alias.child_frame_id = ped.name
+                alias.transform.rotation.w = 1.0
+                self._tf_broadcaster.sendTransform(alias)
+
             if ped.joint_state.name:
                 js = JointState()
                 js.header.stamp = stamp
