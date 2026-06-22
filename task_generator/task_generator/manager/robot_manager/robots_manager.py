@@ -388,6 +388,7 @@ class RobotsManager(NodeInterface):
             ]
         )
         self.node._pub_state_robots.publish(fleet)
+        self.node._publish_viz_manifest()
 
     def bind_abort(self, fn: Callable[[str], None]) -> None:
         """Propagate an abort callable to all current and future RobotManagers."""
