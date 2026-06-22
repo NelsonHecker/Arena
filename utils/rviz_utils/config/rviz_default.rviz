@@ -33,6 +33,9 @@ Panels:
     Name: WorldGeneratorPanel
     Target: {task_generator_node}
     WorldGeneratorTarget: /world_generator
+  - Class: rviz_display_control::Reconciler
+    Name: DisplayControl
+    Topic: {task_generator_node}/state/display_set
 Visualization Manager:
   Class: ""
   Displays: []

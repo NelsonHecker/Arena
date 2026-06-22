@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 import arena_robots.SetupFile as robot_setup
 import attrs
+import geometry_msgs.msg
 import rclpy
 import task_generator_msgs.msg
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
@@ -388,6 +389,19 @@ class RobotsManager(NodeInterface):
             ]
         )
         self.node._pub_state_robots.publish(fleet)
+        self.node._publish_viz_manifest()
+
+        now = self.node.get_clock().now().to_msg()
+        aliases: list[geometry_msgs.msg.TransformStamped] = []
+        for mgr in self.managers.values():
+            alias = geometry_msgs.msg.TransformStamped()
+            alias.header.stamp = now
+            alias.header.frame_id = mgr.base_frame
+            alias.child_frame_id = mgr.frame.raw().lstrip("/")
+            alias.transform.rotation.w = 1.0
+            aliases.append(alias)
+        if aliases:
+            self.node._static_tf_broadcaster.sendTransform(aliases)
 
     def bind_abort(self, fn: Callable[[str], None]) -> None:
         """Propagate an abort callable to all current and future RobotManagers."""

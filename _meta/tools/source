@@ -262,6 +262,10 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 "${TOOLS_DIR}/viz" "$@"
                 result=$?
             ;;
+            cam)
+                ros2 run arena_runtime cam "$@"
+                result=$?
+            ;;
             cleanup)
                 if [ $# -lt 1 ]; then
                     echo "Usage: arena cleanup <env_id>" >&2
@@ -426,7 +430,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 fi
             ;;
             *)
-                echo 'Usage: arena <benchmark|build|rebuild|demo|deps|update|launch|runtime|env|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
+                echo 'Usage: arena <benchmark|build|rebuild|demo|deps|update|launch|runtime|env|cam|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
                 result=1
             ;;
         esac
