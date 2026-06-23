@@ -113,7 +113,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("params", nargs="*", metavar="key=value", help="verb or shot parameters")
     parser.add_argument("--sim", action="store_true", help="drive the sim GUI camera")
     parser.add_argument(
-        "--viz", nargs="?", const=_VIZ_ALL, default=None, metavar="ENV_ID",
+        "--viz",
+        nargs="?",
+        const=_VIZ_ALL,
+        default=None,
+        metavar="ENV_ID",
         help="drive rviz cameras: bare for all, or an env id for one",
     )
     parser.add_argument("-f", "--force", action="store_true", help="overwrite a non-empty record dir")
