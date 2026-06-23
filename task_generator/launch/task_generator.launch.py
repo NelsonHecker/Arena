@@ -168,6 +168,11 @@ def generate_launch_description():
             "false = managed: external controller drives resets via lifecycle/reset_episode."
         ),
     )
+    fail_on_collision = LaunchArgument(
+        name="fail_on_collision",
+        default_value="false",
+        description="true = abort the episode (FAILED) when the robot footprint contacts a wall, static obstacle, or pedestrian.",
+    )
     train_mode = LaunchArgument(name="train_mode", default_value="false")
     parameter_file = LaunchArgument(
         name="parameter_file",
@@ -321,6 +326,7 @@ def generate_launch_description():
                     **world.str_param,
                     **record_data_dir.str_param,
                     **auto_reset.param(bool),
+                    **fail_on_collision.param(bool),
                     **train_mode.param(bool),
                     "env_id": allocated_id,
                     "prefix": prefix_val,

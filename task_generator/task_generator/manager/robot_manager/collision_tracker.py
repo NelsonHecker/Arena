@@ -43,6 +43,7 @@ class CollisionTrackerNode(rclpy.node.Node):
         rate_hz: float = 10.0,
         near_miss_margin: float = 0.0,
         default_pedestrian_radius: float = 0.3,
+        footprint: list[list[float]] | None = None,
     ):
         super().__init__(
             'collision_tracker',
@@ -75,6 +76,10 @@ class CollisionTrackerNode(rclpy.node.Node):
                     'R_c': r_c,
                     'action_code': _ACTION_CODES.get(spec.action_type, 0),
                 }
+
+        self._footprint_base: shapely.Polygon | None = None
+        if footprint is not None and len(footprint) >= 3:
+            self._footprint_base = shapely.Polygon(footprint)
 
         self._pub_state = self.create_publisher(nav2_msgs.msg.CollisionMonitorState, 'collision_monitor_state', 10)
         self._pub_events = self.create_publisher(arena_robots_msgs.msg.CollisionEvents, 'collision_events', 10)
@@ -163,6 +168,24 @@ class CollisionTrackerNode(rclpy.node.Node):
         evmsg.header.frame_id = 'map'
         evmsg.events = events
         self._pub_events.publish(evmsg)
+
+        if self._footprint_base is not None and self._rm.node.rosparam[bool].get_unsafe('fail_on_collision'):
+            footprint = shapely.affinity.translate(
+                shapely.affinity.rotate(self._footprint_base, rth, origin=(0, 0), use_radians=True),
+                xoff=rx,
+                yoff=ry,
+            )
+            hit = (not walls.is_empty and footprint.intersects(walls)) or any(footprint.intersects(p) for p in statics.values())
+            if not hit and self._peds_msg is not None:
+                for p in self._peds_msg.pedestrians:
+                    px, py = p.pose.position.x, p.pose.position.y
+                    if math.isnan(px) or math.isnan(py):
+                        continue
+                    if footprint.intersects(shapely.Point(px, py).buffer(self._default_peds_radius)):
+                        hit = True
+                        break
+            if hit:
+                self._rm.node.fail_episode('collision')
 
     def shutdown(self):
         self.destroy_node()
