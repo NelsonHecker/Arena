@@ -154,6 +154,6 @@ def expand_spec(spec: dict, params: object, stack: tuple[str, ...]) -> list[_Act
     args = {**spec.get("params", {}), **(params or {})}
     actions: list[_Action] = []
     for step in desugar(spec):
-        (name, raw), = step.items()
+        ((name, raw),) = step.items()
         actions.extend(resolve(name, substitute(raw, args), stack))
     return actions

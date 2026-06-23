@@ -83,12 +83,13 @@ from rclpy.qos import (
     QoSProfile,
     QoSReliabilityPolicy,
 )
+from visualization_msgs.msg import MarkerArray
+
 from task_generator.constants import Constants
 from task_generator.constants.rng import stable_int
 from task_generator.shared import Door, DynamicObstacle, Obstacle, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle, resolve_agent_type_path
-from visualization_msgs.msg import MarkerArray
 
 
 class ArenaHumanSimulator(BaseHumanSimulator):

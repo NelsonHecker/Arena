@@ -19,6 +19,8 @@ from geometry_msgs.msg import Point
 from hunav_msgs.msg import Agent, AgentBehavior, Agents, WallSegment
 from hunav_msgs.srv import ComputeAgent, ComputeAgents, GetAgents, GetWalls, MoveAgent
 from std_srvs.srv import Trigger
+from visualization_msgs.msg import Marker, MarkerArray
+
 from task_generator.shared import (
     DynamicObstacle,
     Obstacle,
@@ -28,7 +30,6 @@ from task_generator.shared import (
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.dummy import DummyHumanSimulator
-from visualization_msgs.msg import Marker, MarkerArray
 
 from . import HunavDynamicObstacle
 

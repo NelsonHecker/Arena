@@ -86,7 +86,7 @@ def _env_id_from_ns(ns: str) -> int | None:
     for part in ns.strip("/").split("/"):
         if part.startswith("env_"):
             try:
-                return int(part[len("env_"):])
+                return int(part[len("env_") :])
             except ValueError:
                 return None
     return None
@@ -106,12 +106,8 @@ class _Endpoint:
         self.ns = ns
         self._ox, self._oy = offset
         self.set_view = node.create_client_wrapper(ViewportSetView, f"{ns}/viewport/set_view", timeout=10.0)
-        self.set_reference = node.create_client_wrapper(
-            ViewportSetReferenceFrame, f"{ns}/viewport/set_reference_frame", timeout=10.0
-        )
-        self.set_projection = node.create_client_wrapper(
-            ViewportSetProjection, f"{ns}/viewport/set_projection", timeout=10.0
-        )
+        self.set_reference = node.create_client_wrapper(ViewportSetReferenceFrame, f"{ns}/viewport/set_reference_frame", timeout=10.0)
+        self.set_projection = node.create_client_wrapper(ViewportSetProjection, f"{ns}/viewport/set_projection", timeout=10.0)
         # Generous timeout: a capture round-trips a full rendered frame.
         self.capture = node.create_client_wrapper(ViewportCapture, f"{ns}/viewport/capture", timeout=30.0)
         self.cmd_view = node.create_publisher(ViewportView, f"{ns}/viewport/cmd_view", _STREAM_QOS)
@@ -164,9 +160,7 @@ class CamNode(ArenaMixinNode):
             rclpy.try_shutdown()
             return
         if self._recorder is not None and len(found) != 1:
-            self.get_logger().error(
-                f"record needs exactly one target, found {len(found)}, narrow with --sim or --viz <env_id>"
-            )
+            self.get_logger().error(f"record needs exactly one target, found {len(found)}, narrow with --sim or --viz <env_id>")
             rclpy.try_shutdown()
             return
 
@@ -325,9 +319,7 @@ class CamNode(ArenaMixinNode):
                 break
             await asyncio.sleep(period)
 
-    async def capture(
-        self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float
-    ) -> object | None:
+    async def capture(self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float) -> object | None:
         req = ViewportCapture.Request()
         req.pose = _ros_pose(self._local(endpoint, position), quat)
         req.world_orientation = bool(world_orientation)
@@ -338,9 +330,7 @@ class CamNode(ArenaMixinNode):
             self.get_logger().warning(f"capture call failed: {e}")
             return None
 
-    async def _record_frame(
-        self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float
-    ) -> bool:
+    async def _record_frame(self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float) -> bool:
         res = await self.capture(endpoint, position, quat, world_orientation, fov)
         if res is None or not res.success:
             detail = "service timed out" if res is None else res.message

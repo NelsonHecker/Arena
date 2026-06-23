@@ -34,6 +34,6 @@ def load_shot(path: str | Path, targets: TargetSelection) -> Camera:
     args = spec.get("params", {})
     cam = Camera(targets)
     for step in desugar(spec):
-        (name, raw), = step.items()
+        ((name, raw),) = step.items()
         cam.add(name, substitute(raw, args))
     return cam
