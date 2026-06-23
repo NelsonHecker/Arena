@@ -24,8 +24,6 @@ def generate_launch_description():
     robot = LaunchArgument("robot")
     frame = LaunchArgument("frame")
 
-    record_data_dir = LaunchArgument('record_data_dir', default_value='')
-
     # launch robot control
     state_pub_launch = launch.actions.IncludeLaunchDescription(
         launch.launch_description_sources.PythonLaunchDescriptionSource(
@@ -44,22 +42,11 @@ def generate_launch_description():
         }.items(),
     )
 
-    data_recorder = launch_ros.actions.Node(
-        package='arena_evaluation',
-        executable='record',
-        name=PythonExpression(['"data_recorder" + "', namespace.substitution, '".replace("/","_")']),
-        arguments=[
-            ['--dir', ' ', record_data_dir.substitution],
-        ],
-        condition=launch.conditions.IfCondition(PythonExpression(['bool("', record_data_dir.substitution, '")'])),
-    )
-
     ld = launch.LaunchDescription([
         *ld_items,
         PushRosNamespace(namespace=namespace.substitution),
         # robot_localization_node,
         # state_pub_launch,
-        data_recorder,
     ])
     return ld
 

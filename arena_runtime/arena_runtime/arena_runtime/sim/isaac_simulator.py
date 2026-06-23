@@ -418,11 +418,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             return prim
 
         level = obstacles_optim_level(self.node)
-        boxes = (
-            await asyncio.gather(*(resolve_obstacle_box(o) for o in obstacles))
-            if level is ObstaclesOptim.BBOX
-            else [None] * len(obstacles)
-        )
+        boxes = await asyncio.gather(*(resolve_obstacle_box(o) for o in obstacles)) if level is ObstaclesOptim.BBOX else [None] * len(obstacles)
         box_indices = [i for i, box in enumerate(boxes) if box is not None]
         mesh_indices = [i for i, box in enumerate(boxes) if box is None]
 

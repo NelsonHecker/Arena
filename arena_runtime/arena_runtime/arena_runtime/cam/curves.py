@@ -127,12 +127,7 @@ def catmull_rom(points: list[Vec3], t: float) -> Vec3:
     f3 = f2 * f
 
     def comp(a: float, b: float, c: float, d: float) -> float:
-        return 0.5 * (
-            (2 * b)
-            + (-a + c) * f
-            + (2 * a - 5 * b + 4 * c - d) * f2
-            + (-a + 3 * b - 3 * c + d) * f3
-        )
+        return 0.5 * ((2 * b) + (-a + c) * f + (2 * a - 5 * b + 4 * c - d) * f2 + (-a + 3 * b - 3 * c + d) * f3)
 
     return (
         comp(p0[0], p1[0], p2[0], p3[0]),
