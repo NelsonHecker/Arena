@@ -19,7 +19,7 @@ uninstall(){
 
 # === MAIN SCRIPT ===
 help(){
-    echo "Usage: $name <install|update|uninstall|source|launch|list|status|tail|extract|run|process|report|plot>"
+    echo "Usage: $name <install|update|uninstall|source|benchmark|list|status|tail|extract|run|process|report|plot>"
     echo ""
     echo "arena_evaluation for recording, metrics, and benchmarking."
     echo "This enables:"
@@ -27,7 +27,7 @@ help(){
     echo "  update    -- pull arena_evaluation submodule and rebuild"
     echo "  uninstall -- deinit arena_evaluation and remove from registry"
     echo "  source    -- no-op; sourced by the feature dispatcher"
-    echo "  launch    -- run a benchmark (ros2 run arena_evaluation benchmark)"
+    echo "  benchmark -- run a benchmark suite (ros2 run arena_evaluation benchmark)"
     echo "  list      -- list available evaluations"
     echo "  status    -- show status of a running or completed evaluation"
     echo "  tail      -- stream live output of a running evaluation"
@@ -58,7 +58,7 @@ case "$1" in
     source)
         return 0
     ;;
-    launch)
+    benchmark)
         _feature_registry require "$name" || exit 1
         shift
         ros2 run arena_evaluation benchmark "$@"
