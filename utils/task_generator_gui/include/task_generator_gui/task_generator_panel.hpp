@@ -16,7 +16,6 @@
 #include "task_generator_msgs/srv/query_scenarios.hpp"
 #include "task_generator_msgs/srv/query_task_modes.hpp"
 #include "task_generator_msgs/srv/query_worlds.hpp"
-#include "task_generator_msgs/srv/query_robots.hpp"
 #include "task_generator_msgs/srv/pause.hpp"
 #include "task_generator_msgs/srv/reset_episode.hpp"
 #include "task_generator_msgs/srv/queue_episode.hpp"
@@ -87,7 +86,6 @@ namespace task_generator_gui
         void onInitialize() override;
         void load(const rviz_common::Config &config) override;
 
-        void getRobots();
         void getWorlds();
 
         void getTMObstaclesParams();
@@ -96,7 +94,6 @@ namespace task_generator_gui
         void setTMObstaclesParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req);
         void setTMRobotsParamsRequest(task_generator_msgs::srv::QueueEpisode::Request &req);
         void getParams();
-        void setRobot();
 
         // Build a QueueEpisode request from current widget state.
         task_generator_msgs::srv::QueueEpisode::Request::SharedPtr buildQueueEpisodeRequest();
@@ -156,7 +153,6 @@ namespace task_generator_gui
         rclcpp::Client<task_generator_msgs::srv::QueryDynamicObstacles>::SharedPtr query_dynamic_obstacles_client;
         rclcpp::Client<task_generator_msgs::srv::QueryScenarios>::SharedPtr query_scenarios_client;
         rclcpp::Client<task_generator_msgs::srv::QueryWorlds>::SharedPtr query_worlds_client;
-        rclcpp::Client<task_generator_msgs::srv::QueryRobots>::SharedPtr query_robots_client;
         rclcpp::Client<task_generator_msgs::srv::QueryTaskModes>::SharedPtr query_task_modes_client;
 
         // --- Lifecycle service clients ---
@@ -186,10 +182,8 @@ namespace task_generator_gui
         // --- state/paused subscription (latched) ---
         rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr paused_state_sub;
 
-        std::string selected_robot_model;
         std::string staged_world;
 
-        std::vector<std::string> robot_models;
         std::vector<std::string> worlds;
         std::vector<std::string> obstacles_modes_;
         std::vector<std::string> robots_modes_;
@@ -203,8 +197,6 @@ namespace task_generator_gui
         std::unique_ptr<DynamicParamTree> dynamic_param_tree_robots_;
 
         // Dirty-tracking flags: set when the user edits a widget.
-        // The robot combobox is a picker for the Spawn Robot button, not a queued-state
-        // mirror, so changing it does not mark the panel dirty.
         bool obstacles_params_dirty_{false};
         bool robots_params_dirty_{false};
         bool world_dirty_{false};
@@ -229,9 +221,7 @@ namespace task_generator_gui
         QTreeWidget *robots_tree;
         QComboBox *obstacles_task_mode_combobox;
         QComboBox *robot_task_mode_combobox;
-        QComboBox *robot_combobox;
         QComboBox *world_combobox;
-        QPushButton *spawn_robot_button;
 
         QPushButton *discard_button;
         QPushButton *queue_button;
@@ -254,9 +244,7 @@ namespace task_generator_gui
 
     private Q_SLOTS:
         void onQueueClicked();
-        void spawnRobotButtonActivated();
 
-        void onRobotChanged(const QString &text);
         void onWorldChanged(const QString &text);
 
         void onObstaclesTaskModeChanged(const QString &text);

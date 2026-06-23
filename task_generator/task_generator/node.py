@@ -89,7 +89,6 @@ class TaskModeOverrides:
     tm_modules: list[str] = attrs.Factory(list)
     keep_modules: bool = False
     world: str = ""
-    robots: list[str] = attrs.Factory(list)
 
 
 @attrs.define
@@ -221,6 +220,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             _LATCHED,
         )
 
+        self._pub_state_robots_pending = self.create_publisher(
+            task_generator_msgs.msg.RobotQueue,
+            self.service_namespace("state", "robots", "pending"),
+            _LATCHED,
+        )
+
         self._pub_state_queue = self.create_publisher(
             task_generator_msgs.msg.EpisodeRecord,
             self.service_namespace("state", "queue"),
@@ -252,6 +257,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._episode_task: asyncio.Task | None = None
 
         self._publish_bootstrap_queue_state()
+        self._pub_state_robots_pending.publish(task_generator_msgs.msg.RobotQueue())
 
     def _publish_bootstrap_queue_state(self) -> None:
         # Latch a minimal state/queue at construction so the rviz panel can
@@ -645,20 +651,18 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         current_modules = [m.value for m in self.conf.TaskMode.TM_MODULES.value]
         record_world = self._episodes.current.world
         loaded_world = self._world_manager.loaded_world
-        live_robots = [m.model_name for m in self._robots_manager.managers.values()]
+        queued_robots = [m.model_name for m in self._robots_manager.managers.values()]
 
         if overrides is None:
             queued_tm_robots = current_robots
             queued_tm_obstacles = current_obstacles
             queued_tm_modules = current_modules
             queued_world = record_world or loaded_world
-            queued_robots = live_robots
         else:
             queued_tm_robots = overrides.tm_robots or current_robots
             queued_tm_obstacles = overrides.tm_obstacles or current_obstacles
             queued_tm_modules = current_modules if overrides.keep_modules else overrides.tm_modules
             queued_world = overrides.world or record_world or loaded_world
-            queued_robots = overrides.robots or live_robots
 
         obstacles_live = self._params_for_mode(queued_tm_obstacles)
         robots_live = self._params_for_mode(queued_tm_robots)
@@ -707,9 +711,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         if overrides is not None and overrides.world:
             world = world or overrides.world
             # World swap itself happens inside `_run_reset_cycle`'s hold window.
-
-        if overrides is not None and overrides.robots:
-            self.rosparam[str].set("robot", ",".join(overrides.robots))
 
         resolved_world = world or self._world_manager.loaded_world or self._episodes.current.world
         run_seed = self.rosparam[str].get("run_seed", "") or self._episodes.run_seed
@@ -964,11 +965,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             existing.keep_modules = False
         if request.world:
             existing.world = request.world
-        if request.robots:
-            seen = dict.fromkeys(existing.robots)
-            for r in request.robots:
-                seen.setdefault(r, None)
-            existing.robots = list(seen)
         self._episodes.pending_overrides = existing
 
         for p in request.obstacles_params:
@@ -1092,8 +1088,27 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             pose = self._pose_from_request(request.pose) if request.use_pose else None
             args = {kv.key: kv.value for kv in request.args}
             name_out = await self._task.tm_robots.extend(request.model, request.name or None, pose, args=args)
+            if request.immediate:
+                async with self._reset_lock:
+                    await self._robots_manager.spawn_now(name_out, pose)
+            self._robots_manager.publish_queue()
             self._flip_integrity()
             response.name = name_out
+            response.success = True
+        except Exception as e:
+            response.success = False
+            response.error_msg = str(e)
+        return response
+
+    async def _cb_despawn_robot(
+        self,
+        request: task_generator_msgs.srv.DespawnRobot.Request,
+        response: task_generator_msgs.srv.DespawnRobot.Response,
+    ) -> task_generator_msgs.srv.DespawnRobot.Response:
+        try:
+            self._robots_manager.remove_pending(request.name)
+            self._robots_manager.publish_queue()
+            self._flip_integrity()
             response.success = True
         except Exception as e:
             response.success = False
@@ -1363,6 +1378,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             task_generator_msgs.srv.SpawnRobot,
             self.service_namespace("runtime", "spawn_robot"),
             self._cb_spawn_robot,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.DespawnRobot,
+            self.service_namespace("runtime", "despawn_robot"),
+            self._cb_despawn_robot,
         )
 
         self._logger.info("Services set up")

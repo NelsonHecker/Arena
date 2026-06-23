@@ -297,6 +297,32 @@ and exit non-zero with a hint to use `--all` or `<env_id>`.
 
 ---
 
+## arena robot
+
+Add, remove, and list robots in a running fleet at runtime, on top of the
+launch-time `robot:=` seed.
+
+```bash
+arena robot jackal                       # spawn one jackal (unique auto name)
+arena robot jackal mobile:=manual        # per-instance adapter selection
+arena robot jackal count:=2              # two jackals
+arena robot rm jackal_0                  # despawn by name
+arena robot ls                           # list the current fleet
+```
+
+`<key>:=<value>` tokens describe the robot and are forwarded to the spawn
+service: `name` sets the instance name, `count` spawns that many, and every
+other key reaches `Robot.parse` (e.g. `mobile:=`, `arm:=`). `--flags` control
+the command. Target an env with `--env <id>` or `--ns <ns>` (required when more
+than one env is running); `arena robot ls --all` lists every env.
+
+Spawns and despawns apply on the next episode reset. By default the command
+waits until the robot appears in / disappears from `state/robots` (10s warning
+cadence); `--nowait` returns as soon as the request is accepted (printing the
+assigned name).
+
+---
+
 ## Common options
 
 ```bash
@@ -404,6 +430,7 @@ common entry points. Verbs relevant to bringup:
 | `arena runtime [args]` | `arena_runtime.launch.py` | Runtime-only launch (sim + `arena_node`, no envs). |
 | `arena env [args]` | `task_generator.launch.py` | Attach one task-generator env to a running runtime. |
 | `arena viz [target]` | `ros2 run rviz_utils rviz_config` | Attach rviz to a running env; see [arena viz](#arena-viz). |
+| `arena robot <model>\|rm\|ls` | `runtime/spawn_robot`, `runtime/despawn_robot`, `state/robots` | Spawn, despawn, or list robots in a running fleet; see [arena robot](#arena-robot). |
 | `arena cleanup <env_id>` | `/arena/cleanup_namespace` service | Force-clean an env's namespace by id (calls the service for both the `env_<id>_` and `env_<id>/` prefixes, covering gazebo and isaac layouts). |
 | `arena train [args]` | `arena_training` feature launcher | RL training entry, see section 7 above. |
 

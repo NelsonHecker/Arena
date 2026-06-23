@@ -46,8 +46,6 @@ namespace task_generator_gui
             task_generator_node + "/query/scenarios");
         query_worlds_client = node->create_client<task_generator_msgs::srv::QueryWorlds>(
             task_generator_node + "/query/worlds");
-        query_robots_client = node->create_client<task_generator_msgs::srv::QueryRobots>(
-            task_generator_node + "/query/robots");
         query_task_modes_client = node->create_client<task_generator_msgs::srv::QueryTaskModes>(
             task_generator_node + "/query/task_modes");
 
@@ -145,31 +143,6 @@ namespace task_generator_gui
 
         // Bootstrap queries are gated on service readiness so they survive the
         // race where rviz loads before task_generator_node has advertised.
-        whenReady(
-            [c = query_robots_client]() { return c->service_is_ready(); },
-            [this]()
-            {
-                query_robots_client->async_send_request(
-                    std::make_shared<task_generator_msgs::srv::QueryRobots::Request>(),
-                    [this](rclcpp::Client<task_generator_msgs::srv::QueryRobots>::SharedFuture f)
-                    {
-                        auto resp = f.get();
-                        if (!resp) return;
-                        QMetaObject::invokeMethod(this, [this, ids = resp->ids]()
-                        {
-                            robot_models = ids;
-                            if (selected_robot_model.empty() && !robot_models.empty())
-                                selected_robot_model = robot_models[0];
-                            QSignalBlocker blocker(robot_combobox);
-                            robot_combobox->clear();
-                            for (const auto &r : robot_models)
-                                robot_combobox->addItem(QString::fromStdString(r));
-                            robot_combobox->setCurrentText(QString::fromStdString(selected_robot_model));
-                            robot_combobox->setEnabled(true);
-                        }, Qt::QueuedConnection);
-                    });
-            });
-
         whenReady(
             [c = query_worlds_client]() { return c->service_is_ready(); },
             [this]()
@@ -301,14 +274,6 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::setupUi()
     {
-        // Robot combobox — disabled until robots arrive.
-        robot_combobox = setupComboBoxWithLabel(this->root_layout, QStringList{"Loading..."}, QString("Robot"));
-        robot_combobox->setEnabled(false);
-        connect(robot_combobox, &QComboBox::currentTextChanged, this, &TaskGeneratorPanel::onRobotChanged);
-        spawn_robot_button = new QPushButton("Spawn Robot");
-        connect(spawn_robot_button, &QPushButton::clicked, this, &TaskGeneratorPanel::spawnRobotButtonActivated);
-        robot_combobox->parentWidget()->layout()->addWidget(spawn_robot_button);
-
         // World combobox — disabled until worlds arrive.
         world_combobox = setupComboBoxWithLabel(this->root_layout, QStringList{"Loading..."}, QString("World"));
         world_combobox->setEnabled(false);
@@ -477,11 +442,6 @@ namespace task_generator_gui
         parent->addWidget(tree);
 
         return tree;
-    }
-
-    void TaskGeneratorPanel::onRobotChanged(const QString &text)
-    {
-        selected_robot_model = text.toStdString();
     }
 
     void TaskGeneratorPanel::onWorldChanged(const QString &text)
@@ -692,16 +652,6 @@ namespace task_generator_gui
                 dynamic_param_tree_robots_->rebuild("task." + new_mode);
         }
 
-        if (!rec.robots.empty())
-        {
-            selected_robot_model = rec.robots.back();
-            if (robot_combobox)
-            {
-                QSignalBlocker b(robot_combobox);
-                robot_combobox->setCurrentText(QString::fromStdString(selected_robot_model));
-            }
-        }
-
         for (const auto &p : rec.obstacles_params)
         {
             auto it = param_widgets_obstacles_.find(p.name);
@@ -818,11 +768,6 @@ namespace task_generator_gui
             playlist_table->setItem(row, 1, makeItalic(QString("(queued)")));
             playlist_table->setItem(row, 2, makeItalic(QString::fromStdString(que.outcome_info)));
         }
-    }
-
-    void TaskGeneratorPanel::spawnRobotButtonActivated()
-    {
-        setRobot();
     }
 
 } // namespace task_generator_gui

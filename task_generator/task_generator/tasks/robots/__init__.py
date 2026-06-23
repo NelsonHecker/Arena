@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 
 from task_generator.shared import Pose
 from task_generator.shared import Robot as RobotEntity
@@ -34,9 +33,13 @@ class TM_Robots(TaskMode):
         self._start_poses = {}
 
     async def set_position(self, pose: Pose):
-        """Teleport every robot to ``pose``."""
-        for robot_manager in self._ctx.robots.values():
-            await robot_manager.move(pose)
+        """Handle an external pose-estimate override for the robots in this mode.
+
+        Default: teleport only the most recently added robot in scope to ``pose``.
+        """
+        robots = self._ctx.robots
+        if robots:
+            await next(reversed(robots.values())).move(pose)
 
     async def set_goal(self, pose: Pose):
         """Dispatch a single-phase GOTO request targeting ``pose`` on every robot."""
@@ -51,7 +54,7 @@ class TM_Robots(TaskMode):
         args: dict[str, str] | None = None,
     ) -> str:
         resolved_pose = pose if pose is not None else await random_placement(self._ctx)
-        assigned_name = name or f"{model}_{uuid.uuid4().hex[:6]}"
+        assigned_name = name or self.node._robots_manager.next_name(model)
         value: dict[str, object] = dict(args or {})
         value['model'] = model
         value['name'] = assigned_name

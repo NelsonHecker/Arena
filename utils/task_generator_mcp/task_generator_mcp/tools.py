@@ -13,6 +13,7 @@ from std_srvs.srv import Empty
 from task_generator.constants import Constants
 from task_generator_msgs.action import RunEpisode
 from task_generator_msgs.srv import (
+    DespawnRobot,
     GetTaskModes,
     QueryDynamicObstacles,
     QueryEnvironments,
@@ -217,7 +218,7 @@ def register_tools(
             ),
             Tool(
                 name="config_queue_episode",
-                description="Queue episode configuration. Empty string for any field preserves the prior queued value. tm_modules replaces the current set unless keep_modules=true. robots is unioned with the prior queued robots set.",
+                description="Queue episode configuration. Empty string for any field preserves the prior queued value. tm_modules replaces the current set unless keep_modules=true.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -230,11 +231,6 @@ def register_tools(
                         },
                         "keep_modules": {"type": "boolean", "default": False, "description": "When true, tm_modules is ignored and the prior queued module set is preserved."},
                         "world": {"type": "string", "default": "", "description": "World id for the queued episode. Empty keeps prior queued value."},
-                        "robots": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Robot model names to union into the queued robots set. Empty array is a no-op.",
-                        },
                     },
                 },
             ),
@@ -301,8 +297,20 @@ def register_tools(
                         "model": {"type": "string", "description": "Robot model shortname (see query_robots)."},
                         "name": {"type": "string", "default": "", "description": "Robot name; empty auto-generates."},
                         "pose": {**_POSE_SCHEMA, "description": "Optional spawn pose. Omit for placement by active task mode."},
+                        "immediate": {"type": "boolean", "default": False, "description": "Provision into the live world now (idle), else commit on the next reset."},
                     },
                     "required": ["model"],
+                },
+            ),
+            Tool(
+                name="runtime_despawn_robot",
+                description="Despawn a robot by name.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Robot name to despawn."},
+                    },
+                    "required": ["name"],
                 },
             ),
         ]
@@ -416,8 +424,6 @@ async def _dispatch(name: str, args: dict[str, object], bridge: RosBridge) -> ob
         req.tm_modules = list(modules) if modules is not None else []
         req.keep_modules = bool(args.get("keep_modules", False))
         req.world = args.get("world", "")
-        robots = args.get("robots")
-        req.robots = list(robots) if robots is not None else []
         resp = await bridge.client_queue_episode.call_timeout(req)
         if resp is None:
             return {"error": "timeout"}
@@ -487,10 +493,19 @@ async def _dispatch(name: str, args: dict[str, object], bridge: RosBridge) -> ob
         req = SpawnRobot.Request()
         req.model = args["model"]
         req.name = args.get("name", "")
+        req.immediate = bool(args.get("immediate", False))
         req.pose, req.use_pose = bridge.pose_dict_to_msg(args.get("pose"))
         resp = await bridge.client_spawn_robot.call_timeout(req)
         if resp is None:
             return {"error": "timeout"}
         return {"name": resp.name, "success": resp.success, "error_msg": resp.error_msg}
+
+    if name == "runtime_despawn_robot":
+        req = DespawnRobot.Request()
+        req.name = args["name"]
+        resp = await bridge.client_despawn_robot.call_timeout(req)
+        if resp is None:
+            return {"error": "timeout"}
+        return {"success": resp.success, "error_msg": resp.error_msg}
 
     return {"error": f"unknown tool: {name}"}

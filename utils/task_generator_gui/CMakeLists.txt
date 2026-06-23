@@ -24,12 +24,14 @@ qt5_wrap_cpp(MOC_FILES
   include/task_generator_gui/task_generator_panel.hpp
   include/task_generator_gui/spawn_pedestrian_tool.hpp
   include/task_generator_gui/world_generator_panel.hpp
+  include/task_generator_gui/fleet_panel.hpp
   include/Qt-MultiSelectComboBox/MultiSelectComboBox.h
   )
 
   add_library(task_generator_panel
   src/task_generator_panel.cpp
   src/task_generator_panel_getset_params.cpp
+  src/fleet_panel.cpp
   src/task_generator_panel_dynamic_params.cpp
   src/utils/dynamic_param_tree.cpp
   src/spawn_pedestrian_tool.cpp

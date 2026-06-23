@@ -24,7 +24,7 @@ Sourced from `__init__.py` plus the submodules it re-exports.
 | `ClientWrapper` | class | Async `call_timeout()` / sync `call_timeout_sync()` around a service client | Service calls with timeout logging |
 | `ActionClientWrapper` | class | `send_goal()`, `send_goal_timeout()`, `await_result()`, `send_and_await()`, `cancel()`, `ensure()` | Action client with timeout wrappers |
 | `AsyncUtil` | class | `AsyncUtil.timeout(coro, sec)` — `asyncio.wait_for` that returns `None` on timeout | One-off timeout wrapper |
-| `AsyncLaunchManager` | class | Async `launch_description()`, `kill_all()` — manages active `LaunchService` tasks | Nodes that programmatically launch sub-processes |
+| `AsyncLaunchManager` / `LaunchHandle` | class | `launch_description()` returns a `LaunchHandle` (awaitable to completion; `shutdown()` gracefully terminates child processes); `kill_all()` shuts down all | Nodes that programmatically launch sub-processes |
 | `Namespace` | class | `str` subclass with `/`-join `__call__`, `.simulation_ns`, `.robot_ns`, `.remove_double_slash()` | Building topic / service paths |
 | `FrameNamespace` | class | `Namespace` subclass with `.sanitize()` (replaces non-alphanumeric with `_`) | TF frame name construction |
 | `ParamNamespace` | class | `Namespace` with `.`-join `__call__`, converts to/from slash namespaces | ROS param key construction |

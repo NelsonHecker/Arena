@@ -8,6 +8,7 @@ import typing
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
 import attrs
+import controller_manager_msgs.srv
 import geometry_msgs.msg
 import launch
 import launch.launch_description_sources
@@ -18,6 +19,7 @@ import rclpy.node
 import rclpy.publisher
 import rclpy.timer
 import tf2_ros
+from arena_rclpy_mixins.Async import LaunchHandle
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
 from arena_runtime._node import NodeInterface
@@ -50,6 +52,9 @@ _NAV2_QUIET_RULES = '+[' + ', '.join(f'**/{n}:error' for n in _NAV2_QUIET_NODES)
 
 _MOVEIT_QUIET_RULES = '+[**/moveit/**:error]'
 
+_CONTROLLER_MANAGER_GRACE = 30.0
+_CONTROLLER_POLL = 0.2
+
 
 class RobotManager(NodeInterface):
     """Manages the goal and start position of a robot for all task modes."""
@@ -70,6 +75,7 @@ class RobotManager(NodeInterface):
     _phase_index: int
     _unsupported_kinds_logged: set[TaskKind]
     _abort_episode: Callable[[str], None] | None
+    _launch_handle: LaunchHandle | None
 
     @property
     def robot(self) -> Robot:
@@ -134,6 +140,7 @@ class RobotManager(NodeInterface):
         self._robot.extra.setdefault('namespace', self.namespace)
 
         self._publish_goal_task: asyncio.Task | None = None
+        self._launch_handle: LaunchHandle | None = None
 
         # Deferred to break the import cycle between this module and
         # task_generator.tasks (which eagerly loads context.py → RobotManager).
@@ -504,8 +511,25 @@ class RobotManager(NodeInterface):
                 )
             launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
-            await self.node.do_launch(launch_description)
+            self._launch_handle = await self.node.do_launch_tracked(launch_description)
             await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
+            await self.wait_controllers_active()
+
+    async def wait_controllers_active(self) -> None:
+        """Block until every spawned controller reports active. A controller_manager that
+        never appears within the grace window (dummy sim) means there is nothing to wait for."""
+        client = self.node.create_client_wrapper(
+            controller_manager_msgs.srv.ListControllers,
+            str(self.namespace("controller_manager", "list_controllers")),
+            timeout=_CONTROLLER_MANAGER_GRACE,
+        )
+        if not await client.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
+            return
+        while True:
+            resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
+            if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
+                return
+            await asyncio.sleep(_CONTROLLER_POLL)
 
     async def update(self):
         # TODO implement record data dir
@@ -519,4 +543,7 @@ class RobotManager(NodeInterface):
         for adapter, result in zip(self._adapter_instances, results, strict=True):
             if isinstance(result, Exception):
                 self._logger.warning(f"adapter {adapter.kind!r} teardown failed: {result!r}")
+        if self._launch_handle is not None:
+            await self._launch_handle.shutdown()
+        self._launch_handle = None
         await self._environment_manager.remove_robot((self.robot,))

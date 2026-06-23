@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import typing
 from collections.abc import Sequence
 
@@ -201,8 +202,10 @@ class Task(NodeInterface):
 
             self.node.conf.General.RNG.reseed(int(kwargs["seed"]))
 
-            await self.robots_manager.set_up()
-            await self.robots_manager.launch_pending()
+            provision = self.node.unpause_window() if self.robots_manager.has_pending_additions else contextlib.nullcontext()
+            async with provision:
+                await self.robots_manager.set_up()
+                await self.robots_manager.launch_pending()
 
             await self.environment_manager.before_reset_episode()
 
@@ -220,6 +223,16 @@ class Task(NodeInterface):
 
                 await self.__tm_robots.reset(**kwargs)
 
+                obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
+
+                async def respawn():
+                    await asyncio.gather(
+                        self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
+                        self.environment_manager.spawn_obstacles(obstacles),
+                    )
+
+                await self.environment_manager.respawn(respawn)
+
                 robot_outcomes = await asyncio.gather(
                     *(
                         mgr.reset(
@@ -236,16 +249,6 @@ class Task(NodeInterface):
                 for name, outcome in zip(self.robots_manager.managers, robot_outcomes, strict=True):
                     if isinstance(outcome, BaseException):
                         self._logger.warning(f"robot {name!r} adapter reset failed: {outcome!r}")
-
-                obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
-
-                async def respawn():
-                    await asyncio.gather(
-                        self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
-                        self.environment_manager.spawn_obstacles(obstacles),
-                    )
-
-                await self.environment_manager.respawn(respawn)
 
                 for module in self.__modules:
                     module.after_reset()

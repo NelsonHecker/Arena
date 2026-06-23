@@ -13,7 +13,8 @@ Runtime types (env registry, holds, world confirm, cleanup, purge) live in [`are
 | `Pause.srv` | Toggle pause from external callers. |
 | `GetTaskModes.srv` | Return currently active task-mode strings. |
 | `QueryWorlds.srv` / `QueryScenarios.srv` / `QueryEnvironments.srv` / `QueryParametrizeds.srv` / `QueryRobots.srv` / `QueryStaticObstacles.srv` / `QueryDynamicObstacles.srv` / `QueryTaskModes.srv` | Listing of available shortnames for the corresponding asset class. |
-| `SpawnStatic.srv` / `SpawnDynamic.srv` / `SpawnRobot.srv` | Inject a static obstacle / dynamic pedestrian / additional robot into the running episode via `TM_Obstacles.extend` / `TM_Robots.extend`. `SpawnRobot` accepts an optional `args` (`diagnostic_msgs/KeyValue[]`) forwarded to `Robot.parse` (e.g. `mobile`, `mobile.local_planner`, `mobile.agent`). |
+| `SpawnStatic.srv` / `SpawnDynamic.srv` / `SpawnRobot.srv` | Inject a static obstacle / dynamic pedestrian / additional robot into the running episode via `TM_Obstacles.extend` / `TM_Robots.extend`. `SpawnRobot` accepts an optional `args` (`diagnostic_msgs/KeyValue[]`) forwarded to `Robot.parse` (e.g. `mobile`, `mobile.local_planner`, `mobile.agent`), and an `immediate` flag that provisions the robot into the live world now (idle) instead of committing on the next reset. |
+| `DespawnRobot.srv` | Single fleet-removal surface: stages a live robot for teardown on the next reset, un-stages a queued despawn, or cancels a queued spawn (toggles `state/robots/pending`). |
 
 ## Messages (`msg/`)
 
@@ -22,6 +23,7 @@ Runtime types (env registry, holds, world confirm, cleanup, purge) live in [`are
 | `EpisodeRecord.msg` | One episode: id, world, seed, task modes, `robots[]`, `outcome_state` (`QUEUED` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `FATAL`), `outcome_info` (live status string, may be republished mid-episode via `Task.set_info`), integrity flag, plus `obstacles_params` / `robots_params` (effective per-mode params, with staged dict overlay for queued records). Published latched on `state/episode` and `state/queue`. |
 | `RobotDescriptor.msg` | Per-robot description (model, ns, frame, capabilities). |
 | `RobotFleet.msg` | All currently-active `RobotDescriptor`s in the env. Published latched on `state/robots`. |
+| `RobotQueue.msg` | Robots staged for spawn/despawn (the pending fleet delta), applied on the next reset. Published latched on `state/robots/pending`. |
 
 ## Actions (`action/`)
 

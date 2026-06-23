@@ -10,7 +10,6 @@ import attrs
 import geometry_msgs.msg
 import rclpy
 import task_generator_msgs.msg
-from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
 
@@ -132,7 +131,6 @@ class RobotsManager(NodeInterface):
     """
 
     _initialpose: typing.Generator
-    _robot_configurations: ROSParamT[_RobotDiff]
     _diff: _RobotDiff
 
     @property
@@ -375,6 +373,11 @@ class RobotsManager(NodeInterface):
         await asyncio.gather(*futures)
         self._diff.to_add.clear()
 
+        self._publish_fleet()
+        self.publish_queue()
+
+    def _publish_fleet(self) -> None:
+        """Publish the live fleet on state/robots, refresh robot_names, viz, and frame aliases."""
         self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
 
         fleet = task_generator_msgs.msg.RobotFleet(
@@ -418,32 +421,91 @@ class RobotsManager(NodeInterface):
         self._pending_launch: list[RobotManager] = []
         self._abort_episode: Callable[[str], None] | None = None
 
-        self._robot_configurations = self.node.ROSParam[_RobotDiff](
-            'robot',
-            type_=rclpy.Parameter.Type.STRING,
-            parse=self._parse_robot_configurations,
-        )
+        # Launch-time seed: read the `robot` param once to populate the initial
+        # fleet, then undeclare it so only spawn/despawn deltas mutate the fleet.
+        self.node.rosparam[str].declare_safe('robot', rclpy.Parameter.Type.STRING)
+        self._parse_robot_configurations(self.node.rosparam[str].get('robot', ''))
+        self.node.undeclare_parameter('robot')
+
+    @property
+    def has_pending_additions(self) -> bool:
+        """Whether the next set_up will add robots, whose controllers must provision while the sim steps."""
+        return bool(self._diff.to_add)
 
     async def launch_pending(self) -> None:
         """Bring up navstacks for managers queued by set_up. Caller controls when this fires
-        so LaunchService.run_async()'s main-loop block doesn't starve concurrent work
-        (e.g. spawn_world_obstacles)."""
+        so LaunchService.run_async()'s main-loop block doesn't starve concurrent work."""
         if not self._pending_launch:
             return
         pending = self._pending_launch
         self._pending_launch = []
         node_paths: set[str] = set()
-        with self.provide_node_paths(node_paths) as fetch_task:
-            await asyncio.wait(
-                (
-                    fetch_task,
-                    asyncio.gather(*(m.launch(node_paths) for m in pending)),
-                ),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+        with self.provide_node_paths(node_paths):
+            await asyncio.gather(*(m.launch(node_paths) for m in pending))
+
+    async def spawn_now(self, name: str, pose: Pose | None) -> None:
+        """Provision one queued robot into the live world now, idle, at its resolved on-map pose
+        (no staging detour, which would teleport it off-map and disturb nav2). It joins the
+        episode at the next reset like any other robot."""
+        config = attrs.evolve(self._diff.to_add.pop(name))
+        config.name = name
+        if pose is not None:
+            config.pose = pose
+        manager = RobotManager(
+            node=self.node,
+            namespace=Namespace(self.node.get_namespace())(self.node.get_name()),
+            environment_manager=self._environment_manager,
+            robot=config,
+        )
+        if self._abort_episode is not None:
+            manager.bind_abort(self._abort_episode)
+        await manager.set_up_robot()
+        self.managers[name] = manager
+        node_paths: set[str] = set()
+        with self.provide_node_paths(node_paths):
+            await manager.launch(node_paths)
+        self._publish_fleet()
 
     def add_pending(self, name: str, robot: Robot) -> None:
         """Queue a robot for full set_up_robot on the next reset_cycle."""
         if name in self._managers or name in self._diff.to_add:
             raise ValueError(f"robot {name!r} already exists")
         self._diff.to_add[name] = robot
+
+    def remove_pending(self, name: str) -> None:
+        """Toggle a robot's despawn-pending state, the single fleet-removal surface.
+
+        Cancels a queued spawn, un-stages a queued despawn, or stages a live
+        robot for teardown on the next reset_cycle.
+        """
+        if name in self._diff.to_add:
+            del self._diff.to_add[name]
+            return
+        if name in self._diff.to_remove:
+            self._diff.to_remove.remove(name)
+            return
+        if name not in self._managers:
+            raise ValueError(f"robot {name!r} does not exist")
+        self._diff.to_remove.append(name)
+
+    def publish_queue(self) -> None:
+        """Publish the pending spawn/despawn diff (the queue) on state/robots/pending."""
+        msg = task_generator_msgs.msg.RobotQueue(
+            spawn=[
+                task_generator_msgs.msg.RobotDescriptor(name=name, model=robot.model.name)
+                for name, robot in self._diff.to_add.items()
+            ],
+            despawn=[
+                task_generator_msgs.msg.RobotDescriptor(name=name, model=self._managers[name].model_name)
+                for name in self._diff.to_remove
+            ],
+        )
+        self.node._pub_state_robots_pending.publish(msg)
+
+    def next_name(self, model: str) -> str:
+        """Lowest-free `<model>_<n>` not live, queued to add, or queued to remove."""
+        taken = set(self._managers) | set(self._diff.to_add) | set(self._diff.to_remove)
+        n = 0
+        while f"{model}_{n}" in taken:
+            n += 1
+        return f"{model}_{n}"

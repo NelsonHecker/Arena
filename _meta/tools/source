@@ -264,6 +264,9 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
             ;;
             cam)
                 ros2 run arena_runtime cam "$@"
+            ;;
+            robot)
+                "${TOOLS_DIR}/robot" "$@"
                 result=$?
             ;;
             cleanup)
