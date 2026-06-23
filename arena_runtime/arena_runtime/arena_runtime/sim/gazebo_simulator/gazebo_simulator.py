@@ -694,7 +694,6 @@ class GazeboSimulator(BaseSim):
         for entity in self._walls_entities:
             await self._delete_entity(entity)
         self._walls_entities = []
-        self._wall_counter = itertools.count()
         return True
 
     async def _robot_bridge(self, robot: Robot, description: str):
