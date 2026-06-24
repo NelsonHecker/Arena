@@ -694,7 +694,6 @@ class GazeboSimulator(BaseSim):
         for entity in self._walls_entities:
             await self._delete_entity(entity)
         self._walls_entities = []
-        self._wall_counter = itertools.count()
         return True
 
     async def _robot_bridge(self, robot: Robot, description: str):
@@ -996,15 +995,15 @@ def _generate_wall_sdf(name: str, boxes: list[tuple[WallSegment, dict[str, str]]
 
 
 def _generate_floor_sdf(name: str, floor: Floor, textures: dict[str, str]) -> str:
-    """SDF model with one thin box link placed just above the world ground plane."""
+    """SDF model with one thin box link: visual raised above the level base, collision top flush with it."""
     thickness = 0.02
-    center_z = floor.pos.z + thickness / 2.0 + 0.001
     return f"""
         <sdf version="1.6">
             <model name="{name}">
                 <pose>0 0 0 0 0 0</pose>
                 <link name="floor_link">
                     <visual name="visual">
+                        <pose>0 0 {thickness / 2.0 + 0.001} 0 0 0</pose>
                         <geometry>
                             <box>
                                 <size>{floor.x_length} {floor.y_length} {thickness}</size>
@@ -1013,13 +1012,14 @@ def _generate_floor_sdf(name: str, floor: Floor, textures: dict[str, str]) -> st
                         {_wall_material_sdf(textures)}
                     </visual>
                     <collision name="collision">
+                        <pose>0 0 {-thickness / 2.0} 0 0 0</pose>
                         <geometry>
                             <box>
                                 <size>{floor.x_length} {floor.y_length} {thickness}</size>
                             </box>
                         </geometry>
                     </collision>
-                    <pose>{floor.pos.x} {floor.pos.y} {center_z} 0 0 0</pose>
+                    <pose>{floor.pos.x} {floor.pos.y} {floor.pos.z} 0 0 0</pose>
                 </link>
                 <static>true</static>
             </model>

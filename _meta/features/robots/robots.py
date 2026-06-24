@@ -428,7 +428,7 @@ def main() -> int:
     p_drive.add_argument("kv", nargs="*",
                          help="bare tokens select robots (default: all ready); "
                               "key:=value pairs: map/episodes/timeout consumed locally, "
-                              "rest forwarded to arena benchmark")
+                              "rest forwarded to the benchmark runner")
 
     args = ap.parse_args()
     handlers = {

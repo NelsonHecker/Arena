@@ -393,10 +393,6 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 arena feature training launch "$@"
                 result=$?
             ;;
-            benchmark)
-                arena feature evaluation launch "$@"
-                result=$?
-            ;;
             demo)
                 local -a _demo_defaults=(
                     tm_robots:=demo
@@ -433,7 +429,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 fi
             ;;
             *)
-                echo 'Usage: arena <benchmark|build|rebuild|demo|deps|update|launch|runtime|env|cam|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
+                echo 'Usage: arena <build|rebuild|demo|deps|update|launch|runtime|env|cam|cleanup|test|deactivate|evaluation|feature|registry|resource|train> [args...]' >&2
                 result=1
             ;;
         esac

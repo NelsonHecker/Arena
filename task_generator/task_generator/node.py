@@ -164,6 +164,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             ),
         )
         self._declare_mutable_param(
+            "fail_on_collision",
+            False,
+            ParameterDescriptor(
+                description=("true = abort the episode as FAILED when the robot footprint contacts a wall, static obstacle, or pedestrian."),
+            ),
+        )
+        self._declare_mutable_param(
             "run_seed",
             run_seed,
             ParameterDescriptor(
@@ -819,6 +826,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         self.get_logger().info(f"Shutting down. All {int(desired)} tasks completed")
         rclpy.shutdown()
+
+    def fail_episode(self, reason: str) -> None:
+        """Abort the running episode as FAILED with ``reason``, unless it is already aborting."""
+        if self._task.abort_reason is None:
+            self.get_logger().warn(f"failing episode: {reason}")
+            self._task.abort_episode(reason)
 
     # SERVICE CALLBACKS
 
