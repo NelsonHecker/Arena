@@ -11,10 +11,10 @@ from task_generator.manager.realizer import Realizer
 from arena_runtime._node import NodeInterface
 from arena_runtime.constants import SimSimulator
 
-from ._interface import MechanismITF, ObstacleITF, PedestrianITF, RobotITF, SimLifecycle, WorldITF
+from ._interface import MechanismITF, ObstacleITF, PedestrianITF, RobotITF, SimLifecycle, ViewportITF, WorldITF
 
 
-class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, MechanismITF, abc.ABC):
+class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, MechanismITF, ViewportITF, abc.ABC):
     _namespace: Namespace
     _realizer: Realizer
     _env_id: int

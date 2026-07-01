@@ -2,7 +2,7 @@ from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree.World import WorldIdentifier
 from arena_simulation_setup.tree.World.Scenario import RobotGoal, ScenarioGesturePhase, ScenarioGotoPhase
 
-from task_generator.shared import PositionRadius
+from task_generator.shared import Pose, Position, PositionRadius
 from task_generator.tasks.robots import TM_Robots
 from task_generator.tasks.robots.request import GoToPhase, PlayGesturePhase, TaskRequest
 
@@ -33,17 +33,31 @@ class TM_Scenario(TM_Robots):
             SCENARIO_ROBOTS = SCENARIO_ROBOTS[:setup_robot_length]
             self._logger.warn("Scenario file contains more robots than setup.", once=True)
 
+        # Shift floor-tagged poses from level-local to the flattened map frame.
+        level_origins = self._ctx.world_manager.map.level_origins
+
+        def _to_map_frame(pose: Pose, floor: str) -> Pose:
+            if not floor:
+                return pose
+            ox, oy = level_origins.get(floor, (0.0, 0.0))
+            return Pose(
+                position=Position(pose.position.x + ox, pose.position.y + oy, pose.position.z),
+                orientation=pose.orientation,
+            )
+
         for robot, config in zip(managed_robots, SCENARIO_ROBOTS, strict=False):
-            self._start_poses[robot.name] = config.start
+            start_pose = _to_map_frame(config.start, config.start_floor)
+            self._start_poses[robot.name] = start_pose
 
             phases: list[GoToPhase | PlayGesturePhase] = []
             forbidden: list[PositionRadius] = [
-                PositionRadius(x=config.start.position.x, y=config.start.position.y, radius=robot.safe_distance),
+                PositionRadius(x=start_pose.position.x, y=start_pose.position.y, radius=robot.safe_distance),
             ]
             for phase in config.phase_list():
                 if isinstance(phase, ScenarioGotoPhase):
-                    phases.append(GoToPhase(pose=phase.goto))
-                    forbidden.append(PositionRadius(x=phase.goto.position.x, y=phase.goto.position.y, radius=robot.safe_distance))
+                    goto_pose = _to_map_frame(phase.goto, config.goal_floor)
+                    phases.append(GoToPhase(pose=goto_pose))
+                    forbidden.append(PositionRadius(x=goto_pose.position.x, y=goto_pose.position.y, radius=robot.safe_distance))
                 elif isinstance(phase, ScenarioGesturePhase):
                     phases.append(PlayGesturePhase(gesture=None if phase.gesture in ("", "random") else phase.gesture))
 

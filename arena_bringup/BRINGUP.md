@@ -417,22 +417,12 @@ manually or call `arena cleanup` on its envs first.
 
 ## Benchmark mode
 
-Benchmark runs are driven by the `arena benchmark` CLI verb, which launches
-`arena_evaluation/launch/benchmark.launch.py`. Configuration lives in
-[arena_evaluation/configs/benchmark/](../arena_evaluation/configs/benchmark/README.md).
+Benchmark runs are driven by the `arena evaluation benchmark` CLI verb. Requires
+`arena feature evaluation install` first.
 
 ```bash
-arena benchmark sim:=gazebo headless:=true suite:=basic contest:=basic
+arena evaluation benchmark sim:=gazebo headless:=true suite:=basic contest:=basic
 ```
 
-The runner groups steps by `(contestant, robot, simulator)`. One env is
-spawned per group; stage transitions within the group are pushed via
-`QueueEpisode` rather than a respawn. The env is despawned only between
-groups (i.e. between contestants, or when the robot changes).
-
-Total run time scales as `bringup_time × num_contestants + episode_time ×
-total_episodes`, not `bringup_time × num_steps`.
-
-`env_n` caps the number of parallel groups (parallel contestants). Results
-land under `$ARENA_DATA_DIR/benchmarks/<run_id>/`. Resume an interrupted run
-with `arena benchmark --resume <run_id>`.
+Suite and contest config, runner semantics, and output layout are documented in
+[arena_evaluation/configs/benchmark/](../arena_evaluation/arena_evaluation/configs/benchmark/README.md).

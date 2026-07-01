@@ -161,6 +161,56 @@ class WorldITF(abc.ABC):
         raise NotImplementedError()
 
 
+class ViewportITF:
+    """GUI viewport camera control for external scene scripting and recording.
+
+    The on-the-wire surface is the ``/arena/viewport/*`` services advertised by the
+    simulator's GUI plugin; these methods mirror it for in-process callers. Defaults
+    are graceful no-ops so simulators without a controllable viewport stay usable, the
+    simulator that owns a viewport (Gazebo) overrides them.
+    """
+
+    async def viewport_set_view(
+        self,
+        eye: tuple[float, float, float],
+        target: tuple[float, float, float],
+        fov: float = 0.0,
+    ) -> bool:
+        """Look from eye toward target. fov (radians) <= 0 leaves the field of view unchanged."""
+        return False
+
+    async def viewport_set_reference_frame(
+        self,
+        entity: str = "",
+        pose: Pose | None = None,
+        mode: str = "full",
+    ) -> bool:
+        """Set the frame the camera stream and set_view are expressed in.
+
+        entity selects a tracked scene entity (sim_path); empty with a pose sets a
+        constant frame; empty without a pose latches the current world pose. mode is
+        'full', 'yaw' or 'position' and applies only when tracking an entity.
+        """
+        return False
+
+    def viewport_stream_view(
+        self,
+        pose: Pose,
+        world_orientation: bool = False,
+        fov: float = 0.0,
+    ) -> bool:
+        """Publish one streamed camera pose in the current reference frame (fire-and-forget)."""
+        return False
+
+    async def viewport_set_projection(self, projection: str) -> bool:
+        """Set the projection: 'perspective' or 'orthographic'."""
+        return False
+
+    def viewport_camera_pose(self) -> Pose | None:
+        """Latest viewport camera pose, or None if unknown or unsupported."""
+        return None
+
+
 class MechanismITF:
     """Door + elevator orchestration with shim-backed defaults.
 

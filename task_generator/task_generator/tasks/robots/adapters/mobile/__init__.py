@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, ClassVar
 import geometry_msgs.msg
 from arena_viz.kinds import DisplayKind
 
+from task_generator.manager.robot_manager.collision_tracker import CollisionTrackerNode
 from task_generator.tasks.robots.adapters import ADAPTERS, Adapter, AdapterDisplayHint
 
 if TYPE_CHECKING:
@@ -13,6 +14,17 @@ if TYPE_CHECKING:
 
 
 class MobileAdapter(Adapter):
+    def __init__(self, *args: object, **kwargs: object):
+        super().__init__(*args, **kwargs)
+        self._collision: CollisionTrackerNode | None = None
+        mobile = self.rm.robot.model.resolve_sync().caps.mobile
+        polys = mobile.polygons_dict
+        footprint = mobile.footprint
+        if not polys and footprint is None:
+            return
+        self._collision = CollisionTrackerNode(self.rm, polys or {}, footprint=footprint)
+        self.rm.node.executor.add_node(self._collision)
+
     @property
     def controls_orientation(self) -> bool:
         return True
