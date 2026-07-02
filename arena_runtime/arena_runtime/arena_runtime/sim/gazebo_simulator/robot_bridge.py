@@ -1,13 +1,25 @@
 import enum
+import xml.etree.ElementTree
 
 import attrs
 import yaml
+from arena_robots.sensors import output_topics
 
 
 class MappingDirection(enum.StrEnum):
     BIDIRECTIONAL = '@'
     GZ_TO_ROS = '['
     ROS_TO_GZ = ']'
+
+
+_OUTPUT_TYPES: dict[str, tuple[str, str]] = {
+    'laserscan': ('sensor_msgs/msg/LaserScan', 'gz.msgs.LaserScan'),
+    'pointcloud': ('sensor_msgs/msg/PointCloud2', 'gz.msgs.PointCloudPacked'),
+    'image': ('sensor_msgs/msg/Image', 'gz.msgs.Image'),
+    'depth': ('sensor_msgs/msg/Image', 'gz.msgs.Image'),
+    'camera_info': ('sensor_msgs/msg/CameraInfo', 'gz.msgs.CameraInfo'),
+    'imu': ('sensor_msgs/msg/Imu', 'gz.msgs.IMU'),
+}
 
 
 @attrs.define
@@ -44,6 +56,35 @@ class BridgeConfiguration(list[_TopicMapping]):
 
     def substitute(self, subs: dict[str, str]) -> "BridgeConfiguration":
         return BridgeConfiguration([mapping.substitute(subs) for mapping in self])
+
+    @classmethod
+    def from_urdf_sensors(cls, urdf_xml: str, sim_path: str) -> "BridgeConfiguration":
+        prefix = sim_path + "/"
+        root = xml.etree.ElementTree.fromstring(urdf_xml)
+        mappings: list[_TopicMapping] = []
+
+        for sensor in root.findall(".//gazebo//sensor"):
+            topic = sensor.findtext("./topic") or sensor.findtext(".//topic")
+            topic = topic.strip() if topic is not None else None
+            if not topic or not topic.startswith(prefix):
+                continue
+            info = sensor.findtext("./camera/camera_info_topic") or sensor.findtext(".//camera_info_topic")
+            info = info.strip() if info is not None else None
+            if info is not None and not info.startswith(prefix):
+                info = None
+
+            outputs = output_topics(
+                sensor.get("type") or '',
+                topic.removeprefix(prefix),
+                info.removeprefix(prefix) if info is not None else None,
+            )
+            if outputs is None:
+                continue
+            for kind, ros_topic in outputs.items():
+                ros_type, gz_type = _OUTPUT_TYPES[kind]
+                mappings.append(_TopicMapping(gz_topic=f"{prefix}{ros_topic}", ros_topic=ros_topic, ros_type=ros_type, gz_type=gz_type, direction=MappingDirection.GZ_TO_ROS))
+
+        return cls(mappings)
 
     def as_args(self) -> list[str]:
         return list(map(_TopicMapping.as_arg, self))

@@ -31,6 +31,7 @@ from arena_people_msgs.srv import (
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_robots.Sensor import topic_elements
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
@@ -239,8 +240,12 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._mechanism_tf_listener = tf2_ros.TransformListener(self._mechanism_tf_buffer, self.node)
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
+        robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
         return {
             **robot.asdict(),
+            # no world-scoped topic namespace in Isaac, empty prefix keeps the
+            # injected sensor topics namespace-relative
+            'sensor_patches': topic_elements(robot_config.model_params.sensors, ''),
             'optim': self.node.rosparam[str].get('optim', ''),
         }
 
