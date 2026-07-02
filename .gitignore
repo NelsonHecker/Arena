@@ -5,7 +5,6 @@
 *.slo
 *.lo
 *.o
-*.obj
 
 # Precompiled Headers
 *.gch
@@ -66,7 +65,7 @@ __pycache__/
 
 # folders
 /_assets
-/.venv/.installed
+/.venv/
 
 
 # agents
