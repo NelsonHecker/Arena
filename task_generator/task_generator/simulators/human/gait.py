@@ -1,3 +1,10 @@
+"""Gait synthesis for pedestrian skeleton animation.
+
+Emits semantic joint angles per the wire contract in JOINTS.md: values match the
+ros4hri human_description URDF axes for every joint except the shoulder triples, which
+are anatomical (sagittal flexion, antiphase baked into the emitted values).
+"""
+
 from __future__ import annotations
 
 import math
@@ -46,7 +53,7 @@ _IDX: dict[str, int] = {}
 
 
 class GaitGenerator:
-    """Deterministic per-agent gait synthesis for the ROS4HRI human_description rig."""
+    """Deterministic per-agent gait synthesis emitting semantic joint angles per the JOINTS.md wire contract."""
 
     JOINT_NAMES: tuple[str, ...] = (
         "waist",

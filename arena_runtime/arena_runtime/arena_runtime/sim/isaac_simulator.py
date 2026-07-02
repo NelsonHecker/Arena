@@ -1,9 +1,7 @@
 import asyncio
-import hashlib
 import itertools
 import math
 import os
-import random
 import traceback
 import types
 import typing
@@ -690,49 +688,28 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
 
-        # TODO implement targeted pedestrian models
-        available_models: dict[str, str] = {
-            # "F_Business_02",
-            # "F_Medical_01",
-            # "M_Medical_01",
-            # "biped_demo",
-            # "female_adult_police_01_new",
-            # "female_adult_police_02",
-            # "female_adult_police_03_new",
-            # "male_adult_construction_01_new",
-            # "male_adult_construction_03",
-            # "male_adult_construction_05_new",
-            # "male_adult_police_04",
-            "female_adult_business_02": "original_female_adult_business_02",
-            "female_adult_medical_01": "original_female_adult_medical_01",
-            "female_adult_police_01": "original_female_adult_police_01",
-            "female_adult_police_02": "original_female_adult_police_02",
-            "female_adult_police_03": "original_female_adult_police_03",
-            "male_adult_construction_01": "original_male_adult_construction_01",
-            "male_adult_construction_02": "original_male_adult_construction_02",
-            "male_adult_construction_03": "original_male_adult_construction_03",
-            "male_adult_construction_05": "original_male_adult_construction_05",
-            "male_adult_medical_01": "original_male_adult_medical_01",
-            "male_adult_police_04": "original_male_adult_police_04",
-        }
+        async def resolve_uri(pedestrian: DynamicObstacle) -> str:
+            try:
+                model = await (await pedestrian.model.resolve()).model.get(ModelType.SDF)
+            except Exception as e:
+                self._logger.warning(f"pedestrian {pedestrian.sim_path} model {pedestrian.model.name!r} unresolved: {e}")
+                return ""
+            if model.type is ModelType.UNKNOWN or model.path is None:
+                return ""
+            return str(model.path)
 
-        items = []
-        for pedestrian in pedestrians:
-            if pedestrian.model.name in available_models:
-                model_name = pedestrian.model.name
-            else:
-                _sorted_keys = sorted(available_models)
-                _seed = int.from_bytes(hashlib.blake2b(pedestrian.sim_path.encode(), digest_size=8).digest(), "big")
-                model_name = random.Random(_seed).choice(_sorted_keys)
-            items.append(
-                SpawnPedestrian(
-                    pedestrian=Pedestrian(
-                        name=pedestrian.sim_path,
-                        pose=pedestrian.pose.to_msg(),
-                    ),
-                    model_ref=available_models[model_name],
-                )
+        uris = await asyncio.gather(*(resolve_uri(pedestrian) for pedestrian in pedestrians))
+        items = [
+            SpawnPedestrian(
+                pedestrian=Pedestrian(
+                    name=pedestrian.sim_path,
+                    pose=pedestrian.pose.to_msg(),
+                    model_uri=uri,
+                ),
+                model_ref=pedestrian.model.name,
             )
+            for pedestrian, uri in zip(pedestrians, uris, strict=True)
+        ]
 
         req = SpawnPedestrians.Request(pedestrians=items)
         res = await self._clients.SpawnPedestrians.call_timeout(req)

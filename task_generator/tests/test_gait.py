@@ -144,3 +144,12 @@ def test_behavior_states_treated_as_idle(gen: GaitGenerator) -> None:
         result = gen.compute(agent_id=1, animation_state=state, speed=0.0, dt=0.0)
         assert abs(result["l_r_hip"]) < 1e-9, f"state {state}: l_r_hip not idle"
         assert abs(result["r_r_hip"]) < 1e-9, f"state {state}: r_r_hip not idle"
+
+
+def test_shoulder_and_hip_antiphase_symmetry(gen: GaitGenerator) -> None:
+    """Contralateral shoulder/hip joints are exact sign-mirrors per the JOINTS.md wire contract."""
+    result = gen.compute(agent_id=0, animation_state=_WALKING, speed=1.0, dt=0.1)
+    assert math.isclose(result["l_p_shoulder"], -result["r_p_shoulder"], abs_tol=1e-12)
+    assert math.isclose(result["l_r_hip"], -result["r_r_hip"], abs_tol=1e-12)
+    assert abs(result["l_p_shoulder"]) > 1e-6, "l_p_shoulder should be clearly nonzero"
+    assert abs(result["l_r_hip"]) > 1e-6, "l_r_hip should be clearly nonzero"

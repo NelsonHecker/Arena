@@ -29,6 +29,7 @@ from task_generator.simulators.human.gait import GaitGenerator
 from tf2_ros import TransformBroadcaster
 
 from rviz_utils.hri import BodyPool
+from rviz_utils.hri.rig import semantic_to_rig
 
 _DEFAULT_HEIGHT = 1.65
 
@@ -211,7 +212,7 @@ class HriProducer(Node):
                 js.header.stamp = stamp
                 js.header.frame_id = ""
                 js.name = [f"{n}_{bid}" for n in ped.joint_state.name]
-                js.position = list(ped.joint_state.position)
+                js.position = semantic_to_rig(ped.joint_state.name, ped.joint_state.position)
                 js.velocity = list(ped.joint_state.velocity)
                 js.effort = list(ped.joint_state.effort)
                 self._body_js_pub[bid].publish(js)
@@ -226,7 +227,7 @@ class HriProducer(Node):
                 js = JointState()
                 js.header = bare_js.header
                 js.name = [f"{n}_{bid}" for n in bare_js.name]
-                js.position = list(bare_js.position)
+                js.position = semantic_to_rig(bare_js.name, bare_js.position)
                 self._body_js_pub[bid].publish(js)
 
             self._person_conf_pub[bid].publish(Float32(data=1.0))
