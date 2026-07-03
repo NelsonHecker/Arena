@@ -137,6 +137,12 @@ def _transform_urdf_for_bridge(
             for joint in joints:
                 if not any(si.get('name') == 'effort' for si in joint.findall('state_interface')):
                     ET.SubElement(joint, 'state_interface', {'name': 'effort'})
+                # state interfaces default to NaN until the first joint_states message
+                # arrives, and a controller activated in that window errors out of its
+                # update and wedges the controller_manager, start at zero instead
+                for si in joint.findall('state_interface'):
+                    if si.find('param[@name="initial_value"]') is None:
+                        ET.SubElement(si, 'param', {'name': 'initial_value'}).text = '0.0'
                 block.append(joint)
             parent.insert(rc_idx + offset, block)
 

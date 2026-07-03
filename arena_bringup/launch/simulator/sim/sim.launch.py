@@ -22,6 +22,12 @@ def generate_launch_description():
         default_value='False',
     )
 
+    physics = LaunchArgument(
+        name='isaac.physics',
+        default_value='physx',
+        choices=['physx', 'newton'],
+    )
+
     world = LaunchArgument(
         name='world'
     )
@@ -65,6 +71,8 @@ def generate_launch_description():
                 headless.substitution,
                 launch.substitutions.TextSubstitution(text=' log_level:='),
                 launch.substitutions.LaunchConfiguration('log_level', default='debug'),
+                launch.substitutions.TextSubstitution(text=' physics:='),
+                physics.substitution,
             ]],
             sigterm_timeout=launch.substitutions.LaunchConfiguration('sigterm_timeout', default='5'),
             sigkill_timeout=launch.substitutions.LaunchConfiguration('sigkill_timeout', default='5'),
