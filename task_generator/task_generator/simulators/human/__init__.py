@@ -15,7 +15,7 @@ from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 from arena_simulation_setup.utils.models import ModelType
 from visualization_msgs.msg import MarkerArray
 
@@ -282,7 +282,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                     self._logger.warning(
                         f"pedestrian model {obs.model.name!r} has no SDF; using fallback",
                     )
-            fallback = attrs.evolve(obs, model=PedestrianIdentifier.parse(self._PEDESTRIAN_FALLBACK))
+            fallback = attrs.evolve(obs, model=HumanIdentifier.parse(self._PEDESTRIAN_FALLBACK))
             try:
                 fallback_path = await _sdf_path(fallback)
             except Exception:

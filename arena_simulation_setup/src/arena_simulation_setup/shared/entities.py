@@ -9,8 +9,8 @@ import attrs
 import cattrs
 from typing_extensions import Self
 
+from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from arena_simulation_setup.utils.cattrs import (
     ArenaConverter,
     Parseable,
@@ -130,7 +130,7 @@ def _waypoints_converter(value: object) -> list[Waypoint]:
 
 @attrs.define
 class DynamicObstacle(Entity):
-    model: PedestrianIdentifier = attrs.field(converter=PedestrianIdentifier.converter)
+    model: HumanIdentifier = attrs.field(converter=HumanIdentifier.converter)
     waypoints: list[Waypoint] = attrs.field(factory=list, converter=_waypoints_converter)
     velocity: float = attrs.field(converter=float, default=1.0)  # m/s
     level_id: str = ""
