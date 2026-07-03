@@ -1,4 +1,5 @@
 from task_generator.shared import Pose
+from task_generator.tasks import TaskContext
 from task_generator.tasks.robots.random.impl import TM_Random
 from task_generator.tasks.robots.request import GoToPhase, TaskPhase, TaskRequest
 
@@ -42,7 +43,6 @@ class TM_Guided(TM_Random):
 
         self.node.rosparam[list[list[float]]].set(self.PARAM_WAYPOINTS, [])
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, **kwargs: TaskContext) -> None:
         super().__init__(**kwargs)
         self._waypoints = []
-        self.node.wait_for(self._reset_waypoints())
