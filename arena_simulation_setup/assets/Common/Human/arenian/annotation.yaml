@@ -12,7 +12,7 @@ hoi: []
 material: []
 name: arenian
 note: Authored in MakeHuman; CC0. Rig compatible with CMU Mocap BVH clips.
-path: Pedestrian/arenian
+path: Human/arenian
 tags:
 - pedestrian
 - default

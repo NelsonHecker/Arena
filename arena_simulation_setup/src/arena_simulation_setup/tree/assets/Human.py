@@ -15,8 +15,8 @@ from arena_simulation_setup.utils.models.model_loader import (
 )
 
 
-class PedestrianView(PathView):
-    """View around a resolved Pedestrian asset directory.
+class HumanView(PathView):
+    """View around a resolved Human asset directory.
 
     Mirrors `ObjectView` so the resolved-asset accessor is uniform across
     asset kinds, callers can always do `(await ident.resolve()).model`.
@@ -33,15 +33,15 @@ class PedestrianView(PathView):
 
 
 @attrs.define(eq=False, hash=False)
-class PedestrianIdentifier(DomainAssetIdentifier[PedestrianView]):
+class HumanIdentifier(DomainAssetIdentifier[HumanView]):
     """Represents an identifier referencing a 3D model asset."""
 
-    _asset_type = 'Pedestrian'
+    _asset_type = 'Human'
 
-    def load(self, path: Path, /, **kwargs: object) -> PedestrianView:
+    def load(self, path: Path, /, **kwargs: object) -> HumanView:
         del kwargs  # unused
-        return PedestrianView(path)
+        return HumanView(path)
 
 
-PedestrianIdentifier.use(*DynamicPaths.as_resolvers(PedestrianIdentifier))
-PedestrianIdentifier.use(*NetResolver.all(PedestrianIdentifier))
+HumanIdentifier.use(*DynamicPaths.as_resolvers(HumanIdentifier))
+HumanIdentifier.use(*NetResolver.all(HumanIdentifier))

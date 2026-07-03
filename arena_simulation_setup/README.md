@@ -30,11 +30,11 @@ pedestrian agents, and environment templates through the types defined here.
 
 Scripts live under [scripts/](scripts).
 
-## Pedestrian assets and skeletal articulation
+## Human assets and skeletal articulation
 
 ### arenian actor
 
-`assets/Common/Pedestrian/arenian/arenian.sdf` defines the default Gazebo
+`assets/Common/Human/arenian/arenian.sdf` defines the default Gazebo
 pedestrian as an SDF `<actor>` with a `walk.dae` skin (Mingfei/Fuel) and a named
 `walk` animation clip.  Earlier it was a static `<model>`; the actor form is
 required so Gazebo registers the skinned mesh and the clip that `PedSkeletonPlugin`
@@ -66,8 +66,8 @@ Key `Identifier` types from `arena_simulation_setup.tree`:
   `world.map`, and `world.scenario`.
 - **`ObjectIdentifier`** ([tree/assets/Object.py](src/arena_simulation_setup/tree/assets/Object.py))
   — resolves `<domain>/Object/<name>` to a `ModelWrapper` (SDF + USD).
-- **`PedestrianIdentifier`** ([tree/assets/Pedestrian.py](src/arena_simulation_setup/tree/assets/Pedestrian.py))
-  — resolves `<domain>/Pedestrian/<name>` to a `ModelWrapper` (SDF only).
+- **`HumanIdentifier`** ([tree/assets/Human.py](src/arena_simulation_setup/tree/assets/Human.py))
+  — resolves `<domain>/Human/<name>` to a `ModelWrapper` (SDF only).
 - **`MaterialIdentifier`** ([tree/assets/Material.py](src/arena_simulation_setup/tree/assets/Material.py))
   — resolves `<domain>/Material/<name>` to a `Material`; supports `tint`
   modifier.

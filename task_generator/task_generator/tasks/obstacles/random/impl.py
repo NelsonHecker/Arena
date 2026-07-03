@@ -9,8 +9,8 @@ import numpy as np
 import rclpy
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_simulation_setup.tree import Identifier
+from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
 from typing_extensions import Self
 
 from task_generator.shared import DynamicObstacle, Obstacle, Orientation, Pose
@@ -228,5 +228,5 @@ class TM_Random(TM_Obstacles):
             N_DYNAMIC_OBSTACLES=self.node.ROSParam[tuple[int, int]](self.namespace(DYNAMIC, 'n'), [1, 5], parse=param_to_tuple),
             MODELS_STATIC_OBSTACLES=self.node.ROSParam[list[str]](self.namespace(STATIC, 'models'), [], type_=rclpy.Parameter.Type.STRING_ARRAY, parse=functools.partial(param_to_modellist, ObjectIdentifier)),
             MODELS_INTERACTIVE_OBSTACLES=self.node.ROSParam[list[str]](self.namespace(INTERACTIVE, 'models'), [], type_=rclpy.Parameter.Type.STRING_ARRAY, parse=functools.partial(param_to_modellist, ObjectIdentifier)),
-            MODELS_DYNAMIC_OBSTACLES=self.node.ROSParam[list[str]](self.namespace(DYNAMIC, 'models'), [], type_=rclpy.Parameter.Type.STRING_ARRAY, parse=functools.partial(param_to_modellist, PedestrianIdentifier)),
+            MODELS_DYNAMIC_OBSTACLES=self.node.ROSParam[list[str]](self.namespace(DYNAMIC, 'models'), [], type_=rclpy.Parameter.Type.STRING_ARRAY, parse=functools.partial(param_to_modellist, HumanIdentifier)),
         )
