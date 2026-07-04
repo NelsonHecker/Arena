@@ -103,10 +103,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._simulator.attach_human_simulator(self)
 
     def publish_arena_peds(self, msg: Pedestrians) -> None:
-        """Fill bare-name joint_state for each ped missing one, then publish."""
+        """Stamp the header, fill bare-name joint_state for peds missing one, then publish."""
         now = self.node.get_clock().now()
         now_sec = now.nanoseconds * 1e-9
         stamp = now.to_msg()
+        if msg.header.stamp.sec == 0 and msg.header.stamp.nanosec == 0:
+            msg.header.stamp = stamp
 
         current_ids: set[int] = {ped.id for ped in msg.pedestrians}
         for stale in sorted(set(self._gait_prev_stamp) - current_ids):
