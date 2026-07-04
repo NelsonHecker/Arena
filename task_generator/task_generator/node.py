@@ -1097,6 +1097,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         request: task_generator_msgs.srv.SpawnRobot.Request,
         response: task_generator_msgs.srv.SpawnRobot.Response,
     ) -> task_generator_msgs.srv.SpawnRobot.Response:
+        if not self.rosparam[bool].get("initialized", False):
+            response.success = False
+            response.error_msg = "task generator not initialized"
+            return response
         try:
             pose = self._pose_from_request(request.pose) if request.use_pose else None
             args = {kv.key: kv.value for kv in request.args}
@@ -1118,6 +1122,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         request: task_generator_msgs.srv.DespawnRobot.Request,
         response: task_generator_msgs.srv.DespawnRobot.Response,
     ) -> task_generator_msgs.srv.DespawnRobot.Response:
+        if not self.rosparam[bool].get("initialized", False):
+            response.success = False
+            response.error_msg = "task generator not initialized"
+            return response
         try:
             self._robots_manager.remove_pending(request.name)
             self._robots_manager.publish_queue()

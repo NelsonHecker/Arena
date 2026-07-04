@@ -427,11 +427,6 @@ class RobotsManager(NodeInterface):
         self._parse_robot_configurations(self.node.rosparam[str].get('robot', ''))
         self.node.undeclare_parameter('robot')
 
-    @property
-    def has_pending_additions(self) -> bool:
-        """Whether the next set_up will add robots, whose controllers must provision while the sim steps."""
-        return bool(self._diff.to_add)
-
     async def launch_pending(self) -> None:
         """Bring up navstacks for managers queued by set_up. Caller controls when this fires
         so LaunchService.run_async()'s main-loop block doesn't starve concurrent work."""
@@ -444,9 +439,10 @@ class RobotsManager(NodeInterface):
             await asyncio.gather(*(m.launch(node_paths) for m in pending))
 
     async def spawn_now(self, name: str, pose: Pose | None) -> None:
-        """Provision one queued robot into the live world now, idle, at its resolved on-map pose
-        (no staging detour, which would teleport it off-map and disturb nav2). It joins the
-        episode at the next reset like any other robot."""
+        """Provision one queued robot into the live world now at its resolved on-map pose (no
+        staging detour, which would teleport it off-map and disturb nav2), then run the standard
+        per-robot reset at that pose so its costmap and localization match any other robot. It
+        joins the episode at the next reset like the rest of the fleet."""
         pending = self._diff.to_add.pop(name, None)
         if pending is None:
             if name in self._managers:
@@ -469,6 +465,14 @@ class RobotsManager(NodeInterface):
         node_paths: set[str] = set()
         with self.provide_node_paths(node_paths):
             await manager.launch(node_paths)
+        from task_generator.tasks.robots.adapters import ResetContext  # noqa: PLC0415
+        await manager.reset(
+            ResetContext(
+                rng=self.node.conf.General.RNG.stream("robot-adapter", name),
+                start_pose=config.pose,
+                episode_index=self.node._episodes.current.episode_id,
+            )
+        )
         self._publish_fleet()
 
     def add_pending(self, name: str, robot: Robot) -> None:

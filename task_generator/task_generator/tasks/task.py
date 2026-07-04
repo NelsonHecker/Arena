@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import typing
 from collections.abc import Sequence
 
@@ -202,10 +201,8 @@ class Task(NodeInterface):
 
             self.node.conf.General.RNG.reseed(int(kwargs["seed"]))
 
-            provision = self.node.unpause_window() if self.robots_manager.has_pending_additions else contextlib.nullcontext()
-            async with provision:
-                await self.robots_manager.set_up()
-                await self.robots_manager.launch_pending()
+            await self.robots_manager.set_up()
+            await self.robots_manager.launch_pending()
 
             await self.environment_manager.before_reset_episode()
 

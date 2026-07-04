@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 import os
+import time
 import typing
 
 import ament_index_python
@@ -54,6 +55,7 @@ _MOVEIT_QUIET_RULES = '+[**/moveit/**:error]'
 
 _CONTROLLER_MANAGER_GRACE = 30.0
 _CONTROLLER_POLL = 0.2
+_CONTROLLER_ACTIVE_TIMEOUT = 60.0  # wall seconds for all controllers to reach active before proceeding
 
 
 class RobotManager(NodeInterface):
@@ -516,8 +518,10 @@ class RobotManager(NodeInterface):
             await self.wait_controllers_active()
 
     async def wait_controllers_active(self) -> None:
-        """Block until every spawned controller reports active. A controller_manager that
-        never appears within the grace window (dummy sim) means there is nothing to wait for."""
+        """Hold a sim-unpause window and block until every spawned controller reports active, so the
+        controller_manager can step them up. No controller_manager within the grace window (dummy sim)
+        means there is nothing to wait for. If they do not all reach active within the budget, log the
+        laggards and proceed rather than wedging the reset."""
         client = self.node.create_client_wrapper(
             controller_manager_msgs.srv.ListControllers,
             str(self.namespace("controller_manager", "list_controllers")),
@@ -525,11 +529,18 @@ class RobotManager(NodeInterface):
         )
         if not await client.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
             return
-        while True:
-            resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
-            if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
-                return
-            await asyncio.sleep(_CONTROLLER_POLL)
+        async with self.node.unpause_window():
+            deadline = time.monotonic() + _CONTROLLER_ACTIVE_TIMEOUT
+            resp = None
+            while time.monotonic() < deadline:
+                resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
+                if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
+                    return
+                await asyncio.sleep(_CONTROLLER_POLL)
+            laggards = [c.name for c in resp.controller if c.state != "active"] if resp is not None and resp.controller else []
+            self._logger.warning(
+                f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}"
+            )
 
     async def update(self):
         # TODO implement record data dir
