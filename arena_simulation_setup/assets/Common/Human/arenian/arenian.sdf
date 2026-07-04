@@ -3,7 +3,7 @@
   <!-- Actor with walk.dae skin. PedSkeletonPlugin sets the world pose via
        TrajectoryPose and scrubs the named clip via AnimationTime from arena_peds. -->
   <actor name="arenian">
-    <pose>0 0 0 0 0 0</pose>
+    <pose>0 0 1.01 0 0 0</pose>
 
     <skin>
       <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename>

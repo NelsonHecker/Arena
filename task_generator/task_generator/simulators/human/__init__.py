@@ -216,6 +216,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         futures: list[typing.Awaitable] = []
         to_register: list[KnownObstacle[DynamicObstacle]] = []
         to_move: list[DynamicObstacle] = []
+        all_known: list[KnownObstacle[DynamicObstacle]] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
@@ -224,6 +225,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 known.layer = ObstacleLayer.INUSE
             else:
                 known = self._known_obstacles.create_or_get(name=obstacle.name, obstacle=obstacle)
+            all_known.append(known)
             if not known.spawned:
                 to_register.append(known)
         if to_move:
@@ -246,8 +248,17 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 to_spawn.append(known.obstacle)
             known.layer = ObstacleLayer.INUSE
 
+        # every requested obstacle goes through _ensure_spawnable so reused
+        # names keep a fresh model_uri, but only the to_spawn subset is
+        # actually handed to the simulator
+        to_spawn_names = {obstacle.name for obstacle in to_spawn}
+        resolved = await self._ensure_spawnable([known.obstacle for known in all_known])
         if to_spawn:
-            futures.append(self._simulator.pedestrian_spawn(await self._ensure_spawnable(to_spawn)))
+            futures.append(
+                self._simulator.pedestrian_spawn(
+                    [obstacle for obstacle in resolved if obstacle.name in to_spawn_names],
+                ),
+            )
         await asyncio.gather(*futures)
 
     _PEDESTRIAN_FALLBACK: typing.ClassVar[str] = "arenian"
