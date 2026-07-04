@@ -30,15 +30,18 @@ class LaunchHandle:
     def __init__(self, service: launch.LaunchService, task: asyncio.Task) -> None:
         self.task = task
         self._service = service
+        self._shutdown_started = False
 
     def __await__(self) -> typing.Generator[typing.Any, None, int]:
         """Await the launch to completion (e.g. until its process exits)."""
         return self.task.__await__()
 
     async def shutdown(self) -> None:
-        coro = self._service.shutdown()
-        if coro is not None:
-            await coro
+        if not self._shutdown_started:
+            self._shutdown_started = True
+            coro = self._service.shutdown()
+            if coro is not None:
+                await coro
         await asyncio.gather(self.task, return_exceptions=True)
 
 

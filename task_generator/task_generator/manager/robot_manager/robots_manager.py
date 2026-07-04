@@ -447,7 +447,12 @@ class RobotsManager(NodeInterface):
         """Provision one queued robot into the live world now, idle, at its resolved on-map pose
         (no staging detour, which would teleport it off-map and disturb nav2). It joins the
         episode at the next reset like any other robot."""
-        config = attrs.evolve(self._diff.to_add.pop(name))
+        pending = self._diff.to_add.pop(name, None)
+        if pending is None:
+            if name in self._managers:
+                return
+            raise ValueError(f"robot {name!r} is not queued for spawn")
+        config = attrs.evolve(pending)
         config.name = name
         if pose is not None:
             config.pose = pose
