@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import os
-import re
 import typing
 from collections.abc import Callable
 
@@ -20,6 +19,96 @@ from .robot_manager import RobotManager
 
 _AUTO_TOKEN = "auto"
 _ARENA_DEFAULT_ROBOT = "jackal"
+
+
+def split_robot_arg(value: str) -> list[str]:
+    """Comma-split `robot:=` at bracket depth 0, dropping blank tokens."""
+    tokens: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for ch in value:
+        if ch == '[':
+            depth += 1
+            current.append(ch)
+        elif ch == ']':
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            tokens.append(''.join(current))
+            current = []
+        else:
+            current.append(ch)
+    tokens.append(''.join(current))
+    return [t.strip() for t in tokens if t.strip()]
+
+
+def _extract_bracket(s: str, entry: str) -> tuple[str, str | None]:
+    """Split `s` into (prefix, bracket-body) on its outermost `[...]`, or (s, None) if bracket-free.
+
+    Raises on unmatched `]`, unbalanced `[`, or junk after the closing `]`.
+    """
+    open_idx = s.find('[')
+    if open_idx == -1:
+        if ']' in s:
+            raise RuntimeError(f"robot entry {entry!r}: unmatched ']' in {s!r}")
+        return s, None
+    depth = 0
+    close_idx = -1
+    for i in range(open_idx, len(s)):
+        if s[i] == '[':
+            depth += 1
+        elif s[i] == ']':
+            depth -= 1
+            if depth == 0:
+                close_idx = i
+                break
+    if close_idx == -1:
+        raise RuntimeError(f"robot entry {entry!r}: unbalanced brackets in {s!r}")
+    if close_idx != len(s) - 1:
+        raise RuntimeError(f"robot entry {entry!r}: trailing content after ']' in {s!r}")
+    return s[:open_idx], s[open_idx + 1:close_idx]
+
+
+def desugar_robot_entry(entry: str) -> dict:
+    """Desugar one `robot:=` entry (`model` or `model[items]`) into a Config.parse-ready dict."""
+    stripped = entry.strip()
+    model, body = _extract_bracket(stripped, stripped)
+    result: dict = {'robot': model}
+    if body is None:
+        return result
+
+    for item in split_robot_arg(body):
+        key, sep, value = item.partition('=')
+        if not sep:
+            try:
+                count = int(item)
+            except ValueError:
+                raise RuntimeError(
+                    f"robot entry {entry!r}: unknown token {item!r}, expected an integer count or key=value"
+                ) from None
+            if 'count' in result:
+                raise RuntimeError(f"robot entry {entry!r}: duplicate count in {item!r}")
+            result['count'] = count
+            continue
+
+        key = key.strip()
+        value = value.strip()
+        value_prefix, value_body = _extract_bracket(value, entry)
+        if value_body is None:
+            parsed_value: str | list[str] = value_prefix
+        else:
+            if value_prefix:
+                raise RuntimeError(f"robot entry {entry!r}: malformed value {value!r}")
+            parsed_value = [v.strip() for v in split_robot_arg(value_body)]
+
+        if key in result:
+            existing = result[key] if isinstance(result[key], list) else [result[key]]
+            addition = parsed_value if isinstance(parsed_value, list) else [parsed_value]
+            result[key] = existing + addition
+        else:
+            result[key] = parsed_value
+
+    return result
 
 
 @attrs.define(frozen=True)
@@ -239,7 +328,7 @@ class RobotsManager(NodeInterface):
             _RobotDiff: The RobotDiff to execute.
         """
 
-        robot_arg: list[str] = list(filter(len, str(v).split(',')))
+        robot_arg: list[str] = split_robot_arg(str(v))
 
         parsed_explicit: dict[str, Robot] = {}
         parsed_anonymous: dict[str, list[Robot]] = {}
@@ -265,16 +354,12 @@ class RobotsManager(NodeInterface):
             if arg.endswith('.yaml'):
                 for addition in robot_setup.RobotSetupIdentifier(arg).resolve_sync():
                     add(addition)
-            elif match := re.match(r'(.*)\[(\d+)\]', arg):
-                # multi-instantiations via model[count]
-                base = match.group(1)
-                if base == _AUTO_TOKEN:
-                    base = self._resolve_auto()
-                for _ in range(int(match.group(2))):
-                    add(robot_setup.Config(robot=base))
             else:
-                resolved = self._resolve_auto() if arg == _AUTO_TOKEN else arg
-                add(robot_setup.Config(robot=resolved))
+                desugared = desugar_robot_entry(arg)
+                if desugared['robot'] == _AUTO_TOKEN:
+                    desugared['robot'] = self._resolve_auto()
+                for config in robot_setup.Config.parse(desugared):
+                    add(config)
 
         existing = {k: v.robot for k, v in self.managers.items()}
 

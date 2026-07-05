@@ -44,7 +44,7 @@ def _make_robot(name, model_name, mobile="nav2"):
         name=name,
         pose=Pose(),
         model=RobotIdentifier.parse(model_name),
-        adapter_overrides={"mobile": mobile},
+        adapters={"mobile": mobile},
         extra={},
     )
 
@@ -67,23 +67,80 @@ def test_compatible_different_mobile_adapter():
     assert r1.compatible(r2) is False
 
 
+def test_compatible_different_parts():
+    from arena_robots.Robot import RobotIdentifier
+    from task_generator.shared import Pose, Robot
+    r1 = Robot(
+        name="r1",
+        pose=Pose(),
+        model=RobotIdentifier.parse("turtlebot3_burger"),
+        adapters={"mobile": "nav2"},
+        parts={},
+        extra={},
+    )
+    r2 = Robot(
+        name="r2",
+        pose=Pose(),
+        model=RobotIdentifier.parse("turtlebot3_burger"),
+        adapters={"mobile": "nav2"},
+        parts={"lidar": ["sick"]},
+        extra={},
+    )
+    assert r1.compatible(r2) is False
+
+
 def test_parse_minimal_value(stub_node):
     from task_generator.shared import Robot
     value = {"name": "bot1", "model": "turtlebot3_burger"}
     robot = Robot.parse(value, node=stub_node)
-    assert "mobile" not in robot.adapter_overrides
+    assert "mobile" not in robot.adapters
     assert robot.record_data_dir is None
 
 
-def test_parse_flat_mobile_overrides_adapters(stub_node):
+def test_parse_adapters_block_sets_adapters(stub_node):
     from task_generator.shared import Robot
     value = {
         "name": "bot2",
         "model": "turtlebot3_burger",
+        "adapters": {"mobile": "none"},
+    }
+    robot = Robot.parse(value, node=stub_node)
+    assert robot.adapters["mobile"] == "none"
+
+
+def test_parse_flat_mobile_key_not_routed_to_adapters(stub_node):
+    """Flat `mobile: x` is a morphology key (§2.1), not adapter sugar; parse
+    leaves it out of `adapters` (only `mobile.adapter=` / the `adapters` block routes there)."""
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot2b",
+        "model": "turtlebot3_burger",
         "mobile": "none",
     }
     robot = Robot.parse(value, node=stub_node)
-    assert robot.adapter_overrides["mobile"] == "none"
+    assert "mobile" not in robot.adapters
+
+
+def test_parse_unknown_adapter_cap_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot2c",
+        "model": "turtlebot3_burger",
+        "adapters": {"nonexistent_cap": "nav2"},
+    }
+    with pytest.raises(RuntimeError):
+        Robot.parse(value, node=stub_node)
+
+
+def test_parse_unknown_adapter_kind_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot2d",
+        "model": "turtlebot3_burger",
+        "adapters": {"mobile": "nonexistent_kind"},
+    }
+    with pytest.raises(RuntimeError):
+        Robot.parse(value, node=stub_node)
 
 
 def test_parse_extra_dict_preserved(stub_node):
@@ -170,7 +227,7 @@ def test_eq_not_equal_when_record_data_dir_differs():
         name="bot",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        adapter_overrides={"mobile": "nav2"},
+        adapters={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/a",
     )
@@ -178,7 +235,7 @@ def test_eq_not_equal_when_record_data_dir_differs():
         name="bot",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        adapter_overrides={"mobile": "nav2"},
+        adapters={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/b",
     )

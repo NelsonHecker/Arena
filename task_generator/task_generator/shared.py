@@ -34,11 +34,16 @@ if TYPE_CHECKING:
 @attrs.define
 class Robot(Entity):
     model: RobotIdentifier  # type: ignore
-    adapter_overrides: dict[str, str] = attrs.field(factory=dict)
+    adapters: dict[str, str] = attrs.field(factory=dict)
+    parts: dict[str, list] = attrs.field(factory=dict)
     record_data_dir: str | None = None
 
     def compatible(self, value: Robot) -> bool:
-        return self.model.name == value.model.name and self.adapter_overrides == value.adapter_overrides
+        return (
+            self.model.name == value.model.name
+            and self.adapters == value.adapters
+            and self.parts == value.parts
+        )
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Robot):
@@ -56,11 +61,11 @@ class Robot(Entity):
 
     @classmethod
     def from_setup(cls, setup: RobotSetupConfig, *, node: TaskGenerator) -> Robot:
-        dict_value: dict = {'model': setup.robot}
-        if setup.mobile is not None:
-            dict_value['mobile'] = setup.mobile  # consumed by parse
-        if setup.arm is not None:
-            dict_value['arm'] = setup.arm  # consumed by parse
+        dict_value: dict = {
+            'model': setup.robot,
+            'adapters': setup.adapters,
+            'parts': setup.parts,
+        }
         dict_value.update(setup.extra)
         dict_value["name"] = setup.name or ""
         return cls.parse(dict_value, node=node)
@@ -71,15 +76,21 @@ class Robot(Entity):
         model = str(value['model'])
         pose = Pose.parse(value.get("pos", (0, 0, 0)))
 
-        overrides: dict[str, str] = {}
+        adapters: dict[str, str] = {}
         adapters_block = value.get("adapters")
         if isinstance(adapters_block, dict):
-            overrides.update({str(k): str(v) for k, v in adapters_block.items()})
-        # Flat per-cap sugar: top-level `mobile:` / `arm:` keys override the adapters block.
-        for cap in ("mobile", "arm"):
-            flat = value.get(cap)
-            if isinstance(flat, str) and flat:
-                overrides[cap] = flat
+            adapters.update({str(k): str(v) for k, v in adapters_block.items()})
+
+        from task_generator.tasks.robots.adapters import ADAPTERS  # noqa: PLC0415
+
+        for cap, kind in adapters.items():
+            if cap not in ADAPTERS:
+                raise RuntimeError(f"robot {name!r}: no adapter registry for cap {cap!r} (registered caps: {sorted(ADAPTERS)})")
+            if kind not in ADAPTERS[cap]:
+                raise RuntimeError(f"robot {name!r}: unknown adapter {kind!r} for cap {cap!r} (registered: {sorted(ADAPTERS[cap].keys())})")
+
+        parts_block = value.get("parts")
+        parts: dict[str, list] = dict(parts_block) if isinstance(parts_block, dict) else {}
 
         record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
@@ -87,7 +98,8 @@ class Robot(Entity):
             name=name,
             pose=pose,
             model=RobotIdentifier.parse(model),
-            adapter_overrides=overrides,
+            adapters=adapters,
+            parts=parts,
             record_data_dir=record_data,
             extra=value,
         )

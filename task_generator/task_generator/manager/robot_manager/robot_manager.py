@@ -152,7 +152,7 @@ class RobotManager(NodeInterface):
         caps_available = self._config.caps.available
         caps_to_kind: dict[str, str] = {}
         for cap in caps_available:
-            override = self._robot.adapter_overrides.get(cap)
+            override = self._robot.adapters.get(cap)
             if override is not None:
                 caps_to_kind[cap] = override
                 continue

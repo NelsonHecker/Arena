@@ -8,9 +8,15 @@ the environment (obstacle lifecycle + simulator adapter).
 [`robot_manager/robots_manager.py:45`](robot_manager/robots_manager.py#L45)
 
 Diff-driven fleet lifecycle. Parses the `robot` ROS param (comma-separated
-list of `model`, `model[count]`, or `.yaml` setup file references) into a
-`_RobotDiff` that records robots to add, update, or remove. Entry point is
-`set_up()`, called at the start of every episode reset.
+list of `model`, `model[count, item, ...]`, or `.yaml` setup file references)
+into a `_RobotDiff` that records robots to add, update, or remove. Entry
+point is `set_up()`, called at the start of every episode reset.
+
+Bracket items are `<int>` (count), `<cap>.adapter=<kind>` (per-robot adapter
+kind, e.g. `mobile.adapter=drl`), or a bare `<type>=<value>` morphology key
+(sensor/actuator parts; currently hard-errors as not yet implemented).
+`[...]` is a shell glob class: quote the whole entry, e.g.
+`robot:='jackal[2,mobile.adapter=drl]'`.
 
 | Method / property | Purpose |
 | --- | --- |
@@ -34,7 +40,7 @@ After `set_up()`, the active fleet is published latched on `state/robots` as a `
 
 One instance per spawned robot. Owns:
 
-- The bound `Adapter` (resolved from `robot.adapter_overrides` via
+- The bound `Adapter` (resolved from `robot.adapters` via
   `Constants.TaskMode.TM_Robots`).
 - The current `TaskRequest` and phase index.
 - A goal-republish timer loop.
