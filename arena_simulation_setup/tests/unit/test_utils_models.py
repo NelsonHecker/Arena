@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
 
 from arena_simulation_setup.utils.models import Model, ModelType, ModelWrapper
 from arena_simulation_setup.utils.models.sdf import ModelProvider_SDF
+from arena_simulation_setup.utils.models.urdf import ModelProvider_URDF, _patch_sensor_topics
 from arena_simulation_setup.utils.models.usd import ModelProvider_USD
 from arena_simulation_setup.utils.models.yaml import ModelProvider_YAML
 
@@ -259,3 +261,60 @@ def test_model_wrapper_override_noload_missing_type_returns_override():
     w.override(ModelType.USD, lambda m: replaced, noload=True)
     result = asyncio.run(w.get(ModelType.USD))
     assert result is replaced
+
+
+def test_patch_sensor_topics_sets_existing_child_text():
+    root = ET.fromstring('<robot><gazebo><sensor name="gpu_lidar" type="gpu_lidar"><topic>old</topic></sensor></gazebo></robot>')
+    _patch_sensor_topics(root, [("gpu_lidar", "topic", "/model/env_0/jackal/scan")])
+    sensor = root.find(".//sensor[@name='gpu_lidar']")
+    assert sensor.find("topic").text == "/model/env_0/jackal/scan"
+
+
+def test_patch_sensor_topics_creates_nested_child():
+    root = ET.fromstring('<robot><gazebo><sensor name="cam"></sensor></gazebo></robot>')
+    _patch_sensor_topics(root, [("cam", "camera/camera_info_topic", "/model/env_0/jackal/camera_info")])
+    sensor = root.find(".//sensor[@name='cam']")
+    assert sensor.find("camera/camera_info_topic").text == "/model/env_0/jackal/camera_info"
+
+
+def test_patch_sensor_topics_missing_sensor_is_noop():
+    root = ET.fromstring('<robot><gazebo><sensor name="other"></sensor></gazebo></robot>')
+    _patch_sensor_topics(root, [("missing", "topic", "value")])
+    assert root.find(".//sensor[@name='missing']") is None
+    assert root.find(".//sensor[@name='other']/topic") is None
+
+
+def test_urdf_load_uses_xacro_wrapper_instead_of_model_xacro(tmp_path):
+    model_dir = tmp_path / "wrapped_model"
+    urdf_dir = model_dir / "urdf"
+    urdf_dir.mkdir(parents=True)
+    # Present but deliberately broken: if the loader fell back to this file, xacro would fail.
+    (urdf_dir / "wrapped_model.urdf.xacro").write_text("not valid xacro")
+
+    wrapper = """<?xml version="1.0"?>
+<robot name="wrapped_model" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <link name="base_link"/>
+  <gazebo>
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>old_topic</topic>
+    </sensor>
+  </gazebo>
+</robot>
+"""
+    model = asyncio.run(
+        ModelProvider_URDF.load(
+            model_dir,
+            "wrapped_model",
+            {
+                "xacro_wrapper": wrapper,
+                "sensor_topic_patches": [("lidar", "topic", "/model/env_0/robot/scan")],
+            },
+        )
+    )
+    assert model.type == ModelType.URDF
+    assert "/model/env_0/robot/scan" in model.description
+    assert "old_topic" not in model.description
+
+    # The temp wrapper file is cleaned up, only the rendered-URDF temp file remains.
+    assert model.path is not None
+    assert model.path.suffix == ".urdf"

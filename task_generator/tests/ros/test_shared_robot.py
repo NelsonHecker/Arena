@@ -15,12 +15,17 @@ def _ros_gate():
 
 @pytest.fixture()
 def stub_node():
+    from arena_runtime.constants import SimSimulator
+
     class _FakeConf:
         class Robot:
             class RECORD_DATA_DIR:
                 value = None
             class TIMEOUT:
                 value = 60
+        class Arena:
+            class SIM:
+                value = SimSimulator.GAZEBO
 
     class _FakeLogger:
         def get_child(self, name):
@@ -257,3 +262,22 @@ def test_frame_empty_name_fallback_to_empty_string():
         extra={},
     )
     assert str(robot.frame) == ""
+
+
+def test_parse_empty_parts_resolved_assembly_none(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot5", "model": "turtlebot3_burger"}
+    robot = Robot.parse(value, node=stub_node)
+    assert robot.resolved_assembly is None
+
+
+def test_parse_parts_without_assembly_raises(stub_node):
+    from arena_robots.SetupFile import Part
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot6",
+        "model": "jackal",
+        "parts": {"lidar": [Part(variant="sick")]},
+    }
+    with pytest.raises(RuntimeError, match="requires an assembly.yaml"):
+        Robot.parse(value, node=stub_node)

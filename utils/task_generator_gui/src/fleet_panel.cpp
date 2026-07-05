@@ -183,8 +183,9 @@ void FleetPanel::rebuildFleet()
 
     clearLayout(fleet_layout);
 
-    for (const auto& robot : last_fleet->robots)
+    for (const auto& state : last_fleet->robots)
     {
+        const auto& robot = state.descriptor;
         auto row_widget = new QWidget();
         auto row_layout = new QHBoxLayout();
         row_layout->setContentsMargins(0, 0, 0, 0);

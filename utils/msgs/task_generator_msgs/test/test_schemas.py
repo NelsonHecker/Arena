@@ -287,6 +287,27 @@ def test_robot_queue_msg():
     assert msg.despawn[0].name == "jackal_0"
 
 
+def test_robot_fleet_msg():
+    from diagnostic_msgs.msg import KeyValue
+    from task_generator_msgs.msg import RobotCap, RobotDescriptor, RobotFleet, RobotState
+
+    state = RobotState(
+        descriptor=RobotDescriptor(name="jackal_0", model="jackal", ns="/jackal_0", frame="jackal_0"),
+        caps=[RobotCap(cap="mobile", adapter="nav2", instance="", variant="")],
+        params=[KeyValue(key="lidar", value="['sick']")],
+    )
+    msg = RobotFleet(robots=[state])
+
+    assert len(msg.robots) == 1
+    assert msg.robots[0].descriptor.name == "jackal_0"
+    assert msg.robots[0].descriptor.model == "jackal"
+    assert len(msg.robots[0].caps) == 1
+    assert msg.robots[0].caps[0].cap == "mobile"
+    assert msg.robots[0].caps[0].adapter == "nav2"
+    assert len(msg.robots[0].params) == 1
+    assert msg.robots[0].params[0].key == "lidar"
+
+
 def test_run_episode_action_goal():
     from task_generator_msgs.action import RunEpisode
 

@@ -12,6 +12,7 @@ from collections.abc import Iterable, Sequence
 
 import arena_people_msgs.msg
 import arena_robots.Robot
+import arena_robots.Sensor
 import arena_simulation_setup.tree.assets.Material
 import geometry_msgs.msg
 import isaacsim_msgs.msg
@@ -70,8 +71,9 @@ from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
     controller_spawner_node,
+    effective_control_yaml,
+    effective_controllers,
     odom_relay_node,
-    render_ros2_control_yaml,
     twist_stamper_node,
 )
 from arena_runtime.sim._interface import resolve_obstacle_box
@@ -239,10 +241,14 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._mechanism_tf_listener = tf2_ros.TransformListener(self._mechanism_tf_buffer, self.node)
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
-        return {
+        robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+        args: dict[str, object] = {
             **robot.asdict(),
             'optim': self.node.rosparam[str].get('optim', ''),
+            'sensor_topic_patches': arena_robots.Sensor.topic_elements(robot_config.effective_sensors(robot.parts), ''),
         }
+        args.pop('resolved_assembly', None)
+        return args
 
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
@@ -346,7 +352,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
                 raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
 
             rendered_yaml = (
-                render_ros2_control_yaml(
+                effective_control_yaml(
+                    robot.resolved_assembly,
                     control_spec.config,
                     robot.sim_path,
                     robot.frame.tf(),
@@ -382,7 +389,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     )
                 )
             )
-            for controller_name in control_spec.controllers:
+            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers):
                 ld.add_action(controller_spawner_node(controller_name))
             ld.add_action(
                 twist_stamper_node(

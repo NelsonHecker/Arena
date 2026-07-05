@@ -156,7 +156,7 @@ class DrlAdapter(MobileAdapter):
         _sensor_needs: list[str] = _manifest.get("sensor_needs") or []
         if _action_type is not None and is_holonomic != (_action_type == "omnidirectional"):
             robot.node.get_logger().warn(f"arena: planner={self._planner_name!r} (action_type={_action_type}) but robot={robot.robot.name!r} is_holonomic={is_holonomic}; bridge will apply projection")
-        _available = {s.type for s in robot._config.model_params.sensors}
+        _available = {s.type for s in robot._config.effective_sensors(robot._robot.parts)}
         for _need in _sensor_needs:
             if _need not in _available:
                 robot.node.get_logger().warn(f"arena: planner={self._planner_name!r} needs sensor {_need!r} but robot={robot.robot.name!r} sensors={sorted(_available)}; planner will receive empty data")

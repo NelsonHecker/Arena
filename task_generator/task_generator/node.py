@@ -598,7 +598,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             robot_value = mgr.name
 
             sensor_displays: list[AdapterDisplay] = []
-            for sensor in mgr.robot_view.model_params.sensors:
+            for sensor in mgr.robot_view.effective_sensors(mgr.robot.parts):
                 kind = _SENSOR_KIND.get(sensor.type)
                 if kind is None:
                     continue

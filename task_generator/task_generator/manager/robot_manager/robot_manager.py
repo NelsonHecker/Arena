@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import os
 import time
@@ -73,6 +74,7 @@ class RobotManager(NodeInterface):
     _config: RobotView
     _adapters: dict[TaskKind, Adapter]
     _adapter_instances: list[Adapter]
+    _cap_adapters: dict[str, str]
     _current_request: TaskRequest | None
     _phase_index: int
     _unsupported_kinds_logged: set[TaskKind]
@@ -149,7 +151,7 @@ class RobotManager(NodeInterface):
         from task_generator.tasks.robots.adapters import ADAPTERS
         from task_generator.tasks.robots.request import TaskKind
 
-        caps_available = self._config.caps.available
+        caps_available = self._config.effective_caps(self._robot.parts).available
         caps_to_kind: dict[str, str] = {}
         for cap in caps_available:
             override = self._robot.adapters.get(cap)
@@ -165,6 +167,7 @@ class RobotManager(NodeInterface):
 
         self._adapters: dict[TaskKind, Adapter] = {}
         self._adapter_instances: list[Adapter] = []
+        self._cap_adapters: dict[str, str] = {}
 
         for cap, kind in caps_to_kind.items():
             if cap not in ADAPTERS:
@@ -189,6 +192,7 @@ class RobotManager(NodeInterface):
                     raise AssertionError(f"robot {self._robot.name!r}: TaskKind {tk!r} claimed by both {self._adapters[tk].kind!r} and {kind!r}")
                 self._adapters[tk] = adapter
             self._adapter_instances.append(adapter)
+            self._cap_adapters[cap] = kind
 
         self._adapter = next(
             (a for a in self._adapter_instances if TaskKind.GOTO_POSE in a.accepts),
@@ -204,7 +208,10 @@ class RobotManager(NodeInterface):
         self._abort_episode = fn
 
     def _adapter_kwargs_for(self, cap: str, kind: str) -> dict[str, typing.Any]:
-        cap_raw = self._config.caps._load_cap_file(cap)
+        try:
+            cap_raw = self._config.caps._load_cap_file(cap)
+        except FileNotFoundError:
+            cap_raw = {}  # allocation-derived cap, no static caps/<cap>.yaml
         sub = cap_raw.get(kind, {})
         kwargs: dict[str, typing.Any] = dict(sub) if isinstance(sub, dict) else {}
         # CLI overrides land as `robot.<cap>.<key>` ROS params; they overlay the
@@ -265,6 +272,11 @@ class RobotManager(NodeInterface):
     def accepts(self) -> frozenset[TaskKind]:
         """Task kinds this robot's bound adapters can dispatch."""
         return frozenset(self._adapters.keys())
+
+    @property
+    def cap_adapters(self) -> dict[str, str]:
+        """Cap -> bound adapter kind, resolved at construction time."""
+        return dict(self._cap_adapters)
 
     @property
     def namespace(self) -> Namespace:
@@ -484,7 +496,7 @@ class RobotManager(NodeInterface):
                 use_sim_time=True,
                 base_frame=self._config.model_params.base_frame,
                 odom_frame=self._config.model_params.odom_frame,
-                sensors=self._config.model_params.sensors,
+                sensors=self._config.effective_sensors(self._robot.parts),
                 tf_buffer=None,
                 node_handle=self.node,
             )
@@ -505,6 +517,9 @@ class RobotManager(NodeInterface):
                                 "robot_name": self._robot.model.name,
                                 "bringup_caps": bringup_caps,
                                 "bringup_kinds": bringup_kinds,
+                                "parts_json": json.dumps(
+                                    {t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.parts.items()}
+                                ),
                                 "frame": self._robot.frame.tf(),
                                 "use_sim_time": adapter_ctx.use_sim_time,
                             }

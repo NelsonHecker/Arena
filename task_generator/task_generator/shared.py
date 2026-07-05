@@ -37,6 +37,9 @@ class Robot(Entity):
     adapters: dict[str, str] = attrs.field(factory=dict)
     parts: dict[str, list] = attrs.field(factory=dict)
     record_data_dir: str | None = None
+    # resolved morphology (assembler output), None for robots without an assembly.
+    # Excluded from compatible()/__eq__: it is derived from parts+model, not identity.
+    resolved_assembly: object | None = attrs.field(default=None, eq=False)
 
     def compatible(self, value: Robot) -> bool:
         return (
@@ -92,6 +95,31 @@ class Robot(Entity):
         parts_block = value.get("parts")
         parts: dict[str, list] = dict(parts_block) if isinstance(parts_block, dict) else {}
 
+        resolved_assembly = None
+        if parts:
+            from arena_runtime.constants import SimSimulator  # noqa: PLC0415
+
+            if node.conf.Arena.SIM.value is SimSimulator.ISAAC:
+                raise RuntimeError(f"robot {name!r}: morphology parametrization not available on isaac")
+
+            from arena_robots import assembly as arena_assembly  # noqa: PLC0415
+
+            view = RobotIdentifier.parse(model).resolve_sync()
+            if view.assembly is None:
+                raise RuntimeError(f"robot {name!r}: morphology parametrization requires an assembly.yaml, and {model!r} has none")
+
+            request = {
+                typ: [arena_assembly.RequestPart(variant=p.variant, mount=p.mount) for p in instances]
+                for typ, instances in parts.items()
+            }
+            try:
+                resolved_assembly = arena_assembly.resolve(view.assembly, request)
+            except arena_assembly.AssemblyError as e:
+                raise RuntimeError(f"robot {name!r}: {e}") from e
+
+            for w in arena_assembly.warn_if_blind(resolved_assembly, {'lidar'}):
+                node.get_logger().warn(f"robot {name!r}: {w}")
+
         record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
         return cls(
@@ -101,6 +129,7 @@ class Robot(Entity):
             adapters=adapters,
             parts=parts,
             record_data_dir=record_data,
+            resolved_assembly=resolved_assembly,
             extra=value,
         )
 

@@ -49,7 +49,8 @@ class VisualizeRobotModel(Node):
         # Get the appropriate odom topic based on complexity
         robot_odom_topic = self.get_complexity_odom_topic()
 
-        for robot in self._latest_fleet.robots:
+        for state in self._latest_fleet.robots:
+            robot = state.descriptor
             # Load the model file
             model_file = self.read_robot_model_file(robot.model)
 

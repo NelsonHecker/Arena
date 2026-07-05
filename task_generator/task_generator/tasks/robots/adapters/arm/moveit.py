@@ -55,9 +55,11 @@ class MoveItArmAdapter(Adapter):
             if phase.random:
                 from task_generator.tasks.robots._reach_sampling import sample_reach_target
 
-                arms = robot.robot_view.caps.arm
+                arms = robot.robot_view.effective_caps(robot.robot.parts).arm
                 if not arms:
                     raise ValueError(f"random ReachPhase requested but robot {robot.name!r} has no arm cap")
+                if len(arms) != 1:
+                    raise ValueError(f"random ReachPhase requires an explicit arm instance on robot {robot.name!r}; available: {sorted(arms)}")
                 (arm,) = arms.values()
                 rng = robot.node.conf.General.RNG.stream("arm", robot.name)
                 goal.target = sample_reach_target(arm, robot.frame, rng)
@@ -84,9 +86,10 @@ class MoveItArmAdapter(Adapter):
         del robot, ctx
 
     async def wait_until_ready(self, robot: RobotManager, node_paths: set[str]) -> None:
-        mg = str(robot.namespace("move_group"))
-        while mg not in node_paths:
-            await asyncio.sleep(0.01)
+        for mount in self.bringup.arms():
+            mg = str(self.bringup.arm_namespace(mount)("move_group"))
+            while mg not in node_paths:
+                await asyncio.sleep(0.01)
         await super().wait_until_ready(robot, node_paths)
 
 
@@ -96,9 +99,12 @@ def _pick_random_gesture(robot: RobotManager) -> str:
     from arena_simulation_setup import ASS_DIR
     from arena_simulation_setup.tree.Gesture import GestureSpec
 
-    arms = robot.robot_view.caps.arm
+    arms = robot.robot_view.effective_caps(robot.robot.parts).arm
     if not arms:
         _log.warning("random PlayGesturePhase: robot %r has no arm cap", robot.name)
+        return ""
+    if len(arms) != 1:
+        _log.warning("random PlayGesturePhase: robot %r has multiple arm instances %s; explicit instance not yet supported", robot.name, sorted(arms))
         return ""
     (arm,) = arms.values()
     available_poses = set(arm.named_poses.keys())

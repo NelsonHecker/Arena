@@ -1,11 +1,13 @@
 import asyncio
 import contextlib
 import os
+import traceback
 import typing
 from collections.abc import Callable
 
 import arena_robots.SetupFile as robot_setup
 import attrs
+import diagnostic_msgs.msg
 import geometry_msgs.msg
 import rclpy
 import task_generator_msgs.msg
@@ -109,6 +111,29 @@ def desugar_robot_entry(entry: str) -> dict:
             result[key] = parsed_value
 
     return result
+
+
+def _cap_instances(resolved: object | None, cap: str) -> list[tuple[str, str]]:
+    """(mount, variant) per placement of type `cap`, one empty pair when unplaced."""
+    if resolved is not None:
+        placed = [(p.mount.name, p.variant) for p in resolved.placements if p.type == cap]
+        if placed:
+            return placed
+    return [('', '')]
+
+
+def _morphology_params(robot: Robot) -> list[diagnostic_msgs.msg.KeyValue]:
+    """Resolved morphology (type@mount: variant) when assembled, raw parts otherwise."""
+    resolved = robot.resolved_assembly
+    if resolved is not None:
+        return [
+            diagnostic_msgs.msg.KeyValue(key=f'{p.type}@{p.mount.name}', value=p.variant)
+            for p in resolved.placements
+        ]
+    return [
+        diagnostic_msgs.msg.KeyValue(key=ptype, value=str(values))
+        for ptype, values in robot.parts.items()
+    ]
 
 
 @attrs.define(frozen=True)
@@ -254,8 +279,8 @@ class RobotsManager(NodeInterface):
             yield t
         except asyncio.CancelledError:
             pass
-        except Exception:
-            self._logger.error('Error while providing node paths {e}\n{traceback.format_exc()}')
+        except Exception as e:
+            self._logger.error(f'Error while providing node paths {e}\n{traceback.format_exc()}')
         finally:
             if t and not t.done():
                 t.cancel()
@@ -467,11 +492,24 @@ class RobotsManager(NodeInterface):
 
         fleet = task_generator_msgs.msg.RobotFleet(
             robots=[
-                task_generator_msgs.msg.RobotDescriptor(
-                    name=mgr.name,
-                    model=mgr.model_name,
-                    ns=str(mgr.namespace),
-                    frame=mgr.frame.raw().lstrip("/"),
+                task_generator_msgs.msg.RobotState(
+                    descriptor=task_generator_msgs.msg.RobotDescriptor(
+                        name=mgr.name,
+                        model=mgr.model_name,
+                        ns=str(mgr.namespace),
+                        frame=mgr.frame.raw().lstrip("/"),
+                    ),
+                    caps=[
+                        task_generator_msgs.msg.RobotCap(
+                            cap=cap,
+                            adapter=mgr.cap_adapters.get(cap, 'none'),
+                            instance=instance,
+                            variant=variant,
+                        )
+                        for cap in sorted(mgr.robot_view.effective_caps(mgr.robot.parts).available)
+                        for instance, variant in _cap_instances(mgr.robot.resolved_assembly, cap)
+                    ],
+                    params=_morphology_params(mgr.robot),
                 )
                 for mgr in self.managers.values()
             ]
