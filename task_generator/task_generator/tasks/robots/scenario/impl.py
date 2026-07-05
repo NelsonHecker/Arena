@@ -59,7 +59,7 @@ class TM_Scenario(TM_Robots):
                     phases.append(GoToPhase(pose=goto_pose))
                     forbidden.append(PositionRadius(x=goto_pose.position.x, y=goto_pose.position.y, radius=robot.safe_distance))
                 elif isinstance(phase, ScenarioGesturePhase):
-                    phases.append(PlayGesturePhase(gesture=None if phase.gesture in ("", "random") else phase.gesture))
+                    phases.append(PlayGesturePhase(gesture=None if phase.gesture in ("", "random") else phase.gesture, instance=phase.instance))
 
             await robot.submit_task(TaskRequest(phases=phases))
             self._ctx.world_manager.forbid(forbidden)

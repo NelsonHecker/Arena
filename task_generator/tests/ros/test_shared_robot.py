@@ -276,7 +276,7 @@ def test_parse_parts_without_assembly_raises(stub_node):
     from task_generator.shared import Robot
     value = {
         "name": "bot6",
-        "model": "jackal",
+        "model": "rbkairos",
         "parts": {"lidar": [Part(variant="sick")]},
     }
     with pytest.raises(RuntimeError, match="requires an assembly.yaml"):

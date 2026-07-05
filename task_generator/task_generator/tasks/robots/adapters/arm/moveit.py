@@ -52,15 +52,21 @@ class MoveItArmAdapter(Adapter):
     async def dispatch_phase(self, phase: TaskPhase, robot: RobotManager) -> None:
         if isinstance(phase, ReachPhase):
             goal = ReachPose.Goal()
+            goal.instance = phase.instance
             if phase.random:
                 from task_generator.tasks.robots._reach_sampling import sample_reach_target
 
                 arms = robot.robot_view.effective_caps(robot.robot.parts).arm
                 if not arms:
                     raise ValueError(f"random ReachPhase requested but robot {robot.name!r} has no arm cap")
-                if len(arms) != 1:
+                if phase.instance:
+                    if phase.instance not in arms:
+                        raise ValueError(f"random ReachPhase instance {phase.instance!r} not found on robot {robot.name!r}; available: {sorted(arms)}")
+                    arm = arms[phase.instance]
+                elif len(arms) != 1:
                     raise ValueError(f"random ReachPhase requires an explicit arm instance on robot {robot.name!r}; available: {sorted(arms)}")
-                (arm,) = arms.values()
+                else:
+                    (arm,) = arms.values()
                 rng = robot.node.conf.General.RNG.stream("arm", robot.name)
                 goal.target = sample_reach_target(arm, robot.frame, rng)
             elif phase.target is not None:
@@ -75,7 +81,7 @@ class MoveItArmAdapter(Adapter):
             gesture_name = phase.gesture
             if gesture_name is None:
                 gesture_name = _pick_random_gesture(robot)
-            goal = PlayGesture.Goal(gesture=gesture_name or "")
+            goal = PlayGesture.Goal(gesture=gesture_name or "", instance=phase.instance)
             await self.client_for(TaskKind.PLAY_GESTURE).send_goal(goal)
         else:
             raise TypeError(f"MoveItArmAdapter: unsupported phase type {type(phase).__name__} (kind={phase.kind!r})")
