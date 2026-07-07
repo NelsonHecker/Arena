@@ -95,18 +95,23 @@ class Robot(Entity):
         parts_block = value.get("parts")
         parts: dict[str, list] = dict(parts_block) if isinstance(parts_block, dict) else {}
 
+        # resolved_assembly is the ground truth for the robot's morphology:
+        # resolved for every assembly-bearing robot (defaults when no parts are requested) so
+        # the composed URDF, not the stripped base xacro, is what spawns. Models outside
+        # arena_robots do not resolve and get no assembly.
         resolved_assembly = None
-        if parts:
+        try:
+            view = RobotIdentifier.parse(model).resolve_sync()
+        except FileNotFoundError:
+            view = None
+
+        if view is not None and view.assembly is not None:
             from arena_runtime.constants import SimSimulator  # noqa: PLC0415
 
-            if node.conf.Arena.SIM.value is SimSimulator.ISAAC:
+            if parts and node.conf.Arena.SIM.value is SimSimulator.ISAAC:
                 raise RuntimeError(f"robot {name!r}: morphology parametrization not available on isaac")
 
             from arena_robots import assembly as arena_assembly  # noqa: PLC0415
-
-            view = RobotIdentifier.parse(model).resolve_sync()
-            if view.assembly is None:
-                raise RuntimeError(f"robot {name!r}: morphology parametrization requires an assembly.yaml, and {model!r} has none")
 
             request = {
                 typ: [arena_assembly.RequestPart(variant=p.variant, mount=p.mount) for p in instances]
@@ -117,8 +122,11 @@ class Robot(Entity):
             except arena_assembly.AssemblyError as e:
                 raise RuntimeError(f"robot {name!r}: {e}") from e
 
-            for w in arena_assembly.warn_if_blind(resolved_assembly, {'lidar'}):
-                node.get_logger().warn(f"robot {name!r}: {w}")
+            if parts:
+                for w in arena_assembly.warn_if_blind(resolved_assembly, {'lidar'}):
+                    node.get_logger().warn(f"robot {name!r}: {w}")
+        elif parts:
+            raise RuntimeError(f"robot {name!r}: morphology parametrization requires an assembly.yaml, and {model!r} has none")
 
         record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 

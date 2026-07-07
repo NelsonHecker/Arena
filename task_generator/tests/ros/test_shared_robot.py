@@ -264,11 +264,18 @@ def test_frame_empty_name_fallback_to_empty_string():
     assert str(robot.frame) == ""
 
 
-def test_parse_empty_parts_resolved_assembly_none(stub_node):
+def test_parse_empty_parts_no_assembly_resolved_assembly_none(stub_node):
     from task_generator.shared import Robot
     value = {"name": "bot5", "model": "turtlebot3_burger"}
     robot = Robot.parse(value, node=stub_node)
     assert robot.resolved_assembly is None
+
+
+def test_parse_empty_parts_with_assembly_resolves_default(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot5b", "model": "jackal"}
+    robot = Robot.parse(value, node=stub_node)
+    assert robot.resolved_assembly is not None
 
 
 def test_parse_parts_without_assembly_raises(stub_node):
