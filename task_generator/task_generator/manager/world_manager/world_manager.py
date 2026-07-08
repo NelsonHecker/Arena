@@ -1,7 +1,6 @@
 import collections
 import itertools
 import math
-from collections.abc import Collection
 
 import arena_simulation_setup.tree.World as World
 import numpy as np
@@ -9,7 +8,7 @@ import scipy.signal
 import shapely
 from arena_runtime._node import NodeInterface
 
-from task_generator.shared import Position, PositionRadius, Wall
+from task_generator.shared import Position, PositionRadius
 
 from .utils import MultiLevelMap, WorldMap, WorldOccupancy
 
@@ -100,7 +99,6 @@ class WorldManager(NodeInterface):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self._detected_walls = None
         self._multi_map = None
 
     @property
@@ -199,21 +197,12 @@ class WorldManager(NodeInterface):
     def resolution(self) -> float:
         return self._map.resolution
 
-    _detected_walls: Collection[Wall] | None = None
-
-    @property
-    def detected_walls(self) -> Collection[Wall]:
-        if self._detected_walls is None:
-            self._detected_walls = self._map.detect_walls()
-        return self._detected_walls
-
     def update_world(
         self,
         world_map: WorldMap,
         world_description: World.WorldDescription,
         multi_level_map: MultiLevelMap | None = None,
     ):
-        self._detected_walls = None
         self._map = world_map
         self._multi_map = multi_level_map
 

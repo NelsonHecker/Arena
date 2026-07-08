@@ -26,7 +26,7 @@ human-sim `_*_impl` methods:
 | --- | --- |
 | `spawn_obstacles(obstacles, layer)` | spawn or move static obstacles; layer defaults to `INUSE` |
 | `spawn_dynamic_obstacles(obstacles)` | spawn or move dynamic obstacles (`INUSE`) |
-| `spawn_world(walls, doors)` | spawn world geometry in both sim and human-sim layers |
+| `spawn_world(walls, doors, collision_walls=())` | spawn world geometry in both sim and human-sim layers; `collision_walls` register in the human-sim layer only (avoidance), never spawned visually |
 | `unuse_obstacles()` | call `_remove_obstacles_impl`, then flip all `INUSE` layers to `UNUSED` |
 | `remove_obstacles(purge)` | remove all obstacles at or below `purge` layer from both layers; `WORLD` survives unless `purge >= WORLD` |
 | `spawn_robot(robots)` | spawn in physics sim, then call `_spawn_robot_impl` |

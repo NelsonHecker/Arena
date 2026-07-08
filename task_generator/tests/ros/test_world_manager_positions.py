@@ -156,7 +156,6 @@ class TestGetPositionsOnMap:
     def make_wm(grid: np.ndarray, resolution: float = 0.05, seed: int = 0) -> WorldManager:
         wm = WorldManager.__new__(WorldManager)
         wm._map = make_map(grid, resolution=resolution)
-        wm._detected_walls = None
         episode_rng = EpisodeRng()
         episode_rng.reseed(seed)
         fake_node = SimpleNamespace(conf=SimpleNamespace(General=SimpleNamespace(RNG=episode_rng)))
@@ -232,7 +231,6 @@ class TestRenderedSampling:
         wm = WorldManager.__new__(WorldManager)
         wm._map = WorldMap.from_world_description(level, resolution=0.05, time=Time())
         wm._multi_map = None
-        wm._detected_walls = None
         episode_rng = EpisodeRng()
         episode_rng.reseed(seed)
         wm._NodeInterface__node = SimpleNamespace(conf=SimpleNamespace(General=SimpleNamespace(RNG=episode_rng)))
