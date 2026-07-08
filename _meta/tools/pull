@@ -24,11 +24,27 @@ python -m pip install git+https://github.com/voshch/vcstool.git || echo 'failed 
 #update repos
 if [ $_GIT -eq 1 ] ; then
     echo updating Arena...
-    git pull --ff-only --autostash && git submodule update --recursive
+    git pull --ff-only --autostash
 
     # init core SDKs; per-robot/planner pieces stay opt-in (no --recursive)
     git submodule update --init --checkout arena_planners arena_robots humansim \
         || echo "failed to init/update arena_planners/arena_robots/humansim, ignoring"
+
+    # attach rebase-mode submodules to their .gitmodules branch (init leaves them detached)
+    # shellcheck disable=SC2016
+    git submodule foreach --recursive '
+        update=$(git config -f "$toplevel/.gitmodules" "submodule.$name.update" 2>/dev/null || true)
+        branch=$(git config -f "$toplevel/.gitmodules" "submodule.$name.branch" 2>/dev/null || true)
+        if [ "$update" = rebase ] && [ -n "$branch" ] && [ "$(git rev-parse --abbrev-ref HEAD)" != "$branch" ]; then
+            git switch "$branch" 2>/dev/null \
+                || git switch --track -c "$branch" "origin/$branch" 2>/dev/null \
+                || echo "  $name: branch $branch unavailable, staying detached"
+        fi
+    ' || echo "submodule branch attach had issues, ignoring"
+
+    # rebase attached branches onto the metarepo-pinned commit (autostash guards dirty submodules)
+    git -c rebase.autoStash=true submodule update --rebase --recursive \
+        || echo "submodule rebase update had issues, resolve manually"
 
     # re-source
     . "$ARENA_DIR/_meta/tools/source"
