@@ -269,12 +269,8 @@ def cmd_caps(model: str) -> int:
             m = spec.mounts[name]
             xyz = " ".join(f"{v:g}" for v in m.xyz)
             rpy = " ".join(f"{v:g}" for v in m.rpy)
-            accepts = ",".join(sorted(m.accepts))
+            accepts = ",".join(m.accepts)
             print(f"  {name}\tparent={m.parent}\txyz=[{xyz}]\trpy=[{rpy}]\taccepts=[{accepts}]")
-
-        print("priority:")
-        for t in sorted(spec.priority):
-            print(f"  {t}: {', '.join(spec.priority[t])}")
 
         print("defaults:")
         for t in sorted(spec.defaults):

@@ -227,11 +227,15 @@ class GazeboSimulator(BaseSim):
         args.pop('resolved_assembly', None)
         robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
         args['sensor_topic_patches'] = arena_robots.Sensor.topic_elements(
-            robot_config.effective_sensors(robot.parts),
+            robot_config.effective_sensors(robot.resolved_request, frames=robot.frames),
             f"/model/{robot.sim_path}",
         )
         if robot.resolved_assembly is not None:
-            args['xacro_wrapper'] = arena_robots.catalog.render_wrapper_xacro(robot_config, robot.resolved_assembly)
+            catalog = arena_robots.catalog.Catalog()
+            args['xacro_wrapper'] = arena_robots.catalog.render_wrapper_xacro(robot_config, robot.resolved_assembly, catalog=catalog)
+            args['control_joint_patch'] = arena_robots.catalog.render_control_joints(
+                robot.resolved_assembly, catalog, prefix=robot_config.assembly.prefix
+            )
         control_spec = robot_config.model_params.control
         if control_spec is None or not control_spec.is_ros2_control:
             return args
@@ -241,11 +245,12 @@ class GazeboSimulator(BaseSim):
                 robot,
                 control_spec.config,
                 frame_prefix=robot.frame.tf(),
+                control_prefix=(robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_'),
             )
         return args
 
-    def _render_ros2_control_yaml(self, robot: Robot, config_uri: str, *, frame_prefix: str) -> str:
-        return effective_control_yaml(robot.resolved_assembly, config_uri, robot.sim_path, frame_prefix)
+    def _render_ros2_control_yaml(self, robot: Robot, config_uri: str, *, frame_prefix: str, control_prefix: str) -> str:
+        return effective_control_yaml(robot.resolved_assembly, config_uri, robot.sim_path, frame_prefix, prefix=control_prefix)
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         level = obstacles_optim_level(self.node)
@@ -721,7 +726,7 @@ class GazeboSimulator(BaseSim):
         # Derived gz topics are already concrete, so dedupe against the file mappings' own
         # substituted form rather than their raw placeholder strings.
         existing = {(m.gz_topic, m.ros_topic) for m in file_mappings.substitute(subs)}
-        for gz_topic, ros_topic, ros_type, gz_type in arena_robots.Sensor.bridge_rows(robot_config.effective_sensors(robot.parts), f"/model/{robot.sim_path}"):
+        for gz_topic, ros_topic, ros_type, gz_type in arena_robots.Sensor.bridge_rows(robot_config.effective_sensors(robot.resolved_request, frames=robot.frames), f"/model/{robot.sim_path}"):
             if (gz_topic, ros_topic) in existing:
                 continue
             file_mappings.append(_TopicMapping(gz_topic=gz_topic, ros_topic=ros_topic, ros_type=ros_type, gz_type=gz_type, direction=MappingDirection.GZ_TO_ROS))
@@ -777,7 +782,7 @@ class GazeboSimulator(BaseSim):
         if control_spec is not None and control_spec.is_ros2_control:
             if not control_spec.controllers:
                 raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
-            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers):
+            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers, prefix=(robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_')):
                 launch_description.add_action(controller_spawner_node(controller_name))
             launch_description.add_action(
                 twist_stamper_node(

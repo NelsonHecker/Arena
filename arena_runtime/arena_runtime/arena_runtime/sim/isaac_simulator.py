@@ -245,7 +245,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
         args: dict[str, object] = {
             **robot.asdict(),
             'optim': self.node.rosparam[str].get('optim', ''),
-            'sensor_topic_patches': arena_robots.Sensor.topic_elements(robot_config.effective_sensors(robot.parts), ''),
+            'sensor_topic_patches': arena_robots.Sensor.topic_elements(robot_config.effective_sensors(robot.resolved_request, frames=robot.frames), ''),
         }
         args.pop('resolved_assembly', None)
         return args
@@ -351,12 +351,16 @@ class IsaacSimulator(BaseSim, NodeInterface):
             if not control_spec.controllers:
                 raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
 
+            robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+            control_prefix = robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_'
+
             rendered_yaml = (
                 effective_control_yaml(
                     robot.resolved_assembly,
                     control_spec.config,
                     robot.sim_path,
                     robot.frame.tf(),
+                    prefix=control_prefix,
                 )
                 if control_spec.config is not None
                 else None
@@ -389,7 +393,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     )
                 )
             )
-            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers):
+            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers, prefix=control_prefix):
                 ld.add_action(controller_spawner_node(controller_name))
             ld.add_action(
                 twist_stamper_node(

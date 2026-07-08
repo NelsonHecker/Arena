@@ -279,12 +279,36 @@ def test_parse_empty_parts_with_assembly_resolves_default(stub_node):
 
 
 def test_parse_parts_without_assembly_raises(stub_node):
-    from arena_robots.SetupFile import Part
     from task_generator.shared import Robot
     value = {
         "name": "bot6",
         "model": "rbkairos_plus",
-        "parts": {"lidar": [Part(variant="sick")]},
+        "parts": {"lidar": ["sick"]},
     }
+    with pytest.raises(RuntimeError, match="requires an assembly.yaml"):
+        Robot.parse(value, node=stub_node)
+
+
+def test_parse_frames_valid_mount_bakes_override_into_resolved_assembly(stub_node):
+    """A deployment frames override on a declared, populated mount is baked onto
+    resolved_assembly, winning over the mount's own declared frame (jackal's `front`
+    declares frame: lidar; the override replaces it)."""
+    from task_generator.shared import Robot
+    value = {"name": "bot7", "model": "jackal", "frames": {"front": "custom_link"}}
+    robot = Robot.parse(value, node=stub_node)
+    front = next(p for p in robot.resolved_assembly.placements if p.mount.name == "front")
+    assert front.mount.frame == "custom_link"
+
+
+def test_parse_frames_unknown_mount_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot8", "model": "jackal", "frames": {"bogus": "x"}}
+    with pytest.raises(RuntimeError, match="unknown mount"):
+        Robot.parse(value, node=stub_node)
+
+
+def test_parse_frames_without_assembly_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot9", "model": "rbkairos_plus", "frames": {"front": "x"}}
     with pytest.raises(RuntimeError, match="requires an assembly.yaml"):
         Robot.parse(value, node=stub_node)

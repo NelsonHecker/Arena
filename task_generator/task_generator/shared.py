@@ -36,6 +36,7 @@ class Robot(Entity):
     model: RobotIdentifier  # type: ignore
     adapters: dict[str, str] = attrs.field(factory=dict)
     parts: dict[str, list] = attrs.field(factory=dict)
+    frames: dict[str, str] = attrs.field(factory=dict, eq=False)
     record_data_dir: str | None = None
     # resolved morphology (assembler output), None for robots without an assembly.
     # Excluded from compatible()/__eq__: it is derived from parts+model, not identity.
@@ -62,12 +63,29 @@ class Robot(Entity):
             return FrameNamespace(self.name)
         return FrameNamespace("")
 
+    @property
+    def resolved_request(self) -> dict[str, list]:
+        """Fully-pinned type-keyed request equivalent to ``resolved_assembly``, for
+        ``RobotView.effective_caps``/``effective_sensors`` callers that still take a
+        parts-shaped request rather than resolved placements. Empty for a robot
+        without an assembly (``resolved_assembly is None``)."""
+        if self.resolved_assembly is None:
+            return {}
+
+        from arena_robots import assembly as arena_assembly  # noqa: PLC0415
+
+        request: dict[str, list] = {}
+        for p in self.resolved_assembly.placements:
+            request.setdefault(p.type, []).append(arena_assembly.RequestPart(variant=p.variant, mount=p.mount.name))
+        return request
+
     @classmethod
     def from_setup(cls, setup: RobotSetupConfig, *, node: TaskGenerator) -> Robot:
         dict_value: dict = {
             'model': setup.robot,
             'adapters': setup.adapters,
             'parts': setup.parts,
+            'frames': setup.frames,
         }
         dict_value.update(setup.extra)
         dict_value["name"] = setup.name or ""
@@ -93,12 +111,15 @@ class Robot(Entity):
                 raise RuntimeError(f"robot {name!r}: unknown adapter {kind!r} for cap {cap!r} (registered: {sorted(ADAPTERS[cap].keys())})")
 
         parts_block = value.get("parts")
-        parts: dict[str, list] = dict(parts_block) if isinstance(parts_block, dict) else {}
+        directives: dict[str, list[str]] = dict(parts_block) if isinstance(parts_block, dict) else {}
+
+        frames_block = value.get("frames")
+        frames: dict[str, str] = {str(k): str(v) for k, v in frames_block.items()} if isinstance(frames_block, dict) else {}
 
         # resolved_assembly is the ground truth for the robot's morphology:
-        # resolved for every assembly-bearing robot (defaults when no parts are requested) so
-        # the composed URDF, not the stripped base xacro, is what spawns. Models outside
-        # arena_robots do not resolve and get no assembly.
+        # resolved for every assembly-bearing robot (defaults when no directives are
+        # given) so the composed URDF, not the stripped base xacro, is what spawns.
+        # Models outside arena_robots do not resolve and get no assembly.
         resolved_assembly = None
         try:
             view = RobotIdentifier.parse(model).resolve_sync()
@@ -108,34 +129,43 @@ class Robot(Entity):
         if view is not None and view.assembly is not None:
             from arena_runtime.constants import SimSimulator  # noqa: PLC0415
 
-            if parts and node.conf.Arena.SIM.value is SimSimulator.ISAAC:
+            if directives and node.conf.Arena.SIM.value is SimSimulator.ISAAC:
                 raise RuntimeError(f"robot {name!r}: morphology parametrization not available on isaac")
 
             from arena_robots import assembly as arena_assembly  # noqa: PLC0415
 
-            request = {
-                typ: [arena_assembly.RequestPart(variant=p.variant, mount=p.mount) for p in instances]
-                for typ, instances in parts.items()
-            }
             try:
-                resolved_assembly = arena_assembly.resolve(view.assembly, request)
+                request, cleared_sockets, cleared_types = arena_assembly.build_request(view.assembly, directives)
+                resolved_assembly = arena_assembly.resolve(
+                    view.assembly, request, cleared_sockets=cleared_sockets, cleared_types=cleared_types
+                )
             except arena_assembly.AssemblyError as e:
                 raise RuntimeError(f"robot {name!r}: {e}") from e
 
-            if parts:
+            if directives:
                 for w in arena_assembly.warn_if_blind(resolved_assembly, {'lidar'}):
                     node.get_logger().warn(f"robot {name!r}: {w}")
-        elif parts:
-            raise RuntimeError(f"robot {name!r}: morphology parametrization requires an assembly.yaml, and {model!r} has none")
+
+            unknown_frames = set(frames) - set(view.assembly.mounts)
+            if unknown_frames:
+                raise RuntimeError(
+                    f"robot {name!r}: frames override targets unknown mount(s) {sorted(unknown_frames)}; "
+                    f"declared mounts: {sorted(view.assembly.mounts)}"
+                )
+            resolved_assembly = arena_assembly.apply_frame_overrides(resolved_assembly, frames)
+        elif directives or frames:
+            raise RuntimeError(f"robot {name!r}: morphology/frames parametrization requires an assembly.yaml, and {model!r} has none")
 
         record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
+        value['frames'] = frames
         return cls(
             name=name,
             pose=pose,
             model=RobotIdentifier.parse(model),
             adapters=adapters,
-            parts=parts,
+            parts=directives,
+            frames=frames,
             record_data_dir=record_data,
             resolved_assembly=resolved_assembly,
             extra=value,

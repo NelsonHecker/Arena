@@ -151,7 +151,7 @@ class RobotManager(NodeInterface):
         from task_generator.tasks.robots.adapters import ADAPTERS
         from task_generator.tasks.robots.request import TaskKind
 
-        caps_available = self._config.effective_caps(self._robot.parts).available
+        caps_available = self._config.effective_caps(self._robot.resolved_request, frames=self._robot.frames).available
         caps_to_kind: dict[str, str] = {}
         for cap in caps_available:
             override = self._robot.adapters.get(cap)
@@ -496,7 +496,7 @@ class RobotManager(NodeInterface):
                 use_sim_time=True,
                 base_frame=self._config.model_params.base_frame,
                 odom_frame=self._config.model_params.odom_frame,
-                sensors=self._config.effective_sensors(self._robot.parts),
+                sensors=self._config.effective_sensors(self._robot.resolved_request, frames=self._robot.frames),
                 tf_buffer=None,
                 node_handle=self.node,
             )
@@ -518,7 +518,7 @@ class RobotManager(NodeInterface):
                                 "bringup_caps": bringup_caps,
                                 "bringup_kinds": bringup_kinds,
                                 "parts_json": json.dumps(
-                                    {t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.parts.items()}
+                                    {t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.resolved_request.items()}
                                 ),
                                 "frame": self._robot.frame.tf(),
                                 "use_sim_time": adapter_ctx.use_sim_time,

@@ -68,6 +68,47 @@ def _ensure_effort_state(root: ET.Element) -> None:
                 ET.SubElement(joint, 'state_interface', {'name': 'effort'})
 
 
+_GAZEBO_ROS2_CONTROL_PLUGIN = 'gz_ros2_control/GazeboSimSystem'
+
+
+def _control_plugin_text(control: ET.Element) -> str | None:
+    plugin = next((el for el in control.iter() if el.tag.rpartition('}')[-1] == 'plugin'), None)
+    return plugin.text if plugin is not None else None
+
+
+def _joint_element(joint: dict) -> ET.Element:
+    el = ET.Element('joint', {'name': str(joint['name'])})
+    for iface in joint.get('command_interfaces', []):
+        ET.SubElement(el, 'command_interface', {'name': str(iface)})
+    for iface in joint.get('state_interfaces', []):
+        ET.SubElement(el, 'state_interface', {'name': str(iface)})
+    return el
+
+
+def _inject_ros2_control_joints(root: ET.Element, joints: list[dict]) -> None:
+    """Merge every top-level ``<ros2_control>`` tag in ``root`` into the one whose
+    hardware plugin is ``gz_ros2_control/GazeboSimSystem`` (the chassis-emitted tag;
+    arena_robots.catalog.render_wrapper_xacro renders the chassis and every arm
+    placement's component normally, so a joint-bearing part's xacro may add its own
+    native ``ros2_control`` tag too). Appends ``joints`` (a resolved arm placement's
+    control-joint patch, ``arena_robots.catalog.render_control_joints``, computed from
+    ``resolved_assembly`` independently of this URDF's rendered content) as ``<joint>``
+    elements onto the chassis tag, then drops every other ``<ros2_control>`` tag (an
+    arm component's own native tag, superseded by the injected patch). No-op when
+    ``joints`` is empty."""
+    if not joints:
+        return
+    control_tags = [el for el in root if el.tag.rpartition('}')[-1] == 'ros2_control']
+    chassis_tag = next((tag for tag in control_tags if _control_plugin_text(tag) == _GAZEBO_ROS2_CONTROL_PLUGIN), None)
+    if chassis_tag is None:
+        raise RuntimeError(f"no <ros2_control> tag with <plugin>{_GAZEBO_ROS2_CONTROL_PLUGIN}</plugin> to merge the control-joint patch into")
+    for joint in joints:
+        chassis_tag.append(_joint_element(joint))
+    for tag in control_tags:
+        if tag is not chassis_tag:
+            root.remove(tag)
+
+
 class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
     @classmethod
     async def load(cls, model_dir: Path, model: str, loader_args: dict | None) -> Model:
@@ -77,6 +118,7 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
         optim_tokens: set[str] = {t.strip() for t in optim_raw.split(',') if t.strip()}
         sensor_patches = loader_args.pop('sensor_topic_patches', None) or []
         wrapper = loader_args.pop('xacro_wrapper', None)
+        control_joint_patch = loader_args.pop('control_joint_patch', None) or []
 
         base_path = model_dir / "urdf"
         xacro_path = base_path / f"{model}.urdf.xacro"
@@ -153,6 +195,7 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
             if optim_tokens:
                 _strip_sensors(root, optim_tokens)
 
+            _inject_ros2_control_joints(root, control_joint_patch)
             _ensure_effort_state(root)
             _patch_sensor_topics(root, sensor_patches)
 

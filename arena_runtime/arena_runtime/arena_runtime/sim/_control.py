@@ -69,6 +69,7 @@ def effective_control_yaml(
     frame_prefix: str,
     *,
     catalog: Catalog | None = None,
+    prefix: str = 'robot_',
 ) -> str:
     """Render+write the ros2_control YAML for one robot instance, merging
     ``resolved``'s placement control blocks into the chassis config first.
@@ -77,7 +78,7 @@ def effective_control_yaml(
     if resolved is None:
         return render_ros2_control_yaml(config_uri, sim_path, frame_prefix)
     base_control = load_control_yaml(config_uri)
-    merged, _ = render_effective_control(resolved, base_control, catalog if catalog is not None else Catalog())
+    merged, _ = render_effective_control(resolved, base_control, catalog if catalog is not None else Catalog(), prefix=prefix)
     return render_ros2_control_yaml(config_uri, sim_path, frame_prefix, data=merged)
 
 
@@ -86,13 +87,14 @@ def effective_controllers(
     controllers: Sequence[str],
     *,
     catalog: Catalog | None = None,
+    prefix: str = 'robot_',
 ) -> list[str]:
     """``controllers`` plus every placement's extra controller name. Robots
     without an assembly (``resolved`` is ``None``) return ``controllers``
     unchanged."""
     if resolved is None:
         return list(controllers)
-    _, extra = render_effective_control(resolved, {}, catalog if catalog is not None else Catalog())
+    _, extra = render_effective_control(resolved, {}, catalog if catalog is not None else Catalog(), prefix=prefix)
     return [*controllers, *extra]
 
 

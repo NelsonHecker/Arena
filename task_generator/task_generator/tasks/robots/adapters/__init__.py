@@ -141,7 +141,7 @@ class Adapter(ABC):
         self.bringup = self.bringup_cls(
             robot_manager.robot_view,
             str(robot_manager.namespace),
-            parts=robot_manager.robot.parts,
+            parts=robot_manager.robot.resolved_request,
         )
         meta = self._meta()
         assert meta.clients is not None

@@ -56,7 +56,7 @@ class MoveItArmAdapter(Adapter):
             if phase.random:
                 from task_generator.tasks.robots._reach_sampling import sample_reach_target
 
-                arms = robot.robot_view.effective_caps(robot.robot.parts).arm
+                arms = robot.robot_view.effective_caps(robot.robot.resolved_request, frames=robot.robot.frames).arm
                 if not arms:
                     raise ValueError(f"random ReachPhase requested but robot {robot.name!r} has no arm cap")
                 if phase.instance:
@@ -105,7 +105,7 @@ def _pick_random_gesture(robot: RobotManager) -> str:
     from arena_simulation_setup import ASS_DIR
     from arena_simulation_setup.tree.Gesture import GestureSpec
 
-    arms = robot.robot_view.effective_caps(robot.robot.parts).arm
+    arms = robot.robot_view.effective_caps(robot.robot.resolved_request, frames=robot.robot.frames).arm
     if not arms:
         _log.warning("random PlayGesturePhase: robot %r has no arm cap", robot.name)
         return ""

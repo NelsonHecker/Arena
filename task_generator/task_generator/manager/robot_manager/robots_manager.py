@@ -506,7 +506,7 @@ class RobotsManager(NodeInterface):
                             instance=instance,
                             variant=variant,
                         )
-                        for cap in sorted(mgr.robot_view.effective_caps(mgr.robot.parts).available)
+                        for cap in sorted(mgr.robot_view.effective_caps(mgr.robot.resolved_request, frames=mgr.robot.frames).available)
                         for instance, variant in _cap_instances(mgr.robot.resolved_assembly, cap)
                     ],
                     params=_morphology_params(mgr.robot),
