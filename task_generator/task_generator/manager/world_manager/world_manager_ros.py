@@ -235,7 +235,12 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             await self._push_world_to_map_server(compacted_description, level_origins=level_origins)
 
         await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
-        await self._environment_manager.spawn_world_obstacles(self._world)
+        detected_walls = {
+            level_id: tuple(level_map.detect_walls())
+            for level_id in self._multi_map.level_ids
+            if (level_map := self._multi_map.get_map(level_id)) is not None
+        } if self._multi_map is not None else {}
+        await self._environment_manager.spawn_world_obstacles(self._world, detected_walls=detected_walls)
 
         return True
 

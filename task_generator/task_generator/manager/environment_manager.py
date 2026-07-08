@@ -17,6 +17,7 @@ from task_generator.shared import (
     Pose,
     Region,
     Robot,
+    Wall,
 )
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.utils import ObstacleLayer
@@ -95,14 +96,27 @@ class EnvironmentManager(NodeInterface):
         alive = set(self._human_simulator._known_obstacles.keys())
         self._static_polygons = {n: p for n, p in self._static_polygons.items() if n in alive}
 
-    async def spawn_world_obstacles(self, world: WorldDescription | LevelDescription, level_id: str = ""):
+    async def spawn_world_obstacles(
+        self,
+        world: WorldDescription | LevelDescription,
+        level_id: str = "",
+        detected_walls: dict[str, Sequence[Wall]] | None = None,
+    ):
         """
         Loads given obstacles into the simulator,
         the map file is retrieved from launch parameter "world"
-        """
-        await self._spawn_world_obstacles(world, level_id)
 
-    async def _spawn_world_obstacles(self, world: WorldDescription | LevelDescription, level_id: str = "") -> None:
+        Args:
+            detected_walls: per-level occupancy-derived walls, used for collision-only fallback on wall-less levels.
+        """
+        await self._spawn_world_obstacles(world, level_id, detected_walls)
+
+    async def _spawn_world_obstacles(
+        self,
+        world: WorldDescription | LevelDescription,
+        level_id: str = "",
+        detected_walls: dict[str, Sequence[Wall]] | None = None,
+    ) -> None:
 
         def _match_level_id(fid: str | None) -> bool:
             target_id = level_id
@@ -115,7 +129,17 @@ class EnvironmentManager(NodeInterface):
                     return False
 
         _world = WorldDescription.from_levels(world) if isinstance(world, LevelDescription) else world
-        walls = tuple(self._realizer.realize(w, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for w in level.all_walls)
+        walls_list: list[Wall] = []
+        collision_walls: list[Wall] = []
+        for fid, level in _world.levels.items():
+            if not _match_level_id(fid):
+                continue
+            level_walls = [self._realizer.realize(w, fid) for w in level.all_walls]
+            if level_walls:
+                walls_list.extend(level_walls)
+            elif detected_walls and detected_walls.get(fid):
+                collision_walls.extend(self._realizer.realize(w, fid) for w in detected_walls[fid])
+        walls = tuple(walls_list)
         doors = tuple(self._realizer.realize(d, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for d in level.all_doors)
         floors = tuple(self._realizer.realize(f, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for f in level.all_floors)
         ceilings: list[Ceiling] = []
@@ -153,8 +177,8 @@ class EnvironmentManager(NodeInterface):
             futures.append(self._simulator.spawn_floors(floors))
         if ceilings:
             futures.append(self._simulator.spawn_ceilings(ceilings))
-        if walls or doors:
-            futures.append(self._human_simulator.spawn_world(walls, doors))
+        if walls or doors or collision_walls:
+            futures.append(self._human_simulator.spawn_world(walls, doors, collision_walls=tuple(collision_walls)))
         futures.append(self._human_simulator.spawn_obstacles(statics, layer=ObstacleLayer.WORLD))
         if elevators:
             futures.append(self._simulator.spawn_elevators(elevators))
@@ -207,14 +231,14 @@ class EnvironmentManager(NodeInterface):
         await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
         self._sync_static_polygons()
 
-    async def respawn_world(self, world: WorldDescription):
+    async def respawn_world(self, world: WorldDescription, detected_walls: dict[str, Sequence[Wall]] | None = None):
         """
         Replace world obstacles atomically: old items are only cleaned
         up after new ones have been spawned successfully.
         """
         old_walls, old_doors = self._human_simulator.unuse_world()
         await self._simulator.remove_world()
-        await self.spawn_world_obstacles(world)
+        await self.spawn_world_obstacles(world, detected_walls=detected_walls)
         self._human_simulator.remove_stale_world(old_walls, old_doors)
         await self._human_simulator.remove_obstacles(purge=ObstacleLayer.UNUSED)
 

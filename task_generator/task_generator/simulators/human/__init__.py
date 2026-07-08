@@ -302,17 +302,20 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self,
         walls: Sequence[Wall],
         doors: Sequence[Door],
+        *,
+        collision_walls: Sequence[Wall] = (),
     ):
         """Spawns world elements.
 
         Args:
             walls (Sequence[Wall]): Walls to spawn.
             doors (Sequence[Door]): Doors to spawn.
+            collision_walls (Sequence[Wall]): Walls registered for obstacle avoidance only, not spawned visually.
         """
         self._logger.debug(f"spawning {len(walls)} walls and {len(doors)} doors")
 
         wall_map: dict[str, Wall] = {}
-        for wall in walls:
+        for wall in (*walls, *collision_walls):
             name = f"wall_{next(self._wall_counter)}"
             self._known_walls.create_or_get(
                 name=name,
