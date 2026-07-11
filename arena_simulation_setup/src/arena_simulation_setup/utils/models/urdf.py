@@ -78,6 +78,9 @@ def _control_plugin_text(control: ET.Element) -> str | None:
 
 def _joint_element(joint: dict) -> ET.Element:
     el = ET.Element('joint', {'name': str(joint['name'])})
+    # explicit jazzy ros2_control mimic attribute, kinematics come from the URDF mimic tag
+    if joint.get('mimic'):
+        el.set('mimic', 'true')
     for iface in joint.get('command_interfaces', []):
         ET.SubElement(el, 'command_interface', {'name': str(iface)})
     for iface in joint.get('state_interfaces', []):
