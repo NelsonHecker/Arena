@@ -107,7 +107,7 @@ class EnvironmentManager(NodeInterface):
         the map file is retrieved from launch parameter "world"
 
         Args:
-            detected_walls: per-level occupancy-derived walls, used for collision-only fallback on wall-less levels.
+            detected_walls: per-level occupancy-derived walls fed to the human-sim as collision geometry (populated only under debug.map_source:=disk).
         """
         await self._spawn_world_obstacles(world, level_id, detected_walls)
 
@@ -134,10 +134,8 @@ class EnvironmentManager(NodeInterface):
         for fid, level in _world.levels.items():
             if not _match_level_id(fid):
                 continue
-            level_walls = [self._realizer.realize(w, fid) for w in level.all_walls]
-            if level_walls:
-                walls_list.extend(level_walls)
-            elif detected_walls and detected_walls.get(fid):
+            walls_list.extend(self._realizer.realize(w, fid) for w in level.all_walls)
+            if detected_walls and detected_walls.get(fid):
                 collision_walls.extend(self._realizer.realize(w, fid) for w in detected_walls[fid])
         walls = tuple(walls_list)
         doors = tuple(self._realizer.realize(d, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for d in level.all_doors)

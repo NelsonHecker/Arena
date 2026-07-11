@@ -328,6 +328,7 @@ testing knobs, not a supported experiment surface.
 |---|---|
 | `debug:=aiomonitor` | Open an aiomonitor console on the env's asyncio loop (port `20101 + env_id*10`). |
 | `debug:=map_server` | Force-launch the map server even when no adapter requested it. |
+| `debug.map_source:=disk` | Treat the world's on-disk `<level>/map.png` as the single occupancy truth (nav2, spawn sampling, and pedestrian collision walls) instead of rasterizing `world.yaml`. Single-level worlds with an on-disk map only; errors otherwise. Default `compute` rasterizes from `world.yaml`. |
 | `optim.obstacles:=bbox` | Spawn static obstacles as bounding-box primitives (read from each asset's `annotation.yaml`) instead of full meshes; assets without a `bounding_box` annotation fall back to the mesh. |
 | `optim.obstacles:=none` | Silently skip all static obstacle spawns (world + episode). Pedestrians, walls, and floors are kept. |
 

@@ -32,6 +32,7 @@ from arena_simulation_setup.tree.World.World import _render_door_polygons, _rend
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.realizer import Realizer
 from task_generator.simulators.human.utils import ObstacleLayer
+from task_generator.utils.flags import MapSource, map_source
 
 from .utils import MultiLevelMap, WorldLayers, WorldMap, WorldOccupancy
 from .world_manager import WorldManager
@@ -189,9 +190,29 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         compacted_description = world.compact_world(origins=origins)
 
         multi_level_map = self._load_multi_level_map(Path(world_view.path))
+
+        source = map_source(self.node)
+        disk_mode = source is MapSource.DISK
+        disk_level = ""
+        if disk_mode:
+            disk_levels = list(multi_level_map.level_ids) if multi_level_map is not None else []
+            if len(world.level_ids) != 1 or len(disk_levels) != 1:
+                raise RuntimeError(
+                    f"debug.map_source:=disk requires a single-level world with one on-disk map; "
+                    f"world {world_name!r} has {len(world.level_ids)} level(s), {len(disk_levels)} disk map(s)"
+                )
+            disk_level = disk_levels[0]
+            disk_map = multi_level_map.get_map(disk_level)
+
         floors = [floor for level in world.all_levels for floor in level.all_floors]
         extent = arena_runtime_msgs.msg.WorldExtent()
-        if floors:
+        if disk_mode:
+            rows, cols = disk_map.shape
+            extent.x_min = float(disk_map.origin.x)
+            extent.y_min = float(disk_map.origin.y)
+            extent.x_max = float(disk_map.origin.x + cols * disk_map.resolution)
+            extent.y_max = float(disk_map.origin.y + rows * disk_map.resolution)
+        elif floors:
             extent.x_min = float(min(f.pos.x - f.x_length / 2 for f in floors))
             extent.y_min = float(min(f.pos.y - f.y_length / 2 for f in floors))
             extent.x_max = float(max(f.pos.x + f.x_length / 2 for f in floors))
@@ -221,9 +242,12 @@ class WorldManagerROS(MapServerHandler, WorldManager):
 
         self._logger.warn(f'Loading World {world_name}')
 
-        if compacted_description is None:
-            compacted_description = world.compact_world(origins={fid: (0.0, 0.0) for fid in world.level_ids})
-        world_map = WorldMap.from_world_description(compacted_description, resolution=_DEFAULT_RESOLUTION, time=self.node.sim_time, _level_origins=level_origins)
+        if disk_mode:
+            world_map = disk_map
+        else:
+            if compacted_description is None:
+                compacted_description = world.compact_world(origins={fid: (0.0, 0.0) for fid in world.level_ids})
+            world_map = WorldMap.from_world_description(compacted_description, resolution=_DEFAULT_RESOLUTION, time=self.node.sim_time, _level_origins=level_origins)
         DynamicPaths.WORLD.path = world_view.path
         self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_level_map)
 
@@ -231,22 +255,22 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         self._world_mtime = mtime
         self.node.rosparam[str].set('world', world_name)
 
-        if self._map_server_present and compacted_description is not None:
-            await self._push_world_to_map_server(compacted_description, level_origins=level_origins)
+        if self._map_server_present:
+            if disk_mode:
+                await self._push_disk_map_to_map_server(Path(world_view.path) / disk_level, compacted_description)
+            elif compacted_description is not None:
+                await self._push_world_to_map_server(compacted_description, level_origins=level_origins)
 
         await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
         detected_walls = {
-            level_id: tuple(level_map.detect_walls())
-            for level_id in self._multi_map.level_ids
-            if (level_map := self._multi_map.get_map(level_id)) is not None
-        } if self._multi_map is not None else {}
+            disk_level: tuple(disk_map.detect_walls())
+        } if disk_mode else {}
         await self._environment_manager.spawn_world_obstacles(self._world, detected_walls=detected_walls)
 
         return True
 
-    async def _push_world_to_map_server(self, description: World.LevelDescription, level_origins: dict[str, tuple[float, float]] | None = None) -> None:
-        """Render+shift+LoadMap. Caller guarantees map_server is present."""
-        png_bytes, map_yaml_text = await self._render_world_map(self._world_name, description, level_origins=level_origins)
+    async def _load_map_to_server(self, png_bytes: bytes, map_yaml_text: str, description: World.LevelDescription) -> None:
+        """Shift+LoadMap+door-mask. Caller guarantees map_server is present."""
         tmp_map = self._shift_map(png_bytes, map_yaml_text)
         try:
             map_yaml = os.path.join(tmp_map.name, 'map.yaml')
@@ -259,6 +283,17 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if response.result > 0:
             raise RuntimeError(f'failed to load map for world {self._world_name}: status code {response.result}')
         self._publish_door_mask(description, png_bytes, map_yaml_text)
+
+    async def _push_world_to_map_server(self, description: World.LevelDescription, level_origins: dict[str, tuple[float, float]] | None = None) -> None:
+        """Render+load the computed map. Caller guarantees map_server is present."""
+        png_bytes, map_yaml_text = await self._render_world_map(self._world_name, description, level_origins=level_origins)
+        await self._load_map_to_server(png_bytes, map_yaml_text, description)
+
+    async def _push_disk_map_to_map_server(self, level_dir: Path, description: World.LevelDescription) -> None:
+        """Load the on-disk map.png/map.yaml. Caller guarantees map_server is present."""
+        png_bytes = (level_dir / 'map.png').read_bytes()
+        map_yaml_text = (level_dir / 'map.yaml').read_text()
+        await self._load_map_to_server(png_bytes, map_yaml_text, description)
 
     def _publish_door_mask(
         self,

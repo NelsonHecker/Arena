@@ -75,6 +75,30 @@ def obstacles_optim_level(node: rclpy.node.Node) -> ObstaclesOptim:
     return ObstaclesOptim.FULL
 
 
+class MapSource(enum.Enum):
+    """`debug.map_source`: occupancy map origin."""
+
+    COMPUTE = "compute"  # rasterize from world.yaml (default)
+    DISK = "disk"        # on-disk map.png is the single source of truth
+
+    @classmethod
+    def coerce(cls, value: object) -> MapSource:
+        if isinstance(value, str):
+            key = value.strip().lower()
+            for member in cls:
+                if member.value == key:
+                    return member
+        return cls.COMPUTE
+
+
+def map_source(node: rclpy.node.Node) -> MapSource:
+    """Resolve `debug.map_source` (default COMPUTE)."""
+    param = node.get_parameters_by_prefix("debug").get("map_source")
+    if param is not None:
+        return MapSource.coerce(param.value)
+    return MapSource.COMPUTE
+
+
 def expand_flag_namespace(
     context: launch.LaunchContext,
     name: str,

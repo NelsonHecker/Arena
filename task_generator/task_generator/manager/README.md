@@ -91,7 +91,7 @@ All obstacle/robot operations go through here.
 
 | Method | Purpose |
 | --- | --- |
-| `spawn_world_obstacles(world, detected_walls=None)` | spawn floors, walls, doors, static WORLD entities; on a wall-less level, feed `detected_walls[level]` (occupancy-derived) to the human-sim as collision-only walls, silently none if that level has no on-disk map |
+| `spawn_world_obstacles(world, detected_walls=None)` | spawn floors, walls, doors, static WORLD entities; under debug.map_source:=disk, per-level occupancy-derived walls in detected_walls are fed to the human-sim as collision-only geometry |
 | `spawn_obstacles(setups)` | spawn episode-scoped static obstacles (`INUSE`) |
 | `spawn_dynamic_obstacles(setups)` | spawn episode-scoped dynamic obstacles (`INUSE`) |
 | `spawn_robot(robots)` | spawn robots in both sim and human-sim layers |
