@@ -531,6 +531,8 @@ class RobotManager(NodeInterface):
             self._launch_handle = await self.node.do_launch_tracked(launch_description)
             await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
             await self.wait_controllers_active()
+            for adapter in self._adapter_instances:
+                await adapter.on_controllers_active(self)
 
     async def wait_controllers_active(self) -> None:
         """Hold a sim-unpause window and block until every spawned controller reports active, so the

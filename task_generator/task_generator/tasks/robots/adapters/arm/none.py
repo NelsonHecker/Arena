@@ -10,6 +10,7 @@ from arena_robots.task_kinds import TaskKind
 from arena_robots_msgs.action import ReachPose
 
 from task_generator.tasks.robots.adapters import Adapter, AdapterMeta
+from task_generator.tasks.robots.adapters.arm import park_arms
 from task_generator.tasks.robots.request import ReachPhase, TaskPhase
 
 if TYPE_CHECKING:
@@ -43,3 +44,6 @@ class NoneArmAdapter(Adapter):
         goal.orientation_tolerance = float(phase.orientation_tolerance or 0.0)
         goal.planning_time = float(phase.planning_time or 0.0)
         await self.client.send_goal(goal)
+
+    async def on_controllers_active(self, robot: RobotManager) -> None:
+        self._park_pubs = await park_arms(robot)

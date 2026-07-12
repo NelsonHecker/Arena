@@ -15,6 +15,7 @@ from arena_viz.kinds import DisplayKind
 from arena_viz.style import StyleSpec
 
 from task_generator.tasks.robots.adapters import Adapter, AdapterDisplayHint, AdapterMeta
+from task_generator.tasks.robots.adapters.arm import park_arms
 from task_generator.tasks.robots.request import PlayGesturePhase, ReachPhase
 
 if TYPE_CHECKING:
@@ -90,6 +91,9 @@ class MoveItArmAdapter(Adapter):
         # MoveIt cannot plan while sim is paused (no /joint_states, no current state),
         # the TM is responsible for emitting a stow phase if it wants the arm parked.
         del robot, ctx
+
+    async def on_controllers_active(self, robot: RobotManager) -> None:
+        self._park_pubs = await park_arms(robot)
 
     async def wait_until_ready(self, robot: RobotManager, node_paths: set[str]) -> None:
         for mount in self.bringup.arms():
