@@ -357,12 +357,18 @@ class RobotsManager(NodeInterface):
 
         parsed_explicit: dict[str, Robot] = {}
         parsed_anonymous: dict[str, list[Robot]] = {}
+        skipped: list[str] = []
 
         def add(base: robot_setup.Config):
             readiness = _robot_readiness()
             if readiness is not None and base.robot in readiness.pending:
                 paths = ", ".join(sorted(readiness.pending[base.robot]))
-                raise RuntimeError(f"robot {base.robot!r} is not installed (submodule(s) not checked out: {paths}). run: arena feature robots add {base.robot}")
+                self.node.get_logger().error(
+                    f"skipping robot {base.robot!r}: not installed (submodule(s) not checked out: {paths}). "
+                    f"run: arena feature robots add {base.robot}"
+                )
+                skipped.append(base.robot)
+                return
             name = base.name
             config = Robot.from_setup(base, node=self.node)
 
@@ -385,6 +391,9 @@ class RobotsManager(NodeInterface):
                     desugared['robot'] = self._resolve_auto()
                 for config in robot_setup.Config.parse(desugared):
                     add(config)
+
+        if skipped and not (parsed_explicit or parsed_anonymous):
+            raise RuntimeError(f"no installed robot in {v!r}. run: arena feature robots add {' '.join(sorted(set(skipped)))}")
 
         existing = {k: v.robot for k, v in self.managers.items()}
 
