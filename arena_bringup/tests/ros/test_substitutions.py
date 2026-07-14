@@ -20,8 +20,8 @@ def _write_yaml(path: str, data: object) -> None:
 def _observation_source(data_type: str, topic: str) -> dict:
     """One nav2 observation-source block, matching compile_sensors_to_nav2's shape.
     obstacle_max_range sits a margin below raytrace_max_range to filter out Isaac's
-    phantom max-range returns. 3D clouds also carry a min_obstacle_height ground
-    floor; the flat scan does not."""
+    phantom max-range returns. Every source carries a min_obstacle_height ground
+    floor, higher for 3D clouds than for flat scans."""
     source = {
         "topic": topic,
         "data_type": data_type,
@@ -34,6 +34,8 @@ def _observation_source(data_type: str, topic: str) -> dict:
     }
     if data_type == "PointCloud2":
         source["min_obstacle_height"] = 0.1
+    elif data_type == "LaserScan":
+        source["min_obstacle_height"] = 0.05
     return source
 
 
@@ -518,9 +520,9 @@ class TestYAMLReplaceSubstitution:
             assert params["lidar"]["topic"] == "env_0/scan"
             assert params["lidar_points"]["data_type"] == "PointCloud2"
             assert params["lidar_points"]["topic"] == "env_0/points"
-            # heterogeneous per-source keys land: the cloud gets a ground floor, the scan doesn't
+            # heterogeneous per-source keys land: both get ground floors, the cloud's higher
             assert params["lidar_points"]["min_obstacle_height"] == 0.1
-            assert "min_obstacle_height" not in params["lidar"]
+            assert params["lidar"]["min_obstacle_height"] == 0.05
 
     def test_observation_sources_survive_rewritten_yaml(self, tmp_path: pytest.TempPathFactory) -> None:
         """Full launch pipeline: YAMLReplaceSubstitution -> nav2's RewrittenYaml
