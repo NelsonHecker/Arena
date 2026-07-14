@@ -64,13 +64,13 @@ _OBSTACLES_ALIASES = {
 
 
 def obstacles_optim_level(node: rclpy.node.Node) -> ObstaclesOptim:
-    """Resolve `optim.obstacles`, honouring the legacy `optim.no_obstacles` flag as NONE."""
+    """Resolve `optim.obstacles`, honouring the deprecated `optim.no_obstacles` flag as NONE."""
     params = node.get_parameters_by_prefix("optim")
     obstacles = params.get("obstacles")
     if obstacles is not None:
         return ObstaclesOptim.coerce(obstacles.value)
-    legacy = params.get("no_obstacles")
-    if legacy is not None and truthy(legacy.value):
+    deprecated = params.get("no_obstacles")
+    if deprecated is not None and truthy(deprecated.value):
         return ObstaclesOptim.NONE
     return ObstaclesOptim.FULL
 
