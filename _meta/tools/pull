@@ -30,21 +30,18 @@ if [ $_GIT -eq 1 ] ; then
     git submodule update --init --checkout arena_planners arena_robots humansim \
         || echo "failed to init/update arena_planners/arena_robots/humansim, ignoring"
 
-    # attach rebase-mode submodules to their .gitmodules branch (init leaves them detached)
+    # check out the pinned commit everywhere, a dirty submodule fails loudly here
+    git submodule update --checkout --recursive \
+        || echo "submodule checkout had issues, resolve manually"
+
+    # force-reset each submodule's .gitmodules branch onto the pin (unpushed commits stay in reflog only)
     # shellcheck disable=SC2016
     git submodule foreach --recursive '
-        update=$(git config -f "$toplevel/.gitmodules" "submodule.$name.update" 2>/dev/null || true)
         branch=$(git config -f "$toplevel/.gitmodules" "submodule.$name.branch" 2>/dev/null || true)
-        if [ "$update" = rebase ] && [ -n "$branch" ] && [ "$(git rev-parse --abbrev-ref HEAD)" != "$branch" ]; then
-            git switch "$branch" 2>/dev/null \
-                || git switch --track -c "$branch" "origin/$branch" 2>/dev/null \
-                || echo "  $name: branch $branch unavailable, staying detached"
+        if [ -n "$branch" ]; then
+            git switch -C "$branch" HEAD || echo "  $name: could not reset branch $branch"
         fi
-    ' || echo "submodule branch attach had issues, ignoring"
-
-    # rebase attached branches onto the metarepo-pinned commit (autostash guards dirty submodules)
-    git -c rebase.autoStash=true submodule update --rebase --recursive \
-        || echo "submodule rebase update had issues, resolve manually"
+    ' || echo "submodule branch reset had issues, ignoring"
 
     # re-source
     . "$ARENA_DIR/_meta/tools/source"

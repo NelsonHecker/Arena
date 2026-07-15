@@ -1,37 +1,37 @@
-# arena update attaches each submodule to its branch, then rebases onto the pinned commit.
-# A submodule with update = rebase MUST set branch = <the branch its pin lives on>, or it stays detached.
+# arena update checks out the pinned commit, then force-resets <branch> onto it (git switch -C).
+# Unpushed commits on a submodule's branch fall off at update, recover via reflog.
 [submodule "arena_tools"]
 	path = arena_tools
 	url = https://github.com/voshch/arena-tools.git
 	branch = main
-	update = rebase
+	update = checkout
 [submodule "arena_evaluation"]
 	path = arena_evaluation
 	url = https://github.com/voshch/arena-evaluation.git
 	branch = jazzy
-	update = rebase
+	update = checkout
 [submodule "arena_isaac"]
 	path = arena_isaac
 	url = https://github.com/Arena-Rosnav/arena-isaac
 	branch = arena5-isaac5.1.0
-	update = rebase
+	update = checkout
 [submodule "arena_training"]
 	path = arena_training
 	url = https://github.com/Arena-Rosnav/Arena-Training.git
 	branch = jazzy
-	update = rebase
+	update = checkout
 [submodule "arena_planners"]
 	path = arena_planners
 	url = https://github.com/arena-planners/arena_planners.git
 	branch = jazzy
-	update = rebase
+	update = checkout
 [submodule "arena_robots"]
 	path = arena_robots
 	url = https://github.com/arena-robots/arena_robots.git
 	branch = jazzy
-	update = rebase
+	update = checkout
 [submodule "humansim"]
 	path = humansim
 	url = https://github.com/voshch/humansim.git
 	branch = jazzy
-	update = rebase
+	update = checkout
