@@ -197,10 +197,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         if disk_mode:
             disk_levels = list(multi_level_map.level_ids) if multi_level_map is not None else []
             if len(world.level_ids) != 1 or len(disk_levels) != 1:
-                raise RuntimeError(
-                    f"debug.map_source:=disk requires a single-level world with one on-disk map; "
-                    f"world {world_name!r} has {len(world.level_ids)} level(s), {len(disk_levels)} disk map(s)"
-                )
+                raise RuntimeError(f"debug.map_source:=disk requires a single-level world with one on-disk map; world {world_name!r} has {len(world.level_ids)} level(s), {len(disk_levels)} disk map(s)")
             disk_level = disk_levels[0]
             disk_map = multi_level_map.get_map(disk_level)
 
@@ -262,9 +259,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
                 await self._push_world_to_map_server(compacted_description, level_origins=level_origins)
 
         await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
-        detected_walls = {
-            disk_level: tuple(disk_map.detect_walls())
-        } if disk_mode else {}
+        detected_walls = {disk_level: tuple(disk_map.detect_walls())} if disk_mode else {}
         await self._environment_manager.spawn_world_obstacles(self._world, detected_walls=detected_walls)
 
         return True

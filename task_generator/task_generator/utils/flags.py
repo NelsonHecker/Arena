@@ -79,7 +79,7 @@ class MapSource(enum.Enum):
     """`debug.map_source`: occupancy map origin."""
 
     COMPUTE = "compute"  # rasterize from world.yaml (default)
-    DISK = "disk"        # on-disk map.png is the single source of truth
+    DISK = "disk"  # on-disk map.png is the single source of truth
 
     @classmethod
     def coerce(cls, value: object) -> MapSource:
