@@ -47,9 +47,7 @@ def _allocate_env(env_id: int, ns: str) -> tuple[int, str, str]:
         while not cli.wait_for_service(timeout_sec=_REGISTER_RETRY_SEC):
             now = time.monotonic()
             if now >= next_log:
-                logger.warning(
-                    f"waiting for /arena/register_env ({int(now - start)}s elapsed)"
-                )
+                logger.warning(f"waiting for /arena/register_env ({int(now - start)}s elapsed)")
                 next_log = now + _REGISTER_LOG_INTERVAL_SEC
 
         req = RegisterEnv.Request()
@@ -65,9 +63,7 @@ def _allocate_env(env_id: int, ns: str) -> tuple[int, str, str]:
                 rclpy.spin_until_future_complete(node, future, timeout_sec=_REGISTER_RETRY_SEC)
                 now = time.monotonic()
                 if not future.done() and now >= next_log:
-                    logger.warning(
-                        f"waiting for /arena/register_env response ({int(now - start)}s elapsed)"
-                    )
+                    logger.warning(f"waiting for /arena/register_env response ({int(now - start)}s elapsed)")
                     next_log = now + _REGISTER_LOG_INTERVAL_SEC
             resp = future.result()
             if resp.success:
@@ -110,11 +106,14 @@ def generate_launch_description():
         description="Explicit ns path (e.g. for sim2real); empty = auto-generate.",
     )
 
-    sim = LaunchArgument(name="sim", default_value="gazebo", description="[dummy, gazebo, isaac]")
-    # human/mobile defaults are derived from arena's authoritative `sim` (the value
-    # arena_node actually configured), not from this launch's local `sim` arg, which only
-    # affects how the env *requests* registration. Empty here means "use arena_sim".
-    # User can still override by passing e.g. human:=hunav explicitly.
+    sim = LaunchArgument(
+        name="sim",
+        default_value="",
+        description="empty = adopt the runtime's sim; explicit [dummy, gazebo, isaac] must match the runtime",
+    )
+    # human/mobile defaults derive from arena's authoritative `sim` (the RegisterEnv
+    # response, or the sim arg arena passes for managed envs). Empty here means
+    # "use arena_sim". User can still override by passing e.g. human:=hunav explicitly.
     human = LaunchArgument(
         name="human",
         default_value="",
@@ -163,10 +162,7 @@ def generate_launch_description():
     auto_reset = LaunchArgument(
         name="auto_reset",
         default_value="true",
-        description=(
-            "true = standalone: node auto-advances episodes. "
-            "false = managed: external controller drives resets via lifecycle/reset_episode."
-        ),
+        description=("true = standalone: node auto-advances episodes. false = managed: external controller drives resets via lifecycle/reset_episode."),
     )
     fail_on_collision = LaunchArgument(
         name="fail_on_collision",
@@ -197,52 +193,40 @@ def generate_launch_description():
             with contextlib.suppress(OSError), open("/dev/tty", "w") as tty:
                 tty.write("\033]0;\007\033]30;\007")
                 tty.flush()
+
         atexit.register(_restore_terminal_titles)
 
-        human_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)
-        ) or {"dummy": "dummy", "gazebo": "arena", "isaac": "arena"}.get(arena_sim, "dummy")
-        mobile_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)
-        ) or {"dummy": "none"}.get(arena_sim, "nav2")
-        arm_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(arm.substitution)
-        )
+        human_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)) or {"dummy": "dummy", "gazebo": "arena", "isaac": "arena"}.get(arena_sim, "dummy")
+        mobile_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)) or {"dummy": "none"}.get(arena_sim, "nav2")
+        arm_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(arm.substitution))
 
-        planner_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(planner.substitution)
-        )
+        planner_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(planner.substitution))
         _planner_selector_override: tuple[str, str] | None = None
         if planner_val:
             try:
                 from arena_planners.resolver import ResolverError, resolve
             except ImportError as exc:
-                raise RuntimeError(
-                    f"arena_planners is not importable ({exc}); "
-                    "run `arena build --packages-select arena_planners` first"
-                ) from exc
+                raise RuntimeError(f"arena_planners is not importable ({exc}); run `arena build --packages-select arena_planners` first") from exc
             try:
                 resolved = resolve(planner_val)
             except ResolverError as exc:
                 raise RuntimeError(str(exc)) from exc
-            explicit_mobile = launch.utilities.perform_substitutions(
-                context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)
-            )
+            explicit_mobile = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution))
             if explicit_mobile and explicit_mobile != resolved.adapter_kind:
-                launch.logging.get_logger("task_generator.launch").warning(
-                    f"planner:={planner_val!r} resolves to mobile:={resolved.adapter_kind!r} "
-                    f"but mobile:={explicit_mobile!r} is set explicitly; "
-                    "explicit mobile:= wins"
-                )
+                launch.logging.get_logger("task_generator.launch").warning(f"planner:={planner_val!r} resolves to mobile:={resolved.adapter_kind!r} but mobile:={explicit_mobile!r} is set explicitly; explicit mobile:= wins")
             else:
                 mobile_val = resolved.adapter_kind
                 _planner_selector_override = (resolved.selector_key, resolved.selector_value)
 
         human_launch = IncludeLaunchDescription(
-            PathJoinSubstitution([
-                FindPackageShare("task_generator"),
-                "launch", "human", "human.launch.py",
-            ]),
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("task_generator"),
+                    "launch",
+                    "human",
+                    "human.launch.py",
+                ]
+            ),
             launch_arguments={
                 "simulator": human_val,
                 "namespace": allocated_ns,
@@ -295,9 +279,7 @@ def generate_launch_description():
         # Bypass by writing our own params yaml and passing the path.
         overrides_files: list[str] = []
         if dotted_overrides:
-            fh = tempfile.NamedTemporaryFile(
-                mode='w', prefix='arena_overrides_', suffix='.yaml', delete=False
-            )
+            fh = tempfile.NamedTemporaryFile(mode='w', prefix='arena_overrides_', suffix='.yaml', delete=False)
             yaml.safe_dump(
                 {'/**': {'ros__parameters': dotted_overrides}},
                 fh,
@@ -357,25 +339,28 @@ def generate_launch_description():
 
         data_recorder_process = launch.actions.ExecuteProcess(
             cmd=[
-                'ros2', 'run', 'arena_evaluation', 'record',
+                'ros2',
+                'run',
+                'arena_evaluation',
+                'record',
                 '--ros-args',
-                '-p', 'use_sim_time:=true',
-                '-p', ['record_data_dir:=', record_data_dir.substitution],
-                '-r', ['__ns:=/', allocated_ns],
+                '-p',
+                'use_sim_time:=true',
+                '-p',
+                ['record_data_dir:=', record_data_dir.substitution],
+                '-r',
+                ['__ns:=/', allocated_ns],
             ],
             output='screen',
-            condition=launch.conditions.IfCondition(
-                launch.substitutions.PythonExpression([
-                    "'", record_data_dir.substitution, "' != '' and '", disable_auto_recorder.substitution, "' != 'true'"
-                ])
-            )
+            condition=launch.conditions.IfCondition(launch.substitutions.PythonExpression(["'", record_data_dir.substitution, "' != '' and '", disable_auto_recorder.substitution, "' != 'true'"])),
         )
 
-
-        shutdown_on_node_exit = RegisterEventHandler(OnProcessExit(
-            target_action=task_generator_node,
-            on_exit=[launch.actions.Shutdown(reason="task_generator_node exited")],
-        ))
+        shutdown_on_node_exit = RegisterEventHandler(
+            OnProcessExit(
+                target_action=task_generator_node,
+                on_exit=[launch.actions.Shutdown(reason="task_generator_node exited")],
+            )
+        )
 
         env_actions: list[launch.LaunchDescriptionEntity] = [
             IsolatedGroupAction([human_launch, pedestrian_marker_node, task_generator_node, data_recorder_process]),
@@ -386,35 +371,29 @@ def generate_launch_description():
         return env_actions
 
     def _make_env(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:
-        managed_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(managed.substitution)
-        ).lower() in ("true", "1")
-        sim_val = launch.utilities.perform_substitutions(
-            context, launch.utilities.normalize_to_list_of_substitutions(sim.substitution)
-        )
+        managed_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(managed.substitution)).lower() in ("true", "1")
+        sim_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(sim.substitution))
         if managed_val:
-            allocated_id = int(launch.utilities.perform_substitutions(
-                context, launch.utilities.normalize_to_list_of_substitutions(env_id.substitution)
-            ))
-            allocated_ns = launch.utilities.perform_substitutions(
-                context, launch.utilities.normalize_to_list_of_substitutions(ns.substitution)
-            ).lstrip("/")
+            if not sim_val:
+                raise RuntimeError("managed:=true requires sim:= (arena passes it automatically)")
+            allocated_id = int(launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(env_id.substitution)))
+            allocated_ns = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(ns.substitution)).lstrip("/")
             arena_sim = sim_val
         else:
-            requested = int(launch.utilities.perform_substitutions(
-                context, launch.utilities.normalize_to_list_of_substitutions(env_id.substitution)
-            ))
-            ns_val = launch.utilities.perform_substitutions(
-                context, launch.utilities.normalize_to_list_of_substitutions(ns.substitution)
-            )
+            requested = int(launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(env_id.substitution)))
+            ns_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(ns.substitution))
             allocated_id, allocated_ns, arena_sim = _allocate_env(requested, ns_val)
+            if sim_val and sim_val != arena_sim:
+                raise RuntimeError(f"sim:={sim_val} requested but the arena runtime is running {arena_sim}; shut down the runtime or omit sim:=")
         return _build_env_actions(allocated_id, allocated_ns, arena_sim, context)
 
-    return launch.LaunchDescription([
-        *ld_items,
-        SetGlobalLogLevelAction(log_level.substitution),
-        OpaqueFunction(function=_make_env),
-    ])
+    return launch.LaunchDescription(
+        [
+            *ld_items,
+            SetGlobalLogLevelAction(log_level.substitution),
+            OpaqueFunction(function=_make_env),
+        ]
+    )
 
 
 if __name__ == "__main__":
