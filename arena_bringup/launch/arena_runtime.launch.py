@@ -1,4 +1,5 @@
 import launch
+import launch.event_handlers
 import launch_ros.actions
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
@@ -50,10 +51,15 @@ def generate_launch_description():
     )
 
     launch_sim = launch.actions.IncludeLaunchDescription(
-        PathJoinSubstitution([
-            FindPackageShare('arena_bringup'),
-            'launch', 'simulator', 'sim', 'sim.launch.py',
-        ]),
+        PathJoinSubstitution(
+            [
+                FindPackageShare('arena_bringup'),
+                'launch',
+                'simulator',
+                'sim',
+                'sim.launch.py',
+            ]
+        ),
         launch_arguments={
             **use_sim_time.dict,
             **sim.dict,
@@ -70,29 +76,34 @@ def generate_launch_description():
     )
 
     def _arena_node(context: launch.LaunchContext) -> list[launch.Action]:
-        env_args = [
-            f'{k}:={v}'
-            for k, v in context.launch_configurations.items()
-            if k not in _RUNTIME_OWNED
-        ]
+        env_args = [f'{k}:={v}' for k, v in context.launch_configurations.items() if k not in _RUNTIME_OWNED]
+        arena_node = launch_ros.actions.LifecycleNode(
+            package='arena_runtime',
+            executable='arena_node',
+            name='arena',
+            namespace='',
+            output='screen',
+            parameters=[{'sim': sim.substitution, 'env_args': env_args}],
+        )
         return [
-            launch_ros.actions.LifecycleNode(
-                package='arena_runtime',
-                executable='arena_node',
-                name='arena',
-                namespace='',
-                output='screen',
-                parameters=[{'sim': sim.substitution, 'env_args': env_args}],
+            arena_node,
+            launch.actions.RegisterEventHandler(
+                launch.event_handlers.OnProcessExit(
+                    target_action=arena_node,
+                    on_exit=[launch.actions.Shutdown(reason='arena_node exited')],
+                )
             ),
         ]
 
-    return launch.LaunchDescription([
-        *ld_items,
-        SetGlobalLogLevelAction(log_level.substitution),
-        IsolatedGroupAction([launch_sim]),
-        world_generator_node,
-        launch.actions.OpaqueFunction(function=_arena_node),
-    ])
+    return launch.LaunchDescription(
+        [
+            *ld_items,
+            SetGlobalLogLevelAction(log_level.substitution),
+            IsolatedGroupAction([launch_sim]),
+            world_generator_node,
+            launch.actions.OpaqueFunction(function=_arena_node),
+        ]
+    )
 
 
 if __name__ == '__main__':

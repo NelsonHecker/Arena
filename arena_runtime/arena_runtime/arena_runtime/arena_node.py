@@ -155,6 +155,10 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         await self._lifecycle.ensure_ready()
         self.get_logger().info(f"{sim_name} services are up")
 
+        register_env_name = str(self.service_namespace("register_env"))
+        if any(name == register_env_name for name, _ in self.get_service_names_and_types()):
+            raise RuntimeError(f"another arena runtime is already running ({register_env_name} exists); shut it down first")
+
         srv_cb_group = ReentrantCallbackGroup()
 
         self._srv_hold = self.create_service(
