@@ -21,6 +21,9 @@ uint8 animation_state
 # Empty = synthesize fallback gait, non-empty = upstream override.
 sensor_msgs/JointState joint_state
 
+# Monotonic walk-cycle phase in rad, 0 = unknown.
+float32 gait_phase
+
 # Resolved local SDF path for this ped's actor, read once per name by the spawner.
 string model_uri
 

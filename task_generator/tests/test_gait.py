@@ -121,8 +121,14 @@ def test_different_agents_not_in_lockstep() -> None:
 def test_idle_limb_joints_near_zero(gen: GaitGenerator) -> None:
     result = gen.compute(agent_id=1, animation_state=_IDLE, speed=0.0, dt=0.0)
     limb_joints = [
-        "l_r_hip", "r_r_hip", "l_knee", "r_knee",
-        "l_p_shoulder", "r_p_shoulder", "l_elbow", "r_elbow",
+        "l_r_hip",
+        "r_r_hip",
+        "l_knee",
+        "r_knee",
+        "l_p_shoulder",
+        "r_p_shoulder",
+        "l_elbow",
+        "r_elbow",
     ]
     for name in limb_joints:
         assert abs(result[name]) < 1e-9, f"idle {name}={result[name]} not near zero"
@@ -146,10 +152,15 @@ def test_behavior_states_treated_as_idle(gen: GaitGenerator) -> None:
         assert abs(result["r_r_hip"]) < 1e-9, f"state {state}: r_r_hip not idle"
 
 
-def test_shoulder_and_hip_antiphase_symmetry(gen: GaitGenerator) -> None:
-    """Contralateral shoulder/hip joints are exact sign-mirrors per the JOINTS.md wire contract."""
-    result = gen.compute(agent_id=0, animation_state=_WALKING, speed=1.0, dt=0.1)
-    assert math.isclose(result["l_p_shoulder"], -result["r_p_shoulder"], abs_tol=1e-12)
-    assert math.isclose(result["l_r_hip"], -result["r_r_hip"], abs_tol=1e-12)
-    assert abs(result["l_p_shoulder"]) > 1e-6, "l_p_shoulder should be clearly nonzero"
-    assert abs(result["l_r_hip"]) > 1e-6, "l_r_hip should be clearly nonzero"
+def test_limb_pairs_exact_antiphase() -> None:
+    """L/R limb joints share one profile half a cycle apart (JOINTS.md antiphase).
+    Ids 0 and 180 seed phases exactly pi apart, so left at one equals right at the
+    other. A plain sign-mirror does not hold because the baked profiles have
+    nonzero means (hips average forward-flexed)."""
+    g = GaitGenerator()
+    r0 = g.compute(agent_id=0, animation_state=_WALKING, speed=1.0, dt=0.0)
+    r180 = g.compute(agent_id=180, animation_state=_WALKING, speed=1.0, dt=0.0)
+    for left, right in (("l_r_hip", "r_r_hip"), ("l_knee", "r_knee"), ("l_p_shoulder", "r_p_shoulder"), ("l_elbow", "r_elbow")):
+        assert math.isclose(r0[left], r180[right], abs_tol=1e-9), f"{left} vs {right} not antiphase"
+    assert abs(r0["l_p_shoulder"]) > 1e-6, "l_p_shoulder should be clearly nonzero"
+    assert abs(r0["l_r_hip"] - r0["r_r_hip"]) > 1e-6, "hips should differ within one agent"
