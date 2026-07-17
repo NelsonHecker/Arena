@@ -78,7 +78,7 @@ def robot_submodules(arena: Path) -> dict[str, list[str]]:
 
 
 def _path_robots(arena: Path) -> dict[str, set[str]]:
-    """{path: {robots tagging it}} — reverse of robot_submodules for sharing checks."""
+    """{path: {robots tagging it}}: reverse of robot_submodules for sharing checks."""
     out: dict[str, set[str]] = {}
     for robot, paths in robot_submodules(arena).items():
         for p in paths:
@@ -122,7 +122,7 @@ def cmd_add(arena: Path, args) -> int:
     for robot in names:
         paths = subs.get(robot)
         if not paths:
-            print(f"robots: '{robot}' has no submodules — nothing to install")
+            print(f"robots: '{robot}' has no submodules (nothing to install)")
             continue
         _git(["-c", "protocol.file.allow=always",
               "submodule", "update", "--init", "--checkout", _SDK_SUBDIR], arena)
@@ -153,7 +153,7 @@ def cmd_rm(arena: Path, args) -> int:
     for robot in names:
         paths = subs.get(robot)
         if not paths:
-            print(f"robots: '{robot}' has no submodules — nothing to remove")
+            print(f"robots: '{robot}' has no submodules (nothing to remove)")
             continue
         for p in paths:
             if p in done:
@@ -243,7 +243,7 @@ def cmd_check(arena: Path, args) -> int:
     if not args.quiet:
         if uninit:
             print(f"skipping uninitialized robots: {', '.join(sorted(uninit))}")
-        print(f"dynamic refs: {len(dynamic)} — not statically checkable")
+        print(f"dynamic refs: {len(dynamic)}, not statically checkable")
 
     total = sum(len(v) for v in misses.values())
     if total == 0:

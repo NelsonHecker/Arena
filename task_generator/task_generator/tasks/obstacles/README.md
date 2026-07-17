@@ -104,7 +104,7 @@ seed produces identical placements.
 ## `obstacles/prompt/`
 
 `TM_Prompt` ([`prompt/prompt.py`](prompt/prompt.py)) generates obstacle lists
-via an LLM. PROMPT registration is per-`BaseHumanSimulator` subclass — see
+via an LLM. PROMPT registration is per-`BaseHumanSimulator` subclass, see
 [PROMPT registration](../../simulators/human/README.md#prompt-registration).
 
 ## Adding a new TM_Obstacles mode

@@ -22,7 +22,7 @@ the bracket.
 
 | Method / property | Purpose |
 | --- | --- |
-| `managers` | `dict[str, RobotManager]` — live instances keyed by robot name |
+| `managers` | `dict[str, RobotManager]`: live instances keyed by robot name |
 | `set_up()` | apply `_diff`: destroy removed managers, update changed ones, create new ones; awaits `RobotManager.set_up_robot()` for each addition |
 | `provide_node_paths(paths)` | context manager that polls `get_node_names_and_namespaces()` into a set while fleet setup runs |
 
@@ -58,7 +58,7 @@ Key public surface:
 | `submit_task(request)` | hand a typed `TaskRequest` to the adapter |
 | `move(pose)` | teleport the robot via `EnvironmentManager.move_robot` |
 | `is_done` | whether the current task request is satisfied |
-| `accepts` | `frozenset[TaskKind]` — the set of task kinds this robot's adapter handles |
+| `accepts` | `frozenset[TaskKind]`: the set of task kinds this robot's adapter handles |
 | `set_up_robot(node_paths)` | async; spawn robot, bind adapter, start navigation stack |
 | `destroy()` | tear down adapter and remove robot from sim |
 
@@ -71,8 +71,8 @@ obstacle and robot placement.
 
 | Method / property | Purpose |
 | --- | --- |
-| `world` | `WorldDescription` — walls, zones, entities |
-| `map` | `WorldMap` — occupancy grid + resolution + origin |
+| `world` | `WorldDescription`: walls, zones, entities |
+| `map` | `WorldMap`: occupancy grid + resolution + origin |
 | `update_world(world_map, world_description)` | replace the active world; marks world-entity cells as occupied |
 | `get_positions_on_map(n, safe_dist, ...)` | sample `n` free positions with mutual safe distance |
 | `get_position_on_map(safe_dist, ...)` | single-position convenience wrapper |

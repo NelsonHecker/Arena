@@ -68,7 +68,7 @@ def _extract_bracket(s: str, entry: str) -> tuple[str, str | None]:
         raise RuntimeError(f"robot entry {entry!r}: unbalanced brackets in {s!r}")
     if close_idx != len(s) - 1:
         raise RuntimeError(f"robot entry {entry!r}: trailing content after ']' in {s!r}")
-    return s[:open_idx], s[open_idx + 1:close_idx]
+    return s[:open_idx], s[open_idx + 1 : close_idx]
 
 
 def desugar_robot_entry(entry: str) -> dict:
@@ -85,9 +85,7 @@ def desugar_robot_entry(entry: str) -> dict:
             try:
                 count = int(item)
             except ValueError:
-                raise RuntimeError(
-                    f"robot entry {entry!r}: unknown token {item!r}, expected an integer count or key=value"
-                ) from None
+                raise RuntimeError(f"robot entry {entry!r}: unknown token {item!r}, expected an integer count or key=value") from None
             if 'count' in result:
                 raise RuntimeError(f"robot entry {entry!r}: duplicate count in {item!r}")
             result['count'] = count
@@ -126,14 +124,8 @@ def _morphology_params(robot: Robot) -> list[diagnostic_msgs.msg.KeyValue]:
     """Resolved morphology (type@mount: variant) when assembled, raw parts otherwise."""
     resolved = robot.resolved_assembly
     if resolved is not None:
-        return [
-            diagnostic_msgs.msg.KeyValue(key=f'{p.type}@{p.mount.name}', value=p.variant)
-            for p in resolved.placements
-        ]
-    return [
-        diagnostic_msgs.msg.KeyValue(key=ptype, value=str(values))
-        for ptype, values in robot.parts.items()
-    ]
+        return [diagnostic_msgs.msg.KeyValue(key=f'{p.type}@{p.mount.name}', value=p.variant) for p in resolved.placements]
+    return [diagnostic_msgs.msg.KeyValue(key=ptype, value=str(values)) for ptype, values in robot.parts.items()]
 
 
 @attrs.define(frozen=True)
@@ -249,11 +241,6 @@ class RobotsManager(NodeInterface):
 
     @property
     def managers(self) -> dict[str, RobotManager]:
-        """Get the robot managers.
-
-        Returns:
-            dict[str, RobotManager]: The robot managers.
-        """
         return self._managers
 
     @contextlib.contextmanager
@@ -343,9 +330,6 @@ class RobotsManager(NodeInterface):
     def _parse_robot_configurations(self, v: object) -> _RobotDiff:
         """Parse robot configurations from the given value.
 
-        Args:
-            v (typing.Any): The value to parse.
-
         Raises:
             RuntimeError: If the parsing fails.
 
@@ -363,10 +347,7 @@ class RobotsManager(NodeInterface):
             readiness = _robot_readiness()
             if readiness is not None and base.robot in readiness.pending:
                 paths = ", ".join(sorted(readiness.pending[base.robot]))
-                self.node.get_logger().error(
-                    f"skipping robot {base.robot!r}: not installed (submodule(s) not checked out: {paths}). "
-                    f"run: arena feature robots add {base.robot}"
-                )
+                self.node.get_logger().error(f"skipping robot {base.robot!r}: not installed (submodule(s) not checked out: {paths}). run: arena feature robots add {base.robot}")
                 skipped.append(base.robot)
                 return
             name = base.name
@@ -598,6 +579,7 @@ class RobotsManager(NodeInterface):
         with self.provide_node_paths(node_paths):
             await manager.launch(node_paths)
         from task_generator.tasks.robots.adapters import ResetContext  # noqa: PLC0415
+
         await manager.reset(
             ResetContext(
                 rng=self.node.conf.General.RNG.stream("robot-adapter", name),
@@ -632,14 +614,8 @@ class RobotsManager(NodeInterface):
     def publish_queue(self) -> None:
         """Publish the pending spawn/despawn diff (the queue) on state/robots/pending."""
         msg = task_generator_msgs.msg.RobotQueue(
-            spawn=[
-                task_generator_msgs.msg.RobotDescriptor(name=name, model=robot.model.name)
-                for name, robot in self._diff.to_add.items()
-            ],
-            despawn=[
-                task_generator_msgs.msg.RobotDescriptor(name=name, model=self._managers[name].model_name)
-                for name in self._diff.to_remove
-            ],
+            spawn=[task_generator_msgs.msg.RobotDescriptor(name=name, model=robot.model.name) for name, robot in self._diff.to_add.items()],
+            despawn=[task_generator_msgs.msg.RobotDescriptor(name=name, model=self._managers[name].model_name) for name in self._diff.to_remove],
         )
         self.node._pub_state_robots_pending.publish(msg)
 

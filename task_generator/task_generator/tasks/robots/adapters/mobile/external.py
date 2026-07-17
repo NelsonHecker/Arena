@@ -1,4 +1,4 @@
-"""External-planner adapter — hand-off to third-party navigation stacks."""
+"""External-planner adapter: hand-off to third-party navigation stacks."""
 
 from __future__ import annotations
 

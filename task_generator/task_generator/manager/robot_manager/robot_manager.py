@@ -517,9 +517,7 @@ class RobotManager(NodeInterface):
                                 "robot_name": self._robot.model.name,
                                 "bringup_caps": bringup_caps,
                                 "bringup_kinds": bringup_kinds,
-                                "parts_json": json.dumps(
-                                    {t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.resolved_request.items()}
-                                ),
+                                "parts_json": json.dumps({t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.resolved_request.items()}),
                                 "frame": self._robot.frame.tf(),
                                 "use_sim_time": adapter_ctx.use_sim_time,
                             }
@@ -555,9 +553,7 @@ class RobotManager(NodeInterface):
                     return
                 await asyncio.sleep(_CONTROLLER_POLL)
             laggards = [c.name for c in resp.controller if c.state != "active"] if resp is not None and resp.controller else []
-            self._logger.warning(
-                f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}"
-            )
+            self._logger.warning(f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}")
 
     async def update(self):
         # TODO implement record data dir

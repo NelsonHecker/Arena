@@ -1,6 +1,6 @@
 """Debug adapter that drives a constant cmd_vel and mounts the collision tracker.
 
-No planner, no goal dispatch — the robot moves forward at a fixed linear
+No planner, no goal dispatch: the robot moves forward at a fixed linear
 velocity until something stops it. Intended for validating the collision
 tracker shim end-to-end.
 """

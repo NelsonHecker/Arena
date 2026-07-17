@@ -1,4 +1,4 @@
-"""rosnav_rl mobile adapter — runs the policy in-process, no nav2."""
+"""rosnav_rl mobile adapter: runs the policy in-process, no nav2."""
 
 from __future__ import annotations
 

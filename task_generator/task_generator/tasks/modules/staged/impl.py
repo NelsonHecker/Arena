@@ -45,26 +45,7 @@ class Config:
 
 
 class Mod_Staged(TM_Module):
-    """
-    A module for managing staged tasks in a task generator.
-    Attributes:
-        __config (Config): The configuration object for the staged tasks.
-        __target_stage (StageIndex): The target stage index.
-        __current_stage (StageIndex): The current stage index.
-        __training_config_path (Optional[Namespace]): The path to the training configuration.
-        __debug_mode (bool): Flag indicating whether debug mode is enabled.
-        __config_lock (FileLock): The lock for the training configuration file.
-        PARAM_CURR_STAGE (str): The parameter for the current stage index.
-        PARAM_LAST_STAGE_REACHED (str): The parameter for the last stage reached flag.
-        PARAM_GOAL_RADIUS (str): The parameter for the goal radius.
-        PARAM_DEBUG_MODE (str): The parameter for the debug mode flag.
-        PARAM_CURRICULUM (str): The parameter for the staged curriculum.
-        PARAM_INDEX (str): The parameter for the staged index.
-        TOPIC_PREVIOUS_STAGE (str): The topic for the previous stage.
-        TOPIC_NEXT_STAGE (str): The topic for the next stage.
-        CONFIG_PATH (Namespace): The path to the configuration files.
-        CURRICULUM_PATH (Namespace): The path to the curriculum files.
-    """
+    """A module for managing staged tasks in a task generator."""
 
     __config: Config
     __target_stage: StageIndex
@@ -134,10 +115,6 @@ class Mod_Staged(TM_Module):
         self.__current_stage = -1
 
     def before_reset(self):
-        """
-        Method called before resetting the module.
-        This method updates the current stage and performs necessary actions before resetting the module.
-        """
         if self.__current_stage != self.__target_stage:
             self.__current_stage = self.__target_stage
             rospy.loginfo(f"[{self._task.namespace}] Loading stage {self.__current_stage}")
@@ -171,12 +148,6 @@ class Mod_Staged(TM_Module):
                 pass
 
     def reconfigure(self, config: dict) -> None:
-        """
-        Method called when the configuration is updated.
-        This method updates the configuration based on the new values.
-        Args:
-            config: The new configuration values.
-        """
         try:
             curriculum_file = str(self.CURRICULUM_PATH(config[self.PARAM_CURRICULUM]))
         except Exception as e:
@@ -217,32 +188,18 @@ class Mod_Staged(TM_Module):
 
     @property
     def MIN_STAGE(self) -> StageIndex:
-        """
-        The minimum stage index.
-        """
         return 0
 
     @property
     def MAX_STAGE(self) -> StageIndex:
-        """
-        The maximum stage index.
-        """
         return len(self.__config.stages) - 1
 
     @property
     def stage_index(self) -> StageIndex:
-        """
-        Current stage index.
-        """
         return self.__current_stage
 
     @stage_index.setter
     def stage_index(self, val: StageIndex):
-        """
-        Setter for the stage index.
-        Args:
-            val (StageIndex): The new stage index.
-        """
         val = val if val is not None else self.MIN_STAGE
 
         if val < self.MIN_STAGE or val > self.MAX_STAGE:

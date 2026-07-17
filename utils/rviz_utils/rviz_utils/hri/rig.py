@@ -26,14 +26,9 @@ from collections.abc import Sequence
 
 _HALF_PI = math.pi / 2
 
-_SHOULDER_CONST = frozenset(
-    {"l_y_shoulder", "r_y_shoulder", "l_r_shoulder", "r_r_shoulder"}
-)
+_SHOULDER_CONST = frozenset({"l_y_shoulder", "r_y_shoulder", "l_r_shoulder", "r_r_shoulder"})
 
 
 def semantic_to_rig(names: Sequence[str], positions: Sequence[float]) -> list[float]:
     """Translate semantic joint positions into raw ros4hri URDF positions."""
-    return [
-        _HALF_PI if name in _SHOULDER_CONST else value
-        for name, value in zip(names, positions, strict=True)
-    ]
+    return [_HALF_PI if name in _SHOULDER_CONST else value for name, value in zip(names, positions, strict=True)]

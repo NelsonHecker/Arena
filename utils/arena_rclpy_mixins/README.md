@@ -17,13 +17,13 @@ Sourced from `__init__.py` plus the submodules it re-exports.
 | `ROSParamServer` | mixin | Typed `.ROSParam[T]` and `.rosparam[T]` descriptors, callback-on-set | Nodes that declare or read ROS params |
 | `LifecycleClient` | mixin | Sync `get_lifecycle_state`, `change_lifecycle_state`, `wait_for_lifecycle_state` | Driving a peer lifecycle node from sync code |
 | `AsyncLifecycleClient` | mixin | Async `*_async` variants of the above via `ClientWrapper` | Driving a peer lifecycle node from `async` context |
-| `ServiceNamespace` | mixin | `service_namespace(*parts)` — node-FQN-prefixed `Namespace` | Correct service/topic prefixing (rclpy ignores node namespace for services) |
+| `ServiceNamespace` | mixin | `service_namespace(*parts)`: node-FQN-prefixed `Namespace` | Correct service/topic prefixing (rclpy ignores node namespace for services) |
 | `TimeNode` | mixin | `.sim_time`, `.wall_time`, `.time`, `.wall_clock`, `.wall_timer()`, `.sim_time_rate()` | Any node that needs clock utilities |
 | `Time` | class | Arithmetic, comparable, converts between `rclpy.time.Time`, `builtin_interfaces.msg.Time`, `rosgraph_msgs.msg.Clock`, and `float` | Time math without rclpy churn |
 | `AsyncNode` | class | `await_ros()`, `wait_for()`, `sync_wrap()`, `syncify()`, `create_client_wrapper()`, `create_action_client_wrapper()`, `do_launch()` | Nodes mixing async and sync code |
 | `ClientWrapper` | class | Async `call_timeout()` / sync `call_timeout_sync()` around a service client | Service calls with timeout logging |
 | `ActionClientWrapper` | class | `send_goal()`, `send_goal_timeout()`, `await_result()`, `send_and_await()`, `cancel()`, `ensure()` | Action client with timeout wrappers |
-| `AsyncUtil` | class | `AsyncUtil.timeout(coro, sec)` — `asyncio.wait_for` that returns `None` on timeout | One-off timeout wrapper |
+| `AsyncUtil` | class | `AsyncUtil.timeout(coro, sec)`: `asyncio.wait_for` that returns `None` on timeout | One-off timeout wrapper |
 | `AsyncLaunchManager` / `LaunchHandle` | class | `launch_description()` returns a `LaunchHandle` (awaitable to completion; `shutdown()` gracefully terminates child processes); `kill_all()` shuts down all | Nodes that programmatically launch sub-processes |
 | `Namespace` | class | `str` subclass with `/`-join `__call__`, `.simulation_ns`, `.robot_ns`, `.remove_double_slash()` | Building topic / service paths |
 | `FrameNamespace` | class | `Namespace` subclass with `.sanitize()` (replaces non-alphanumeric with `_`) | TF frame name construction |
@@ -51,8 +51,8 @@ class MyNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
 `AsyncNode.await_ros(ros_future)` bridges a rclpy `Future` into the asyncio
 event loop without blocking. Use it (and `ClientWrapper` / `ActionClientWrapper`
 built on top of it) instead of `asyncio.wrap_future` or hand-rolled
-`run_coroutine_threadsafe` chains — the rclpy bridge is subtle and the wrappers
-handle thread-safety and timeout logging correctly.
+`run_coroutine_threadsafe` chains (the rclpy bridge is subtle and the wrappers
+handle thread-safety and timeout logging correctly).
 
 `create_subscription` and `create_service` on `AsyncNode` transparently accept
 `async def` callbacks via `syncify()`, so callers never need to bridge those
@@ -73,10 +73,10 @@ representations.
 
 `ROSParamServer` exposes two per-node helpers bound to `self`:
 
-- `self.ROSParam[T](name, default)` — declares a param, registers a callback,
+- `self.ROSParam[T](name, default)`: declares a param, registers a callback,
   and keeps a typed `.value` property in sync with the param server.
 - `self.rosparam[T].get(name, default)` / `.set(name, value)` /
-  `.declare_safe(name, value)` — lightweight one-shot param access without a
+  `.declare_safe(name, value)`: lightweight one-shot param access without a
   persistent descriptor.
 
 ## Spin and lifecycle

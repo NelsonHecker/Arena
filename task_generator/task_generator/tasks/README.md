@@ -120,7 +120,7 @@ def _load_mymode() -> "type[TM_Robots]":
 ```
 
 Each helper builds the `ParameterDescriptor` (type, `additional_constraints`
-mini-DSL, description) internally — schema authors don't touch
+mini-DSL, description) internally, schema authors don't touch
 `ParameterDescriptor` directly.
 
 ## Parameter namespace
@@ -139,10 +139,10 @@ load the same scenario file and project different sections out of it).
 | `declare_catalog` | `STRING` | `catalog:<name>` | combobox from `query/<name>` |
 | `declare_catalog_array` | `STRING_ARRAY` | `catalog:<name>` | multiselect from `query/<name>` |
 | `declare_enum` | `STRING` | `enum:a,b,c` | combobox of literal choices |
-| `declare_string` | `STRING` | — | line edit (or text edit if "prompt"-flavoured) |
-| `declare_int` | `INTEGER` | — (uses `integer_range` if `lo`/`hi` given) | spinbox |
-| `declare_double` | `DOUBLE` | — (uses `floating_point_range`) | double spinbox |
-| `declare_bool` | `BOOL` | — | checkbox |
+| `declare_string` | `STRING` | - | line edit (or text edit if "prompt"-flavoured) |
+| `declare_int` | `INTEGER` | - (uses `integer_range` if `lo`/`hi` given) | spinbox |
+| `declare_double` | `DOUBLE` | - (uses `floating_point_range`) | double spinbox |
+| `declare_bool` | `BOOL` | - | checkbox |
 
 Catalog names map 1:1 to query services on the task-generator node:
 `objects`, `pedestrians`, `scenarios`, `parametrizeds`, `environments`.
@@ -163,32 +163,32 @@ tooltip.
 
 `Task._reset_episode` runs in this order:
 
-1. `robots_manager.set_up()` — reconcile fleet (spawn/remove robots).
-2. `environment_manager.before_reset_episode()` — pauses the simulator. The sim
+1. `robots_manager.set_up()`: reconcile fleet (spawn/remove robots).
+2. `environment_manager.before_reset_episode()`: pauses the simulator. The sim
    is paused for the entire body below; only node-discovery and lifecycle
    signals are observable here.
 3. `module.before_reset()` for every active module.
-4. `tm_robots.reset()` — compute new start/goal positions.
-5. `tm_obstacles.reset()` — produce `(obstacles, dynamic_obstacles)` lists.
-6. `environment_manager.respawn(callback)` — marks all current `INUSE`
+4. `tm_robots.reset()`: compute new start/goal positions.
+5. `tm_obstacles.reset()`: produce `(obstacles, dynamic_obstacles)` lists.
+6. `environment_manager.respawn(callback)`: marks all current `INUSE`
    obstacles as `UNUSED`, runs the callback (which spawns the new lists), then
    removes everything still `UNUSED`.
 7. `module.after_reset()` for every active module.
-8. `environment_manager.after_reset_episode()` — unpauses the simulator.
+8. `environment_manager.after_reset_episode()`: unpauses the simulator.
 
 **WORLD layer invariant:** entities spawned with `ObstacleLayer.WORLD` (walls,
 doors, floors, world static entities) are never touched during `respawn`. They
 survive all episode resets for the lifetime of the world.
 
-## `extend()` — runtime obstacle/robot injection
+## `extend()`: runtime obstacle/robot injection
 
 Both `TM_Obstacles` and `TM_Robots` base classes expose an async `extend()`
 method for spawning additional entities into a running episode:
 
-- `TM_Obstacles.extend(kind, model, pose=None) -> str` — spawn one static or
+- `TM_Obstacles.extend(kind, model, pose=None) -> str`: spawn one static or
   dynamic obstacle. When `pose` is `None`, `_placement.random_placement()` picks
   a free position. Returns the server-assigned entity name.
-- `TM_Robots.extend(model, name=None, pose=None) -> str` — spawn an additional
+- `TM_Robots.extend(model, name=None, pose=None) -> str`: spawn an additional
   robot. Same placement semantics. Returns the assigned robot name.
 
 Calling `extend()` via the `runtime/spawn_*` services flips

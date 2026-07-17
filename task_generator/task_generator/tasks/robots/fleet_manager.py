@@ -1,4 +1,4 @@
-"""FleetManager — matches TaskModeSpec entries to RobotManager instances at reset."""
+"""FleetManager: matches TaskModeSpec entries to RobotManager instances at reset."""
 
 from __future__ import annotations
 

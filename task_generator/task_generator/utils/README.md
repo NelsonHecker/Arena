@@ -28,11 +28,11 @@ instance = await reg.get(MyKey.FOO, **kwargs)
 
 Two small utilities:
 
-- `get_arena_type() -> Constants.ArenaType` — reads the `ARENA_TYPE` env var
+- `get_arena_type() -> Constants.ArenaType`: reads the `ARENA_TYPE` env var
   (defaults to `deployment`).
-- `generate_map_inner_border(free_space_indices, map_)` — extracts the four
+- `generate_map_inner_border(free_space_indices, map_)`: extracts the four
   bounding-box vertices of the free-space region from an `OccupancyGrid`.
-- `update_freespace_indices_maze(map_)` — marks hardcoded wall regions as
+- `update_freespace_indices_maze(map_)`: marks hardcoded wall regions as
   occupied; left from a specific evaluation map, not for general use.
 
 ## `gpt.py`
@@ -61,7 +61,7 @@ Not used at runtime by the task-generator core; invoked as a standalone tool.
 
 Empty file (1 line). Reserved for task-generator service definitions.
 
-## `arena_rclpy_mixins` — rclpy↔asyncio bridge
+## `arena_rclpy_mixins`: rclpy↔asyncio bridge
 
 The canonical bridge between rclpy and asyncio is
 [`utils/arena_rclpy_mixins/`](../../../utils/arena_rclpy_mixins) in the

@@ -1,4 +1,4 @@
-"""Composite + Null TM_Robots — multi-TM fan-out and idle sink."""
+"""Composite + Null TM_Robots: multi-TM fan-out and idle sink."""
 
 from __future__ import annotations
 

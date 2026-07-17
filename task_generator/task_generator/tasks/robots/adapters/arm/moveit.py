@@ -1,4 +1,4 @@
-"""MoveIt arm adapter — thin composer of MoveItArmBringup + ReachPoseClient."""
+"""MoveIt arm adapter: thin composer of MoveItArmBringup + ReachPoseClient."""
 
 from __future__ import annotations
 

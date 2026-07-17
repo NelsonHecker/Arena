@@ -58,27 +58,15 @@ class KnownObstacles[ObstacleT]:
         return self._known_obstacles.get(name, None)
 
     def keys(self) -> typing.KeysView[str]:
-        """
-        Get internal dict_keys.
-        """
         return self._known_obstacles.keys()
 
     def values(self) -> typing.ValuesView[KnownObstacle[ObstacleT]]:
-        """
-        Get internal dict_values.
-        """
         return self._known_obstacles.values()
 
     def items(self) -> typing.ItemsView[str, KnownObstacle[ObstacleT]]:
-        """
-        Get internal dict_items.
-        """
         return self._known_obstacles.items()
 
     def clear(self) -> None:
-        """
-        Clear internal dict.
-        """
         return self._known_obstacles.clear()
 
     def __contains__(self, item: str) -> bool:

@@ -72,11 +72,7 @@ class MapServerHandler(NodeInterface):
 
 
 class WorldManagerROS(MapServerHandler, WorldManager):
-    """Initialize the WorldManager.
-
-    Args:
-        environment_manager (EnvironmentManager): The environment manager instance.
-    """
+    """Initialize the WorldManager."""
 
     node: "TaskGenerator"
 

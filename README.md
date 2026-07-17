@@ -85,7 +85,7 @@ pre-commit run -a         # entire repo
 ruff check .              # check without pre-commit
 ```
 
-If the hook auto-fixes something, the commit is aborted and the fixes are left unstaged — `git add` and re-commit.
+If the hook auto-fixes something, the commit is aborted and the fixes are left unstaged, `git add` and re-commit.
 
 ### CI
 

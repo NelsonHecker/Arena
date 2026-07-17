@@ -29,5 +29,5 @@ def test_empty_allowed_for_tm_obstacles():
 
 
 def test_empty_not_in_tm_modules():
-    # TM_Module does not include "" — the field is a list, not a scalar keep-current
+    # TM_Module does not include "", the field is a list, not a scalar keep-current
     assert "" not in TM_MODULE_VALUES

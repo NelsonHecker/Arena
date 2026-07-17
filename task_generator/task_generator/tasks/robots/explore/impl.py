@@ -8,7 +8,7 @@ from task_generator.tasks.robots.request import GoToPhase, TaskRequest
 
 
 class TM_Explore(TM_Random):
-    """Explore task mode — each robot roams to random reachable poses."""
+    """Explore task mode: each robot roams to random reachable poses."""
 
     _timeouts: dict[str, Time]
 

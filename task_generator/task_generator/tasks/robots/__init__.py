@@ -13,12 +13,8 @@ class TM_Robots(TaskMode):
     """
     Task mode for controlling one or multiple robots.
 
-    Args:
-        **kwargs: Additional keyword arguments.
-
     Attributes:
         _ctx (TaskContext): Shared task context.
-
     """
 
     _last_reset: int
@@ -65,13 +61,6 @@ class TM_Robots(TaskMode):
 
     @property
     async def done(self) -> bool:
-        """
-        Check if all robots have completed their tasks.
-
-        Returns:
-            bool: True if all robots are done, False otherwise.
-
-        """
         if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
             return True
 

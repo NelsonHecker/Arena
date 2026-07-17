@@ -233,9 +233,7 @@ class GazeboSimulator(BaseSim):
         if robot.resolved_assembly is not None:
             catalog = arena_robots.catalog.Catalog()
             args['xacro_wrapper'] = arena_robots.catalog.render_wrapper_xacro(robot_config, robot.resolved_assembly, catalog=catalog)
-            args['control_joint_patch'] = arena_robots.catalog.render_control_joints(
-                robot.resolved_assembly, catalog, prefix=robot_config.assembly.prefix
-            )
+            args['control_joint_patch'] = arena_robots.catalog.render_control_joints(robot.resolved_assembly, catalog, prefix=robot_config.assembly.prefix)
         control_spec = robot_config.model_params.control
         if control_spec is None or not control_spec.is_ros2_control:
             return args

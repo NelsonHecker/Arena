@@ -8,8 +8,6 @@ from task_generator.tasks.robots.request import GoToPhase, PlayGesturePhase, Tas
 
 
 class TM_Scenario(TM_Robots):
-    """Scenario task mode for robots."""
-
     _config: ROSParamT[list[RobotGoal]]
 
     def _parse_scenario(self, scenario: str) -> list[RobotGoal]:

@@ -340,7 +340,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
             # `_last_updated_agents` (HuNav's response) drops `behavior_tree`,
             # `goals`, `cyclic_goals`, `goal_radius`, `desired_velocity`,
             # `radius`, `linear_vel`, `angular_vel`, so we cannot use it as
-            # the resend payload directly — existing agents would come back
+            # the resend payload directly: existing agents would come back
             # with empty goals and stop. Instead, take the full original
             # Agent msg cached in `_pedestrians[id]['agent']` and overlay the
             # live pose/velocity from `_last_updated_agents`. Trade-off: BT
