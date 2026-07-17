@@ -1,0 +1,39 @@
+name: ped_group_2
+mode: behavior_tree
+extends: adult
+desired_velocity: {mean: 1.1, std: 0.2, clip_low: 0.7, clip_high: 1.5}
+
+needs:
+  switch_group:
+    initial: {mean: 90.0, std: 0.0, clip_low: 25.0, clip_high: 90.0}
+    decay_rate: {mean: 8.0, std: 2.0, clip_low: 4.0, clip_high: 14.0}
+
+utility_weights:
+  switch_group: 1.0
+
+initial_sequence: chat
+
+sequences:
+  chat:
+    steps:
+      walk_to_gathering: {kind: go_to, target: gathering_area_2}
+      hold_conversation:
+        interaction: GROUP_CONVERSATION
+        duration: {mean: 15.0, std: 5.0, clip_low: 10.0, clip_high: 20.0}
+        patience: {mean: 20.0, std: 10.0, clip_low: 10.0, clip_high: 30.0}
+    then: switch_group_and_chat
+    transitions:
+      - when: {switch_group: {below: 30.0}}
+        goto: switch_group_and_chat
+  switch_group_and_chat:
+    steps:
+      walk_to_gathering: {kind: go_to, target: gathering_area_1}
+      hold_conversation:
+        interaction: GROUP_CONVERSATION
+        duration: {mean: 15.0, std: 5.0, clip_low: 10.0, clip_high: 20.0}
+        patience: {mean: 20.0, std: 10.0, clip_low: 10.0, clip_high: 30.0}
+        satisfies: {switch_group: 80.0}
+    then: chat
+    transitions:
+      - when: {switch_group: {below: 30.0}}
+        goto: chat

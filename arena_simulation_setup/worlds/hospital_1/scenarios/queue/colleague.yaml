@@ -1,0 +1,35 @@
+name: colleague
+mode: behavior_tree
+extends: adult
+desired_velocity: {mean: 1.1, std: 0.2, clip_low: 0.7, clip_high: 1.5}
+
+needs:
+  thirst:
+    initial: {mean: 25.0, std: 0.0, clip_low: 25.0, clip_high: 90.0}
+    decay_rate: {mean: 8.0, std: 2.0, clip_low: 4.0, clip_high: 14.0}
+
+utility_weights:
+  thirst: 1.0
+
+initial_sequence: chat
+
+sequences:
+  chat:
+    steps:
+      walk_to_gathering: {kind: go_to, target: gathering_area}
+      hold_conversation:
+        interaction: GROUP_CONVERSATION
+        duration: {mean: 45.0, std: 15.0, clip_low: 15.0, clip_high: 90.0}
+        patience: {mean: 60.0, std: 10.0, clip_low: 30.0, clip_high: 120.0}
+    then: chat
+    transitions:
+      - when: {thirst: {below: 30.0}}
+        goto: drink
+  drink:
+    steps:
+      queue_and_drink:
+        target: fountain
+        interaction: USE
+        duration: {mean: 5.0, std: 1.5, clip_low: 4.0, clip_high: 6.0}
+        satisfies: {thirst: 100.0}
+    then: chat
