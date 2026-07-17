@@ -16,8 +16,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   msg/AdapterEntry.msg
   msg/AdapterVizManifest.msg
   msg/EpisodeRecord.msg
+  msg/RobotCap.msg
   msg/RobotDescriptor.msg
   msg/RobotFleet.msg
+  msg/RobotQueue.msg
+  msg/RobotState.msg
+  srv/DespawnRobot.srv
   srv/GetTaskModes.srv
   srv/Pause.srv
   srv/QueryDynamicObstacles.srv

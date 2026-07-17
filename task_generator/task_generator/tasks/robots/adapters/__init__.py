@@ -141,6 +141,7 @@ class Adapter(ABC):
         self.bringup = self.bringup_cls(
             robot_manager.robot_view,
             str(robot_manager.namespace),
+            parts=robot_manager.robot.resolved_request,
         )
         meta = self._meta()
         assert meta.clients is not None
@@ -199,6 +200,7 @@ class Adapter(ABC):
                     frame=ctx.frame,
                     task_generator_node=ctx.task_generator_node,
                     env_namespace=ctx.env_namespace,
+                    sensors=ctx.sensors,
                     **self._bringup_kwargs,
                 ),
             ]
@@ -237,6 +239,10 @@ class Adapter(ABC):
         return None
 
     async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
+        return None
+
+    async def on_controllers_active(self, robot: RobotManager) -> None:
+        """Called once per robot bring-up after every spawned controller reports active."""
         return None
 
     async def teardown(self) -> None:

@@ -34,11 +34,20 @@ if TYPE_CHECKING:
 @attrs.define
 class Robot(Entity):
     model: RobotIdentifier  # type: ignore
-    adapter_overrides: dict[str, str] = attrs.field(factory=dict)
+    adapters: dict[str, str] = attrs.field(factory=dict)
+    parts: dict[str, list] = attrs.field(factory=dict)
+    frames: dict[str, str] = attrs.field(factory=dict, eq=False)
     record_data_dir: str | None = None
+    # resolved morphology (assembler output), None for robots without an assembly.
+    # Excluded from compatible()/__eq__: it is derived from parts+model, not identity.
+    resolved_assembly: object | None = attrs.field(default=None, eq=False)
 
     def compatible(self, value: Robot) -> bool:
-        return self.model.name == value.model.name and self.adapter_overrides == value.adapter_overrides
+        return (
+            self.model.name == value.model.name
+            and self.adapters == value.adapters
+            and self.parts == value.parts
+        )
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Robot):
@@ -54,13 +63,30 @@ class Robot(Entity):
             return FrameNamespace(self.name)
         return FrameNamespace("")
 
+    @property
+    def resolved_request(self) -> dict[str, list]:
+        """Fully-pinned type-keyed request equivalent to ``resolved_assembly``, for
+        ``RobotView.effective_caps``/``effective_sensors`` callers that still take a
+        parts-shaped request rather than resolved placements. Empty for a robot
+        without an assembly (``resolved_assembly is None``)."""
+        if self.resolved_assembly is None:
+            return {}
+
+        from arena_robots import assembly as arena_assembly  # noqa: PLC0415
+
+        request: dict[str, list] = {}
+        for p in self.resolved_assembly.placements:
+            request.setdefault(p.type, []).append(arena_assembly.RequestPart(variant=p.variant, mount=p.mount.name))
+        return request
+
     @classmethod
     def from_setup(cls, setup: RobotSetupConfig, *, node: TaskGenerator) -> Robot:
-        dict_value: dict = {'model': setup.robot}
-        if setup.mobile is not None:
-            dict_value['mobile'] = setup.mobile  # consumed by parse
-        if setup.arm is not None:
-            dict_value['arm'] = setup.arm  # consumed by parse
+        dict_value: dict = {
+            'model': setup.robot,
+            'adapters': setup.adapters,
+            'parts': setup.parts,
+            'frames': setup.frames,
+        }
         dict_value.update(setup.extra)
         dict_value["name"] = setup.name or ""
         return cls.parse(dict_value, node=node)
@@ -71,24 +97,77 @@ class Robot(Entity):
         model = str(value['model'])
         pose = Pose.parse(value.get("pos", (0, 0, 0)))
 
-        overrides: dict[str, str] = {}
+        adapters: dict[str, str] = {}
         adapters_block = value.get("adapters")
         if isinstance(adapters_block, dict):
-            overrides.update({str(k): str(v) for k, v in adapters_block.items()})
-        # Flat per-cap sugar: top-level `mobile:` / `arm:` keys override the adapters block.
-        for cap in ("mobile", "arm"):
-            flat = value.get(cap)
-            if isinstance(flat, str) and flat:
-                overrides[cap] = flat
+            adapters.update({str(k): str(v) for k, v in adapters_block.items()})
+
+        from task_generator.tasks.robots.adapters import ADAPTERS  # noqa: PLC0415
+
+        for cap, kind in adapters.items():
+            if cap not in ADAPTERS:
+                raise RuntimeError(f"robot {name!r}: no adapter registry for cap {cap!r} (registered caps: {sorted(ADAPTERS)})")
+            if kind not in ADAPTERS[cap]:
+                raise RuntimeError(f"robot {name!r}: unknown adapter {kind!r} for cap {cap!r} (registered: {sorted(ADAPTERS[cap].keys())})")
+
+        parts_block = value.get("parts")
+        directives: dict[str, list[str]] = dict(parts_block) if isinstance(parts_block, dict) else {}
+
+        frames_block = value.get("frames")
+        frames: dict[str, str] = {str(k): str(v) for k, v in frames_block.items()} if isinstance(frames_block, dict) else {}
+
+        # resolved_assembly is the ground truth for the robot's morphology:
+        # resolved for every assembly-bearing robot (defaults when no directives are
+        # given) so the composed URDF, not the stripped base xacro, is what spawns.
+        # Models outside arena_robots do not resolve and get no assembly.
+        resolved_assembly = None
+        try:
+            view = RobotIdentifier.parse(model).resolve_sync()
+        except FileNotFoundError:
+            view = None
+
+        if view is not None and view.assembly is not None:
+            from arena_runtime.constants import SimSimulator  # noqa: PLC0415
+
+            if directives and node.conf.Arena.SIM.value is SimSimulator.ISAAC:
+                raise RuntimeError(f"robot {name!r}: morphology parametrization not available on isaac")
+
+            from arena_robots import assembly as arena_assembly  # noqa: PLC0415
+
+            try:
+                request, cleared_sockets, cleared_types = arena_assembly.build_request(view.assembly, directives)
+                resolved_assembly = arena_assembly.resolve(
+                    view.assembly, request, cleared_sockets=cleared_sockets, cleared_types=cleared_types
+                )
+            except arena_assembly.AssemblyError as e:
+                raise RuntimeError(f"robot {name!r}: {e}") from e
+
+            if directives:
+                for w in arena_assembly.warn_if_blind(resolved_assembly, {'lidar'}):
+                    node.get_logger().warn(f"robot {name!r}: {w}")
+
+            unknown_frames = set(frames) - set(view.assembly.mounts)
+            if unknown_frames:
+                raise RuntimeError(
+                    f"robot {name!r}: frames override targets unknown mount(s) {sorted(unknown_frames)}; "
+                    f"declared mounts: {sorted(view.assembly.mounts)}"
+                )
+            resolved_assembly = arena_assembly.apply_frame_overrides(resolved_assembly, frames)
+        elif directives or frames:
+            raise RuntimeError(f"robot {name!r}: morphology/frames parametrization requires an assembly.yaml, and {model!r} has none")
 
         record_data = value.get("record_data_dir", node.conf.Robot.RECORD_DATA_DIR.value)
 
+        value['frames'] = frames
         return cls(
             name=name,
             pose=pose,
             model=RobotIdentifier.parse(model),
-            adapter_overrides=overrides,
+            adapters=adapters,
+            parts=directives,
+            frames=frames,
             record_data_dir=record_data,
+            resolved_assembly=resolved_assembly,
             extra=value,
         )
 

@@ -13,8 +13,6 @@ bool keep_modules
 
 # Empty keeps prior queued value.
 string world
-# Incremental: union with prior queued robots set; dedup; empty array no-op.
-string[] robots
 
 # Leaf-keyed per-mode params; per-key upsert.
 rcl_interfaces/Parameter[] obstacles_params

@@ -15,12 +15,17 @@ def _ros_gate():
 
 @pytest.fixture()
 def stub_node():
+    from arena_runtime.constants import SimSimulator
+
     class _FakeConf:
         class Robot:
             class RECORD_DATA_DIR:
                 value = None
             class TIMEOUT:
                 value = 60
+        class Arena:
+            class SIM:
+                value = SimSimulator.GAZEBO
 
     class _FakeLogger:
         def get_child(self, name):
@@ -44,7 +49,7 @@ def _make_robot(name, model_name, mobile="nav2"):
         name=name,
         pose=Pose(),
         model=RobotIdentifier.parse(model_name),
-        adapter_overrides={"mobile": mobile},
+        adapters={"mobile": mobile},
         extra={},
     )
 
@@ -67,23 +72,80 @@ def test_compatible_different_mobile_adapter():
     assert r1.compatible(r2) is False
 
 
+def test_compatible_different_parts():
+    from arena_robots.Robot import RobotIdentifier
+    from task_generator.shared import Pose, Robot
+    r1 = Robot(
+        name="r1",
+        pose=Pose(),
+        model=RobotIdentifier.parse("turtlebot3_burger"),
+        adapters={"mobile": "nav2"},
+        parts={},
+        extra={},
+    )
+    r2 = Robot(
+        name="r2",
+        pose=Pose(),
+        model=RobotIdentifier.parse("turtlebot3_burger"),
+        adapters={"mobile": "nav2"},
+        parts={"lidar": ["sick"]},
+        extra={},
+    )
+    assert r1.compatible(r2) is False
+
+
 def test_parse_minimal_value(stub_node):
     from task_generator.shared import Robot
     value = {"name": "bot1", "model": "turtlebot3_burger"}
     robot = Robot.parse(value, node=stub_node)
-    assert "mobile" not in robot.adapter_overrides
+    assert "mobile" not in robot.adapters
     assert robot.record_data_dir is None
 
 
-def test_parse_flat_mobile_overrides_adapters(stub_node):
+def test_parse_adapters_block_sets_adapters(stub_node):
     from task_generator.shared import Robot
     value = {
         "name": "bot2",
         "model": "turtlebot3_burger",
+        "adapters": {"mobile": "none"},
+    }
+    robot = Robot.parse(value, node=stub_node)
+    assert robot.adapters["mobile"] == "none"
+
+
+def test_parse_flat_mobile_key_not_routed_to_adapters(stub_node):
+    """Flat `mobile: x` is a morphology key (§2.1), not adapter sugar; parse
+    leaves it out of `adapters` (only `mobile.adapter=` / the `adapters` block routes there)."""
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot2b",
+        "model": "turtlebot3_burger",
         "mobile": "none",
     }
     robot = Robot.parse(value, node=stub_node)
-    assert robot.adapter_overrides["mobile"] == "none"
+    assert "mobile" not in robot.adapters
+
+
+def test_parse_unknown_adapter_cap_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot2c",
+        "model": "turtlebot3_burger",
+        "adapters": {"nonexistent_cap": "nav2"},
+    }
+    with pytest.raises(RuntimeError):
+        Robot.parse(value, node=stub_node)
+
+
+def test_parse_unknown_adapter_kind_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot2d",
+        "model": "turtlebot3_burger",
+        "adapters": {"mobile": "nonexistent_kind"},
+    }
+    with pytest.raises(RuntimeError):
+        Robot.parse(value, node=stub_node)
 
 
 def test_parse_extra_dict_preserved(stub_node):
@@ -170,7 +232,7 @@ def test_eq_not_equal_when_record_data_dir_differs():
         name="bot",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        adapter_overrides={"mobile": "nav2"},
+        adapters={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/a",
     )
@@ -178,7 +240,7 @@ def test_eq_not_equal_when_record_data_dir_differs():
         name="bot",
         pose=Pose(),
         model=RobotIdentifier.parse("turtlebot3_burger"),
-        adapter_overrides={"mobile": "nav2"},
+        adapters={"mobile": "nav2"},
         extra={},
         record_data_dir="/tmp/b",
     )
@@ -200,3 +262,53 @@ def test_frame_empty_name_fallback_to_empty_string():
         extra={},
     )
     assert str(robot.frame) == ""
+
+
+def test_parse_empty_parts_no_assembly_resolved_assembly_none(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot5", "model": "turtlebot3_burger"}
+    robot = Robot.parse(value, node=stub_node)
+    assert robot.resolved_assembly is None
+
+
+def test_parse_empty_parts_with_assembly_resolves_default(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot5b", "model": "jackal"}
+    robot = Robot.parse(value, node=stub_node)
+    assert robot.resolved_assembly is not None
+
+
+def test_parse_parts_without_assembly_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {
+        "name": "bot6",
+        "model": "rbkairos_plus",
+        "parts": {"lidar": ["sick"]},
+    }
+    with pytest.raises(RuntimeError, match="requires an assembly.yaml"):
+        Robot.parse(value, node=stub_node)
+
+
+def test_parse_frames_valid_mount_bakes_override_into_resolved_assembly(stub_node):
+    """A deployment frames override on a declared, populated mount is baked onto
+    resolved_assembly, winning over the mount's own declared frame (jackal's `front`
+    declares frame: lidar; the override replaces it)."""
+    from task_generator.shared import Robot
+    value = {"name": "bot7", "model": "jackal", "frames": {"front": "custom_link"}}
+    robot = Robot.parse(value, node=stub_node)
+    front = next(p for p in robot.resolved_assembly.placements if p.mount.name == "front")
+    assert front.mount.frame == "custom_link"
+
+
+def test_parse_frames_unknown_mount_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot8", "model": "jackal", "frames": {"bogus": "x"}}
+    with pytest.raises(RuntimeError, match="unknown mount"):
+        Robot.parse(value, node=stub_node)
+
+
+def test_parse_frames_without_assembly_raises(stub_node):
+    from task_generator.shared import Robot
+    value = {"name": "bot9", "model": "rbkairos_plus", "frames": {"front": "x"}}
+    with pytest.raises(RuntimeError, match="requires an assembly.yaml"):
+        Robot.parse(value, node=stub_node)

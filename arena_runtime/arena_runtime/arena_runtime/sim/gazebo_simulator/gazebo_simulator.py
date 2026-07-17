@@ -12,7 +12,9 @@ import typing
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+import arena_robots.catalog
 import arena_robots.Robot
+import arena_robots.Sensor
 import launch
 import launch_ros
 import rclpy.impl.rcutils_logger
@@ -22,7 +24,6 @@ from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
-from arena_robots.Sensor import topic_elements
 from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.Wall import WallSegment
 from arena_simulation_setup.utils.material import MdlUtil
@@ -53,14 +54,15 @@ from viewport_control_msgs.srv import ViewportSetProjection, ViewportSetReferenc
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
     controller_spawner_node,
+    effective_control_yaml,
+    effective_controllers,
     odom_relay_node,
-    render_ros2_control_yaml,
     twist_stamper_node,
 )
 from arena_runtime.sim._interface import resolve_obstacle_box
 from arena_runtime.sim._walls import realize_renderable
 
-from .robot_bridge import BridgeConfiguration
+from .robot_bridge import BridgeConfiguration, MappingDirection, _TopicMapping
 
 _VIEWPORT_STREAM_QOS = QoSProfile(
     depth=1,
@@ -222,8 +224,18 @@ class GazeboSimulator(BaseSim):
             'sim_path': robot.sim_path,
             'optim': self.node.rosparam[str].get('optim', ''),
         }
+        args.pop('resolved_assembly', None)
         robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
-        args['sensor_patches'] = topic_elements(robot_config.model_params.sensors, robot.sim_path)
+        args['sensor_topic_patches'] = arena_robots.Sensor.topic_elements(
+            robot_config.effective_sensors(robot.resolved_request, frames=robot.frames),
+            f"/model/{robot.sim_path}",
+        )
+        if robot.resolved_assembly is not None:
+            catalog = arena_robots.catalog.Catalog()
+            args['xacro_wrapper'] = arena_robots.catalog.render_wrapper_xacro(robot_config, robot.resolved_assembly, catalog=catalog)
+            args['control_joint_patch'] = arena_robots.catalog.render_control_joints(
+                robot.resolved_assembly, catalog, prefix=robot_config.assembly.prefix
+            )
         control_spec = robot_config.model_params.control
         if control_spec is None or not control_spec.is_ros2_control:
             return args
@@ -233,11 +245,12 @@ class GazeboSimulator(BaseSim):
                 robot,
                 control_spec.config,
                 frame_prefix=robot.frame.tf(),
+                control_prefix=(robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_'),
             )
         return args
 
-    def _render_ros2_control_yaml(self, robot: Robot, config_uri: str, *, frame_prefix: str) -> str:
-        return render_ros2_control_yaml(config_uri, robot.sim_path, frame_prefix)
+    def _render_ros2_control_yaml(self, robot: Robot, config_uri: str, *, frame_prefix: str, control_prefix: str) -> str:
+        return effective_control_yaml(robot.resolved_assembly, config_uri, robot.sim_path, frame_prefix, prefix=control_prefix)
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         level = obstacles_optim_level(self.node)
@@ -705,13 +718,20 @@ class GazeboSimulator(BaseSim):
 
         robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
 
-        mappings = BridgeConfiguration.from_file(robot_config.mappings).substitute(
-            {
-                "robot_name": robot.sim_path,
-                "world": "/world/default",
-            }
-        )
-        mappings.extend(BridgeConfiguration.from_urdf_sensors(description, robot.sim_path))
+        subs = {
+            "robot_name": robot.sim_path,
+            "world": "/world/default",
+        }
+        file_mappings = BridgeConfiguration.from_file(robot_config.mappings)
+        # Derived gz topics are already concrete, so dedupe against the file mappings' own
+        # substituted form rather than their raw placeholder strings.
+        existing = {(m.gz_topic, m.ros_topic) for m in file_mappings.substitute(subs)}
+        for gz_topic, ros_topic, ros_type, gz_type in arena_robots.Sensor.bridge_rows(robot_config.effective_sensors(robot.resolved_request, frames=robot.frames), f"/model/{robot.sim_path}"):
+            if (gz_topic, ros_topic) in existing:
+                continue
+            file_mappings.append(_TopicMapping(gz_topic=gz_topic, ros_topic=ros_topic, ros_type=ros_type, gz_type=gz_type, direction=MappingDirection.GZ_TO_ROS))
+
+        mappings = file_mappings.substitute(subs)
 
         bridge_arguments = mappings.as_args()
         remappings = mappings.as_remappings()
@@ -762,7 +782,7 @@ class GazeboSimulator(BaseSim):
         if control_spec is not None and control_spec.is_ros2_control:
             if not control_spec.controllers:
                 raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
-            for controller_name in control_spec.controllers:
+            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers, prefix=(robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_')):
                 launch_description.add_action(controller_spawner_node(controller_name))
             launch_description.add_action(
                 twist_stamper_node(

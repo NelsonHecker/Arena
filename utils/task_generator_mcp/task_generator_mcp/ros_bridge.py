@@ -16,6 +16,7 @@ from std_srvs.srv import Empty
 from task_generator_msgs.action import RunEpisode
 from task_generator_msgs.msg import EpisodeRecord
 from task_generator_msgs.srv import (
+    DespawnRobot,
     GetTaskModes,
     QueryDynamicObstacles,
     QueryEnvironments,
@@ -78,6 +79,7 @@ class RosBridge(AsyncNode):
         self.client_spawn_static: ClientWrapper[SpawnStatic] = self.create_client_wrapper(SpawnStatic, _path("runtime/spawn_static"))
         self.client_spawn_dynamic: ClientWrapper[SpawnDynamic] = self.create_client_wrapper(SpawnDynamic, _path("runtime/spawn_dynamic"))
         self.client_spawn_robot: ClientWrapper[SpawnRobot] = self.create_client_wrapper(SpawnRobot, _path("runtime/spawn_robot"))
+        self.client_despawn_robot: ClientWrapper[DespawnRobot] = self.create_client_wrapper(DespawnRobot, _path("runtime/despawn_robot"))
 
         # action client for lifecycle/run_episode
         self.action_run_episode: ActionClientWrapper[RunEpisode] = self.create_action_client_wrapper(RunEpisode, _path("lifecycle/run_episode"))

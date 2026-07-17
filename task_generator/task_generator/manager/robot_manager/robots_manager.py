@@ -1,16 +1,16 @@
 import asyncio
 import contextlib
 import os
-import re
+import traceback
 import typing
 from collections.abc import Callable
 
 import arena_robots.SetupFile as robot_setup
 import attrs
+import diagnostic_msgs.msg
 import geometry_msgs.msg
 import rclpy
 import task_generator_msgs.msg
-from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
 
@@ -21,6 +21,119 @@ from .robot_manager import RobotManager
 
 _AUTO_TOKEN = "auto"
 _ARENA_DEFAULT_ROBOT = "jackal"
+
+
+def split_robot_arg(value: str) -> list[str]:
+    """Comma-split `robot:=` at bracket depth 0, dropping blank tokens."""
+    tokens: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for ch in value:
+        if ch == '[':
+            depth += 1
+            current.append(ch)
+        elif ch == ']':
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            tokens.append(''.join(current))
+            current = []
+        else:
+            current.append(ch)
+    tokens.append(''.join(current))
+    return [t.strip() for t in tokens if t.strip()]
+
+
+def _extract_bracket(s: str, entry: str) -> tuple[str, str | None]:
+    """Split `s` into (prefix, bracket-body) on its outermost `[...]`, or (s, None) if bracket-free.
+
+    Raises on unmatched `]`, unbalanced `[`, or junk after the closing `]`.
+    """
+    open_idx = s.find('[')
+    if open_idx == -1:
+        if ']' in s:
+            raise RuntimeError(f"robot entry {entry!r}: unmatched ']' in {s!r}")
+        return s, None
+    depth = 0
+    close_idx = -1
+    for i in range(open_idx, len(s)):
+        if s[i] == '[':
+            depth += 1
+        elif s[i] == ']':
+            depth -= 1
+            if depth == 0:
+                close_idx = i
+                break
+    if close_idx == -1:
+        raise RuntimeError(f"robot entry {entry!r}: unbalanced brackets in {s!r}")
+    if close_idx != len(s) - 1:
+        raise RuntimeError(f"robot entry {entry!r}: trailing content after ']' in {s!r}")
+    return s[:open_idx], s[open_idx + 1:close_idx]
+
+
+def desugar_robot_entry(entry: str) -> dict:
+    """Desugar one `robot:=` entry (`model` or `model[items]`) into a Config.parse-ready dict."""
+    stripped = entry.strip()
+    model, body = _extract_bracket(stripped, stripped)
+    result: dict = {'robot': model}
+    if body is None:
+        return result
+
+    for item in split_robot_arg(body):
+        key, sep, value = item.partition('=')
+        if not sep:
+            try:
+                count = int(item)
+            except ValueError:
+                raise RuntimeError(
+                    f"robot entry {entry!r}: unknown token {item!r}, expected an integer count or key=value"
+                ) from None
+            if 'count' in result:
+                raise RuntimeError(f"robot entry {entry!r}: duplicate count in {item!r}")
+            result['count'] = count
+            continue
+
+        key = key.strip()
+        value = value.strip()
+        value_prefix, value_body = _extract_bracket(value, entry)
+        if value_body is None:
+            parsed_value: str | list[str] = value_prefix
+        else:
+            if value_prefix:
+                raise RuntimeError(f"robot entry {entry!r}: malformed value {value!r}")
+            parsed_value = [v.strip() for v in split_robot_arg(value_body)]
+
+        if key in result:
+            existing = result[key] if isinstance(result[key], list) else [result[key]]
+            addition = parsed_value if isinstance(parsed_value, list) else [parsed_value]
+            result[key] = existing + addition
+        else:
+            result[key] = parsed_value
+
+    return result
+
+
+def _cap_instances(resolved: object | None, cap: str) -> list[tuple[str, str]]:
+    """(mount, variant) per placement of type `cap`, one empty pair when unplaced."""
+    if resolved is not None:
+        placed = [(p.mount.name, p.variant) for p in resolved.placements if p.type == cap]
+        if placed:
+            return placed
+    return [('', '')]
+
+
+def _morphology_params(robot: Robot) -> list[diagnostic_msgs.msg.KeyValue]:
+    """Resolved morphology (type@mount: variant) when assembled, raw parts otherwise."""
+    resolved = robot.resolved_assembly
+    if resolved is not None:
+        return [
+            diagnostic_msgs.msg.KeyValue(key=f'{p.type}@{p.mount.name}', value=p.variant)
+            for p in resolved.placements
+        ]
+    return [
+        diagnostic_msgs.msg.KeyValue(key=ptype, value=str(values))
+        for ptype, values in robot.parts.items()
+    ]
 
 
 @attrs.define(frozen=True)
@@ -132,7 +245,6 @@ class RobotsManager(NodeInterface):
     """
 
     _initialpose: typing.Generator
-    _robot_configurations: ROSParamT[_RobotDiff]
     _diff: _RobotDiff
 
     @property
@@ -167,8 +279,8 @@ class RobotsManager(NodeInterface):
             yield t
         except asyncio.CancelledError:
             pass
-        except Exception:
-            self._logger.error('Error while providing node paths {e}\n{traceback.format_exc()}')
+        except Exception as e:
+            self._logger.error(f'Error while providing node paths {e}\n{traceback.format_exc()}')
         finally:
             if t and not t.done():
                 t.cancel()
@@ -241,16 +353,22 @@ class RobotsManager(NodeInterface):
             _RobotDiff: The RobotDiff to execute.
         """
 
-        robot_arg: list[str] = list(filter(len, str(v).split(',')))
+        robot_arg: list[str] = split_robot_arg(str(v))
 
         parsed_explicit: dict[str, Robot] = {}
         parsed_anonymous: dict[str, list[Robot]] = {}
+        skipped: list[str] = []
 
         def add(base: robot_setup.Config):
             readiness = _robot_readiness()
             if readiness is not None and base.robot in readiness.pending:
                 paths = ", ".join(sorted(readiness.pending[base.robot]))
-                raise RuntimeError(f"robot {base.robot!r} is not installed (submodule(s) not checked out: {paths}). run: arena feature robots add {base.robot}")
+                self.node.get_logger().error(
+                    f"skipping robot {base.robot!r}: not installed (submodule(s) not checked out: {paths}). "
+                    f"run: arena feature robots add {base.robot}"
+                )
+                skipped.append(base.robot)
+                return
             name = base.name
             config = Robot.from_setup(base, node=self.node)
 
@@ -267,16 +385,15 @@ class RobotsManager(NodeInterface):
             if arg.endswith('.yaml'):
                 for addition in robot_setup.RobotSetupIdentifier(arg).resolve_sync():
                     add(addition)
-            elif match := re.match(r'(.*)\[(\d+)\]', arg):
-                # multi-instantiations via model[count]
-                base = match.group(1)
-                if base == _AUTO_TOKEN:
-                    base = self._resolve_auto()
-                for _ in range(int(match.group(2))):
-                    add(robot_setup.Config(robot=base))
             else:
-                resolved = self._resolve_auto() if arg == _AUTO_TOKEN else arg
-                add(robot_setup.Config(robot=resolved))
+                desugared = desugar_robot_entry(arg)
+                if desugared['robot'] == _AUTO_TOKEN:
+                    desugared['robot'] = self._resolve_auto()
+                for config in robot_setup.Config.parse(desugared):
+                    add(config)
+
+        if skipped and not (parsed_explicit or parsed_anonymous):
+            raise RuntimeError(f"no installed robot in {v!r}. run: arena feature robots add {' '.join(sorted(set(skipped)))}")
 
         existing = {k: v.robot for k, v in self.managers.items()}
 
@@ -375,15 +492,33 @@ class RobotsManager(NodeInterface):
         await asyncio.gather(*futures)
         self._diff.to_add.clear()
 
+        self._publish_fleet()
+        self.publish_queue()
+
+    def _publish_fleet(self) -> None:
+        """Publish the live fleet on state/robots, refresh robot_names, viz, and frame aliases."""
         self.node.rosparam[list[str]].set('robot_names', [robot.name for robot in self.managers.values()])
 
         fleet = task_generator_msgs.msg.RobotFleet(
             robots=[
-                task_generator_msgs.msg.RobotDescriptor(
-                    name=mgr.name,
-                    model=mgr.model_name,
-                    ns=str(mgr.namespace),
-                    frame=mgr.frame.raw().lstrip("/"),
+                task_generator_msgs.msg.RobotState(
+                    descriptor=task_generator_msgs.msg.RobotDescriptor(
+                        name=mgr.name,
+                        model=mgr.model_name,
+                        ns=str(mgr.namespace),
+                        frame=mgr.frame.raw().lstrip("/"),
+                    ),
+                    caps=[
+                        task_generator_msgs.msg.RobotCap(
+                            cap=cap,
+                            adapter=mgr.cap_adapters.get(cap, 'none'),
+                            instance=instance,
+                            variant=variant,
+                        )
+                        for cap in sorted(mgr.robot_view.effective_caps(mgr.robot.resolved_request, frames=mgr.robot.frames).available)
+                        for instance, variant in _cap_instances(mgr.robot.resolved_assembly, cap)
+                    ],
+                    params=_morphology_params(mgr.robot),
                 )
                 for mgr in self.managers.values()
             ]
@@ -418,32 +553,100 @@ class RobotsManager(NodeInterface):
         self._pending_launch: list[RobotManager] = []
         self._abort_episode: Callable[[str], None] | None = None
 
-        self._robot_configurations = self.node.ROSParam[_RobotDiff](
-            'robot',
-            type_=rclpy.Parameter.Type.STRING,
-            parse=self._parse_robot_configurations,
-        )
+        # Launch-time seed: read the `robot` param once to populate the initial
+        # fleet, then undeclare it so only spawn/despawn deltas mutate the fleet.
+        self.node.rosparam[str].declare_safe('robot', rclpy.Parameter.Type.STRING)
+        self._parse_robot_configurations(self.node.rosparam[str].get('robot', ''))
+        self.node.undeclare_parameter('robot')
 
     async def launch_pending(self) -> None:
         """Bring up navstacks for managers queued by set_up. Caller controls when this fires
-        so LaunchService.run_async()'s main-loop block doesn't starve concurrent work
-        (e.g. spawn_world_obstacles)."""
+        so LaunchService.run_async()'s main-loop block doesn't starve concurrent work."""
         if not self._pending_launch:
             return
         pending = self._pending_launch
         self._pending_launch = []
         node_paths: set[str] = set()
-        with self.provide_node_paths(node_paths) as fetch_task:
-            await asyncio.wait(
-                (
-                    fetch_task,
-                    asyncio.gather(*(m.launch(node_paths) for m in pending)),
-                ),
-                return_when=asyncio.FIRST_COMPLETED,
+        with self.provide_node_paths(node_paths):
+            await asyncio.gather(*(m.launch(node_paths) for m in pending))
+
+    async def spawn_now(self, name: str, pose: Pose | None) -> None:
+        """Provision one queued robot into the live world now at its resolved on-map pose (no
+        staging detour, which would teleport it off-map and disturb nav2), then run the standard
+        per-robot reset at that pose so its costmap and localization match any other robot. It
+        joins the episode at the next reset like the rest of the fleet."""
+        pending = self._diff.to_add.pop(name, None)
+        if pending is None:
+            if name in self._managers:
+                return
+            raise ValueError(f"robot {name!r} is not queued for spawn")
+        config = attrs.evolve(pending)
+        config.name = name
+        if pose is not None:
+            config.pose = pose
+        manager = RobotManager(
+            node=self.node,
+            namespace=Namespace(self.node.get_namespace())(self.node.get_name()),
+            environment_manager=self._environment_manager,
+            robot=config,
+        )
+        if self._abort_episode is not None:
+            manager.bind_abort(self._abort_episode)
+        await manager.set_up_robot()
+        self.managers[name] = manager
+        node_paths: set[str] = set()
+        with self.provide_node_paths(node_paths):
+            await manager.launch(node_paths)
+        from task_generator.tasks.robots.adapters import ResetContext  # noqa: PLC0415
+        await manager.reset(
+            ResetContext(
+                rng=self.node.conf.General.RNG.stream("robot-adapter", name),
+                start_pose=config.pose,
+                episode_index=self.node._episodes.current.episode_id,
             )
+        )
+        self._publish_fleet()
 
     def add_pending(self, name: str, robot: Robot) -> None:
         """Queue a robot for full set_up_robot on the next reset_cycle."""
         if name in self._managers or name in self._diff.to_add:
             raise ValueError(f"robot {name!r} already exists")
         self._diff.to_add[name] = robot
+
+    def remove_pending(self, name: str) -> None:
+        """Toggle a robot's despawn-pending state, the single fleet-removal surface.
+
+        Cancels a queued spawn, un-stages a queued despawn, or stages a live
+        robot for teardown on the next reset_cycle.
+        """
+        if name in self._diff.to_add:
+            del self._diff.to_add[name]
+            return
+        if name in self._diff.to_remove:
+            self._diff.to_remove.remove(name)
+            return
+        if name not in self._managers:
+            raise ValueError(f"robot {name!r} does not exist")
+        self._diff.to_remove.append(name)
+
+    def publish_queue(self) -> None:
+        """Publish the pending spawn/despawn diff (the queue) on state/robots/pending."""
+        msg = task_generator_msgs.msg.RobotQueue(
+            spawn=[
+                task_generator_msgs.msg.RobotDescriptor(name=name, model=robot.model.name)
+                for name, robot in self._diff.to_add.items()
+            ],
+            despawn=[
+                task_generator_msgs.msg.RobotDescriptor(name=name, model=self._managers[name].model_name)
+                for name in self._diff.to_remove
+            ],
+        )
+        self.node._pub_state_robots_pending.publish(msg)
+
+    def next_name(self, model: str) -> str:
+        """Lowest-free `<model>_<n>` not live, queued to add, or queued to remove."""
+        taken = set(self._managers) | set(self._diff.to_add) | set(self._diff.to_remove)
+        n = 0
+        while f"{model}_{n}" in taken:
+            n += 1
+        return f"{model}_{n}"

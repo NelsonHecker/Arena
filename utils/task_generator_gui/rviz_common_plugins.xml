@@ -8,4 +8,7 @@
     <class type="task_generator_gui::WorldGeneratorPanel" base_class_type="rviz_common::Panel">
       <description>Panel for generating worlds: pick algorithm, set seed and world name, edit per-algorithm parameters, then generate and stage the result.</description>
     </class>
+    <class type="task_generator_gui::FleetPanel" base_class_type="rviz_common::Panel">
+      <description>Spawn, list, and despawn robots in the running fleet at runtime.</description>
+    </class>
   </library>

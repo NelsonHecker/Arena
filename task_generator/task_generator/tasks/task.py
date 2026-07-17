@@ -220,6 +220,16 @@ class Task(NodeInterface):
 
                 await self.__tm_robots.reset(**kwargs)
 
+                obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
+
+                async def respawn():
+                    await asyncio.gather(
+                        self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
+                        self.environment_manager.spawn_obstacles(obstacles),
+                    )
+
+                await self.environment_manager.respawn(respawn)
+
                 robot_outcomes = await asyncio.gather(
                     *(
                         mgr.reset(
@@ -236,16 +246,6 @@ class Task(NodeInterface):
                 for name, outcome in zip(self.robots_manager.managers, robot_outcomes, strict=True):
                     if isinstance(outcome, BaseException):
                         self._logger.warning(f"robot {name!r} adapter reset failed: {outcome!r}")
-
-                obstacles, dynamic_obstacles = await self.__tm_obstacles.reset(**kwargs)
-
-                async def respawn():
-                    await asyncio.gather(
-                        self.environment_manager.spawn_dynamic_obstacles(dynamic_obstacles),
-                        self.environment_manager.spawn_obstacles(obstacles),
-                    )
-
-                await self.environment_manager.respawn(respawn)
 
                 for module in self.__modules:
                     module.after_reset()

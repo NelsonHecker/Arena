@@ -1,4 +1,5 @@
 string gesture                          # required, name in shared lib or per-arm override
+string instance                         # arm cap instance (mount name), empty = sole arm
 ---
 uint8 STATUS_SUCCEEDED = 0
 uint8 STATUS_CANCELED = 1

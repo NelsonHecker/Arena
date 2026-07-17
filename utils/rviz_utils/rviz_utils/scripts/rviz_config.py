@@ -121,7 +121,7 @@ class ConfigFileGenerator(ArenaMixinNode):
         self._rebuild_display_set()
 
     def _on_robots(self, msg: RobotFleet) -> None:
-        self._robots = list(msg.robots)
+        self._robots = [state.descriptor for state in msg.robots]
         self._node_params = self._build_node_params()
         self._rebuild_display_set()
 

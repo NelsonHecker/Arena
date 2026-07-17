@@ -55,7 +55,7 @@ Transport: stdio (v0). Works with Claude Desktop, `mcp-cli`, and any stdio-MCP c
 |---|---|---|---|
 | `runtime_spawn_static` | `model: str`, `pose?: {position, orientation, frame_id}` | `{id, success, error_msg}` | Spawn a static obstacle. Omit pose for random placement. |
 | `runtime_spawn_dynamic` | `model: str`, `pose?` | `{id, success, error_msg}` | Spawn a dynamic obstacle / pedestrian. |
-| `runtime_spawn_robot` | `model: str`, `name?: str`, `pose?` | `{name, success, error_msg}` | Spawn a robot (experimental). |
+| `runtime_spawn_robot` | `model: str`, `name?: str`, `pose?`, `immediate?: bool` | `{name, success, error_msg}` | Spawn a robot (experimental). `immediate` provisions it live and idle now, else it commits on the next reset. |
 
 Task-mode enum values for `tm_robots` / `tm_obstacles` / `tm_modules` are compiled from `task_generator.constants.Constants.TaskMode.*` at server startup — the tool schema `enum` field always reflects the live codebase.
 

@@ -15,6 +15,7 @@ from arena_viz.kinds import DisplayKind
 from arena_viz.style import StyleSpec
 
 from task_generator.tasks.robots.adapters import Adapter, AdapterDisplayHint, AdapterMeta
+from task_generator.tasks.robots.adapters.arm import park_arms
 from task_generator.tasks.robots.request import PlayGesturePhase, ReachPhase
 
 if TYPE_CHECKING:
@@ -52,13 +53,21 @@ class MoveItArmAdapter(Adapter):
     async def dispatch_phase(self, phase: TaskPhase, robot: RobotManager) -> None:
         if isinstance(phase, ReachPhase):
             goal = ReachPose.Goal()
+            goal.instance = phase.instance
             if phase.random:
                 from task_generator.tasks.robots._reach_sampling import sample_reach_target
 
-                arms = robot.robot_view.caps.arm
+                arms = robot.robot_view.effective_caps(robot.robot.resolved_request, frames=robot.robot.frames).arm
                 if not arms:
                     raise ValueError(f"random ReachPhase requested but robot {robot.name!r} has no arm cap")
-                (arm,) = arms.values()
+                if phase.instance:
+                    if phase.instance not in arms:
+                        raise ValueError(f"random ReachPhase instance {phase.instance!r} not found on robot {robot.name!r}; available: {sorted(arms)}")
+                    arm = arms[phase.instance]
+                elif len(arms) != 1:
+                    raise ValueError(f"random ReachPhase requires an explicit arm instance on robot {robot.name!r}; available: {sorted(arms)}")
+                else:
+                    (arm,) = arms.values()
                 rng = robot.node.conf.General.RNG.stream("arm", robot.name)
                 goal.target = sample_reach_target(arm, robot.frame, rng)
             elif phase.target is not None:
@@ -73,7 +82,7 @@ class MoveItArmAdapter(Adapter):
             gesture_name = phase.gesture
             if gesture_name is None:
                 gesture_name = _pick_random_gesture(robot)
-            goal = PlayGesture.Goal(gesture=gesture_name or "")
+            goal = PlayGesture.Goal(gesture=gesture_name or "", instance=phase.instance)
             await self.client_for(TaskKind.PLAY_GESTURE).send_goal(goal)
         else:
             raise TypeError(f"MoveItArmAdapter: unsupported phase type {type(phase).__name__} (kind={phase.kind!r})")
@@ -83,10 +92,14 @@ class MoveItArmAdapter(Adapter):
         # the TM is responsible for emitting a stow phase if it wants the arm parked.
         del robot, ctx
 
+    async def on_controllers_active(self, robot: RobotManager) -> None:
+        self._park_pubs = await park_arms(robot)
+
     async def wait_until_ready(self, robot: RobotManager, node_paths: set[str]) -> None:
-        mg = str(robot.namespace("move_group"))
-        while mg not in node_paths:
-            await asyncio.sleep(0.01)
+        for mount in self.bringup.arms():
+            mg = str(self.bringup.arm_namespace(mount)("move_group"))
+            while mg not in node_paths:
+                await asyncio.sleep(0.01)
         await super().wait_until_ready(robot, node_paths)
 
 
@@ -96,9 +109,12 @@ def _pick_random_gesture(robot: RobotManager) -> str:
     from arena_simulation_setup import ASS_DIR
     from arena_simulation_setup.tree.Gesture import GestureSpec
 
-    arms = robot.robot_view.caps.arm
+    arms = robot.robot_view.effective_caps(robot.robot.resolved_request, frames=robot.robot.frames).arm
     if not arms:
         _log.warning("random PlayGesturePhase: robot %r has no arm cap", robot.name)
+        return ""
+    if len(arms) != 1:
+        _log.warning("random PlayGesturePhase: robot %r has multiple arm instances %s; explicit instance not yet supported", robot.name, sorted(arms))
         return ""
     (arm,) = arms.values()
     available_poses = set(arm.named_poses.keys())

@@ -73,6 +73,7 @@ class ReachPhase(TaskPhase):
     position_tolerance: float | None = None
     orientation_tolerance: float | None = None
     planning_time: float | None = None
+    instance: str = ""  # arm cap instance (mount name), empty = sole arm
 
     def __attrs_post_init__(self):
         if sum([self.target is not None, self.named_target is not None, self.random]) != 1:
@@ -86,6 +87,7 @@ class ReachPhase(TaskPhase):
 class PlayGesturePhase(TaskPhase):
     kind: ClassVar[TaskKind] = TaskKind.PLAY_GESTURE
     gesture: str | None = None  # None means random; adapter expands before dispatch
+    instance: str = ""  # arm cap instance (mount name), empty = sole arm
 
     def is_satisfied(self, robot_manager: RobotManager) -> bool:
         return False  # client-driven completion

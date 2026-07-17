@@ -86,6 +86,9 @@ class ManagedEnv:
             await asyncio.get_running_loop().run_in_executor(None, self.tee_thread.join, 5.0)
 
 
+_WINDOW_REASON = "unpause_window"
+
+
 class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
     _lifecycle: SimLifecycle
     _holds: HoldRegistry
@@ -93,16 +96,14 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
     _envs: dict[int, ManagedEnv]
     _heartbeat_timer: rclpy.timer.Timer | None
     _clock_task: asyncio.Task | None
-    _window_holder: str | None
-    _window_lock: asyncio.Lock
+    _windows: HoldRegistry
 
     def __init__(self) -> None:
         super().__init__("arena")
         self._envs = {}
         self._heartbeat_timer = None
         self._clock_task = None
-        self._window_holder = None
-        self._window_lock = asyncio.Lock()
+        self._windows = HoldRegistry()
 
     def on_configure(self, state: rclpy.lifecycle.State) -> rclpy.lifecycle.TransitionCallbackReturn:
         return rclpy.lifecycle.TransitionCallbackReturn.SUCCESS
@@ -379,11 +380,10 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
 
         self._publish_envs()
 
-        if self._window_holder == record.fqn:
-            await self._force_release_window()
+        await self._force_release_window(record.fqn)
 
         self._holds.release_all(record.fqn)
-        if self._holds.is_empty() and self._window_holder is None:
+        if self._holds.is_empty() and self._windows.is_empty():
             await self._lifecycle.unpause()
         self._publish_state()
 
@@ -415,11 +415,11 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         if request.action == arena_runtime_msgs.srv.LifecycleHold.Request.ACQUIRE:
             was_empty = self._holds.is_empty()
             count = self._holds.acquire(caller, reason)
-            if was_empty and self._window_holder is None:
+            if was_empty and self._windows.is_empty():
                 await self._lifecycle.pause()
         elif request.action == arena_runtime_msgs.srv.LifecycleHold.Request.RELEASE:
             count = self._holds.release(caller, reason)
-            if self._holds.is_empty() and self._window_holder is None:
+            if self._holds.is_empty() and self._windows.is_empty():
                 await self._lifecycle.unpause()
         else:
             self.get_logger().warning(f"unknown action {request.action}; ignoring")
@@ -437,30 +437,28 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         response: arena_runtime_msgs.srv.LifecycleUnpauseWindow.Response,
     ) -> arena_runtime_msgs.srv.LifecycleUnpauseWindow.Response:
         if request.action == arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request.ACQUIRE:
-            await self._window_lock.acquire()
-            try:
-                await self._lifecycle.unpause()
-                self._window_holder = request.caller_id
-            except Exception as e:
-                self._window_lock.release()
-                response.success = False
-                response.error_msg = f"unpause failed: {e!r}"
-                return response
+            was_empty = self._windows.is_empty()
+            self._windows.acquire(request.caller_id, _WINDOW_REASON)
+            if was_empty:
+                try:
+                    await self._lifecycle.unpause()
+                except Exception as e:
+                    self._windows.release(request.caller_id, _WINDOW_REASON)
+                    response.success = False
+                    response.error_msg = f"unpause failed: {e!r}"
+                    return response
             response.success = True
             response.error_msg = ""
             return response
 
         if request.action == arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request.RELEASE:
-            if self._window_holder != request.caller_id:
+            if not self._windows.has(request.caller_id, _WINDOW_REASON):
                 response.success = False
-                response.error_msg = f"caller {request.caller_id} does not hold window (holder={self._window_holder})"
+                response.error_msg = f"caller {request.caller_id} does not hold a window"
                 return response
-            try:
-                if not self._holds.is_empty():
-                    await self._lifecycle.pause()
-            finally:
-                self._window_holder = None
-                self._window_lock.release()
+            self._windows.release(request.caller_id, _WINDOW_REASON)
+            if self._windows.is_empty() and not self._holds.is_empty():
+                await self._lifecycle.pause()
             response.success = True
             response.error_msg = ""
             return response
@@ -470,17 +468,13 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         response.error_msg = f"unknown action {request.action}"
         return response
 
-    async def _force_release_window(self) -> None:
-        """Force-release the unpause window, e.g. on eviction of the holder."""
-        if self._window_holder is None:
+    async def _force_release_window(self, caller_id: str) -> None:
+        """Force-release all unpause windows held by a caller, e.g. on eviction."""
+        if not self._windows.has(caller_id, _WINDOW_REASON):
             return
-        try:
-            if not self._holds.is_empty():
-                await self._lifecycle.pause()
-        finally:
-            self._window_holder = None
-            if self._window_lock.locked():
-                self._window_lock.release()
+        self._windows.release_all(caller_id)
+        if self._windows.is_empty() and not self._holds.is_empty():
+            await self._lifecycle.pause()
 
     async def _cb_cleanup_env(
         self,

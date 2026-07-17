@@ -77,8 +77,11 @@ class RerunBridge(ArenaMixinNode):
         await self._await_param(cli, 'initialized', lambda x: x.bool_value)
         self._frame_prefix = (await self._await_param(cli, 'prefix')).string_value
         self._env_id = (await self._await_param(cli, 'env_id')).integer_value
-        self.robots = list((await self._await_latched(
-            RobotFleet, os.path.join(self._TASKGEN_NODE, 'state', 'robots'))).robots)
+        self.robots = [
+            state.descriptor
+            for state in (await self._await_latched(
+                RobotFleet, os.path.join(self._TASKGEN_NODE, 'state', 'robots'))).robots
+        ]
         self.viz_manifest = await self._await_latched(
             AdapterVizManifest, os.path.join(self._TASKGEN_NODE, 'state', 'viz_manifest'))
 

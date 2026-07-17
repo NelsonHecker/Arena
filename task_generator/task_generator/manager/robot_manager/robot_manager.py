@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import os
+import time
 import typing
 
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
 import attrs
+import controller_manager_msgs.srv
 import geometry_msgs.msg
 import launch
 import launch.launch_description_sources
@@ -18,6 +21,7 @@ import rclpy.node
 import rclpy.publisher
 import rclpy.timer
 import tf2_ros
+from arena_rclpy_mixins.Async import LaunchHandle
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
 from arena_runtime._node import NodeInterface
@@ -50,6 +54,10 @@ _NAV2_QUIET_RULES = '+[' + ', '.join(f'**/{n}:error' for n in _NAV2_QUIET_NODES)
 
 _MOVEIT_QUIET_RULES = '+[**/moveit/**:error]'
 
+_CONTROLLER_MANAGER_GRACE = 30.0
+_CONTROLLER_POLL = 0.2
+_CONTROLLER_ACTIVE_TIMEOUT = 60.0  # wall seconds for all controllers to reach active before proceeding
+
 
 class RobotManager(NodeInterface):
     """Manages the goal and start position of a robot for all task modes."""
@@ -66,10 +74,12 @@ class RobotManager(NodeInterface):
     _config: RobotView
     _adapters: dict[TaskKind, Adapter]
     _adapter_instances: list[Adapter]
+    _cap_adapters: dict[str, str]
     _current_request: TaskRequest | None
     _phase_index: int
     _unsupported_kinds_logged: set[TaskKind]
     _abort_episode: Callable[[str], None] | None
+    _launch_handle: LaunchHandle | None
 
     @property
     def robot(self) -> Robot:
@@ -134,16 +144,17 @@ class RobotManager(NodeInterface):
         self._robot.extra.setdefault('namespace', self.namespace)
 
         self._publish_goal_task: asyncio.Task | None = None
+        self._launch_handle: LaunchHandle | None = None
 
         # Deferred to break the import cycle between this module and
         # task_generator.tasks (which eagerly loads context.py → RobotManager).
         from task_generator.tasks.robots.adapters import ADAPTERS
         from task_generator.tasks.robots.request import TaskKind
 
-        caps_available = self._config.caps.available
+        caps_available = self._config.effective_caps(self._robot.resolved_request, frames=self._robot.frames).available
         caps_to_kind: dict[str, str] = {}
         for cap in caps_available:
-            override = self._robot.adapter_overrides.get(cap)
+            override = self._robot.adapters.get(cap)
             if override is not None:
                 caps_to_kind[cap] = override
                 continue
@@ -156,6 +167,7 @@ class RobotManager(NodeInterface):
 
         self._adapters: dict[TaskKind, Adapter] = {}
         self._adapter_instances: list[Adapter] = []
+        self._cap_adapters: dict[str, str] = {}
 
         for cap, kind in caps_to_kind.items():
             if cap not in ADAPTERS:
@@ -180,6 +192,7 @@ class RobotManager(NodeInterface):
                     raise AssertionError(f"robot {self._robot.name!r}: TaskKind {tk!r} claimed by both {self._adapters[tk].kind!r} and {kind!r}")
                 self._adapters[tk] = adapter
             self._adapter_instances.append(adapter)
+            self._cap_adapters[cap] = kind
 
         self._adapter = next(
             (a for a in self._adapter_instances if TaskKind.GOTO_POSE in a.accepts),
@@ -195,7 +208,10 @@ class RobotManager(NodeInterface):
         self._abort_episode = fn
 
     def _adapter_kwargs_for(self, cap: str, kind: str) -> dict[str, typing.Any]:
-        cap_raw = self._config.caps._load_cap_file(cap)
+        try:
+            cap_raw = self._config.caps._load_cap_file(cap)
+        except FileNotFoundError:
+            cap_raw = {}  # allocation-derived cap, no static caps/<cap>.yaml
         sub = cap_raw.get(kind, {})
         kwargs: dict[str, typing.Any] = dict(sub) if isinstance(sub, dict) else {}
         # CLI overrides land as `robot.<cap>.<key>` ROS params; they overlay the
@@ -256,6 +272,11 @@ class RobotManager(NodeInterface):
     def accepts(self) -> frozenset[TaskKind]:
         """Task kinds this robot's bound adapters can dispatch."""
         return frozenset(self._adapters.keys())
+
+    @property
+    def cap_adapters(self) -> dict[str, str]:
+        """Cap -> bound adapter kind, resolved at construction time."""
+        return dict(self._cap_adapters)
 
     @property
     def namespace(self) -> Namespace:
@@ -475,7 +496,7 @@ class RobotManager(NodeInterface):
                 use_sim_time=True,
                 base_frame=self._config.model_params.base_frame,
                 odom_frame=self._config.model_params.odom_frame,
-                sensors=self._config.model_params.sensors,
+                sensors=self._config.effective_sensors(self._robot.resolved_request, frames=self._robot.frames),
                 tf_buffer=None,
                 node_handle=self.node,
             )
@@ -496,6 +517,9 @@ class RobotManager(NodeInterface):
                                 "robot_name": self._robot.model.name,
                                 "bringup_caps": bringup_caps,
                                 "bringup_kinds": bringup_kinds,
+                                "parts_json": json.dumps(
+                                    {t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.resolved_request.items()}
+                                ),
                                 "frame": self._robot.frame.tf(),
                                 "use_sim_time": adapter_ctx.use_sim_time,
                             }
@@ -504,8 +528,36 @@ class RobotManager(NodeInterface):
                 )
             launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
-            await self.node.do_launch(launch_description)
+            self._launch_handle = await self.node.do_launch_tracked(launch_description)
             await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
+            await self.wait_controllers_active()
+            for adapter in self._adapter_instances:
+                await adapter.on_controllers_active(self)
+
+    async def wait_controllers_active(self) -> None:
+        """Hold a sim-unpause window and block until every spawned controller reports active, so the
+        controller_manager can step them up. No controller_manager within the grace window (dummy sim)
+        means there is nothing to wait for. If they do not all reach active within the budget, log the
+        laggards and proceed rather than wedging the reset."""
+        client = self.node.create_client_wrapper(
+            controller_manager_msgs.srv.ListControllers,
+            str(self.namespace("controller_manager", "list_controllers")),
+            timeout=_CONTROLLER_MANAGER_GRACE,
+        )
+        if not await client.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
+            return
+        async with self.node.unpause_window():
+            deadline = time.monotonic() + _CONTROLLER_ACTIVE_TIMEOUT
+            resp = None
+            while time.monotonic() < deadline:
+                resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
+                if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
+                    return
+                await asyncio.sleep(_CONTROLLER_POLL)
+            laggards = [c.name for c in resp.controller if c.state != "active"] if resp is not None and resp.controller else []
+            self._logger.warning(
+                f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}"
+            )
 
     async def update(self):
         # TODO implement record data dir
@@ -519,4 +571,7 @@ class RobotManager(NodeInterface):
         for adapter, result in zip(self._adapter_instances, results, strict=True):
             if isinstance(result, Exception):
                 self._logger.warning(f"adapter {adapter.kind!r} teardown failed: {result!r}")
+        if self._launch_handle is not None:
+            await self._launch_handle.shutdown()
+        self._launch_handle = None
         await self._environment_manager.remove_robot((self.robot,))

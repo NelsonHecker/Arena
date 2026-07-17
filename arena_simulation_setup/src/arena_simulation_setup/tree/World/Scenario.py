@@ -23,6 +23,7 @@ class ScenarioGotoPhase:
 @attrs.define
 class ScenarioGesturePhase:
     gesture: str
+    instance: str = ""  # arm cap instance (mount name), empty = sole arm
 
 
 class ScenarioPhase(abc.ABC):
@@ -34,7 +35,7 @@ class ScenarioPhase(abc.ABC):
         if "goto" in value:
             return ScenarioGotoPhase(goto=Pose.parse(value["goto"]))
         if "gesture" in value:
-            return ScenarioGesturePhase(gesture=str(value["gesture"]))
+            return ScenarioGesturePhase(gesture=str(value["gesture"]), instance=str(value.get("instance", "")))
         raise ValueError(f"ScenarioPhase requires 'goto' or 'gesture' key; got {list(value.keys())}")
 
 

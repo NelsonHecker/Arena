@@ -10,31 +10,6 @@
 
 namespace task_generator_gui
 {
-    void TaskGeneratorPanel::getRobots()
-    {
-        query_robots_client->async_send_request(
-            std::make_shared<task_generator_msgs::srv::QueryRobots::Request>(),
-            [this](rclcpp::Client<task_generator_msgs::srv::QueryRobots>::SharedFuture f)
-            {
-                auto resp = f.get();
-                if (!resp) return;
-                QMetaObject::invokeMethod(this, [this, ids = resp->ids]()
-                {
-                    robot_models = ids;
-                    if (selected_robot_model.empty() && !robot_models.empty())
-                        selected_robot_model = robot_models[0];
-                    if (robot_combobox)
-                    {
-                        QSignalBlocker blocker(robot_combobox);
-                        robot_combobox->clear();
-                        for (const auto &r : robot_models)
-                            robot_combobox->addItem(QString::fromStdString(r));
-                        robot_combobox->setCurrentText(QString::fromStdString(selected_robot_model));
-                    }
-                }, Qt::QueuedConnection);
-            });
-    }
-
     void TaskGeneratorPanel::getWorlds()
     {
         query_worlds_client->async_send_request(
@@ -93,7 +68,6 @@ namespace task_generator_gui
 
     void TaskGeneratorPanel::getParams()
     {
-        getRobots();
         getWorlds();
         updateTabs();
         getTMObstaclesParams();
@@ -127,28 +101,6 @@ namespace task_generator_gui
                     RCLCPP_WARN(node->get_logger(),
                                 "queue_episode rejected: %s", resp->error_msg.c_str());
                 on_done(ok);
-            });
-    }
-
-    void TaskGeneratorPanel::setRobot()
-    {
-        if (selected_robot_model.empty())
-            return;
-
-        auto req = std::make_shared<task_generator_msgs::srv::QueueEpisode::Request>();
-        req->action       = task_generator_msgs::srv::QueueEpisode::Request::MERGE;
-        req->keep_modules = true;
-        req->robots       = {selected_robot_model};
-
-        queue_episode_client->async_send_request(
-            req,
-            [this](rclcpp::Client<task_generator_msgs::srv::QueueEpisode>::SharedFuture f)
-            {
-                auto resp = f.get();
-                if (resp && !resp->success)
-                    RCLCPP_WARN(node->get_logger(),
-                                "queue_episode rejected (spawn robot): %s",
-                                resp->error_msg.c_str());
             });
     }
 

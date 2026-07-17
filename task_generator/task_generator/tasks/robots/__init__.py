@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 
 from task_generator.shared import Pose
 from task_generator.shared import Robot as RobotEntity
@@ -34,9 +33,13 @@ class TM_Robots(TaskMode):
         self._start_poses = {}
 
     async def set_position(self, pose: Pose):
-        """Teleport every robot to ``pose``."""
-        for robot_manager in self._ctx.robots.values():
-            await robot_manager.move(pose)
+        """Handle an external pose-estimate override for the robots in this mode.
+
+        Default: teleport only the most recently added robot in scope to ``pose``.
+        """
+        robots = self._ctx.robots
+        if robots:
+            await next(reversed(robots.values())).move(pose)
 
     async def set_goal(self, pose: Pose):
         """Dispatch a single-phase GOTO request targeting ``pose`` on every robot."""
@@ -50,13 +53,13 @@ class TM_Robots(TaskMode):
         pose: Pose | None = None,
         args: dict[str, str] | None = None,
     ) -> str:
+        from arena_robots.SetupFile import Config as RobotSetupConfig
+
         resolved_pose = pose if pose is not None else await random_placement(self._ctx)
-        assigned_name = name or f"{model}_{uuid.uuid4().hex[:6]}"
-        value: dict[str, object] = dict(args or {})
-        value['model'] = model
-        value['name'] = assigned_name
-        value['pos'] = resolved_pose.to_2d()
-        robot = RobotEntity.parse(value, node=self.node)
+        assigned_name = name or self.node._robots_manager.next_name(model)
+        config_dict: dict[str, object] = {'robot': model, 'name': assigned_name, 'pos': resolved_pose.to_2d(), **(args or {})}
+        (config,) = RobotSetupConfig.parse(config_dict)
+        robot = RobotEntity.from_setup(config, node=self.node)
         self.node._robots_manager.add_pending(assigned_name, robot)
         return assigned_name
 

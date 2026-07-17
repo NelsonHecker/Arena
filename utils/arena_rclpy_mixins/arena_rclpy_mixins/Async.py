@@ -19,25 +19,49 @@ from arena_rclpy_mixins.Time import TimeNode
 T = typing.TypeVar('T')
 
 
+class LaunchHandle:
+    """Handle to a running LaunchService, with graceful teardown.
+
+    Cancelling the run_async task only abandons the run loop (LaunchService
+    breaks out without calling _shutdown), leaving child processes orphaned.
+    shutdown() emits the Shutdown event so they are terminated properly.
+    """
+
+    def __init__(self, service: launch.LaunchService, task: asyncio.Task) -> None:
+        self.task = task
+        self._service = service
+        self._shutdown_started = False
+
+    def __await__(self) -> typing.Generator[typing.Any, None, int]:
+        """Await the launch to completion (e.g. until its process exits)."""
+        return self.task.__await__()
+
+    async def shutdown(self) -> None:
+        if not self._shutdown_started:
+            self._shutdown_started = True
+            coro = self._service.shutdown()
+            if coro is not None:
+                await coro
+        await asyncio.gather(self.task, return_exceptions=True)
+
+
 class AsyncLaunchManager:
     def __init__(self):
-        self.active_tasks: set[asyncio.Task] = set()
+        self.active_launches: set[LaunchHandle] = set()
 
-    async def launch_description(self, description: launch.LaunchDescription) -> asyncio.Task:
+    async def launch_description(self, description: launch.LaunchDescription) -> LaunchHandle:
         ls = launch.LaunchService(noninteractive=True)
         ls.include_launch_description(description)
         task = asyncio.create_task(ls.run_async())
-        self.active_tasks.add(task)
-        task.add_done_callback(self.active_tasks.discard)
-        return task
+        handle = LaunchHandle(ls, task)
+        self.active_launches.add(handle)
+        task.add_done_callback(lambda _: self.active_launches.discard(handle))
+        return handle
 
     async def kill_all(self):
-        if not self.active_tasks:
+        if not self.active_launches:
             return
-        for task in self.active_tasks:
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(*self.active_tasks, return_exceptions=True)
+        await asyncio.gather(*(h.shutdown() for h in list(self.active_launches)), return_exceptions=True)
 
 
 class AsyncNode(TimeNode, rclpy.node.Node):
@@ -76,6 +100,11 @@ class AsyncNode(TimeNode, rclpy.node.Node):
             await self._launch_manager.launch_description(launch_description)
 
         asyncio.run_coroutine_threadsafe(_launcher(), self.__loop)
+
+    async def do_launch_tracked(self, launch_description: launch.LaunchDescription) -> LaunchHandle:
+        """Like do_launch, but returns a handle so the caller can gracefully shut down just
+        this launch group (terminating its child processes) on demand."""
+        return await self._launch_manager.launch_description(launch_description)
 
     async def kill_launches(self) -> None:
         await self._launch_manager.kill_all()

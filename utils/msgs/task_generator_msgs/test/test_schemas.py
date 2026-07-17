@@ -147,7 +147,6 @@ def test_queue_episode_srv():
     req.tm_modules = ["benchmark", "staged"]
     req.keep_modules = False
     req.world = "maze"
-    req.robots = ["husky"]
 
     p = Parameter()
     p.name = "static.n"
@@ -164,7 +163,6 @@ def test_queue_episode_srv():
     assert req.tm_modules == ["benchmark", "staged"]
     assert req.keep_modules is False
     assert req.world == "maze"
-    assert list(req.robots) == ["husky"]
     assert len(req.obstacles_params) == 1
     assert req.obstacles_params[0].name == "static.n"
 
@@ -238,6 +236,7 @@ def test_spawn_robot_srv():
     req.name = ""
     req.pose = PoseStamped()
     req.use_pose = False
+    req.immediate = True
     req.args = [
         KeyValue(key="mobile.local_planner", value="teb"),
         KeyValue(key="mobile.agent", value=""),
@@ -245,6 +244,7 @@ def test_spawn_robot_srv():
 
     assert req.model == "turtlebot3"
     assert req.name == ""
+    assert req.immediate is True
     assert len(req.args) == 2
     assert req.args[0].key == "mobile.local_planner"
     assert req.args[0].value == "teb"
@@ -256,6 +256,56 @@ def test_spawn_robot_srv():
 
     assert res.name == "turtlebot3_0"
     assert res.success is True
+
+
+def test_despawn_robot_srv():
+    from task_generator_msgs.srv import DespawnRobot
+
+    req = DespawnRobot.Request()
+    req.name = "turtlebot3_0"
+
+    assert req.name == "turtlebot3_0"
+
+    res = DespawnRobot.Response()
+    res.success = True
+    res.error_msg = ""
+
+    assert res.success is True
+
+
+def test_robot_queue_msg():
+    from task_generator_msgs.msg import RobotDescriptor, RobotQueue
+
+    msg = RobotQueue()
+    msg.spawn = [RobotDescriptor(name="jackal_1", model="jackal")]
+    msg.despawn = [RobotDescriptor(name="jackal_0", model="jackal")]
+
+    assert len(msg.spawn) == 1
+    assert msg.spawn[0].name == "jackal_1"
+    assert msg.spawn[0].model == "jackal"
+    assert len(msg.despawn) == 1
+    assert msg.despawn[0].name == "jackal_0"
+
+
+def test_robot_fleet_msg():
+    from diagnostic_msgs.msg import KeyValue
+    from task_generator_msgs.msg import RobotCap, RobotDescriptor, RobotFleet, RobotState
+
+    state = RobotState(
+        descriptor=RobotDescriptor(name="jackal_0", model="jackal", ns="/jackal_0", frame="jackal_0"),
+        caps=[RobotCap(cap="mobile", adapter="nav2", instance="", variant="")],
+        params=[KeyValue(key="lidar", value="['sick']")],
+    )
+    msg = RobotFleet(robots=[state])
+
+    assert len(msg.robots) == 1
+    assert msg.robots[0].descriptor.name == "jackal_0"
+    assert msg.robots[0].descriptor.model == "jackal"
+    assert len(msg.robots[0].caps) == 1
+    assert msg.robots[0].caps[0].cap == "mobile"
+    assert msg.robots[0].caps[0].adapter == "nav2"
+    assert len(msg.robots[0].params) == 1
+    assert msg.robots[0].params[0].key == "lidar"
 
 
 def test_run_episode_action_goal():

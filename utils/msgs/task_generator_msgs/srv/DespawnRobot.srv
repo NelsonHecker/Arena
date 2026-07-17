@@ -1,0 +1,6 @@
+# Remove a robot from the fleet at runtime via TM_Robots removal.
+# Instance name as published in RobotFleet.
+string name
+---
+bool success
+string error_msg

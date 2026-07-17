@@ -10,6 +10,7 @@ from collections.abc import Iterable, Sequence
 
 import arena_people_msgs.msg
 import arena_robots.Robot
+import arena_robots.Sensor
 import arena_simulation_setup.tree.assets.Material
 import geometry_msgs.msg
 import isaacsim_msgs.msg
@@ -29,7 +30,6 @@ from arena_people_msgs.srv import (
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
-from arena_robots.Sensor import topic_elements
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
@@ -69,8 +69,9 @@ from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
     controller_spawner_node,
+    effective_control_yaml,
+    effective_controllers,
     odom_relay_node,
-    render_ros2_control_yaml,
     twist_stamper_node,
 )
 from arena_runtime.sim._interface import resolve_obstacle_box
@@ -245,13 +246,15 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
         robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
-        return {
+        args: dict[str, object] = {
             **robot.asdict(),
+            'optim': self.node.rosparam[str].get('optim', ''),
             # no world-scoped topic namespace in Isaac, empty prefix keeps the
             # injected sensor topics namespace-relative
-            'sensor_patches': topic_elements(robot_config.model_params.sensors, ''),
-            'optim': self.node.rosparam[str].get('optim', ''),
+            'sensor_topic_patches': arena_robots.Sensor.topic_elements(robot_config.effective_sensors(robot.resolved_request, frames=robot.frames), ''),
         }
+        args.pop('resolved_assembly', None)
+        return args
 
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
@@ -354,11 +357,16 @@ class IsaacSimulator(BaseSim, NodeInterface):
             if not control_spec.controllers:
                 raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
 
+            robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+            control_prefix = robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_'
+
             rendered_yaml = (
-                render_ros2_control_yaml(
+                effective_control_yaml(
+                    robot.resolved_assembly,
                     control_spec.config,
                     robot.sim_path,
                     robot.frame.tf(),
+                    prefix=control_prefix,
                 )
                 if control_spec.config is not None
                 else None
@@ -391,7 +399,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
                     )
                 )
             )
-            for controller_name in control_spec.controllers:
+            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers, prefix=control_prefix):
                 ld.add_action(controller_spawner_node(controller_name))
             ld.add_action(
                 twist_stamper_node(
