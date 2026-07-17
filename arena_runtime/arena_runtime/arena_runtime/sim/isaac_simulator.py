@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterable, Sequence
 
 import arena_people_msgs.msg
+import arena_robots.catalog
 import arena_robots.Robot
 import arena_robots.Sensor
 import arena_simulation_setup.tree.assets.Material
@@ -254,6 +255,10 @@ class IsaacSimulator(BaseSim, NodeInterface):
             'sensor_topic_patches': arena_robots.Sensor.topic_elements(robot_config.effective_sensors(robot.resolved_request, frames=robot.frames), ''),
         }
         args.pop('resolved_assembly', None)
+        if robot.resolved_assembly is not None:
+            catalog = arena_robots.catalog.Catalog()
+            args['xacro_wrapper'] = arena_robots.catalog.render_wrapper_xacro(robot_config, robot.resolved_assembly, catalog=catalog)
+            args['control_joint_patch'] = arena_robots.catalog.render_control_joints(robot.resolved_assembly, catalog, prefix=robot_config.assembly.prefix)
         return args
 
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
