@@ -19,6 +19,49 @@ _OPTIM_MAP: dict[str, frozenset[str]] = {
 }
 
 
+def _set_child(parent: ET.Element, tag: str, text: str) -> None:
+    for child in parent:
+        if child.tag.rpartition('}')[-1] == tag:
+            child.text = text
+            return
+    ET.SubElement(parent, tag).text = text
+
+
+def _apply_sensor_patches(root: ET.Element, patches: list[tuple[str, str, str]]) -> None:
+    """Apply `(sensor name, child element path, value)` patches to URDF <gazebo> sensors."""
+    by_name: dict[str, list[tuple[str, str]]] = {}
+    for name, path, value in patches:
+        by_name.setdefault(str(name), []).append((str(path), str(value)))
+
+    seen: set[str] = set()
+    for gazebo in root.iter():
+        if gazebo.tag.rpartition('}')[-1] != 'gazebo':
+            continue
+        for sensor in gazebo.iter():
+            if sensor.tag.rpartition('}')[-1] != 'sensor':
+                continue
+            name = sensor.attrib.get('name')
+            if name is None or name not in by_name:
+                continue
+            if name in seen:
+                print(f"[urdf.sensors] duplicate sensor name {name!r}, patches applied only to the first", file=sys.stderr)
+                continue
+            seen.add(name)
+            for path, value in by_name[name]:
+                *parent_tags, leaf = path.split('/')
+                parent: ET.Element | None = sensor
+                for tag in parent_tags:
+                    parent = next((c for c in parent if c.tag.rpartition('}')[-1] == tag), None)
+                    if parent is None:
+                        print(f"[urdf.sensors] {name!r}: no <{tag}> element for {path!r}", file=sys.stderr)
+                        break
+                if parent is not None:
+                    _set_child(parent, leaf, value)
+
+    for missing in by_name.keys() - seen:
+        print(f"[urdf.sensors] patches for sensor {missing!r} but the URDF has none", file=sys.stderr)
+
+
 def _strip_sensors(root: ET.Element, tokens: set[str]) -> None:
     disabled_types: set[str] = set()
     unknown: set[str] = set()
@@ -57,6 +100,7 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
         loader_args = dict(loader_args) if loader_args else {}
         optim_raw = loader_args.pop('optim', '') or ''
         optim_tokens: set[str] = {t.strip() for t in optim_raw.split(',') if t.strip()}
+        sensor_patches = loader_args.pop('sensor_patches', None) or []
 
         base_path = model_dir / "urdf"
         xacro_path = base_path / f"{model}.urdf.xacro"
@@ -130,6 +174,9 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
                     continue
 
                 elem.attrib['filename'] = f"file://{original_path}"
+
+            if sensor_patches:
+                _apply_sensor_patches(root, sensor_patches)
 
             if optim_tokens:
                 _strip_sensors(root, optim_tokens)

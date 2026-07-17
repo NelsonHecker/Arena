@@ -22,6 +22,7 @@ from arena_people_msgs.msg import Pedestrians
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_robots.Sensor import topic_elements
 from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.Wall import WallSegment
 from arena_simulation_setup.utils.material import MdlUtil
@@ -222,6 +223,7 @@ class GazeboSimulator(BaseSim):
             'optim': self.node.rosparam[str].get('optim', ''),
         }
         robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
+        args['sensor_patches'] = topic_elements(robot_config.model_params.sensors, robot.sim_path)
         control_spec = robot_config.model_params.control
         if control_spec is None or not control_spec.is_ros2_control:
             return args
@@ -709,6 +711,7 @@ class GazeboSimulator(BaseSim):
                 "world": "/world/default",
             }
         )
+        mappings.extend(BridgeConfiguration.from_urdf_sensors(description, robot.sim_path))
 
         bridge_arguments = mappings.as_args()
         remappings = mappings.as_remappings()

@@ -280,6 +280,9 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
     def _agent_states_callback(self, msg: AgentStatesMsg):
         """Cache prev/curr snapshots from arena_humansim for local interpolation."""
+        # the engine stamps with its own tick timeline that starts at zero, re-stamp
+        # on arrival so dead-reckoning receivers compute ages in the /clock epoch
+        msg.header.stamp = self.node.sim_time.to_msg()
         self._prev_agent_states = self._curr_agent_states
         self._curr_agent_states = msg
 

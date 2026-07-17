@@ -1,9 +1,7 @@
 import asyncio
-import hashlib
 import itertools
 import math
 import os
-import random
 import traceback
 import types
 import typing
@@ -31,6 +29,7 @@ from arena_people_msgs.srv import (
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_robots.Sensor import topic_elements
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
@@ -138,6 +137,12 @@ def _transform_urdf_for_bridge(
             for joint in joints:
                 if not any(si.get('name') == 'effort' for si in joint.findall('state_interface')):
                     ET.SubElement(joint, 'state_interface', {'name': 'effort'})
+                # state interfaces default to NaN until the first joint_states message
+                # arrives, and a controller activated in that window errors out of its
+                # update and wedges the controller_manager, start at zero instead
+                for si in joint.findall('state_interface'):
+                    if si.find('param[@name="initial_value"]') is None:
+                        ET.SubElement(si, 'param', {'name': 'initial_value'}).text = '0.0'
                 block.append(joint)
             parent.insert(rc_idx + offset, block)
 
@@ -239,8 +244,12 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._mechanism_tf_listener = tf2_ros.TransformListener(self._mechanism_tf_buffer, self.node)
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
+        robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
         return {
             **robot.asdict(),
+            # no world-scoped topic namespace in Isaac, empty prefix keeps the
+            # injected sensor topics namespace-relative
+            'sensor_patches': topic_elements(robot_config.model_params.sensors, ''),
             'optim': self.node.rosparam[str].get('optim', ''),
         }
 
@@ -685,49 +694,28 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def pedestrian_spawn(self, pedestrians: Sequence[DynamicObstacle]) -> Sequence[bool]:
 
-        # TODO implement targeted pedestrian models
-        available_models: dict[str, str] = {
-            # "F_Business_02",
-            # "F_Medical_01",
-            # "M_Medical_01",
-            # "biped_demo",
-            # "female_adult_police_01_new",
-            # "female_adult_police_02",
-            # "female_adult_police_03_new",
-            # "male_adult_construction_01_new",
-            # "male_adult_construction_03",
-            # "male_adult_construction_05_new",
-            # "male_adult_police_04",
-            "female_adult_business_02": "original_female_adult_business_02",
-            "female_adult_medical_01": "original_female_adult_medical_01",
-            "female_adult_police_01": "original_female_adult_police_01",
-            "female_adult_police_02": "original_female_adult_police_02",
-            "female_adult_police_03": "original_female_adult_police_03",
-            "male_adult_construction_01": "original_male_adult_construction_01",
-            "male_adult_construction_02": "original_male_adult_construction_02",
-            "male_adult_construction_03": "original_male_adult_construction_03",
-            "male_adult_construction_05": "original_male_adult_construction_05",
-            "male_adult_medical_01": "original_male_adult_medical_01",
-            "male_adult_police_04": "original_male_adult_police_04",
-        }
+        async def resolve_uri(pedestrian: DynamicObstacle) -> str:
+            try:
+                model = await (await pedestrian.model.resolve()).model.get(ModelType.SDF)
+            except Exception as e:
+                self._logger.warning(f"pedestrian {pedestrian.sim_path} model {pedestrian.model.name!r} unresolved: {e}")
+                return ""
+            if model.type is ModelType.UNKNOWN or model.path is None:
+                return ""
+            return str(model.path)
 
-        items = []
-        for pedestrian in pedestrians:
-            if pedestrian.model.name in available_models:
-                model_name = pedestrian.model.name
-            else:
-                _sorted_keys = sorted(available_models)
-                _seed = int.from_bytes(hashlib.blake2b(pedestrian.sim_path.encode(), digest_size=8).digest(), "big")
-                model_name = random.Random(_seed).choice(_sorted_keys)
-            items.append(
-                SpawnPedestrian(
-                    pedestrian=Pedestrian(
-                        name=pedestrian.sim_path,
-                        pose=pedestrian.pose.to_msg(),
-                    ),
-                    model_ref=available_models[model_name],
-                )
+        uris = await asyncio.gather(*(resolve_uri(pedestrian) for pedestrian in pedestrians))
+        items = [
+            SpawnPedestrian(
+                pedestrian=Pedestrian(
+                    name=pedestrian.sim_path,
+                    pose=pedestrian.pose.to_msg(),
+                    model_uri=uri,
+                ),
+                model_ref=pedestrian.model.name,
             )
+            for pedestrian, uri in zip(pedestrians, uris, strict=True)
+        ]
 
         req = SpawnPedestrians.Request(pedestrians=items)
         res = await self._clients.SpawnPedestrians.call_timeout(req)

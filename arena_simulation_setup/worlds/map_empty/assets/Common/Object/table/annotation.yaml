@@ -1,0 +1,16 @@
+asa: 1
+bounding_box:
+- - -0.88
+  - 0.88
+- - -1.23
+  - 1.23
+- - 0.0
+  - 0.75
+desc: Rectangular table, 1.75 x 2.46 m footprint, 0.75 m high.
+face: +x
+name: table
+note: Geometry mirrors table.usdz (Table_A).
+path: Object/table
+tags:
+- domain::common
+- kind::table
