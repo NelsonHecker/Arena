@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import json
 import os
 import subprocess
@@ -74,6 +75,82 @@ _GAZEBO_ROS2_CONTROL_PLUGIN = 'gz_ros2_control/GazeboSimSystem'
 def _control_plugin_text(control: ET.Element) -> str | None:
     plugin = next((el for el in control.iter() if el.tag.rpartition('}')[-1] == 'plugin'), None)
     return plugin.text if plugin is not None else None
+
+
+_LOCKABLE_JOINT_TYPES = frozenset({'prismatic', 'revolute'})
+_JOINT_MOTION_CHILDREN = frozenset({'axis', 'limit', 'dynamics', 'calibration', 'safety_controller'})
+
+
+def _lock_passive_joints(root: ET.Element) -> None:
+    """Convert every ``<joint>`` with ``<limit effort="0">`` to a fixed joint.
+    Zero effort makes a joint unactuatable per the URDF spec, so it only exists as
+    passive compliance (e.g. create3's sprung wheel_drop suspension), and neither
+    simulator models the spring: the joint collapses under gravity and the chassis
+    beaches on its belly."""
+    for joint in root.iter('joint'):
+        if joint.attrib.get('type') not in _LOCKABLE_JOINT_TYPES:
+            continue
+        limit = joint.find('limit')
+        if limit is None or float(limit.attrib.get('effort', 'inf')) != 0.0:
+            continue
+        joint.set('type', 'fixed')
+        for child in [el for el in joint if el.tag in _JOINT_MOTION_CHILDREN]:
+            joint.remove(child)
+        print(f"[urdf.joints] locked passive zero-effort joint {joint.attrib.get('name')!r}", file=sys.stderr)
+
+
+_HW_PLUGIN_RESOURCE = 'hardware_interface__pluginlib__plugin'
+
+
+@functools.cache
+def _registered_hardware_plugins() -> frozenset[str]:
+    """Hardware plugin classes declared in the ament index, i.e. exactly the set a
+    controller_manager in this environment can load."""
+    try:
+        from ament_index_python.resources import get_resource, get_resources
+    except ModuleNotFoundError:
+        return frozenset()
+    names: set[str] = set()
+    for pkg in get_resources(_HW_PLUGIN_RESOURCE):
+        content, prefix = get_resource(_HW_PLUGIN_RESOURCE, pkg)
+        for rel in filter(None, (line.strip() for line in content.splitlines())):
+            try:
+                manifest = ET.parse(os.path.join(prefix, rel))
+            except (OSError, ET.ParseError) as e:
+                print(f"[urdf.ros2_control] skipping unreadable plugin manifest of {pkg}: {e}", file=sys.stderr)
+                continue
+            for cls in manifest.getroot().iter('class'):
+                name = cls.attrib.get('name') or cls.attrib.get('type')
+                if name:
+                    names.add(name)
+    return frozenset(names)
+
+
+def _strip_unregistered_ros2_control(root: ET.Element, registered: frozenset[str]) -> None:
+    """Drop every top-level ``<ros2_control>`` block whose hardware plugin is not in
+    ``registered`` (vendored descriptions leak gazebo-classic blocks that crash the
+    external controller_manager), plus the classic ``libgazebo_ros2_control.so`` host
+    plugin. The canonical ``gz_ros2_control/GazeboSimSystem`` block always survives:
+    gazebo consumes it in-sim, the isaac adapter rewrites it. No-op when ``registered``
+    is empty (no ament index to trust)."""
+    if not registered:
+        print("[urdf.ros2_control] no registered hardware plugins discovered, keeping all <ros2_control> blocks", file=sys.stderr)
+        return
+    keep = registered | {_GAZEBO_ROS2_CONTROL_PLUGIN}
+    for control in [el for el in root if el.tag.rpartition('}')[-1] == 'ros2_control']:
+        plugin = _control_plugin_text(control)
+        if plugin is None or plugin.strip() not in keep:
+            root.remove(control)
+            print(f"[urdf.ros2_control] stripped <ros2_control name={control.attrib.get('name')!r}>: no loadable hardware plugin ({plugin!r})", file=sys.stderr)
+    for gazebo in [el for el in root if el.tag.rpartition('}')[-1] == 'gazebo']:
+        classic = [el for el in gazebo if el.tag.rpartition('}')[-1] == 'plugin' and el.attrib.get('filename') == 'libgazebo_ros2_control.so']
+        if not classic:
+            continue
+        for plugin_el in classic:
+            gazebo.remove(plugin_el)
+        if len(gazebo) == 0:
+            root.remove(gazebo)
+        print("[urdf.ros2_control] stripped classic libgazebo_ros2_control.so plugin element", file=sys.stderr)
 
 
 def _joint_element(joint: dict) -> ET.Element:
@@ -198,6 +275,8 @@ class ModelProvider_URDF(ModelProvider.provides(ModelType.URDF)):
             if optim_tokens:
                 _strip_sensors(root, optim_tokens)
 
+            _lock_passive_joints(root)
+            _strip_unregistered_ros2_control(root, _registered_hardware_plugins())
             _inject_ros2_control_joints(root, control_joint_patch)
             _ensure_effort_state(root)
             _patch_sensor_topics(root, sensor_patches)
