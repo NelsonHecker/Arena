@@ -524,6 +524,23 @@ class RobotManager(NodeInterface):
                         ],
                     )
                 )
+            bringup = os.path.join(
+                ament_index_python.packages.get_package_share_directory('arena_robots'),
+                'robots',
+                self.model_name,
+                'launch',
+                'bringup.launch.py',
+            )
+            if os.path.isfile(bringup):
+                adapter_actions.append(
+                    launch.actions.IncludeLaunchDescription(
+                        launch.launch_description_sources.PythonLaunchDescriptionSource(bringup),
+                        launch_arguments={
+                            'base_frame': self._robot.frame.tf(self._config.model_params.base_frame),
+                            'use_sim_time': 'True',
+                        }.items(),
+                    )
+                )
             launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
             self._launch_handle = await self.node.do_launch_tracked(launch_description)
