@@ -135,11 +135,11 @@ def test_obstacle_asdict_returns_dict():
 
 
 def test_dynamic_obstacle_empty_waypoints():
-    from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+    from arena_simulation_setup.tree.assets.Human import HumanIdentifier
     do = DynamicObstacle(
         name="dyn",
         pose=Pose(),
-        model=PedestrianIdentifier.converter("some_pedestrian"),
+        model=HumanIdentifier.converter("some_pedestrian"),
         waypoints=[],
         velocity=1.5,
     )
@@ -148,11 +148,11 @@ def test_dynamic_obstacle_empty_waypoints():
 
 
 def test_dynamic_obstacle_velocity_converter_string():
-    from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+    from arena_simulation_setup.tree.assets.Human import HumanIdentifier
     do = DynamicObstacle(
         name="dyn",
         pose=Pose(),
-        model=PedestrianIdentifier.converter("p"),
+        model=HumanIdentifier.converter("p"),
         velocity="2.5",
     )
     assert do.velocity == pytest.approx(2.5)
@@ -164,22 +164,22 @@ def test_dynamic_obstacle_velocity_converter_string():
 
 
 def test_custom_dynamic_obstacle_getattr_hit():
-    from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+    from arena_simulation_setup.tree.assets.Human import HumanIdentifier
     cdo = CustomDynamicObstacle(
         name="cdo",
         pose=Pose(),
-        model=PedestrianIdentifier.converter("p"),
+        model=HumanIdentifier.converter("p"),
     )
     cdo.extra["custom_prop"] = 99
     assert cdo.custom_prop == 99
 
 
 def test_custom_dynamic_obstacle_getattr_miss():
-    from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+    from arena_simulation_setup.tree.assets.Human import HumanIdentifier
     cdo = CustomDynamicObstacle(
         name="cdo",
         pose=Pose(),
-        model=PedestrianIdentifier.converter("p"),
+        model=HumanIdentifier.converter("p"),
     )
     with pytest.raises(AttributeError):
         _ = cdo.nonexistent_field

@@ -8,8 +8,8 @@ import uuid
 import arena_robots.Robot
 import arena_runtime_msgs.msg
 import arena_runtime_msgs.srv
+import arena_simulation_setup.tree.assets.Human
 import arena_simulation_setup.tree.assets.Object
-import arena_simulation_setup.tree.assets.Pedestrian
 import arena_simulation_setup.tree.configs.environment
 import arena_simulation_setup.tree.configs.parametrized
 import arena_simulation_setup.tree.World as World
@@ -901,7 +901,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     ) -> task_generator_msgs.srv.QueryDynamicObstacles.Response:
         response.ids = list(
             identifier_to_available(
-                arena_simulation_setup.tree.assets.Pedestrian.PedestrianIdentifier,
+                arena_simulation_setup.tree.assets.Human.HumanIdentifier,
                 network=True,
             )
         )

@@ -6,7 +6,7 @@ import pytest
 
 from arena_simulation_setup.tree.assets.Material import Material, MaterialIdentifier
 from arena_simulation_setup.tree.assets.Object import ObjectIdentifier, ObjectView
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier, PedestrianView
+from arena_simulation_setup.tree.assets.Human import HumanIdentifier, HumanView
 from arena_simulation_setup.utils.models import ModelWrapper
 
 
@@ -54,9 +54,9 @@ def test_pedestrian_identifier_load_sdf(tmp_path):
     model_dir.mkdir()
     (model_dir / f"{model_name}.sdf").write_text("<sdf/>")
 
-    ident = PedestrianIdentifier(model_name)
+    ident = HumanIdentifier(model_name)
     view = ident.load(model_dir)
-    assert isinstance(view, PedestrianView)
+    assert isinstance(view, HumanView)
     assert isinstance(view.model, ModelWrapper)
     assert view.model.name == model_name
 

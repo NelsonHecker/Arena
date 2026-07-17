@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from arena_runtime.sim import BaseSim
 from arena_runtime.sim.isaac_simulator import IsaacSimulator
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 
 from task_generator.shared import DynamicObstacle, ModelWrapper
 from task_generator.simulators.human.dummy import DummyHumanSimulator
@@ -60,7 +60,7 @@ class IsaacHumanSimulator(DummyHumanSimulator):
                 )
                 rng = self.node.conf.General.RNG.stream("humansim", "isaac-model", obstacle.name)
                 model_name = _models[int(rng.integers(len(_models)))]
-                obstacle.model = PedestrianIdentifier.inline(ModelWrapper.Constant(model_name, {}))
+                obstacle.model = HumanIdentifier.inline(ModelWrapper.Constant(model_name, {}))
                 futures.append(self._simulator.pedestrian_spawn((obstacle,)))
             else:
                 futures.append(self._simulator.pedestrian_move((obstacle,)))

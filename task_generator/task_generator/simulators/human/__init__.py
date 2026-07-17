@@ -15,7 +15,7 @@ from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 from arena_simulation_setup.utils.models import ModelType
 from visualization_msgs.msg import MarkerArray
 
@@ -103,10 +103,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._simulator.attach_human_simulator(self)
 
     def publish_arena_peds(self, msg: Pedestrians) -> None:
-        """Fill bare-name joint_state for each ped missing one, then publish."""
+        """Stamp the header, fill bare-name joint_state for peds missing one, then publish."""
         now = self.node.get_clock().now()
         now_sec = now.nanoseconds * 1e-9
         stamp = now.to_msg()
+        if msg.header.stamp.sec == 0 and msg.header.stamp.nanosec == 0:
+            msg.header.stamp = stamp
 
         current_ids: set[int] = {ped.id for ped in msg.pedestrians}
         for stale in sorted(set(self._gait_prev_stamp) - current_ids):
@@ -216,6 +218,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         futures: list[typing.Awaitable] = []
         to_register: list[KnownObstacle[DynamicObstacle]] = []
         to_move: list[DynamicObstacle] = []
+        all_known: list[KnownObstacle[DynamicObstacle]] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
@@ -224,6 +227,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 known.layer = ObstacleLayer.INUSE
             else:
                 known = self._known_obstacles.create_or_get(name=obstacle.name, obstacle=obstacle)
+            all_known.append(known)
             if not known.spawned:
                 to_register.append(known)
         if to_move:
@@ -246,8 +250,17 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 to_spawn.append(known.obstacle)
             known.layer = ObstacleLayer.INUSE
 
+        # every requested obstacle goes through _ensure_spawnable so reused
+        # names keep a fresh model_uri, but only the to_spawn subset is
+        # actually handed to the simulator
+        to_spawn_names = {obstacle.name for obstacle in to_spawn}
+        resolved = await self._ensure_spawnable([known.obstacle for known in all_known])
         if to_spawn:
-            futures.append(self._simulator.pedestrian_spawn(await self._ensure_spawnable(to_spawn)))
+            futures.append(
+                self._simulator.pedestrian_spawn(
+                    [obstacle for obstacle in resolved if obstacle.name in to_spawn_names],
+                ),
+            )
         await asyncio.gather(*futures)
 
     _PEDESTRIAN_FALLBACK: typing.ClassVar[str] = "arenian"
@@ -282,7 +295,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                     self._logger.warning(
                         f"pedestrian model {obs.model.name!r} has no SDF; using fallback",
                     )
-            fallback = attrs.evolve(obs, model=PedestrianIdentifier.parse(self._PEDESTRIAN_FALLBACK))
+            fallback = attrs.evolve(obs, model=HumanIdentifier.parse(self._PEDESTRIAN_FALLBACK))
             try:
                 fallback_path = await _sdf_path(fallback)
             except Exception:

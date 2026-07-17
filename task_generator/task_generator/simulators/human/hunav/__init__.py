@@ -7,7 +7,7 @@ import geometry_msgs.msg
 import hunav_msgs.msg
 import yaml
 from ament_index_python.packages import get_package_share_directory
-from arena_simulation_setup.tree.assets.Pedestrian import PedestrianIdentifier
+from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 
 from task_generator.shared import DynamicObstacle, Pose, Position
 
@@ -90,7 +90,7 @@ class HunavDynamicObstacle:
     group_id: int
     init_pose: PositionH
     yaw: float
-    model: PedestrianIdentifier
+    model: HumanIdentifier
     goals: Goals
     extra: dict
     velocity: None
@@ -271,7 +271,7 @@ HunavDynamicObstacle.Behavior._default = HunavDynamicObstacle.Behavior(
 HunavDynamicObstacle._default = HunavDynamicObstacle(
     init_pose=PositionH(x=0, y=0),
     name='',
-    model=PedestrianIdentifier(''),
+    model=HumanIdentifier(''),
     extra={},
     goals=Goals(),
     id=0,

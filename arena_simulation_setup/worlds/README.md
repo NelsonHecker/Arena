@@ -101,7 +101,7 @@ static:
     pose: [x, y, yaw]
 dynamic:
   - name: hunav_1
-    model: female_adult_medical_01 # PedestrianIdentifier
+    model: female_adult_medical_01 # HumanIdentifier
     behavior_tree: ./hunav_1_behavior_tree.xml
     pose: [4.0, 2.0, 0.0]
     velocity: 2.5
