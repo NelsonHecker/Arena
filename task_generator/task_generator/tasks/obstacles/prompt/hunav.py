@@ -95,10 +95,6 @@ class TM_Prompt(TM_Obstacles):
 
     Attributes:
         _config (Config): Configuration object for obstacle generation.
-
-    Methods:
-        __init__(**kwargs): Initializes the TM_Prompt object.
-        reset(**kwargs): Resets the obstacle generation with the specified parameters.
     """
 
     _config: PromptConfig
@@ -511,9 +507,6 @@ class TM_Prompt(TM_Obstacles):
     async def _parse_prompt(self, prompt: str, top_p: float, generation_mode: str) -> _ParsedConfig:
         """
         Parses the prompt to generate obstacles config.
-
-        Args:
-            prompt (str): The prompt for generating obstacles config.
 
         Returns:
             _ParsedConfig: Parsed configuration containing static and dynamic obstacles.

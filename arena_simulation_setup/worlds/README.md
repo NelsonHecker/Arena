@@ -25,7 +25,7 @@ worlds/<name>/
 
 ## `world.yaml` schema
 
-Top-level key is `zones` — a list of zone objects. Each zone:
+Top-level key is `zones`, a list of zone objects. Each zone:
 
 ```yaml
 zones:
@@ -70,7 +70,7 @@ zones:
 
 A `Wall` entry with no `kind` field generates a plain wall segment using the
 `material` field (or the `wall` default material). A `Wall` with `kind: <name>`
-is resolved via `WallIdentifier(name)` at simulation time —
+is resolved via `WallIdentifier(name)` at simulation time,
 see [tree/Wall.py](../src/arena_simulation_setup/tree/Wall.py)
 and [shared/walls.py](../src/arena_simulation_setup/shared/walls.py).
 
@@ -82,7 +82,7 @@ required at runtime: the runtime renders its own map from `world.yaml` in-proces
 so editing `world.yaml` is enough. Use `touch_world --all` to also regenerate the
 canonical per-level `world.yaml`.
 
-`map.world.yaml` is a Gazebo world file and is not produced by `touch_world` —
+`map.world.yaml` is a Gazebo world file and is not produced by `touch_world`,
 it is hand-authored or produced by the `generate_world` pipeline.
 
 ## `scenarios/<name>/` schema

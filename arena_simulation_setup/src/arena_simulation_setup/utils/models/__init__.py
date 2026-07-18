@@ -31,7 +31,7 @@ class Model:
     @property
     def mapper(self) -> Callable[[Model], Model]:
         """
-        Returns a (Model)->Model mapper that simply returns this model
+        Returns a (Model)->Model mapper that returns this model
         """
         return lambda m: self
 

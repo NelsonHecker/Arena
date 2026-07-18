@@ -91,5 +91,5 @@ renderer.
 
 The renderer reads styling from `StyleSpec.from_json(d.style_json)`:
 
-- `color`, `alpha`, `line_width`, `enabled`, `decay` — honored when meaningful for the archetype.
+- `color`, `alpha`, `line_width`, `enabled`, `decay`: honored when meaningful for the archetype.
 - `extra={"rerun": {...}}` is the escape hatch (not used by any current renderer; reserved for future per-viz nudges).

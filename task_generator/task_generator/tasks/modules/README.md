@@ -37,9 +37,9 @@ Parameters live under `task.<mode>.<leaf>`.
 
 | Enum value | Class | File | `before_reset` | `after_reset` |
 | --- | --- | --- | --- | --- |
-| `clear_forbidden_zones` | `Mod_ClearForbiddenZones` | [`clear_forbidden_zones.py`](clear_forbidden_zones.py) | calls `world_manager.forbid_clear()` | — |
-| `rviz_ui` | `Mod_OverrideRobot` | [`rviz_ui.py`](rviz_ui.py) | — | — |
-| `staged` | `Mod_Staged` | [`staged.py`](staged.py) | loads new stage config when stage index changes; publishes `goal_radius` and obstacle counts | — |
+| `clear_forbidden_zones` | `Mod_ClearForbiddenZones` | [`clear_forbidden_zones.py`](clear_forbidden_zones.py) | calls `world_manager.forbid_clear()` | - |
+| `rviz_ui` | `Mod_OverrideRobot` | [`rviz_ui.py`](rviz_ui.py) | - | - |
+| `staged` | `Mod_Staged` | [`staged.py`](staged.py) | loads new stage config when stage index changes; publishes `goal_radius` and obstacle counts | - |
 
 ### `Mod_ClearForbiddenZones`
 
@@ -60,7 +60,7 @@ semantics that clears all per-level forbidden zones.
 
 Subscribes to `<task_generator_node>/initialpose` (`PoseWithCovarianceStamped`),
 `<task_generator_node>/goal_pose` (`PoseStamped`), and
-`<task_generator_node>/clicked_point` (`PointStamped`) — all namespaced under
+`<task_generator_node>/clicked_point` (`PointStamped`), all namespaced under
 the task_generator node so multiple instances do not cross-talk. Forwards
 set-position and set-goal calls to `Task.set_robot_position` /
 `set_robot_goal`; a clicked point calls `task.force_reset()`. Provides

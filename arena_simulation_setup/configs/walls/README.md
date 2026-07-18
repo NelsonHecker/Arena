@@ -1,6 +1,6 @@
 # Wall presets
 
-Files under `configs/walls/` are `WallDescription` YAML presets — a curated
+Files under `configs/walls/` are `WallDescription` YAML presets, a curated
 library of named wall styles. They share the same schema as wall assets under
 `assets/<domain>/Wall/<name>/<name>.yaml`, and can serve as starting points
 when authoring world-local wall assets.
@@ -26,7 +26,7 @@ Sub-wall types (see
 - negative absolute (from end): `-0.5`
 - percentage: `"50%"`
 
-### Example — layered wall with tiled paintings
+### Example: layered wall with tiled paintings
 
 ```yaml
 main:
@@ -39,7 +39,7 @@ main:
     z: 1                      # height offset [m]
 ```
 
-### Example — stacked material layers with tiled assets
+### Example: stacked material layers with tiled assets
 
 ```yaml
 main:
@@ -69,7 +69,7 @@ In `world.yaml`, a `walls:` list entry can carry a `kind:` field naming a
 calls `WallIdentifier(kind).resolve()`, which searches
 `DynamicPaths.WORLD / 'assets'` then `DynamicPaths.ARENA` then network
 providers. The `configs/walls/` directory in this package is **not** on that
-path directly — to expose a preset, copy or symlink it into
+path directly, to expose a preset, copy or symlink it into
 `worlds/<name>/assets/Common/Wall/<preset_name>/<preset_name>.yaml` (world-local)
 or into `$ARENA_ASSETS_DIR_LOCAL/Common/Wall/<preset_name>/<preset_name>.yaml`
 (shared local).

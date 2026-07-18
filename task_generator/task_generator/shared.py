@@ -43,11 +43,7 @@ class Robot(Entity):
     resolved_assembly: object | None = attrs.field(default=None, eq=False)
 
     def compatible(self, value: Robot) -> bool:
-        return (
-            self.model.name == value.model.name
-            and self.adapters == value.adapters
-            and self.parts == value.parts
-        )
+        return self.model.name == value.model.name and self.adapters == value.adapters and self.parts == value.parts
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Robot):
@@ -136,9 +132,7 @@ class Robot(Entity):
 
             try:
                 request, cleared_sockets, cleared_types = arena_assembly.build_request(view.assembly, directives)
-                resolved_assembly = arena_assembly.resolve(
-                    view.assembly, request, cleared_sockets=cleared_sockets, cleared_types=cleared_types
-                )
+                resolved_assembly = arena_assembly.resolve(view.assembly, request, cleared_sockets=cleared_sockets, cleared_types=cleared_types)
             except arena_assembly.AssemblyError as e:
                 raise RuntimeError(f"robot {name!r}: {e}") from e
 
@@ -148,10 +142,7 @@ class Robot(Entity):
 
             unknown_frames = set(frames) - set(view.assembly.mounts)
             if unknown_frames:
-                raise RuntimeError(
-                    f"robot {name!r}: frames override targets unknown mount(s) {sorted(unknown_frames)}; "
-                    f"declared mounts: {sorted(view.assembly.mounts)}"
-                )
+                raise RuntimeError(f"robot {name!r}: frames override targets unknown mount(s) {sorted(unknown_frames)}; declared mounts: {sorted(view.assembly.mounts)}")
             resolved_assembly = arena_assembly.apply_frame_overrides(resolved_assembly, frames)
         elif directives or frames:
             raise RuntimeError(f"robot {name!r}: morphology/frames parametrization requires an assembly.yaml, and {model!r} has none")

@@ -2,10 +2,10 @@
 
 This directory contains two distinct things used by the HuNav human simulator:
 
-1. `default.yaml` — default agent template loaded at module init.
-2. `behavior_trees/` — shared BTCPP v4 XML behavior tree library.
+1. `default.yaml`: default agent template loaded at module init.
+2. `behavior_trees/`: shared BTCPP v4 XML behavior tree library.
 
-## `default.yaml` — default agent template
+## `default.yaml`: default agent template
 
 `HunavDynamicObstacle._default` is populated by
 `_load_config()` in
@@ -41,7 +41,7 @@ behavior:
 `HunavDynamicObstacle.Behavior._default` is then set from `_default.behavior`
 ([task_generator/simulators/human/hunav/__init__.py:327](../../../task_generator/task_generator/simulators/human/hunav/__init__.py#L327)).
 
-## `behavior_trees/` — BT library
+## `behavior_trees/`: BT library
 
 Shared BTCPP v4 XML files defining reusable pedestrian behaviors. These files
 are referenced by name from scenario `behavior_tree:` fields and from

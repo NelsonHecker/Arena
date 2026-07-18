@@ -7,9 +7,6 @@ from task_generator.constants import Constants
 
 
 def get_arena_type() -> Constants.ArenaType:
-    """
-    Get arena type.
-    """
     return Constants.ArenaType(os.getenv("ARENA_TYPE", Constants.ArenaType.DEPLOYMENT.value).lower())
 
 

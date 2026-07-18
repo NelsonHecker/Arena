@@ -18,10 +18,6 @@ def Configuration(server: ROSParamServer) -> type:
         """
 
         class Arena:
-            """
-            Formerly arena.py.
-            """
-
             SIM = server.ROSParam[SimSimulator]('sim', SimSimulator.DUMMY.value, parse=SimSimulator)
 
             HUMAN = server.ROSParam[Constants.HumanSimulator]('human', Constants.HumanSimulator.DUMMY.value, parse=Constants.HumanSimulator)

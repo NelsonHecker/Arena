@@ -1,7 +1,7 @@
 """Field-level schema validation for new task_generator_msgs types.
 
 Instantiates each type, populates fields, reads them back, and asserts
-equality. No ROS runtime required — this validates that rosidl-generated
+equality. No ROS runtime required, this validates that rosidl-generated
 types expose the correct field names and accept the right Python values.
 Run after `colcon build` installs the generated Python bindings.
 """

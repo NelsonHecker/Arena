@@ -25,7 +25,7 @@ def render_image(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict[str, 
         "Max Value": 1,
         "Median window": 5,
         "Min Value": 0,
-        "Normalize Range": False,
+        "Normalize Range": True,
         "Value": True,
     }
     result.update(style.extra.get("rviz", {}))

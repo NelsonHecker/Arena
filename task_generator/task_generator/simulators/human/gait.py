@@ -26,7 +26,7 @@ _RUNNING = 2
 # PANIC=3, SURPRISED=4, CURIOUS=5, THREATENING=6 -> treated as idle
 
 # Joint limits: (lo, hi) in radians, ordered to match JOINT_NAMES.
-_LIMITS: tuple[tuple[float, float], ...] = (
+LIMITS: tuple[tuple[float, float], ...] = (
     (-0.2, 1.0),  # waist
     (-1.0, 1.0),  # r_head
     (-1.4, 1.4),  # y_head
@@ -49,7 +49,47 @@ _LIMITS: tuple[tuple[float, float], ...] = (
     (-2.5, 0.0),  # r_knee
 )
 
-_IDX: dict[str, int] = {}
+# Walk-cycle joint profiles baked from the polished CMU 12_01 clip (the
+# arena_humans posture pipeline output): mean + 3 sine harmonics per signal,
+# radians, value = gain * (mean + sum amp_k * sin(k*(phi + shift) + phase_k)).
+# Limb pairs share one canonical profile evaluated half a cycle apart, so L/R
+# antiphase is exact by construction; reserved joints stay 0 per JOINTS.md.
+_WALK_PROFILE: dict[str, tuple[float, tuple[tuple[float, float], ...]]] = {
+    "hip": (+0.1875, ((0.4535, +0.0041), (0.1231, +0.7792), (0.0525, +1.6039))),
+    "knee": (-0.5526, ((0.3626, -2.2253), (0.3583, -1.7656), (0.1199, -1.6237))),
+    "p_shoulder": (+0.0250, ((0.2977, +3.1387), (0.0146, -2.8025), (0.0016, +3.0495))),
+    "elbow": (+0.3183, ((0.2007, +3.1396), (0.0085, -1.5596), (0.0069, +3.1002))),
+    "waist": (-0.0003, ((0.0027, -0.3283), (0.0118, -2.6790), (0.0009, +0.7895))),
+    "r_head": (+0.0024, ((0.0613, +0.5242), (0.0050, -1.3198), (0.0192, +2.4158))),
+    "y_head": (+0.0018, ((0.0443, -1.1709), (0.0074, +0.3561), (0.0042, +2.6086))),
+    "p_head": (-0.0007, ((0.0097, +1.5574), (0.0207, -1.9386), (0.0019, +0.0378))),
+}
+
+_PROFILE_SIDES: tuple[tuple[str, str, float], ...] = (
+    ("l_r_hip", "hip", 0.0),
+    ("r_r_hip", "hip", math.pi),
+    ("l_knee", "knee", 0.0),
+    ("r_knee", "knee", math.pi),
+    ("l_p_shoulder", "p_shoulder", 0.0),
+    ("r_p_shoulder", "p_shoulder", math.pi),
+    ("l_elbow", "elbow", 0.0),
+    ("r_elbow", "elbow", math.pi),
+    ("waist", "waist", 0.0),
+    ("r_head", "r_head", 0.0),
+    ("y_head", "y_head", 0.0),
+    ("p_head", "p_head", 0.0),
+)
+
+
+def _profile_angles(phi: float, gain: float) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for joint, key, shift in _PROFILE_SIDES:
+        mean, harmonics = _WALK_PROFILE[key]
+        v = mean
+        for k, (amp, ph) in enumerate(harmonics, start=1):
+            v += amp * math.sin(k * (phi + shift) + ph)
+        out[joint] = gain * v
+    return out
 
 
 class GaitGenerator:
@@ -93,6 +133,10 @@ class GaitGenerator:
         """Drop accumulated phase state for a despawned agent."""
         self._phase.pop(agent_id, None)
 
+    def phase(self, agent_id: int) -> float:
+        """Return the current walk-cycle phase in radians for an agent, initializing it if unseen."""
+        return self._get_phase(agent_id)
+
     def compute(
         self,
         agent_id: int,
@@ -114,99 +158,47 @@ class GaitGenerator:
         else:
             angles = self._gait_idle(agent_id, dt)
 
-        return {name: _clamp(angles.get(name, 0.0), _LIMITS[i][0], _LIMITS[i][1]) for i, name in enumerate(self.JOINT_NAMES)}
+        return {name: _clamp(angles.get(name, 0.0), LIMITS[i][0], LIMITS[i][1]) for i, name in enumerate(self.JOINT_NAMES)}
 
     def _gait_walk(self, agent_id: int, speed: float, dt: float) -> dict[str, float]:
-        cadence = _clamp(0.4 + 0.55 * speed, 0.4, 2.2)
+        speed_abs = abs(speed)
+        cadence = _clamp(0.4 + 0.55 * speed_abs, 0.4, 2.2)
         phi = self._get_phase(agent_id)
-        phi += 2.0 * math.pi * cadence * dt
+        phi += math.copysign(2.0 * math.pi * cadence * dt, speed)
         self._set_phase(agent_id, phi)
 
-        g = _clamp(speed / 1.2, 0.2, 1.0)
-
-        l_r_hip = 0.45 * g * math.sin(phi)
-        r_r_hip = 0.45 * g * math.sin(phi + math.pi)
-        l_knee = -0.9 * g * max(0.0, -math.sin(phi))
-        r_knee = -0.9 * g * max(0.0, -math.sin(phi + math.pi))
-        l_p_shoulder = 0.35 * g * math.sin(phi + math.pi)
-        r_p_shoulder = 0.35 * g * math.sin(phi)
-        elbow_bias = 0.3 + 0.2 * g
-
-        return {
-            "waist": 0.0,
-            "r_head": 0.0,
-            "y_head": 0.0,
-            "p_head": 0.0,
-            "l_y_shoulder": 0.0,
-            "l_p_shoulder": l_p_shoulder,
-            "l_r_shoulder": 0.0,
-            "l_elbow": elbow_bias,
-            "r_y_shoulder": 0.0,
-            "r_p_shoulder": r_p_shoulder,
-            "r_r_shoulder": 0.0,
-            "r_elbow": elbow_bias,
-            "l_y_hip": 0.0,
-            "l_p_hip": 0.0,
-            "l_r_hip": l_r_hip,
-            "l_knee": l_knee,
-            "r_y_hip": 0.0,
-            "r_p_hip": 0.0,
-            "r_r_hip": r_r_hip,
-            "r_knee": r_knee,
-        }
+        g = _clamp(speed_abs / 1.2, 0.2, 1.0)
+        angles = {name: 0.0 for name in self.JOINT_NAMES}
+        angles.update(_profile_angles(phi, g))
+        return angles
 
     def _gait_run(self, agent_id: int, speed: float, dt: float) -> dict[str, float]:
-        cadence = _clamp(0.4 + 0.55 * speed, 0.4, 2.2)
+        speed_abs = abs(speed)
+        cadence = _clamp(0.4 + 0.55 * speed_abs, 0.4, 2.2)
         phi = self._get_phase(agent_id)
-        phi += 2.0 * math.pi * cadence * dt
+        phi += math.copysign(2.0 * math.pi * cadence * dt, speed)
         self._set_phase(agent_id, phi)
 
-        g = _clamp(speed / 1.2, 0.2, 1.0)
-        amp = 1.6 * g
-
-        l_r_hip = 0.45 * amp * math.sin(phi)
-        r_r_hip = 0.45 * amp * math.sin(phi + math.pi)
-        l_knee = -0.9 * amp * max(0.0, -math.sin(phi))
-        r_knee = -0.9 * amp * max(0.0, -math.sin(phi + math.pi))
-        l_p_shoulder = 0.35 * amp * math.sin(phi + math.pi)
-        r_p_shoulder = 0.35 * amp * math.sin(phi)
-        elbow_bias = 1.2
-
-        return {
-            "waist": 0.0,
-            "r_head": 0.0,
-            "y_head": 0.0,
-            "p_head": 0.0,
-            "l_y_shoulder": 0.0,
-            "l_p_shoulder": l_p_shoulder,
-            "l_r_shoulder": 0.0,
-            "l_elbow": elbow_bias,
-            "r_y_shoulder": 0.0,
-            "r_p_shoulder": r_p_shoulder,
-            "r_r_shoulder": 0.0,
-            "r_elbow": elbow_bias,
-            "l_y_hip": 0.0,
-            "l_p_hip": 0.0,
-            "l_r_hip": l_r_hip,
-            "l_knee": l_knee,
-            "r_y_hip": 0.0,
-            "r_p_hip": 0.0,
-            "r_r_hip": r_r_hip,
-            "r_knee": r_knee,
-        }
+        g = _clamp(speed_abs / 1.2, 0.2, 1.0)
+        angles = {name: 0.0 for name in self.JOINT_NAMES}
+        angles.update(_profile_angles(phi, 1.6 * g))
+        return angles
 
     def _gait_idle(self, agent_id: int, dt: float) -> dict[str, float]:
         phi = self._get_phase(agent_id)
         phi += 2.0 * math.pi * 0.25 * dt
         self._set_phase(agent_id, phi)
 
+        # breathing sway plus a slow incommensurate gaze wander
         waist = 0.03 * math.sin(phi)
+        y_head = 0.06 * math.sin(0.3 * phi)
+        p_head = 0.02 * math.sin(0.5 * phi + 1.0)
 
         return {
             "waist": waist,
             "r_head": 0.0,
-            "y_head": 0.0,
-            "p_head": 0.0,
+            "y_head": y_head,
+            "p_head": p_head,
             "l_y_shoulder": 0.0,
             "l_p_shoulder": 0.0,
             "l_r_shoulder": 0.0,

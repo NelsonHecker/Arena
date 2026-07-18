@@ -61,9 +61,6 @@ class Time:
 
     @classmethod
     def from_rclpy(cls, v: rclpy.time.Time) -> Self:
-        """
-        Create instance from rclpy.time.Time object.
-        """
         sec, nanosec = v.seconds_nanoseconds()
         return cls(
             sec=sec,
@@ -72,9 +69,6 @@ class Time:
 
     @classmethod
     def from_msg(cls, v: builtin_interfaces.msg.Time) -> Self:
-        """
-        Create instance from builtin_interfaces.msg.Time object.
-        """
         return cls(
             sec=v.sec,
             nanosec=v.nanosec,
@@ -82,16 +76,10 @@ class Time:
 
     @classmethod
     def from_rosgraph_msg(cls, v: rosgraph_msgs.msg.Clock) -> Self:
-        """
-        Create instance from rosgraph_msgs.msg.Clock object.
-        """
         return cls.from_msg(v.clock)
 
     @classmethod
     def from_float(cls, v: float) -> Self:
-        """
-        Create instance from float seconds.
-        """
         sec = int(v)
         nanosec = int((v - sec) * 1e9)
         return cls(

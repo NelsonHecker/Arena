@@ -96,10 +96,10 @@ publishes them directly.  The producer's own `GaitGenerator` instance is a **fal
 `extra` is backend debug, disabled by default.
 
 **Display kinds** (`arena_viz.DisplayKind`):
-- `PEDESTRIANS` — the canonical `hri_rviz/Skeletons3D` skeleton display, keyed on the env `humans/`
+- `PEDESTRIANS`: the canonical `hri_rviz/Skeletons3D` skeleton display, keyed on the env `humans/`
   namespace. Note: the upstream display uses absolute `/humans` paths via libhri, so per-env namespacing
   is a known limitation.
-- `MARKER_ARRAY` — generic MarkerArray passthrough, no namespace assumptions; used for `extra` and all
+- `MARKER_ARRAY`: generic MarkerArray passthrough, no namespace assumptions; used for `extra` and all
   `static*` layers.
 
 The auto-rviz manifest ([`node.py` `_publish_viz_manifest`](../../node.py)) groups these into a
@@ -125,7 +125,7 @@ with the simulator that will animate the resulting agents.
 
 ## Registered implementations
 
-[`__init__.py:318`](__init__.py#L318) — `HumanSimulatorRegistry` maps
+[`__init__.py:318`](__init__.py#L318): `HumanSimulatorRegistry` maps
 `Constants.HumanSimulator` keys to async factory functions:
 
 | Key | Class | File | Notes |

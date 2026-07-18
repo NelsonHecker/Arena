@@ -79,15 +79,9 @@ class ResolverBase(abc.ABC, typing.Generic[IdentifierT]):
         self._cache = {}
 
     @abc.abstractmethod
-    async def resolve(self, identifier: IdentifierT) -> Path | None:
-        """
-        Resolve the given identifier.
-        """
+    async def resolve(self, identifier: IdentifierT) -> Path | None: ...
 
     def invalidate(self):
-        """
-        Invalidate the cache.
-        """
         self._cache.clear()
 
     def listall(self, **kwargs: object) -> Iterator[IdentifierT]:
@@ -110,9 +104,6 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
     def path(self) -> Path: ...
 
     async def resolve(self, identifier: IdentifierT) -> Path | None:
-        """
-        Resolve the given identifier.
-        """
         if identifier not in self._cache:
             candidate = self.path / identifier.relpath()
             if candidate.exists():
@@ -121,9 +112,6 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
         return self._cache.get(identifier, None)
 
     def listall(self, **kwargs: object) -> Iterator[IdentifierT]:
-        """
-        List all local assets available.
-        """
         source = self.path
         if not source.is_dir():
             yield from ()
@@ -279,9 +267,6 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
                         fut.set_result(None)
 
     async def resolve(self, identifier: IdentifierT) -> Path | None:
-        """
-        Resolve the given name.
-        """
         if identifier in self._cache:
             return self._cache[identifier]
 
@@ -352,9 +337,6 @@ class FallbackResolver(ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
         self._path = path
 
     async def resolve(self, identifier: IdentifierT) -> Path | None:
-        """
-        Resolve the given identifier.
-        """
         return self._path / identifier.relpath()
 
     def __repr__(self) -> str:
@@ -378,24 +360,10 @@ class IdentifierProtocol(typing.Protocol[T_co]):
         """Get the short name of the identifier."""
         ...
 
-    def relpath(self) -> Path:
-        """Get the path representation of the identifier.
-
-        Returns:
-            Path: The path of the identifier relative to a repository.
-        """
-        ...
+    def relpath(self) -> Path: ...
 
     @classmethod
-    def from_relpath(cls, relpath: Path) -> Self:
-        """Create an Identifier from a relative path.
-
-        Args:
-            relpath(Path): The relative path.
-        Returns:
-            Identifier: The created Identifier.
-        """
-        ...
+    def from_relpath(cls, relpath: Path) -> Self: ...
 
     @classmethod
     def label(cls) -> str:
@@ -480,14 +448,6 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
 
     @classmethod
     def parse(cls, value: str | Self) -> Self:
-        """Parse path into an Identifier.
-
-        Args:
-            identifier(str): The identifier string to parse.
-
-        Returns:
-            Identifier: The parsed Identifier object.
-        """
         if isinstance(value, cls):
             return value
 
@@ -550,13 +510,6 @@ class AssetIdentifier(Identifier[T], typing.Generic[T]):
 
     @classmethod
     def from_relpath(cls, relpath: Path) -> Self:
-        """Create an Identifier from a relative path.
-
-        Args:
-            relpath(Path): The relative path.
-        Returns:
-            Identifier: The created Identifier.
-        """
         assert len(relpath.parts) >= 2, f'Expected at least 2 parts in relpath, got {len(relpath.parts)}'
         assert relpath.parts[0] == cls._asset_type, f'Expected asset type {cls._asset_type}, got {relpath.parts[0]}'
         return cls(name=str(Path(*relpath.parts[1:])))
@@ -622,22 +575,10 @@ class DomainAssetIdentifier(AssetIdentifier[T], typing.Generic[T]):
         return f'{self.domain}/{self._asset_type}/{self.name}'
 
     def relpath(self) -> Path:
-        """Get the path representation of the identifier.
-
-        Returns:
-            Path: The path of the identifier relative to a repository.
-        """
         return Path(self.domain) / self._asset_type / self.name
 
     @classmethod
     def from_relpath(cls, relpath: Path) -> Self:
-        """Create an Identifier from a relative path.
-
-        Args:
-            relpath(Path): The relative path.
-        Returns:
-            Identifier: The created Identifier.
-        """
         assert len(relpath.parts) >= 3, f'Expected at least 3 parts in relpath, got {len(relpath.parts)}'
         assert relpath.parts[1] == cls._asset_type, f'Expected asset type {cls._asset_type}, got {relpath.parts[0]}'
         return cls(domain=relpath.parts[0], name=str(Path(*relpath.parts[2:])))

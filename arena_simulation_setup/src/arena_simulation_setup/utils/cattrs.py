@@ -32,22 +32,10 @@ class ArenaConverter(cattrs.Converter):
 
     @property
     def type_encoders(self) -> dict[type, typing.Callable]:
-        """
-        Get the registered type encoders.
-
-        Returns:
-            Dict[Type, Callable]: A dictionary mapping types to their corresponding encoder functions.
-        """
         return self._encoders
 
     @property
     def type_decoders(self) -> list[tuple[typing.Callable[[type], bool], typing.Callable]]:
-        """
-        Get the registered type decoders.
-
-        Returns:
-            List[Tuple[Callable[[Type], bool], Callable]]: A list of tuples containing predicates and their corresponding decoder functions.
-        """
         return self._decoders
 
     def register_unstructure_hook(self, cl: type, *args: object, **kwargs: object) -> None:
@@ -164,10 +152,6 @@ def idempotent(cls: type[T]) -> type[T]:
 
 
 class Serializable(abc.ABC):
-    """
-    A base class for serializable objects.
-    """
-
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
 
@@ -190,10 +174,6 @@ ParseableT = typing.TypeVar('ParseableT', bound='Parseable')
 
 
 class Parseable:
-    """
-    A base class for parseable objects.
-    """
-
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
 

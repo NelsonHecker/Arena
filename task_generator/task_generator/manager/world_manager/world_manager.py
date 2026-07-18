@@ -87,11 +87,7 @@ def _sample_grid_positions(
 
 
 class WorldManager(NodeInterface):
-    """
-    The map manager manages the static map
-    and is used to get new goal, robot and
-    obstacle positions.
-    """
+    """Used to get new goal, robot and obstacle positions from the static map."""
 
     _world: World.WorldDescription
     _map: WorldMap  # main map used that has all of the levels

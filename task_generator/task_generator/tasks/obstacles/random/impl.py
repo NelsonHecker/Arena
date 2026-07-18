@@ -37,21 +37,12 @@ class TM_Random(TM_Obstacles):
 
     Attributes:
         _config (Config): Configuration object for obstacle generation.
-
-    Methods:
-        prefix(*args): Prefixes the given arguments with "scenario".
-        __init__(**kwargs): Initializes the TM_Random object.
-        reconfigure(config): Reconfigures the obstacle generation based on the given configuration.
-        reset(**kwargs): Resets the obstacle generation with the specified parameters.
-
     """
 
     _config: _Config
 
     async def reset(self, **kwargs: object) -> Obstacles:
         """
-        Resets the obstacle generation with the specified parameters.
-
         Args:
             **kwargs: Additional keyword arguments for customizing the obstacle generation.
                 N_STATIC_OBSTACLES (int): Number of static obstacles.
@@ -60,10 +51,6 @@ class TM_Random(TM_Obstacles):
                 MODELS_STATIC_OBSTACLES (dict[str, float]): dictionary of static obstacle models and their weights.
                 MODELS_INTERACTIVE_OBSTACLES (dict[str, float]): dictionary of interactive obstacle models and their weights.
                 MODELS_DYNAMIC_OBSTACLES (dict[str, float]): dictionary of dynamic obstacle models and their weights.
-
-        Returns:
-            tuple[list[Obstacle], list[DynamicObstacle]]: A tuple containing the generated obstacles and dynamic obstacles.
-
         """
 
         rng = self.node.conf.General.RNG.stream("obstacles", "random")

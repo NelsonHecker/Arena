@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """ROS4HRI producer node: projects Arena pedestrians into the REP-155 /humans/... representation.
 
-Replaces pedestrian_marker_publisher.  Publishes hri_msgs tracks, per-person
-metadata, per-body joint_states, and TF for each body frame.  Drives a pool of
-robot_state_publisher subprocesses (rviz_utils.hri.body_pool) so hri_rviz can
-render animated skeletons.
+Publishes hri_msgs tracks, per-person metadata, per-body joint_states, and TF
+for each body frame.  Drives a pool of robot_state_publisher subprocesses
+(rviz_utils.hri.body_pool) so hri_rviz can render animated skeletons.
 """
 
 from __future__ import annotations

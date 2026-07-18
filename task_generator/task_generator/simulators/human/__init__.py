@@ -125,6 +125,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             speed = math.hypot(ped.twist.linear.x, ped.twist.linear.y)
             angles = self._gait.compute(ped.id, ped.animation_state, speed, dt)
             ped.joint_state = self._gait.joint_state(angles, stamp=stamp)
+            ped.gait_phase = self._gait.phase(ped.id)
 
         self._arena_peds_publisher.publish(msg)
 
@@ -218,18 +219,27 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         futures: list[typing.Awaitable] = []
         to_register: list[KnownObstacle[DynamicObstacle]] = []
         to_move: list[DynamicObstacle] = []
+        to_replace: list[DynamicObstacle] = []
         all_known: list[KnownObstacle[DynamicObstacle]] = []
 
         for obstacle in obstacles:
             if (known := self._known_obstacles.get(obstacle.name)) is not None:
+                # renderers key visuals by ped name and a move carries no model,
+                # so a model change must go through delete + respawn
+                replace = known.obstacle.model.name != obstacle.model.name
                 known.obstacle = obstacle
-                to_move.append(known.obstacle)
                 known.layer = ObstacleLayer.INUSE
+                if replace:
+                    to_replace.append(known.obstacle)
+                else:
+                    to_move.append(known.obstacle)
             else:
                 known = self._known_obstacles.create_or_get(name=obstacle.name, obstacle=obstacle)
             all_known.append(known)
             if not known.spawned:
                 to_register.append(known)
+        if to_replace:
+            await self._simulator.pedestrian_delete(to_replace)
         if to_move:
             futures.append(self._simulator.pedestrian_move(to_move))
 
@@ -253,9 +263,9 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         # every requested obstacle goes through _ensure_spawnable so reused
         # names keep a fresh model_uri, but only the to_spawn subset is
         # actually handed to the simulator
-        to_spawn_names = {obstacle.name for obstacle in to_spawn}
+        to_spawn_names = {obstacle.name for obstacle in to_spawn} | {obstacle.name for obstacle in to_replace}
         resolved = await self._ensure_spawnable([known.obstacle for known in all_known])
-        if to_spawn:
+        if to_spawn_names:
             futures.append(
                 self._simulator.pedestrian_spawn(
                     [obstacle for obstacle in resolved if obstacle.name in to_spawn_names],

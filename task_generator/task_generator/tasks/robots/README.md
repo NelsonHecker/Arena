@@ -8,11 +8,11 @@ intent into goals sent at a specific robot through its bound adapter.
 
 ## Guides
 
-- [Navigation adapters](adapters/README.md) — `Adapter` ABC, `AdapterCtx`,
+- [Navigation adapters](adapters/README.md): `Adapter` ABC, `AdapterCtx`,
   registration, how `RobotManager` binds one, dispatch and teardown flow,
   adding a new adapter. Paired with the launch-side
   [`arena_robots/launch/adapters/README.md`](../../../../arena_robots/arena_robots/launch/adapters/README.md).
-- [Fleet manager](#fleet-manager) (below) — `TaskModeSpec` schema,
+- [Fleet manager](#fleet-manager) (below): `TaskModeSpec` schema,
   allocation rules, the `null` sink and `composite` fan-out.
 
 ## Package structure
@@ -36,7 +36,7 @@ Crossing floors is handled below the task mode, in `RobotManager.submit_task`: w
 `GoToPhase` targets a different level than the robot's current one, it injects
 elevator-boarding subgoals (`WorldManager.elevator_route` BFS over the elevator graph)
 ahead of it. The robot drives into each cabin, the mechanism shim teleports it across,
-and the next leg becomes reachable. No explicit wait phase: the robot simply cannot path
+and the next leg becomes reachable. No explicit wait phase: the robot cannot path
 to the disconnected goal until the teleport, then proceeds.
 
 ## Task modes (`TM_Robots` subclasses)
@@ -56,21 +56,21 @@ an async `done` flag. Shipped modes:
 
 Modes are registered by `Constants.TaskMode.TM_Robots` enum value in
 [`tasks/registry.py`](../registry.py). `null` and `composite` are not in
-the enum — they are only reachable via `set_tm_robots_composite`.
+the enum, they are only reachable via `set_tm_robots_composite`.
 
 ## Request types
 
 `TM_Robots` subclasses build [`TaskRequest`](request.py) values and hand
 them to `RobotManager.submit_task`:
 
-- `TaskKind` — canonical vocabulary of phase kinds (currently just
+- `TaskKind`: canonical vocabulary of phase kinds (currently just
   `GOTO_POSE`).
-- `TaskPhase` — abstract; `is_satisfied(robot)` is the Tier-3 completion
+- `TaskPhase`: abstract; `is_satisfied(robot)` is the Tier-3 completion
   fallback when neither the request predicate nor the adapter gives a
   verdict.
-- `GoToPhase(pose, tolerance_radius?, tolerance_angle?)` — navigate to a
+- `GoToPhase(pose, tolerance_radius?, tolerance_angle?)`: navigate to a
   pose with optional per-phase tolerance overrides.
-- `TaskRequest(phases, done_predicate?)` — ordered phase list plus an
+- `TaskRequest(phases, done_predicate?)`: ordered phase list plus an
   optional Tier-1 completion predicate.
 
 ## Fleet manager
@@ -95,13 +95,13 @@ task_modes:
    the robot set and must not appear on multiple specs. The spec's
    `produces` kind must be in that robot's `accepts`; otherwise error.
 2. **Pool next.** Each unpinned robot joins the first unpinned spec whose
-   `produces` is in the robot's `accepts`. Greedy / first-fit — specs
+   `produces` is in the robot's `accepts`. Greedy / first-fit, specs
    earlier in the list get priority.
 3. **Null sink.** If a spec with `kind == "null"` exists, every still-
    unallocated robot joins it. Without a null spec, unallocated robots
-   simply receive no TM (they sit idle).
+   receive no TM (they sit idle).
 
-Result: `dict[TaskModeSpec, list[RobotManager]]` — one entry per spec, in
+Result: `dict[TaskModeSpec, list[RobotManager]]`, one entry per spec, in
 the input order.
 
 ### Composite wiring
@@ -124,16 +124,16 @@ the "new_tm != current" check in `_reset_episode` does not retrigger a rebind.
 
 ## Integration points
 
-- **`RobotManager`** ([`manager/robot_manager/robot_manager.py`](../../manager/robot_manager/robot_manager.py))
-  — one per spawned robot. Owns the bound adapter, the current `TaskRequest`,
+- **`RobotManager`** ([`manager/robot_manager/robot_manager.py`](../../manager/robot_manager/robot_manager.py)):
+  one per spawned robot. Owns the bound adapter, the current `TaskRequest`,
   the phase index, the goal-republish loop, and the tf-backed `pose`
   property. Entry points used from here: `submit_task`, `move`, `is_done`,
   `accepts`.
-- **`RobotsManager`** ([`manager/robot_manager/robots_manager.py`](../../manager/robot_manager/robots_manager.py))
-  — diff-driven fleet lifecycle. Parses the `robot` ROS param (comma-
+- **`RobotsManager`** ([`manager/robot_manager/robots_manager.py`](../../manager/robot_manager/robots_manager.py)):
+  diff-driven fleet lifecycle. Parses the `robot` ROS param (comma-
   separated list of robot names, `model[count]`, or `.yaml` setup refs),
   reconciles against existing `RobotManager` instances, and creates /
   destroys / updates to match. Reset-time entry is `set_up`.
-- **`TaskContext.robots`** — the mapping `TM_Robots` subclasses iterate;
+- **`TaskContext.robots`**: the mapping `TM_Robots` subclasses iterate;
   `TM_Composite` replaces it with a scoped view so each sub-TM only sees
   its fleet slice.

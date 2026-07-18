@@ -6,17 +6,17 @@ pedestrian agents, and environment templates through the types defined here.
 
 ## Guides
 
-- [Identifier registry](src/arena_simulation_setup/tree/README.md) — `Identifier`
+- [Identifier registry](src/arena_simulation_setup/tree/README.md): `Identifier`
   ABC, resolver hierarchy, shipped Identifier types, adding a new one.
-- [Worlds](worlds/README.md) — per-world directory layout, `world.yaml` schema,
+- [Worlds](worlds/README.md): per-world directory layout, `world.yaml` schema,
   scenario schema, local asset overrides, `WorldIdentifier` resolution.
-- [Environment configs](configs/environment/README.md) — what an environment
+- [Environment configs](configs/environment/README.md): what an environment
   YAML binds; obstacle group schema; `EnvironmentIdentifier` resolution.
-- [Wall presets](configs/walls/README.md) — `WallDescription` YAML schema;
+- [Wall presets](configs/walls/README.md): `WallDescription` YAML schema;
   sub-wall types; how `world.yaml` references a wall preset by `kind:`.
-- [HuNav configs](configs/hunav/README.md) — `default.yaml` agent template;
+- [HuNav configs](configs/hunav/README.md): `default.yaml` agent template;
   shared behavior tree library under `behavior_trees/`.
-- [Authoring a world](AUTHORING.md) — end-to-end guide: create dir, author
+- [Authoring a world](AUTHORING.md): end-to-end guide: create dir, author
   `world.yaml`, generate map, add scenario, validate.
 
 ## CLI
@@ -36,7 +36,7 @@ Scripts live under [scripts/](scripts).
 
 `assets/Common/Human/arenian/arenian.sdf` defines the default Gazebo
 pedestrian as an SDF `<actor>` with a `walk.dae` skin (Mingfei/Fuel) and a named
-`walk` animation clip.  Earlier it was a static `<model>`; the actor form is
+`walk` animation clip. The actor form is
 required so Gazebo registers the skinned mesh and the clip that `PedSkeletonPlugin`
 scrubs.
 
@@ -60,25 +60,25 @@ workspace via `_meta/repos/gazebo.repos`.
 
 Key `Identifier` types from `arena_simulation_setup.tree`:
 
-- **`WorldIdentifier`** ([tree/World/World.py](src/arena_simulation_setup/tree/World/World.py))
-  — resolves a world name to `ASS_DIR / 'worlds' / <name>`; `.load()` returns
+- **`WorldIdentifier`** ([tree/World/World.py](src/arena_simulation_setup/tree/World/World.py)):
+  resolves a world name to `ASS_DIR / 'worlds' / <name>`; `.load()` returns
   a `World` view that exposes `world.load()` → `WorldDescription`,
   `world.map`, and `world.scenario`.
-- **`ObjectIdentifier`** ([tree/assets/Object.py](src/arena_simulation_setup/tree/assets/Object.py))
-  — resolves `<domain>/Object/<name>` to a `ModelWrapper` (SDF + USD).
-- **`HumanIdentifier`** ([tree/assets/Human.py](src/arena_simulation_setup/tree/assets/Human.py))
-  — resolves `<domain>/Human/<name>` to a `ModelWrapper` (SDF only).
-- **`MaterialIdentifier`** ([tree/assets/Material.py](src/arena_simulation_setup/tree/assets/Material.py))
-  — resolves `<domain>/Material/<name>` to a `Material`; supports `tint`
+- **`ObjectIdentifier`** ([tree/assets/Object.py](src/arena_simulation_setup/tree/assets/Object.py)):
+  resolves `<domain>/Object/<name>` to a `ModelWrapper` (SDF + USD).
+- **`HumanIdentifier`** ([tree/assets/Human.py](src/arena_simulation_setup/tree/assets/Human.py)):
+  resolves `<domain>/Human/<name>` to a `ModelWrapper` (SDF only).
+- **`MaterialIdentifier`** ([tree/assets/Material.py](src/arena_simulation_setup/tree/assets/Material.py)):
+  resolves `<domain>/Material/<name>` to a `Material`; supports `tint`
   modifier.
-- **`WallIdentifier`** ([tree/Wall.py](src/arena_simulation_setup/tree/Wall.py))
-  — resolves `<domain>/Wall/<name>/<name>.yaml` to a `WallDescription`;
+- **`WallIdentifier`** ([tree/Wall.py](src/arena_simulation_setup/tree/Wall.py)):
+  resolves `<domain>/Wall/<name>/<name>.yaml` to a `WallDescription`;
   realizes to `(WallSegment[], Obstacle[])`.
-- **`EnvironmentIdentifier`** ([tree/configs/environment.py](src/arena_simulation_setup/tree/configs/environment.py))
-  — resolves `configs/environment/<name>.yaml` to an `EnvironmentDescription`
+- **`EnvironmentIdentifier`** ([tree/configs/environment.py](src/arena_simulation_setup/tree/configs/environment.py)):
+  resolves `configs/environment/<name>.yaml` to an `EnvironmentDescription`
   (untyped dict).
-- **`ParametrizedIdentifier`** ([tree/configs/parametrized.py](src/arena_simulation_setup/tree/configs/parametrized.py))
-  — resolves an XML file in `arena_bringup/configs/parametrized/` to a
+- **`ParametrizedIdentifier`** ([tree/configs/parametrized.py](src/arena_simulation_setup/tree/configs/parametrized.py)):
+  resolves an XML file in `arena_bringup/configs/parametrized/` to a
   `ParametrizedConfig` with `STATIC`, `INTERACTIVE`, and `DYNAMIC` obstacle lists.
 
 See [tree/README.md](src/arena_simulation_setup/tree/README.md) for resolver

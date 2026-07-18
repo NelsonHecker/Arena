@@ -52,7 +52,7 @@ Defined in [`_interface.py`](_interface.py):
 
 ### `MechanismITF`
 
-[`_interface.py:138`](_interface.py#L138) — door and elevator orchestration. Provides concrete default implementations driven by an internal sim-time tick loop ([`_mechanism_shim.py`](_mechanism_shim.py)) on top of five box/robot primitives. Any simulator that implements the primitives gets door animation, elevator pair-teleport, and ped/robot teleport for free; simulators with native support can override the four top-level methods.
+[`_interface.py:138`](_interface.py#L138): door and elevator orchestration. Provides concrete default implementations driven by an internal sim-time tick loop ([`_mechanism_shim.py`](_mechanism_shim.py)) on top of five box/robot primitives. Any simulator that implements the primitives gets door animation, elevator pair-teleport, and ped/robot teleport for free; simulators with native support can override the four top-level methods.
 
 | Default method | Signature | Purpose |
 | --- | --- | --- |
@@ -82,7 +82,7 @@ The attachment happens in `BaseHumanSimulator.__init__` (see [human simulator](.
 
 ### `SimLifecycle`
 
-[`_interface.py:18`](_interface.py#L18) — process-singleton host counterpart to `BaseSim`. Owned by `arena_node` (one instance per process), drives sim-wide pause/unpause and namespace cleanup that cuts across env-scoped simulators.
+[`_interface.py:18`](_interface.py#L18): process-singleton host counterpart to `BaseSim`. Owned by `arena_node` (one instance per process), drives sim-wide pause/unpause and namespace cleanup that cuts across env-scoped simulators.
 
 | Abstract method | Purpose |
 | --- | --- |
@@ -116,7 +116,7 @@ tf, costmap, and sim-clock topics are not advancing.
 
 ## Registered implementations
 
-[`__init__.py:57`](__init__.py#L57) — `SimulatorRegistry` maps
+[`__init__.py:57`](__init__.py#L57): `SimulatorRegistry` maps
 `Constants.SimSimulator` keys to async factory functions:
 
 | Key | Class | File | Notes |

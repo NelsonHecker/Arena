@@ -69,7 +69,7 @@ class EnvironmentManager(NodeInterface):
     def static_polygons(self) -> dict[str, shapely.Polygon]:
         """Map-frame footprint polygons of every static obstacle currently spawned,
         keyed by obstacle name. Includes both WORLD-layer entities and INUSE
-        episode-spawned obstacles. Pedestrians are not included — consumers should
+        episode-spawned obstacles. Pedestrians are not included, consumers should
         read those from the `arena_peds` topic."""
         return self._static_polygons
 

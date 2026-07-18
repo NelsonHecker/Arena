@@ -1,7 +1,7 @@
 """Verify each typed declare helper builds the expected ParameterDescriptor.
 
 Uses a recording stub on `node.rosparam.declare_forward` instead of a live
-node — schema authors care about what the descriptor looks like, not about
+node, schema authors care about what the descriptor looks like, not about
 the rclpy plumbing (covered separately by declare_safe tests).
 """
 from __future__ import annotations

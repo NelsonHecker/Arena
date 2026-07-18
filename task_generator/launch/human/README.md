@@ -35,9 +35,9 @@ explicitly with `human:=<key>`.
 
 ```
 launch/human/
-├── human.launch.py        — dispatcher
+├── human.launch.py        : dispatcher
 └── hunav/
-    └── hunav.launch.py    — hunav_agent_manager node
+    └── hunav.launch.py    : hunav_agent_manager node
 ```
 
 ### hunav/hunav.launch.py

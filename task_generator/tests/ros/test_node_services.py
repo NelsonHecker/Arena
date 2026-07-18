@@ -102,7 +102,7 @@ def test_queue_episode_enum_validation_invalid_tm_module() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ROSParamT.destroy idempotency (structural — no live node needed)
+# ROSParamT.destroy idempotency (structural, no live node needed)
 # ---------------------------------------------------------------------------
 
 

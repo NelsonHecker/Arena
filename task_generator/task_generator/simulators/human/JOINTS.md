@@ -40,20 +40,24 @@ exception: their wire values are anatomical, not raw URDF axis values.
 Consumers must not interpret the shoulder-triple values through the raw URDF axes in
 Section 2's table, that mapping is the RViz adapter's job, not the contract's.
 
-### Gait synthesis (recommended starting points; T1 tunes)
+### Gait synthesis
 
 Phase `phi` per agent integrates from speed: `phi += 2*pi*cadence*dt`, where
-`cadence ~= clamp(0.4 + 0.55*speed, 0.4, 2.2)` Hz. Legs antiphase; arms contralateral
-(arm swings with the opposite leg). Suggested amplitudes:
+`cadence ~= clamp(0.4 + 0.55*speed, 0.4, 2.2)` Hz (frozen: the Gazebo plugin's phase
+lock mirrors this formula). Legs antiphase; arms contralateral (arm swings with the
+opposite leg).
 
-- **walk** (`WALKING`, speed-scaled gain `g = clamp(speed/1.2, 0.2, 1.0)`):
-  - `l_r_hip = 0.45*g*sin(phi)`, `r_r_hip = 0.45*g*sin(phi+pi)`
-  - knees bend on the back-swing: `l_knee = -0.9*g*max(0, -sin(phi))`, `r_knee` with `phi+pi`
-  - `l_p_shoulder = 0.35*g*sin(phi+pi)`, `r_p_shoulder = 0.35*g*sin(phi)` (contralateral)
-  - `l_elbow = 0.3 + 0.2*g`, `r_elbow = 0.3 + 0.2*g`
-- **run** (`RUNNING`): same shape, `cadence` higher, amplitudes ~1.6x, elbow bias ~1.2 rad.
+- **walk** (`WALKING`, speed-scaled gain `g = clamp(speed/1.2, 0.2, 1.0)`): per-joint
+  profiles baked from the polished CMU 12_01 clip (`arena_humans` posture pipeline),
+  mean + 3 sine harmonics per signal, all scaled by `g` (`_WALK_PROFILE` in `gait.py`).
+  Limb pairs share one canonical profile with the right side evaluated at `phi + pi`,
+  so L/R antiphase is exact by construction. Antiphase means `l(phi) = r(phi + pi)`,
+  NOT `l = -r`: the profiles carry nonzero means (hips average forward-flexed, elbows
+  ~18 deg bent).
+- **run** (`RUNNING`): the same profiles at 1.6x amplitude, `cadence` higher.
 - **idle** (`IDLE` and the behavior states `PANIC/SURPRISED/CURIOUS/THREATENING` for now):
-  near-zero limbs; tiny breathing sway `waist = 0.03*sin(2*pi*0.25*t_phase)`. (Behavior
+  near-zero limbs; tiny breathing sway `waist = 0.03*sin(phi)` and a slow gaze wander
+  `y_head = 0.06*sin(0.3*phi)`, `p_head = 0.02*sin(0.5*phi + 1.0)`. (Behavior
   states get richer posture later; baseline treats them as idle for the rig.)
 
 State selection comes from `Pedestrian.animation_state`; speed is `hypot(twist.linear.x, y)`.
@@ -144,8 +148,10 @@ sagittal swing on each side from the same commanded flexion value.
 ## 3. Other renderers
 
 - **Isaac**: `peds` `bone_map.py` already speaks the semantic convention (same-sign
-  flexion, antiphase baked into the values). `ExternalPoseProvider` replaces mapped
-  bones with the wire pose instead of composing it over the walking clip.
+  flexion, antiphase baked into the values) and spreads `waist` over the
+  LowerBack/Spine/Spine1 chain and the head DOFs over neck plus head.
+  `ExternalPoseProvider` replaces mapped bones with the wire pose instead of
+  composing it over the walking clip.
 - **Gazebo**: clip fidelity only. gz-sim 8 actors expose no per-bone skeleton control
   (see `arena_gz_plugins` `PedSkeletonPlugin.cc` header), the plugin follows
   `animation_state`/pose and ignores `joint_state` by design.

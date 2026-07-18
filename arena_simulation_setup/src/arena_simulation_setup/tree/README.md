@@ -5,7 +5,7 @@ hierarchy that all asset types in this package build on. Every shipped asset
 type (`ObjectIdentifier`, `WorldIdentifier`, etc.) is a concrete subclass
 registered at import time via `.use(resolver, ...)`.
 
-## Core ABC — `Identifier`
+## Core ABC: `Identifier`
 
 [tree/__init__.py:376](__init__.py#L376)
 
@@ -49,7 +49,7 @@ Register additional resolvers on a subclass at any time with
 
 | Path | Default value |
 |---|---|
-| `DynamicPaths.WORLD` | `/dev/null` — set at runtime to the active world directory |
+| `DynamicPaths.WORLD` | `/dev/null` (set at runtime to the active world directory) |
 | `DynamicPaths.ARENA` | `$ARENA_ASSETS_DIR_LOCAL` or `$ARENA_ASSETS_DIR/local` |
 
 `DynamicPaths.as_resolvers(T)` returns two `DynamicPathResolver` instances for a
@@ -63,9 +63,9 @@ given `Identifier` type: one pointing at `WORLD / 'assets'` and one at `ARENA`.
 | `HumanIdentifier` | [tree/assets/Human.py](assets/Human.py) | `DomainAssetIdentifier[HumanView]` | `Human` | DynamicPaths (world/assets + local), then NetResolver |
 | `MaterialIdentifier` | [tree/assets/Material.py](assets/Material.py) | `ModifiersDomainAssetIdentifier[Material]` | `Material` | DynamicPaths (world/assets + local), then NetResolver |
 | `WallIdentifier` | [tree/Wall.py](Wall.py) | `DomainAssetIdentifier[WallDescription]` | `Wall` | DynamicPaths (world/assets + local), then NetResolver |
-| `WorldIdentifier` | [tree/World/World.py](World/World.py) | `Identifier[World]` | — | FallbackResolver → `ASS_DIR / 'worlds'` |
-| `EnvironmentIdentifier` | [tree/configs/environment.py](configs/environment.py) | `Identifier[EnvironmentDescription]` | — | `EnvironmentResolver` → `ASS_DIR / 'configs' / 'environment'` |
-| `ParametrizedIdentifier` | [tree/configs/parametrized.py](configs/parametrized.py) | `Identifier[ParametrizedConfig]` | — | `ParametrizedResolver` → `AB_DIR / 'configs' / 'parametrized'` |
+| `WorldIdentifier` | [tree/World/World.py](World/World.py) | `Identifier[World]` | - | FallbackResolver → `ASS_DIR / 'worlds'` |
+| `EnvironmentIdentifier` | [tree/configs/environment.py](configs/environment.py) | `Identifier[EnvironmentDescription]` | - | `EnvironmentResolver` → `ASS_DIR / 'configs' / 'environment'` |
+| `ParametrizedIdentifier` | [tree/configs/parametrized.py](configs/parametrized.py) | `Identifier[ParametrizedConfig]` | - | `ParametrizedResolver` → `AB_DIR / 'configs' / 'parametrized'` |
 
 ### `ObjectIdentifier` / `HumanIdentifier`
 
@@ -99,7 +99,7 @@ In `world.yaml`, a wall entry without a `kind` field generates a plain
 
 Uses a `FallbackResolver` (no existence check) rooted at
 `ASS_DIR / 'worlds'`. `.load()` returns a `World` view object, not the parsed
-YAML — call `world.load()` on the view to get a `WorldDescription`.
+YAML, call `world.load()` on the view to get a `WorldDescription`.
 
 ### `EnvironmentIdentifier`
 

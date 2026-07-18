@@ -164,7 +164,7 @@ def test_serializable_abstract_skips_hook():
         def serialize(self):
             raise NotImplementedError
     # abstract class should not have a hook registered for it specifically
-    # (no error is the pass condition — it's skipped)
+    # (no error is the pass condition, it's skipped)
     assert AbstractSer.__abstractmethods__
 
 

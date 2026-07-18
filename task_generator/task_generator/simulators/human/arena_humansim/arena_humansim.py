@@ -392,8 +392,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     def agent_states(self) -> AgentStatesMsg | None:
         return self._curr_agent_states
 
-    TICK_RATE = 50.0  # Hz — local interpolation rate
-    FEEDBACK_RATE = 10.0  # Hz — rate for sending feedback to arena_humansim
+    TICK_RATE = 50.0  # Hz, local interpolation rate
+    FEEDBACK_RATE = 10.0  # Hz, rate for sending feedback to arena_humansim
 
     async def _interpolation_loop(self):
         """Interpolate agent states locally at TICK_RATE and publish pedestrians."""
@@ -944,7 +944,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             return False
 
     async def _spawn_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
-        """Register robot poses — published to arena_humansim via world_state topic."""
+        """Register robot poses: published to arena_humansim via world_state topic."""
         for robot in robots:
             self._dirty_robots[robot.name] = robot
         self._publish_world_state()

@@ -9,25 +9,25 @@ in [`arena_runtime/`](../arena_runtime/README.md).
 
 ## Guides
 
-- [Task system](task_generator/tasks/README.md) — `Task`, `TaskMode` ABC,
+- [Task system](task_generator/tasks/README.md): `Task`, `TaskMode` ABC,
   `TaskContext`, the three mode registries, reset semantics.
-- [Robot task modes](task_generator/tasks/robots/README.md) — `TM_Robots`
+- [Robot task modes](task_generator/tasks/robots/README.md): `TM_Robots`
   subclasses, fleet manager, adapters.
-- [Robot adapters](task_generator/tasks/robots/adapters/README.md) — `Adapter`
+- [Robot adapters](task_generator/tasks/robots/adapters/README.md): `Adapter`
   ABC, shipped kinds, adding a new one.
-- [Obstacle task modes](task_generator/tasks/obstacles/README.md) — `TM_Obstacles`
+- [Obstacle task modes](task_generator/tasks/obstacles/README.md): `TM_Obstacles`
   subclasses, shipped modes, zone-ref resolution, PROMPT registration.
-- [Modules](task_generator/tasks/modules/README.md) — `TM_Module` lifecycle
+- [Modules](task_generator/tasks/modules/README.md): `TM_Module` lifecycle
   hooks, shipped modules.
-- [Managers](task_generator/manager/README.md) — `RobotsManager`,
+- [Managers](task_generator/manager/README.md): `RobotsManager`,
   `RobotManager`, `WorldManager`, `EnvironmentManager`, `Realizer`.
-- [Sim interface](../arena_runtime/arena_runtime/arena_runtime/sim/README.md) —
+- [Sim interface](../arena_runtime/arena_runtime/arena_runtime/sim/README.md):
   `BaseSim` and its four sub-interfaces; registered implementations.
-- [Human simulator](task_generator/simulators/human/README.md) —
+- [Human simulator](task_generator/simulators/human/README.md):
   `BaseHumanSimulator`, PROMPT registration, hunav default agent.
-- [Utils](task_generator/utils/README.md) — generic `Registry`, arena helpers,
+- [Utils](task_generator/utils/README.md): generic `Registry`, arena helpers,
   GPT shim, map generator.
-- [Constants](task_generator/constants/README.md) — `Configuration(server)`
+- [Constants](task_generator/constants/README.md): `Configuration(server)`
   factory; all published ROS parameters.
 
 ## Internals

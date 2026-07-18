@@ -50,7 +50,7 @@ The button row is `Pause | Discard | Queue | Next`. Discard and Queue are enable
 
 ## Pause / Unpause button
 
-A single Pause/Unpause button. The label is driven by the latched `state/paused` topic, not by the service-call return. Clicking is fire-and-forget — calls `lifecycle/pause` or `lifecycle/unpause` based on the current state, and the label flips when the server publishes the new value. This keeps the UI in sync even if pause/unpause is triggered externally.
+A single Pause/Unpause button. The label is driven by the latched `state/paused` topic, not by the service-call return. Clicking is fire-and-forget: calls `lifecycle/pause` or `lifecycle/unpause` based on the current state, and the label flips when the server publishes the new value. This keeps the UI in sync even if pause/unpause is triggered externally.
 
 ## Playlist (episode history)
 
@@ -60,7 +60,7 @@ The panel maintains a local `history_buffer_` (`std::deque<EpisodeRecord>`, max 
 - The current episode (`last_current_episode_`) appears as the last (bottom) row in bold.
 - A "Next:" preview row is appended (italic) when `last_queued_episode_` differs meaningfully from current (world, modes, robots, or any param).
 
-History is held only in the panel; the node no longer keeps a `previous[]` list.
+History is held only in the panel.
 
 ## World combobox staging
 

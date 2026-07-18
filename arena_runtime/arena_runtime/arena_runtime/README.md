@@ -1,4 +1,4 @@
-# arena — multi-env orchestration layer
+# arena: multi-env orchestration layer
 
 `arena_node` ([`arena_node.py`](arena_node.py)) is the single process-level lifecycle
 node that lets multiple simulation environments coexist in one ROS graph. It owns
@@ -20,9 +20,9 @@ simulator slots. State per record: `env_id`, `fqn`, `placed`, `reference`,
 
 Two-phase allocation:
 
-1. `reserve()` — assigns an ID and namespace without touching spatial layout.
+1. `reserve()`: assigns an ID and namespace without touching spatial layout.
    Free IDs are recycled (lowest first), skipping any that are still draining.
-2. `place()` / `confirm_world` service — runs a first-fit shelf packer over the
+2. `place()` / `confirm_world` service: runs a first-fit shelf packer over the
    requested `WorldExtent` padded by `slot_buffer` (default 5 m). Shelves grow
    along +x, new rows stack along +y, and the row width budget stays roughly
    square so the layout does not degenerate into a strip. Returns a `reference`
@@ -58,7 +58,7 @@ External callers must supply a prefix matching `env_<digits>/` or `env_<digits>_
 the node itself bypasses validation (internal flag). Returns `(success, count,
 error_msg)`.
 
-## `ArenaNode` — services and topics
+## `ArenaNode`: services and topics
 
 Namespace prefix for all names below: `/arena/`.
 
@@ -74,7 +74,7 @@ Namespace prefix for all names below: `/arena/`.
 | `sim_lifecycle/unpause_window` | [`LifecycleUnpauseWindow.srv`](../../arena_runtime_msgs/srv/LifecycleUnpauseWindow.srv) | Acquire or release the exclusive unpause window |
 | `cleanup_namespace` | [`CleanupNamespace.srv`](../../arena_runtime_msgs/srv/CleanupNamespace.srv) | Delete sim entities under a validated prefix |
 
-Action: `purge_env` ([`PurgeEnv.action`](../../arena_runtime_msgs/action/PurgeEnv.action)) — delete entities under an arbitrary prefix and stream status feedback.
+Action: `purge_env` ([`PurgeEnv.action`](../../arena_runtime_msgs/action/PurgeEnv.action)): delete entities under an arbitrary prefix and stream status feedback.
 
 ### Topics (all latched, `TRANSIENT_LOCAL`)
 
@@ -99,20 +99,20 @@ When `env_n > 0` at startup the node self-orchestrates an initial fleet via
 
 ## Env lifecycle sequence
 
-1. **Register** — env calls `register_env` (or is pre-reserved by `spawn_env`).
+1. **Register**: env calls `register_env` (or is pre-reserved by `spawn_env`).
    Gets back `env_id`, `ns`, and the active `sim` name.
-2. **Launch** — env starts `task_generator_node` under the allocated `ns`;
+2. **Launch**: env starts `task_generator_node` under the allocated `ns`;
    `managed=true` skips re-registration.
-3. **Confirm world** — once the env knows its world extent, it calls
+3. **Confirm world**: once the env knows its world extent, it calls
    `confirm_world`; the shelf packer places the slot and returns `reference`.
    `reallocated=true` in the response means the env must translate all entity
    coordinates by the new `reference` offset.
-4. **Heartbeat** — env publishes [`Heartbeat.msg`](../../arena_runtime_msgs/msg/Heartbeat.msg)
+4. **Heartbeat**: env publishes [`Heartbeat.msg`](../../arena_runtime_msgs/msg/Heartbeat.msg)
    on `<ns>/state/heartbeat`; `arena_node` resets the timeout clock on each tick.
    The clock starts at `reserve()` time, so an env is covered from registration.
-5. **Despawn** — caller sends `despawn_env`; `arena_node` publishes a
+5. **Despawn**: caller sends `despawn_env`; `arena_node` publishes a
    `ShutdownRequest` the env observes and acts on via its own lifecycle.
-6. **Eviction** — on a `sweep_verdict` reason or lifecycle FINALIZED,
+6. **Eviction**: on a `sweep_verdict` reason or lifecycle FINALIZED,
    `arena_node` calls `start_eviction` (marks draining, releases holds),
    publishes a `ShutdownRequest`, awaits env disposal (reaping the wrapper
    process for managed envs), and only then cleans up the namespace via
@@ -120,6 +120,6 @@ When `env_n > 0` at startup the node self-orchestrates an initial fleet via
 
 ## See also
 
-- [task_generator](../../README.md) — episode loop, task-mode registry, manager overview.
-- [Managers](../manager/README.md) — `RobotsManager`, `WorldManager`, `EnvironmentManager`, `Realizer`.
-- [arena_runtime_msgs](../../arena_runtime_msgs) — all message, service, and action definitions.
+- [task_generator](../../README.md): episode loop, task-mode registry, manager overview.
+- [Managers](../manager/README.md): `RobotsManager`, `WorldManager`, `EnvironmentManager`, `Realizer`.
+- [arena_runtime_msgs](../../arena_runtime_msgs): all message, service, and action definitions.
