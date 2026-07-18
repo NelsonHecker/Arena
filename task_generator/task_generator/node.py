@@ -522,7 +522,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         }
 
         env_ns = self.get_namespace()
-        human_sim = self.conf.Arena.HUMAN.value
 
         env_displays: list[AdapterDisplay] = [
             AdapterDisplay(
@@ -542,55 +541,54 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 topic_must_exist=False,
             ),
         ]
-        if human_sim != human_sim.__class__.DUMMY:
-            latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
-            env_displays.append(
-                AdapterDisplay(
-                    name="Pedestrians",
-                    topic=f"{env_ns}/humans",
-                    topic_type="",
-                    kind=DisplayKind.PEDESTRIANS,
-                    style_json=StyleSpec().to_json(),
-                    topic_must_exist=False,
-                    group="Pedestrians",
-                )
+        latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
+        env_displays.append(
+            AdapterDisplay(
+                name="Pedestrians",
+                topic=f"{env_ns}/humans",
+                topic_type="",
+                kind=DisplayKind.PEDESTRIANS,
+                style_json=StyleSpec().to_json(),
+                topic_must_exist=False,
+                group="Pedestrians",
             )
-            # Backend-internal debug overlay, off by default.
-            env_displays.append(
-                AdapterDisplay(
-                    name="Extra",
-                    topic=f"{env_ns}/pedestrian_markers/extra",
-                    topic_type="visualization_msgs/MarkerArray",
-                    kind=DisplayKind.MARKER_ARRAY,
-                    style_json=StyleSpec(enabled=False).to_json(),
-                    topic_must_exist=False,
-                    group="Pedestrians",
-                )
+        )
+        # Backend-internal debug overlay, off by default.
+        env_displays.append(
+            AdapterDisplay(
+                name="Extra",
+                topic=f"{env_ns}/pedestrian_markers/extra",
+                topic_type="visualization_msgs/MarkerArray",
+                kind=DisplayKind.MARKER_ARRAY,
+                style_json=StyleSpec(enabled=False).to_json(),
+                topic_must_exist=False,
+                group="Pedestrians",
             )
-            # Static environment geometry: not pedestrians, own group.
+        )
+        # Static environment geometry: not pedestrians, own group.
+        env_displays.append(
+            AdapterDisplay(
+                name="Static",
+                topic=f"{env_ns}/pedestrian_markers/static",
+                topic_type="visualization_msgs/MarkerArray",
+                kind=DisplayKind.MARKER_ARRAY,
+                style_json=latched,
+                topic_must_exist=False,
+                group="Static",
+            )
+        )
+        for leaf in ("static_walls", "static_objects"):
             env_displays.append(
                 AdapterDisplay(
-                    name="Static",
-                    topic=f"{env_ns}/pedestrian_markers/static",
+                    name=leaf.replace("_", " ").title(),
+                    topic=f"{env_ns}/pedestrian_markers/{leaf}",
                     topic_type="visualization_msgs/MarkerArray",
                     kind=DisplayKind.MARKER_ARRAY,
                     style_json=latched,
-                    topic_must_exist=False,
+                    topic_must_exist=True,
                     group="Static",
                 )
             )
-            for leaf in ("static_walls", "static_objects"):
-                env_displays.append(
-                    AdapterDisplay(
-                        name=leaf.replace("_", " ").title(),
-                        topic=f"{env_ns}/pedestrian_markers/{leaf}",
-                        topic_type="visualization_msgs/MarkerArray",
-                        kind=DisplayKind.MARKER_ARRAY,
-                        style_json=latched,
-                        topic_must_exist=True,
-                        group="Static",
-                    )
-                )
 
         entries: list[AdapterEntry] = []
         for mgr in self._robots_manager.managers.values():
@@ -1136,6 +1134,21 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             response.error_msg = str(e)
         return response
 
+    async def _cb_require_map(
+        self,
+        request: object,
+        response: object,
+    ) -> object:
+        if not self.rosparam[bool].get("initialized", False):
+            response.success = False
+            response.message = "task generator not initialized"
+            return response
+        async with self._reset_lock:
+            await self._world_manager.require_map_server()
+        response.success = True
+        response.message = ""
+        return response
+
     # ACTION SERVER
 
     def _goal_callback(self, goal_request: object) -> GoalResponse:
@@ -1405,6 +1418,14 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             task_generator_msgs.srv.DespawnRobot,
             self.service_namespace("runtime", "despawn_robot"),
             self._cb_despawn_robot,
+        )
+
+        from std_srvs.srv import Trigger
+
+        self.create_service(
+            Trigger,
+            self.service_namespace("runtime", "require_map"),
+            self._cb_require_map,
         )
 
         self._logger.info("Services set up")

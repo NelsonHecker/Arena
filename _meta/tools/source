@@ -269,6 +269,10 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 "${TOOLS_DIR}/robot" "$@"
                 result=$?
             ;;
+            human)
+                "${TOOLS_DIR}/human" "$@"
+                result=$?
+            ;;
             cleanup)
                 if [ $# -lt 1 ]; then
                     echo "Usage: arena cleanup <env_id>" >&2

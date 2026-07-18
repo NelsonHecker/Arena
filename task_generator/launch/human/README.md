@@ -15,8 +15,9 @@ keys:
 simulator key  →  action
 ──────────────────────────────────────────────────────────────────
 dummy          →  empty GroupAction (no nodes)
-isaac          →  empty GroupAction (no nodes)
+none           →  empty GroupAction (no nodes)
 hunav          →  hunav/hunav.launch.py
+arena          →  arena_humansim/arena_humansim.launch.py
 ```
 
 The `simulator` `LaunchArgument` is declared after the `SelectAction` is
@@ -25,8 +26,8 @@ built; its `choices` are derived from `launch_human_simulator.keys`.
 The `human` arg (not the `sim` arg) is passed here as `simulator`. The default
 mapping is:
 - `sim=dummy` → `human=dummy`
-- `sim=gazebo` → `human=hunav`
-- `sim=isaac` → `human=hunav`
+- `sim=gazebo` → `human=arena`
+- `sim=isaac` → `human=arena`
 
 This is resolved in `task_generator.launch.py` and can be overridden
 explicitly with `human:=<key>`.

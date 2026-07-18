@@ -13,7 +13,7 @@ maps them to live ROS parameters.
 | `TASK_GENERATOR_SERVER_NODE` | `Namespace` | `"task_generator_server"` |
 | `SimSimulator` | `Enum` | `dummy`, `flatland`, `gazebo`, `unity`, `isaac` |
 | `ArenaType` | `Enum` | `training`, `deployment` |
-| `HumanSimulator` | `Enum` | `dummy`, `hunav`, `isaac` |
+| `HumanSimulator` | `Enum` | `dummy`, `none`, `hunav`, `arena` |
 | `TaskMode.TM_Obstacles` | `Enum` | `parametrized`, `random`, `scenario`, `environment`, `prompt` |
 | `TaskMode.TM_Robots` | `Enum` | `guided`, `explore`, `random`, `scenario`, `demo` |
 | `TaskMode.TM_Module` | `Enum` | `staged`, `dynamic_map`, `clear_forbidden_zones`, `rviz_ui` |
@@ -43,6 +43,8 @@ Config.General.RNG.stream("obstacles", "random")   # independent numpy Generator
 | `SIM` | `sim` | `dummy` | `Constants.SimSimulator` |
 | `HUMAN` | `human` | `dummy` | `Constants.HumanSimulator` |
 | `WORLD` | `world` | *(required)* | `str` |
+
+`HUMAN`'s `dummy` default is only the bare ROS-param fallback (offline/test contexts). `task_generator.launch.py` always resolves `human` per sim first (`gazebo`/`isaac` → `arena`, `dummy` → `dummy`).
 
 ### `Config.General`
 

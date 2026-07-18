@@ -25,7 +25,7 @@ def generate_launch_description():
     )
 
     launch_human_simulator.add(
-        Constants.HumanSimulator.ISAAC.value,
+        Constants.HumanSimulator.NONE.value,
         launch.actions.GroupAction([])
     )
 

@@ -86,6 +86,7 @@ src = [
     "arena_simulation_setup/src/arena_simulation_setup",
     "utils/arena_rclpy_mixins/arena_rclpy_mixins",
     "utils/rviz_utils/rviz_utils",
+    "utils/human_steering/human_steering",
 ]
 extend-exclude = [
     "_meta",

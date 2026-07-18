@@ -59,8 +59,11 @@ arena launch \
 | `tm_robots:=explore` | Robot gets fresh random goals continuously |
 | `tm_obstacles:=random` | Random static/dynamic obstacles placed each episode |
 
-The `human` arg defaults to `dummy` when `sim=dummy`, so no human simulator
-is started.
+The `human` arg defaults to `dummy` when `sim=dummy`, so pedestrians stay
+idle until driven from a `human_steering` panel. `arena launch` auto-attaches
+one per env (suppressed by `headless:=true`), and `arena human` re-attaches.
+`human.steering:=true` forces the panel on any backend (possess engine-driven
+peds), `human.steering:=false` suppresses it.
 
 ---
 
@@ -78,13 +81,13 @@ arena launch \
 
 | Arg | Implication |
 |---|---|
-| `sim:=gazebo` | Starts gz-sim 8 (dart physics, ogre renderer). `human` defaults to `hunav` |
+| `sim:=gazebo` | Starts gz-sim 8 (dart physics, ogre renderer). `human` defaults to `arena` |
 | `world:=map_empty` | Resolved to `arena_simulation_setup/worlds/map_empty/worlds/map_empty.world`; falls back to `configs/gazebo/empty.sdf` if absent |
 | `mobile.local_planner:=teb` | TEB local planner; `mobile` adapter defaults to `nav2` for gazebo, the override lands as `robot.mobile.local_planner` and is forwarded to nav2's bringup |
 | `headless` | Omitted → `false` (sim GUI visible, rviz shown). Pass `headless:=true` to hide the sim GUI (viz also suppressed unless `viz:=true` is set explicitly) |
 
-To suppress the HuNavSim agent manager when no human obstacles are needed,
-add `human:=dummy` to the command above.
+To suppress the human-simulation backend (`arena` by default for gazebo)
+when no human obstacles are needed, add `human:=none` to the command above.
 
 ---
 
@@ -225,6 +228,7 @@ via `/arena/spawn_env`.
 |---|---|---|
 | `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `viz:=false` unless `viz:=true` is explicit. |
 | `viz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
+| `human.steering` | `auto` | Per-env `human_steering` panel. `auto` = attach when the resolved `human` backend is `dummy` (and not headless). `true` = always attach, wins over `headless`. `false` = never. |
 | `viz.view` | `map` | Camera view in rviz: `map` (TopDownOrtho), `robot` (Orbit on robot base), `robot3p` (ThirdPersonFollower on robot base). |
 | `viz.robot` | `0` | Robot index in the fleet for `viz.view:=robot*`. `all` spawns one rviz window per robot. Ignored when `view=map`. |
 
@@ -338,7 +342,7 @@ Default is `gazebo`. Valid values:
 
 | Value | Meaning |
 |---|---|
-| `gazebo` (default) | gz-sim 8, dart physics, ogre renderer. `human` defaults to `hunav`. |
+| `gazebo` (default) | gz-sim 8, dart physics, ogre renderer. `human` defaults to `arena`. |
 | `isaac` | Isaac Sim via `arena feature isaac launch`. `mobile` defaults to `nav2`. |
 | `dummy` | No physics engine; a static `map->dummy` TF is published. For plumbing-only checks (no GPU, no controllers). Must be passed explicitly. |
 
@@ -431,6 +435,7 @@ common entry points. Verbs relevant to bringup:
 | `arena runtime [args]` | `arena_runtime.launch.py` | Runtime-only launch (sim + `arena_node`, no envs). |
 | `arena env [args]` | `task_generator.launch.py` | Attach one task-generator env to a running runtime. |
 | `arena viz [target]` | `ros2 run rviz_utils rviz_config` | Attach rviz to a running env; see [arena viz](#arena-viz). |
+| `arena human [target]` | `rqt --standalone human_steering` | Attach the pedestrian-steering panel to a running env. Target/`--ns` resolution matches [arena viz](#arena-viz). Interactive control works on any backend serving `human/*`: driving a ped possesses it, the engine reclaims it about a second after you stop, `human:=dummy` is the engine-less puppet stage. `arena launch` auto-attaches one panel per env whenever the resolved human backend is `dummy`, unless `headless:=true`. This verb re-attaches after closing it. |
 | `arena robot <model>\|rm\|ls` | `runtime/spawn_robot`, `runtime/despawn_robot`, `state/robots` | Spawn, despawn, or list robots in a running fleet; see [arena robot](#arena-robot). |
 | `arena cleanup <env_id>` | `/arena/cleanup_namespace` service | Force-clean an env's namespace by id (calls the service for both the `env_<id>_` and `env_<id>/` prefixes, covering gazebo and isaac layouts). |
 | `arena train [args]` | `arena_training` feature launcher | RL training entry, see section 7 above. |
