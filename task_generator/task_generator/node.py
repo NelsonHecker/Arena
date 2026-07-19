@@ -2,6 +2,7 @@ import array
 import asyncio
 import contextlib
 import hashlib
+import json
 import random
 import traceback
 import typing
@@ -29,7 +30,7 @@ from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Sensor import SensorType
 from arena_runtime.sim import BaseSim, SimulatorRegistry
-from arena_simulation_setup.tree.World.Scenario import TimelineEntry
+from arena_simulation_setup.tree.World.Scenario import EpisodeCondition, TimelineEntry
 from arena_viz.kinds import DisplayKind
 from arena_viz.style import StyleSpec
 from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterValue
@@ -217,6 +218,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._timeline_state: list[dict[str, object]] = []
         self._timeline_seed: int = 0
         self._timeline_t0: float | None = None
+        self._episode_conditions: list[EpisodeCondition] = []
         self._timeline_loop_task: asyncio.Task | None = None
 
         self._pub_task_reset = self.create_publisher(
@@ -542,6 +544,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.outcome_info = record.outcome_info
         msg.goal_uuid = record.goal_uuid
         msg.integrity = record.integrity
+        msg.conditions = json.dumps([c.serialize() for c in self._episode_conditions])
         return msg
 
     def _publish_episode_state(self) -> None:
@@ -783,11 +786,16 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             )
 
     def reset_timeline(self) -> None:
-        """Clear timeline arm state and inert-zone overrides so the next reset replays identically."""
+        """Clear timeline arm state, episode conditions and inert-zone overrides so the next reset replays identically."""
         self._timeline = []
         self._timeline_state = []
         self._timeline_t0 = None
+        self._episode_conditions = []
         self._zone_overrides.clear()
+
+    def register_conditions(self, conditions: "Sequence[EpisodeCondition]") -> None:
+        """Carry the active scenario's episode conditions through to the episode record."""
+        self._episode_conditions = list(conditions)
 
     def _resolve_timeline_value(self, raw: str, idx: int) -> str:
         """Draw a seeded value for 'random' or a 'lo..hi' range, else return the literal verbatim."""

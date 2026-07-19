@@ -1,5 +1,6 @@
 from arena_simulation_setup.utils.geometry import Orientation, Pose, Position
 
+from .conditions import EpisodeCondition
 from .entities import CustomDynamicObstacle, DynamicObstacle, Entity, Obstacle
 from .semantics import SemanticCfg
 from .walls import Wall
@@ -20,5 +21,6 @@ __all__ = [
     "Door",
     "Schedule",
     "SemanticCfg",
+    "EpisodeCondition",
     "Signal",
 ]

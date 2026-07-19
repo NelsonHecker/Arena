@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from arena_simulation_setup.shared.conditions import EpisodeCondition
 from arena_simulation_setup.tree.World.Scenario import (
     RobotGoal,
     Scenario,
@@ -322,6 +323,115 @@ def test_scenario_timeline_structures_from_yaml(tmp_path):
     scenario = ScenarioView(scenario_dir).load()
     assert len(scenario.timeline) == 1
     assert scenario.timeline[0].at == pytest.approx(12.0)
+
+
+# ---------------------------------------------------------------------------
+# Scenario.conditions (M3)
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_conditions_default_empty():
+    s = Scenario()
+    assert s.conditions == []
+
+
+def test_scenario_conditions_structures_from_yaml(tmp_path):
+    scenario_dir = tmp_path / "sc_conditions"
+    scenario_dir.mkdir()
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [],
+        "conditions": [
+            {"op": "eventually", "p": "robot in ward_a", "text": "Deliver the package to ward A."},
+            {"op": "never", "p": "robot in pharmacy", "text": "Never enter the pharmacy."},
+            {
+                "op": "never_during",
+                "p": "robot in ward_a_doorway",
+                "q": "ward_a_door.open == false",
+                "text": "Wait for the door before passing through.",
+            },
+        ],
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    scenario = ScenarioView(scenario_dir).load()
+    assert len(scenario.conditions) == 3
+    assert [c.op for c in scenario.conditions] == ["eventually", "never", "never_during"]
+    assert scenario.conditions[2].q == "ward_a_door.open == false"
+
+
+def test_scenario_conditions_round_trip_through_cattrs():
+    cond = EpisodeCondition.parse({"op": "eventually", "p": "robot in ward_a"})
+    s = Scenario(conditions=[cond])
+    raw = converter.unstructure(s)
+    reparsed = converter.structure(raw, Scenario)
+    assert reparsed.conditions == [cond]
+
+
+def test_scenario_conditions_rejects_malformed_entry():
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [],
+        "conditions": [{"op": "eventually"}],  # missing 'p'
+    }
+    with pytest.raises(Exception):
+        converter.structure(data, Scenario)
+
+
+def test_scenario_view_load_modern_condition_malformed_reraises(tmp_path):
+    scenario_dir = tmp_path / "sc_bad_condition"
+    scenario_dir.mkdir()
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [],
+        "conditions": [{"op": "until", "p": "robot in ward_a"}],  # unknown op
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    view = ScenarioView(scenario_dir)
+    with pytest.raises(RuntimeError, match="modern"):
+        view.load()
+
+
+def test_scenario_view_load_modern_binary_op_missing_q_reraises(tmp_path):
+    scenario_dir = tmp_path / "sc_bad_condition2"
+    scenario_dir.mkdir()
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [],
+        "conditions": [{"op": "before", "p": "robot in ward_a"}],  # binary op missing 'q'
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    view = ScenarioView(scenario_dir)
+    with pytest.raises(RuntimeError, match="modern"):
+        view.load()
+
+
+def test_scenario_view_load_legacy_shape_still_falls_back(tmp_path):
+    scenario_dir = tmp_path / "sc_legacy_no_modern_keys"
+    scenario_dir.mkdir()
+    data = {
+        "obstacles": {
+            "static": [{"name": "obs1", "pose": [0.0, 0.0], "model": "box"}],
+            "dynamic": [],
+        },
+        "robots": [{"start": [1.0, 2.0], "goal": [3.0, 4.0]}],
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    view = ScenarioView(scenario_dir)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        scenario = view.load()
+    assert isinstance(scenario, Scenario)
+    assert scenario.conditions == []
+    assert scenario.timeline == []
+    assert len(scenario.robots) == 1
 
 
 # ---------------------------------------------------------------------------

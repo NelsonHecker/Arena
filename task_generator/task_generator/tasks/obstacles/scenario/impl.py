@@ -59,6 +59,7 @@ class TM_Scenario(TM_Obstacles):
         await self._ctx.environment_manager.setup_regions(regions)
 
         self.node.register_timeline(scenario.timeline, int(kwargs.get("seed", -1)))
+        self.node.register_conditions(scenario.conditions)
 
         return scenario.static, scenario.dynamic
 

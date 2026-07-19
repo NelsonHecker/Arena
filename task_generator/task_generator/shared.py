@@ -14,6 +14,7 @@ from arena_simulation_setup.shared import (  # noqa
     DynamicObstacle,
     Elevator,
     Entity,
+    EpisodeCondition,
     Floor,
     Obstacle,
     Schedule,

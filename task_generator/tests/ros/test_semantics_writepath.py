@@ -233,3 +233,54 @@ def test_reset_timeline_clears_state() -> None:
     assert stub._timeline == []
     assert stub._timeline_state == []
     assert stub._timeline_t0 is None
+
+
+# ---------------------------------------------------------------------------
+# M3 episode conditions carry
+# ---------------------------------------------------------------------------
+
+
+def test_register_conditions_sets_episode_conditions() -> None:
+    from arena_simulation_setup.shared.conditions import EpisodeCondition
+    from task_generator.node import TaskGenerator
+
+    stub = type("Stub", (), {})()
+    cond = EpisodeCondition.parse({"op": "eventually", "p": "robot in ward_a"})
+    TaskGenerator.register_conditions(stub, [cond])
+    assert stub._episode_conditions == [cond]
+
+
+def test_reset_timeline_clears_episode_conditions() -> None:
+    from arena_simulation_setup.shared.conditions import EpisodeCondition
+    from arena_simulation_setup.tree.World.Scenario import TimelineEntry
+
+    entry = TimelineEntry(set=[{"entity": "a", "field": "x", "value": "1"}], at=1.0)
+    stub, cls, _fired = _timeline_stub([entry])
+    cls.register_conditions(stub, [EpisodeCondition.parse({"op": "never", "p": "robot in pharmacy"})])
+    cls.reset_timeline(stub)
+    assert stub._episode_conditions == []
+
+
+def test_record_to_msg_serializes_episode_conditions() -> None:
+    import json
+
+    from arena_simulation_setup.shared.conditions import EpisodeCondition
+    from task_generator.node import EpisodeRecord, TaskGenerator
+
+    stub = type("Stub", (), {})()
+    stub._episode_conditions = [
+        EpisodeCondition.parse({"op": "eventually", "p": "robot in ward_a", "text": "Deliver the package."}),
+    ]
+    msg = TaskGenerator._record_to_msg(stub, EpisodeRecord())
+    assert json.loads(msg.conditions) == [{"op": "eventually", "p": "robot in ward_a", "text": "Deliver the package."}]
+
+
+def test_record_to_msg_empty_conditions_serializes_empty_list() -> None:
+    import json
+
+    from task_generator.node import EpisodeRecord, TaskGenerator
+
+    stub = type("Stub", (), {})()
+    stub._episode_conditions = []
+    msg = TaskGenerator._record_to_msg(stub, EpisodeRecord())
+    assert json.loads(msg.conditions) == []

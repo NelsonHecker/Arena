@@ -10,7 +10,7 @@ from collections.abc import Iterable
 import attrs
 import yaml
 
-from arena_simulation_setup.shared import DynamicObstacle, Obstacle, Pose, Position
+from arena_simulation_setup.shared import DynamicObstacle, EpisodeCondition, Obstacle, Pose, Position
 from arena_simulation_setup.tree import PathView
 from arena_simulation_setup.utils.cattrs import ArenaConverter, Parseable, converter
 
@@ -110,6 +110,9 @@ class TimelineEntry(Parseable):
         return converter.structure_attrs_fromdict(dict(value), cls)
 
 
+_MODERN_ONLY_KEYS: frozenset[str] = frozenset({"conditions", "timeline", "regions"})
+
+
 @attrs.define
 class Scenario:
     static: list[Obstacle] = attrs.field(factory=list)
@@ -117,6 +120,7 @@ class Scenario:
     robots: list[RobotGoal] = attrs.field(factory=list)
     regions: dict[str, RegionAssignment] = attrs.field(factory=dict)
     timeline: list[TimelineEntry] = attrs.field(factory=list)
+    conditions: list[EpisodeCondition] = attrs.field(factory=list)
 
 
 class ScenarioView(PathView):
@@ -148,6 +152,7 @@ class ScenarioView(PathView):
         )
 
     def load(self, converter: ArenaConverter = converter) -> Scenario:
+        raw: object = None
         load_exc: Exception
         try:
             with open(self.scenario_path) as f:
@@ -158,6 +163,11 @@ class ScenarioView(PathView):
             return scenario
         except Exception as e:
             load_exc = e
+
+        if isinstance(raw, dict) and _MODERN_ONLY_KEYS.intersection(raw):
+            raise RuntimeError(
+                f"Scenario {self.scenario_path}: modern-format scenario failed to parse, refusing to degrade to legacy. Underlying error:\n{''.join(traceback.format_exception(type(load_exc), load_exc, load_exc.__traceback__))}"
+            ) from load_exc
 
         legacy_exc: Exception
         try:
