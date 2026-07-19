@@ -41,6 +41,10 @@ class DummySimulator(BaseSim):
     Does nothing.
     """
 
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        self._semantics.set_sim("dummy")
+
     async def before_reset_episode(self) -> bool:
         return True
 

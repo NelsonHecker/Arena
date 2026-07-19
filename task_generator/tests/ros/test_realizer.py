@@ -153,6 +153,15 @@ def test_realize_floor_translates_and_prefixes_name(realizer):
     assert math.isclose(result.pos.y, 2.0)
 
 
+def test_realize_door_preserves_semantics_with_prefixed_name(realizer):
+    from arena_simulation_setup.shared import Door
+    from arena_simulation_setup.utils.geometry import Position
+    d = Door(start=Position(0, 0), end=Position(1, 0), name="door1", semantics=[{"preset": "door"}], extra={})
+    result = realizer.realize(d)
+    assert "door1" in result.name
+    assert [(cfg.role, cfg.name) for cfg in result.semantics] == [(cfg.role, cfg.name) for cfg in d.semantics]
+
+
 def test_realize_elevator_translates_and_prefixes(realizer):
     from arena_simulation_setup.shared import Elevator
     from arena_simulation_setup.utils.geometry import Position
@@ -160,6 +169,15 @@ def test_realize_elevator_translates_and_prefixes(realizer):
     result = realizer.realize(e)
     assert "elev1" in result.name
     assert math.isclose(result.position.x, 1.0)
+
+
+def test_realize_elevator_preserves_semantics_with_prefixed_name(realizer):
+    from arena_simulation_setup.shared import Elevator
+    from arena_simulation_setup.utils.geometry import Position
+    e = Elevator(position=Position(0, 0), name="elev1", semantics=[{"preset": "elevator"}], extra={})
+    result = realizer.realize(e)
+    assert "elev1" in result.name
+    assert [(cfg.role, cfg.name) for cfg in result.semantics] == [(cfg.role, cfg.name) for cfg in e.semantics]
 
 
 def test_realize_elevator_no_destination(realizer):

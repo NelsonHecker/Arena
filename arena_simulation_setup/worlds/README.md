@@ -74,6 +74,64 @@ is resolved via `WallIdentifier(name)` at simulation time,
 see [tree/Wall.py](../src/arena_simulation_setup/tree/Wall.py)
 and [shared/walls.py](../src/arena_simulation_setup/shared/walls.py).
 
+## Semantic annotations
+
+An optional `semantics:` list can be added to any `doors:` entry, `elevators:`
+entry, or to a zone itself (`LevelDescription.Zone`). Each item is either a
+preset or a primitive, parsed into a `SemanticCfg`
+([shared/semantics.py](../src/arena_simulation_setup/shared/semantics.py)):
+
+```yaml
+doors:
+- name: door_edge_1_1
+  start: {x: 4.0, y: 1.55, z: 0.0}
+  end:   {x: 4.0, y: 2.45, z: 0.0}
+  semantics:
+  - preset: door
+    distance: 2.0
+elevators:
+- name: 1_elevator
+  position: {x: 5.0, y: 0.0, z: 0.0}
+  destination: "2.2_elevator"
+  semantics:
+  - preset: elevator
+zones:
+- name: lobby
+  corners: [...]
+  semantics:
+  - state: max_speed
+    value: 1.5
+  - predicate: quiet
+    value: true
+  - predicate: restricted
+    value: false
+```
+
+A preset (`{preset: door}` or `{preset: elevator}`) expands to the fixed set of
+states and predicates that kind's runtime handler already tracks. Any other
+keys on the preset item (e.g. `distance`) apply as overrides to every expanded
+primitive. Expansion happens at parse time, so `SemanticCfg`s never retain the
+preset name.
+
+A primitive is `{state: <name>, ...}` or `{predicate: <name>, ...}`, with
+optional keys:
+
+| key | default | meaning |
+| --- | --- | --- |
+| `value` | `null` | literal for zone annotations; omitted/`null` means runtime-derived for doors/elevators |
+| `binding` | `kinematic` | `joint` is reserved and raises a parse error in v1 |
+| `trigger` | `proximity` | `contact` is reserved and raises a parse error in v1 |
+| `distance` | `-1.0` | proximity radius in metres; `< 0` inherits the entity's `activation_distance` |
+
+Zone semantics have a seed vocabulary (`max_speed` continuous state,
+`quiet`/`restricted` predicates) that is inert in v1: parsed and published,
+with no runtime behavior. Author-defined state/predicate names beyond the
+seed are accepted verbatim.
+
+`Door`/`Elevator` omit an empty `semantics:` list on serialize (opt-in,
+consistent with their other omit-if-default fields). `Zone` is plain attrs and
+always emits `semantics: []` when empty.
+
 ## `map/` directory
 
 A preview `map.png` + `map.yaml` can be rendered with `touch_world` (see

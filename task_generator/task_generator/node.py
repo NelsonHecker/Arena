@@ -3,7 +3,9 @@ import asyncio
 import contextlib
 import hashlib
 import traceback
+import typing
 import uuid
+from collections.abc import Sequence
 
 import arena_robots.Robot
 import arena_runtime_msgs.msg
@@ -54,6 +56,9 @@ from task_generator.tasks.task import Task
 from task_generator.utils.flags import flag_enabled
 
 from . import SafeCallbackNode
+
+if typing.TYPE_CHECKING:
+    from arena_runtime.sim._semantics import SemanticChange, SemanticEntitySnapshot
 
 _LATCHED = rclpy.qos.QoSProfile(
     depth=1,
@@ -240,6 +245,18 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 depth=queue_depth,
                 durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
             ),
+        )
+
+        self._pub_state_semantics = self.create_publisher(
+            task_generator_msgs.msg.SemanticSnapshot,
+            self.service_namespace("state", "semantics"),
+            _LATCHED,
+        )
+
+        self._pub_state_semantic_events = self.create_publisher(
+            task_generator_msgs.msg.SemanticEvent,
+            self.service_namespace("state", "semantic_events"),
+            _EPISODE_QOS,
         )
 
         self._pub_heartbeat = self.create_publisher(
@@ -441,6 +458,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             realizer=realizer,
             env_id=self._env_id,
         )
+        self._simulator.set_semantics_callback(self._on_semantics_changed)
         self._logger.info("Setting up human simulator")
         self._human_simulator = await HumanSimulatorRegistry.get(
             self.conf.Arena.HUMAN.value,
@@ -509,6 +527,82 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.obstacles_params = self._params_for_mode(self._episodes.current.tm_obstacles)
         msg.robots_params = self._params_for_mode(self._episodes.current.tm_robots)
         self._pub_state_episode.publish(msg)
+
+    def _semantic_entity_state_msg(self, snap: "SemanticEntitySnapshot") -> task_generator_msgs.msg.SemanticEntityState:
+        msg = task_generator_msgs.msg.SemanticEntityState()
+        msg.entity = snap.entity
+        msg.kind = snap.kind
+        msg.discrete_names = list(snap.discrete.keys())
+        msg.discrete_values = list(snap.discrete.values())
+        msg.continuous_names = list(snap.continuous.keys())
+        msg.continuous_values = list(snap.continuous.values())
+        msg.predicate_names = list(snap.predicates.keys())
+        msg.predicate_values = list(snap.predicates.values())
+        return msg
+
+    def _semantic_event_msg(self, change: "SemanticChange") -> task_generator_msgs.msg.SemanticEvent:
+        msg = task_generator_msgs.msg.SemanticEvent()
+        msg.stamp = self.sim_time.to_msg()
+        msg.env_id = self._env_id
+        msg.entity = change.entity
+        msg.kind = change.kind
+        msg.field_kind = task_generator_msgs.msg.SemanticEvent.STATE if change.field_kind == "state" else task_generator_msgs.msg.SemanticEvent.PREDICATE
+        msg.field = change.field
+        msg.previous = change.previous
+        msg.current = change.current
+        return msg
+
+    def _zone_semantic_states(self) -> list[task_generator_msgs.msg.SemanticEntityState]:
+        """Inert zone annotations from the loaded world, env-prefixed, appended to every snapshot."""
+        states: list[task_generator_msgs.msg.SemanticEntityState] = []
+        for level_id, level in self._world_manager.world.levels.items():
+            for zone in level.zones:
+                if not zone.semantics:
+                    continue
+                msg = task_generator_msgs.msg.SemanticEntityState()
+                msg.entity = self._realizer.prefix(zone.name, level_id)
+                msg.kind = "zone"
+                discrete_names: list[str] = []
+                discrete_values: list[str] = []
+                continuous_names: list[str] = []
+                continuous_values: list[float] = []
+                predicate_names: list[str] = []
+                predicate_values: list[bool] = []
+                for cfg in zone.semantics:
+                    if cfg.value is None:
+                        continue
+                    if cfg.role == "predicate":
+                        predicate_names.append(cfg.name)
+                        predicate_values.append(bool(cfg.value))
+                    elif isinstance(cfg.value, str):
+                        discrete_names.append(cfg.name)
+                        discrete_values.append(cfg.value)
+                    else:
+                        continuous_names.append(cfg.name)
+                        continuous_values.append(float(cfg.value))
+                msg.discrete_names = discrete_names
+                msg.discrete_values = discrete_values
+                msg.continuous_names = continuous_names
+                msg.continuous_values = continuous_values
+                msg.predicate_names = predicate_names
+                msg.predicate_values = predicate_values
+                states.append(msg)
+        return states
+
+    def _publish_semantics_snapshot(self) -> None:
+        msg = task_generator_msgs.msg.SemanticSnapshot()
+        msg.stamp = self.sim_time.to_msg()
+        msg.env_id = self._env_id
+        msg.world = self._world_manager.loaded_world
+        entities = [self._semantic_entity_state_msg(s) for s in self._simulator.semantics_snapshot()]
+        entities.extend(self._zone_semantic_states())
+        msg.entities = entities
+        self._pub_state_semantics.publish(msg)
+
+    def _on_semantics_changed(self, changes: "Sequence[SemanticChange]") -> None:
+        for change in changes:
+            self._pub_state_semantic_events.publish(self._semantic_event_msg(change))
+        self._publish_semantics_snapshot()
 
     def _publish_viz_manifest(self) -> None:
         """Publish the env-level and per-robot display manifest."""

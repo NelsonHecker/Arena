@@ -9,6 +9,7 @@ from arena_simulation_setup.tree.assets.Material import Material, MaterialIdenti
 from arena_simulation_setup.utils.geometry import Position
 
 from .entities import Named
+from .semantics import SemanticCfg, parse_semantics
 
 
 def _activation_distance_converter(x: float | typing.Sequence[float]) -> tuple[float, float]:
@@ -30,6 +31,7 @@ class Elevator(Named):
     hold_time: float = 2.0
     travel_time: float = 3.0
     accept_outside_calls: bool = True
+    semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
 
     def cabin_corners(self) -> list[Position]:
         cx, cy = self.position.x, self.position.y
@@ -56,6 +58,7 @@ class Door(Named):
     )
     transition_time: float = 1.0
     hold_time: float = 2.0
+    semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
 
     @property
     def corners(self) -> list[Position]:

@@ -212,6 +212,8 @@ class GazeboSimulator(BaseSim):
 
         self._viewport_camera_pose: Pose | None = None
 
+        self._semantics.set_sim("gazebo")
+
     async def before_reset_episode(self) -> bool:
         return True
 

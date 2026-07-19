@@ -93,6 +93,24 @@ Ceilings are opaque from below and transparent from above. They are visual-only
 (no collision). With `ceiling_cast_shadows` false the ceiling does not occlude
 the sun, so interiors stay lit without global illumination.
 
+### Semantic annotations
+
+Doors, elevators, and zones accept an optional `semantics:` list of state and
+predicate annotations:
+
+```yaml
+doors:
+- name: door_edge_1_1
+  start: {x: 4.0, y: 1.55, z: 0.0}
+  end:   {x: 4.0, y: 2.45, z: 0.0}
+  semantics:
+  - preset: door
+```
+
+`preset: door` and `preset: elevator` expand to the fixed set of states and
+predicates each kind's runtime handler tracks. Zones instead take literal
+primitives (`{state: max_speed, value: 1.5}`, `{predicate: quiet, value: true}`).
+
 Full field reference: [worlds/README.md](worlds/README.md).
 
 ## 3. Generate the map

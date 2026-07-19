@@ -22,8 +22,10 @@ from arena_simulation_setup.shared import (
     Elevator,
     Floor,
     Obstacle,
+    SemanticCfg,
     Wall,
 )
+from arena_simulation_setup.shared.semantics import parse_semantics
 from arena_simulation_setup.tree import FallbackResolver, Identifier, PathView
 from arena_simulation_setup.tree.assets.Material import (
     Material,
@@ -75,6 +77,7 @@ class LevelDescription:
             converter=MaterialIdentifier.converter,
             default=Material.default('ceiling'),
         )
+        semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
 
         @property
         def floor(self) -> Floor:

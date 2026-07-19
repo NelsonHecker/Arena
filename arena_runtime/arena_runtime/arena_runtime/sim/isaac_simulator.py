@@ -246,6 +246,8 @@ class IsaacSimulator(BaseSim, NodeInterface):
         self._mechanism_tf_buffer = tf2_ros.Buffer()
         self._mechanism_tf_listener = tf2_ros.TransformListener(self._mechanism_tf_buffer, self.node)
 
+        self._semantics.set_sim("isaac")
+
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
         robot_config = arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync()
         args: dict[str, object] = {

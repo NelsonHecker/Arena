@@ -494,6 +494,8 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
             else:
                 logger.info(f"Elevator teleport (no-op, no human sim): {len(ped_destinations)} peds {source_name!r} -> {dest_name!r}")
 
+    mech._semantics.step(now)
+
 
 async def shim_spawn_doors(mech: MechanismITF, doors: Sequence[Door]) -> bool:
     """Spawn box geometry for each door and register door runtimes."""

@@ -266,7 +266,9 @@ class EnvironmentManager(NodeInterface):
 
     async def before_reset_episode(self) -> bool:
         await self._human_simulator.pause()
-        return await self._simulator.before_reset_episode()
+        result = await self._simulator.before_reset_episode()
+        self._simulator.reset_semantics()
+        return result
 
     async def after_reset_episode(self) -> bool:
         try:

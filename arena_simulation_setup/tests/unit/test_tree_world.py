@@ -5,6 +5,7 @@ import pytest
 from arena_simulation_setup.shared.world import Door
 from arena_simulation_setup.shared.walls import Wall
 from arena_simulation_setup.tree.World.World import LevelDescription as WorldDescription
+from arena_simulation_setup.utils.cattrs import converter
 from arena_simulation_setup.utils.geometry import Position
 
 
@@ -70,6 +71,40 @@ def test_all_walls_multiple_zones():
     z2 = _make_zone("z2", walls=[w2])
     wd = WorldDescription(zones=[z1, z2])
     assert len(list(wd.all_walls)) == 2
+
+
+# ---------------------------------------------------------------------------
+# Zone semantics
+# ---------------------------------------------------------------------------
+
+
+def test_zone_semantics_default_emitted_as_empty_list():
+    zone = _make_zone()
+    unstructured = converter.unstructure(zone)
+    assert unstructured['semantics'] == []
+
+
+def test_zone_semantics_primitives_round_trip():
+    raw = {
+        'name': 'lobby',
+        'corners': [],
+        'semantics': [
+            {'state': 'max_speed', 'value': 1.5},
+            {'predicate': 'quiet', 'value': True},
+            {'predicate': 'restricted', 'value': False},
+        ],
+    }
+    zone = converter.structure(raw, WorldDescription.Zone)
+    assert [c.name for c in zone.semantics] == ['max_speed', 'quiet', 'restricted']
+    assert [c.value for c in zone.semantics] == [1.5, True, False]
+    unstructured = converter.unstructure(zone)
+    zone2 = converter.structure(unstructured, WorldDescription.Zone)
+    assert zone2.semantics == zone.semantics
+
+
+def test_zone_semantics_author_defined_name_accepted():
+    zone = converter.structure({'name': 'z', 'semantics': [{'predicate': 'custom_flag'}]}, WorldDescription.Zone)
+    assert zone.semantics[0].name == 'custom_flag'
 
 
 def test_all_doors_empty():

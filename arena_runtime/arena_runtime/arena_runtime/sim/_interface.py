@@ -225,7 +225,10 @@ class MechanismITF:
     """
 
     if typing.TYPE_CHECKING:
+        from collections.abc import Callable
+
         from ._mechanism_shim import _DoorRuntime, _ElevatorRuntime
+        from ._semantics import SemanticChange, SemanticEntitySnapshot, SemanticsManager
 
         node: ArenaMixinNode
         _human_simulator: HumanSimulator | None
@@ -235,9 +238,12 @@ class MechanismITF:
         _elevator_primitives: dict[str, list[str]]
         _elevator_doors: dict[str, str]
         _mechanism_loop_task: asyncio.Task | None
+        _semantics: SemanticsManager
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
+        from ._semantics import SemanticsManager
+
         self._human_simulator = None
         self._door_runtime = {}
         self._elevator_runtime = {}
@@ -245,6 +251,7 @@ class MechanismITF:
         self._elevator_primitives = {}
         self._elevator_doors = {}
         self._mechanism_loop_task = None
+        self._semantics = SemanticsManager(self)
 
     def attach_human_simulator(self, hs: HumanSimulator) -> None:
         """Attach a human simulator for ped position reads and teleport dispatch."""
@@ -254,22 +261,42 @@ class MechanismITF:
     async def spawn_doors(self, doors: Sequence[Door]) -> bool:
         from ._mechanism_shim import shim_spawn_doors
 
-        return await shim_spawn_doors(self, doors)
+        ok = await shim_spawn_doors(self, doors)
+        for door in doors:
+            if door.name in self._door_runtime:
+                self._semantics.attach("door", door.name, door.semantics)
+        return ok
 
     async def remove_doors(self, names: Sequence[str]) -> bool:
         from ._mechanism_shim import shim_remove_doors
 
+        for name in names:
+            self._semantics.detach(name)
         return await shim_remove_doors(self, names)
 
     async def spawn_elevators(self, elevators: Sequence[Elevator]) -> bool:
         from ._mechanism_shim import shim_spawn_elevators
 
-        return await shim_spawn_elevators(self, elevators)
+        ok = await shim_spawn_elevators(self, elevators)
+        for elevator in elevators:
+            self._semantics.attach("elevator", elevator.name, elevator.semantics)
+        return ok
 
     async def remove_elevators(self, names: Sequence[str]) -> bool:
         from ._mechanism_shim import shim_remove_elevators
 
+        for name in names:
+            self._semantics.detach(name)
         return await shim_remove_elevators(self, names)
+
+    def semantics_snapshot(self) -> "list[SemanticEntitySnapshot]":
+        return self._semantics.snapshot()
+
+    def reset_semantics(self) -> None:
+        self._semantics.reset()
+
+    def set_semantics_callback(self, cb: "Callable[[Sequence[SemanticChange]], None]") -> None:
+        self._semantics.set_change_callback(cb)
 
     async def stop_mechanisms(self) -> None:
         """Cancel the mechanism tick loop if running."""

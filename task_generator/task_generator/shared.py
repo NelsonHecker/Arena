@@ -16,6 +16,7 @@ from arena_simulation_setup.shared import (  # noqa
     Entity,
     Floor,
     Obstacle,
+    SemanticCfg,
     Wall,
 )
 from arena_simulation_setup.shared.entities import Entity as _Entity  # noqa
