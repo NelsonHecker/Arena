@@ -239,6 +239,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             SpawnUsd=self.node.create_client_wrapper(SpawnUsd, "/isaac/SpawnUsd"),
             SpawnWalls=self.node.create_client_wrapper(SpawnWalls, "/isaac/SpawnWalls"),
         )
+        self._peds_publisher = self.node.create_publisher(arena_people_msgs.msg.Pedestrians, "/isaac/arena_peds", 10)
 
         # sim_path -> (tf_frame, prim_name)
         self._agent_robots: dict[str, tuple[str, str]] = {}
@@ -754,15 +755,9 @@ class IsaacSimulator(BaseSim, NodeInterface):
 
     async def pedestrian_update(self, pedestrians: arena_people_msgs.msg.Pedestrians) -> Sequence[bool]:
         # Published ped names are already sim_paths, matching the spawn key.
-        req = UpdatePedestrians.Request(pedestrians=list(pedestrians.pedestrians), stamp=pedestrians.header.stamp)
-        res = await self._clients.UpdatePedestrians.call_timeout(req)
-        if res is None:
-            return tuple(False for _ in pedestrians.pedestrians)
-        results = tuple(r == UpdatePedestrians.Response.SUCCESS for r in res.results)
-        if not all(results):
-            missed = [p.name for p, ok in zip(pedestrians.pedestrians, results, strict=False) if not ok]
-            self._logger.warning(f"UpdatePedestrians missed {missed}", throttle_duration_sec=10.0)
-        return results
+        # Latest-wins state stream rides the topic, mirroring gazebo's contract.
+        self._peds_publisher.publish(pedestrians)
+        return tuple(True for _ in pedestrians.pedestrians)
 
     async def _delete_entity(self, name: str) -> bool:
         self._logger.debug(f"Attempting to delete prim {name}")
