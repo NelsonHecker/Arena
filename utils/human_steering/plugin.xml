@@ -1,0 +1,17 @@
+<library path="human_steering">
+  <class name="human_steering" type="human_steering.plugin.HumanSteering" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      Motion engine GUI for the human:=manual backend: teleop, waypoints, clip playback and pose sliders.
+    </description>
+    <qtgui>
+      <group>
+        <label>Arena</label>
+        <icon type="theme">folder</icon>
+        <statustip>Plugins related to Arena-Rosnav.</statustip>
+      </group>
+      <label>Human Steering</label>
+      <icon type="theme">input-gaming</icon>
+      <statustip>Drive pedestrians manually against the human:=manual backend.</statustip>
+    </qtgui>
+  </class>
+</library>

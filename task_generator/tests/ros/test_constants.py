@@ -120,5 +120,7 @@ def test_human_simulator_values_stable():
     from task_generator.constants import Constants
     HS = Constants.HumanSimulator
     assert HS.DUMMY.value == "dummy"
+    assert HS.NONE.value == "none"
     assert HS.HUNAV.value == "hunav"
-    assert HS.ISAAC.value == "isaac"
+    assert HS.ARENA.value == "arena"
+    assert {m.value for m in HS} == {"dummy", "none", "hunav", "arena"}

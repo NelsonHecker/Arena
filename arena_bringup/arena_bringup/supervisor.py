@@ -1,8 +1,8 @@
 """Process supervisor for `arena launch`.
 
-Spawns arena_runtime + N task_generator envs (+ viz per env), discovers
-readiness via rclpy graph queries, and propagates signals to the entire
-process tree of each child via process-group signaling.
+Spawns arena_runtime + N task_generator envs (+ viz / human panel per env),
+discovers readiness via rclpy graph queries, and propagates signals to the
+entire process tree of each child via process-group signaling.
 """
 
 from __future__ import annotations
@@ -118,15 +118,18 @@ class Supervisor:
 
 
 from arena_bringup import viz_backends
+from arena_bringup.defaults import default_human
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    """Forward every k:=v to both runtime and env; supervisor-only knobs are env_n / viz / viz.*."""
+    """Forward every k:=v to both runtime and env. Supervisor-only knobs: env_n / viz / viz.* / human.steering."""
     env_n = 1
     headless = False
     viz = True
     viz_set = False
+    steering = 'auto'
     sim: str | None = None
+    human: str | None = None
     runtime_args: list[str] = []
     env_args: list[str] = []
     viz_args: dict[str, str] = {}
@@ -143,11 +146,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             viz_set = True
             viz = value.lower() in ('true', '1')
             continue
+        if key == 'human.steering':
+            steering = {'1': 'true', '0': 'false'}.get(value.lower(), value.lower())
+            if steering not in ('auto', 'true', 'false'):
+                sys.stderr.write(f'arena launch: human.steering must be auto|true|false, got {value!r}\n')
+                raise SystemExit(2)
+            continue
         if key.startswith('viz.'):
             viz_args[key[len('viz.') :]] = value
             continue
         if key == 'sim':
             sim = value
+        elif key == 'human':
+            human = value
         elif key == 'headless':
             headless = value.lower() in ('true', '1')
         runtime_args.append(arg)
@@ -160,7 +171,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         env_n=env_n,
         headless=headless,
         viz=viz,
+        steering=steering,
         sim=sim,
+        human=human,
         runtime_args=runtime_args,
         env_args=env_args,
         viz_args=viz_args,
@@ -229,7 +242,13 @@ def run(args: argparse.Namespace, sup: Supervisor) -> int:
             ],
         )
 
-    if args.viz:
+    if args.steering == 'auto':
+        resolved_human = args.human or (default_human(args.sim) if args.sim else None)
+        panel = resolved_human == 'dummy' and not args.headless
+    else:
+        panel = args.steering == 'true'
+
+    if args.viz or panel:
         if not wait_until(
             lambda: len(sup.viz_namespaces()) >= target_count,
             runtime_proc=runtime,
@@ -237,8 +256,14 @@ def run(args: argparse.Namespace, sup: Supervisor) -> int:
         ):
             return 1
         for ns in sorted(sup.viz_namespaces() - existing_ns):
-            for role, cmd in viz_backends.viz_commands(ns, viz_backends.env_idx_from_ns(ns), args.viz_args):
-                sup.spawn(role, cmd)
+            if args.viz:
+                for role, cmd in viz_backends.viz_commands(ns, viz_backends.env_idx_from_ns(ns), args.viz_args):
+                    sup.spawn(role, cmd)
+            if panel:
+                sup.spawn(
+                    f'human_{viz_backends.env_idx_from_ns(ns)}',
+                    ['rqt', '--standalone', 'human_steering', '--args', '--ns', ns],
+                )
 
     if runtime is not None:
         runtime.wait()

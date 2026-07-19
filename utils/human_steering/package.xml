@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package format="3">
+  <name>human_steering</name>
+  <version>0.0.0</version>
+  <description>rqt GUI motion engine for the human:=manual backend: teleop, waypoints, clip playback and pose sliders streamed onto human/stream.</description>
+  <maintainer email="dev@voshch.dev">voshch</maintainer>
+  <license>TODO</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rqt_gui</exec_depend>
+  <exec_depend>rqt_gui_py</exec_depend>
+  <exec_depend>python_qt_binding</exec_depend>
+  <exec_depend>arena_people_msgs</exec_depend>
+  <exec_depend>task_generator</exec_depend>
+  <exec_depend>rviz_utils</exec_depend>
+  <exec_depend>task_generator_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+    <rqt_gui plugin="${prefix}/plugin.xml"/>
+  </export>
+</package>

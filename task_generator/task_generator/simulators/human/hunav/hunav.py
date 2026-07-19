@@ -29,7 +29,7 @@ from task_generator.shared import (
     Wall,
 )
 from task_generator.simulators.human import BaseHumanSimulator
-from task_generator.simulators.human.dummy import DummyHumanSimulator
+from task_generator.simulators.human.noop import NoopHumanSimulator
 
 from . import HunavDynamicObstacle
 
@@ -47,7 +47,7 @@ def _create_robot_message() -> Agent:
     return robot_msg
 
 
-class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyHumanSimulator):
+class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else NoopHumanSimulator):
     """HunavManager with debug logging for tracking execution flow"""
 
     @classmethod
@@ -240,7 +240,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else DummyH
                 while not done.is_set():
                     await rate.get()
                     async with self._agents_lock:
-                        await self._simulator.pedestrian_update(self._arena_pedestrians_container)
+                        await self.relay_pedestrian_update(self._arena_pedestrians_container)
         except asyncio.CancelledError:
             pass
         except Exception as e:

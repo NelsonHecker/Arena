@@ -23,7 +23,7 @@ args (`sim`, `headless`, `world`, `use_sim_time`, `log_level`) go to
 | `sim` | string | `gazebo` | Physics simulator: `dummy`, `gazebo`, or `isaac`. `dummy` must be explicit. Standalone `arena env` may omit it (adopts the runtime's sim); if given explicitly it must match the running runtime. |
 | `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses rviz unless `rviz:=true` is explicit. |
 | `viz` | bool string | `true` | `arena launch` only: run `arena viz --all` after envs are up. Forced `false` when `headless:=true` unless overridden. |
-| `human` | string | `dummy` for `dummy` sim, `hunav` for `gazebo`/`isaac` | Human-simulator backend |
+| `human` | string | `dummy` for `dummy` sim, `arena` for `gazebo`/`isaac` | Human-simulator backend (`none` suppresses it) |
 | `complexity` | string | `1` | `1` map+position known; `2` map known AMCL; `3` SLAM |
 | `record_data_dir` | string | `` (empty) | Directory for data recording; empty disables |
 | `tm_robots` | string | `explore` | Robot task mode (legacy single-kind shorthand) |

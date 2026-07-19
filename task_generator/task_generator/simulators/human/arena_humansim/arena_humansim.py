@@ -87,7 +87,7 @@ from visualization_msgs.msg import MarkerArray
 
 from task_generator.constants import Constants
 from task_generator.constants.rng import stable_int
-from task_generator.shared import Door, DynamicObstacle, Obstacle, Pose, Position, Region, Robot, Wall
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Orientation, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle, resolve_agent_type_path
 
@@ -393,7 +393,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         return self._curr_agent_states
 
     TICK_RATE = 50.0  # Hz, local interpolation rate
-    FEEDBACK_RATE = 10.0  # Hz, rate for sending feedback to arena_humansim
+    FEEDBACK_RATE = 20.0  # Hz, matches the possession stream rate
 
     async def _interpolation_loop(self):
         """Interpolate agent states locally at TICK_RATE and publish pedestrians."""
@@ -480,20 +480,18 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                                 to_delete.append(self._runtime_obstacle(name=f"flow_{aid}", pose=Pose(Position(0.0, 0.0))))
                             await self._simulator.pedestrian_delete(to_delete)
 
-                    await self._simulator.pedestrian_update(peds)
+                    await self.relay_pedestrian_update(peds)
         except asyncio.CancelledError:
             pass
         except Exception as e:
             self._logger.error(f"Error in pedestrian update loop: {e}\n{traceback.format_exc()}")
 
     async def _feedback_loop(self):
-        """Publish dirty robot poses on world_state topic."""
+        """Publish dirty robot and possessed pedestrian poses on world_state topic."""
         try:
             with self.node.sim_time_rate(self.FEEDBACK_RATE) as (done, rate):
                 while not done.is_set():
                     await rate.get()
-                    if not self._dirty_robots:
-                        continue
                     self._publish_world_state()
         except asyncio.CancelledError:
             pass
@@ -501,7 +499,10 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             self._logger.error(f"Error in feedback loop: {e}\n{traceback.format_exc()}")
 
     def _publish_world_state(self):
-        """Publish robot poses as AgentStates on world_state topic."""
+        """Publish robot and possessed pedestrian poses as AgentStates on world_state topic."""
+        possessed = self.possessed_peds()
+        if not self._dirty_robots and not possessed:
+            return
         msg = AgentStatesMsg()
         msg.header.stamp = self.node.sim_time.to_msg()
         msg.header.frame_id = "map"
@@ -515,6 +516,19 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                 theta=yaw,
             )
             a.radius = 0.3
+            msg.agents.append(a)
+        name_to_aid = {agent_name: aid for aid, agent_name in self._agent_names.items()}
+        for name, ped in possessed.items():
+            a = AgentStateMsg()
+            aid = name_to_aid.get(name)
+            a.agent_id = aid if aid is not None else stable_int(name) & 0x7FFFFFFF
+            a.pose = Pose2DMsg(
+                x=ped.pose.position.x,
+                y=ped.pose.position.y,
+                theta=Orientation.from_msg(ped.pose.orientation).to_yaw(),
+            )
+            a.velocity = ped.twist.linear
+            a.radius = 0.35
             msg.agents.append(a)
         self._dirty_robots.clear()
         self._world_state_pub.publish(msg)

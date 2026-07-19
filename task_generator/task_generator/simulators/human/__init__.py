@@ -11,22 +11,32 @@ import attrs
 import rclpy.publisher
 import rclpy.qos
 from arena_people_msgs.msg import Pedestrian, Pedestrians
+from arena_people_msgs.srv import MovePedestrians
 from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
 from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 from arena_simulation_setup.utils.models import ModelType
+from geometry_msgs.msg import Pose
 from visualization_msgs.msg import MarkerArray
 
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
-from task_generator.shared import Door, DynamicObstacle, Obstacle, Region, Robot, Wall
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Orientation, Region, Robot, Wall
 from task_generator.simulators.human.gait import GaitGenerator
+from task_generator.simulators.human.possession import PossessionTable
 from task_generator.simulators.human.utils import (
     KnownObstacle,
     KnownObstacles,
     ObstacleLayer,
+)
+
+_STREAM_QOS = rclpy.qos.QoSProfile(
+    reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+    durability=rclpy.qos.DurabilityPolicy.VOLATILE,
+    history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+    depth=1,
 )
 
 
@@ -100,34 +110,60 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             self._on_arena_peds,
             10,
         )
+
+        self._possession: PossessionTable[Pedestrian] = PossessionTable(phase=self._gait.phase)
+        self._stream_gate = False
+        self._gate_open_stamp = 0.0
+        self._ped_bus_index: dict[str, DynamicObstacle] = {}
+        self._warned_unknown: set[str] = set()
+        self._warned_bad_joints: set[str] = set()
+        self._warned_stale = False
+        self.node.create_subscription(
+            Pedestrians,
+            self._namespace("human", "stream"),
+            self._on_human_stream,
+            _STREAM_QOS,
+        )
+        self.node.create_service(
+            MovePedestrians,
+            self._namespace("human", "move"),
+            self._cb_human_move,
+        )
+
         self._simulator.attach_human_simulator(self)
 
     def publish_arena_peds(self, msg: Pedestrians) -> None:
-        """Stamp the header, fill bare-name joint_state for peds missing one, then publish."""
+        """Stamp the header, substitute possessed peds, fill bare-name joint_state for peds missing one, then publish."""
         now = self.node.get_clock().now()
         now_sec = now.nanoseconds * 1e-9
         stamp = now.to_msg()
-        if msg.header.stamp.sec == 0 and msg.header.stamp.nanosec == 0:
-            msg.header.stamp = stamp
+        for name, last_state in self._possession.expire(now_sec):
+            self._on_ped_released(name, last_state)
+        out = Pedestrians()
+        out.header = msg.header
+        out.pedestrians = self._possession.substitute(msg.pedestrians, now_sec)
+        if out.header.stamp.sec == 0 and out.header.stamp.nanosec == 0:
+            out.header.stamp = stamp
 
-        current_ids: set[int] = {ped.id for ped in msg.pedestrians}
+        current_ids: set[int] = {ped.id for ped in out.pedestrians}
         for stale in sorted(set(self._gait_prev_stamp) - current_ids):
             self._gait.forget(stale)
             del self._gait_prev_stamp[stale]
 
-        for ped in msg.pedestrians:
+        for ped in out.pedestrians:
             ped.model_uri = self._ped_model_uris.get(ped.name, "")
             if ped.joint_state.name:
                 continue
             prev = self._gait_prev_stamp.get(ped.id)
             dt = (now_sec - prev) if prev is not None and now_sec > prev else 0.1
             self._gait_prev_stamp[ped.id] = now_sec
-            speed = math.hypot(ped.twist.linear.x, ped.twist.linear.y)
+            yaw = Orientation.from_msg(ped.pose.orientation).to_yaw()
+            speed = ped.twist.linear.x * math.cos(yaw) + ped.twist.linear.y * math.sin(yaw)
             angles = self._gait.compute(ped.id, ped.animation_state, speed, dt)
             ped.joint_state = self._gait.joint_state(angles, stamp=stamp)
             ped.gait_phase = self._gait.phase(ped.id)
 
-        self._arena_peds_publisher.publish(msg)
+        self._arena_peds_publisher.publish(out)
 
     def publish_markers(self, markers: MarkerArray) -> None:
         """Publish a transient debug-overlay MarkerArray on `pedestrian_markers/extra`."""
@@ -158,8 +194,96 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             peds_msg.pedestrians.append(ped)
             if cur is not None:
                 self._ped_positions_xy[name] = (x, y)
-        results = await self._simulator.pedestrian_update(peds_msg)
+        results = await self.relay_pedestrian_update(peds_msg)
         return all(results)
+
+    # possession
+
+    def _now_s(self) -> float:
+        """Sim-clock seconds from the node clock."""
+        return self.node.get_clock().now().nanoseconds * 1e-9
+
+    def _warn_new(self, names: frozenset[str], warned: set[str], reason: str) -> None:
+        for name in sorted(names - warned):
+            self._logger.warning(f"human/stream: {reason} {name!r}, dropping")
+        warned |= names
+
+    async def _on_human_stream(self, msg: Pedestrians) -> None:
+        if not self._stream_gate:
+            return
+        if msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9 < self._gate_open_stamp:
+            if not self._warned_stale:
+                self._warned_stale = True
+                self._logger.warning("human/stream: dropping batch stamped before gate open, publishers must stamp headers from the sim clock")
+            return
+        accepted, unknown, bad_joints, released = self._possession.merge(
+            msg.pedestrians,
+            known_names=set(self._ped_bus_index),
+            gate_open=True,
+            now=self._now_s(),
+        )
+        self._warn_new(unknown, self._warned_unknown, "unknown pedestrian")
+        self._warn_new(bad_joints, self._warned_bad_joints, "invalid joint_state for")
+        for name, last_state in released:
+            self._on_ped_released(name, last_state)
+        if accepted:
+            relay = Pedestrians()
+            relay.header.frame_id = "map"
+            relay.header.stamp = msg.header.stamp
+            relay.pedestrians = accepted
+            await self.relay_pedestrian_update(relay)
+        self._on_stream_merged([ped.name for ped in accepted])
+
+    async def _cb_human_move(
+        self,
+        request: MovePedestrians.Request,
+        response: MovePedestrians.Response,
+    ) -> MovePedestrians.Response:
+        if not self._stream_gate:
+            response.results = [MovePedestrians.Response.NOT_FOUND] * len(request.pedestrians)
+            return response
+        results: list[int] = []
+        for ped in request.pedestrians:
+            tracked = self._ped_bus_index.get(ped.name)
+            if tracked is None:
+                results.append(MovePedestrians.Response.NOT_FOUND)
+                continue
+            tracked.pose = ped.pose
+            await self._simulator.pedestrian_move([tracked])
+            results.append(MovePedestrians.Response.SUCCESS)
+            self._on_ped_moved(ped.name, ped.pose)
+        response.results = results
+        return response
+
+    async def relay_pedestrian_update(self, msg: Pedestrians) -> Sequence[bool]:
+        """Sim-side funnel: expire and substitute possessed peds, then forward to the physics sim."""
+        now = self._now_s()
+        for name, last_state in self._possession.expire(now):
+            self._on_ped_released(name, last_state)
+        out = Pedestrians()
+        out.header = msg.header
+        out.pedestrians = self._possession.substitute(msg.pedestrians, now)
+        return await self._simulator.pedestrian_update(out)
+
+    def possessed_peds(self) -> dict[str, Pedestrian]:
+        """Deep-copied name to state mapping of currently possessed peds."""
+        return self._possession.states(self._now_s())
+
+    def _close_stream_gate(self) -> None:
+        self._stream_gate = False
+        self._possession.clear()
+        self._warned_unknown.clear()
+        self._warned_bad_joints.clear()
+        self._warned_stale = False
+
+    def _on_stream_merged(self, names: Sequence[str]) -> None:
+        """Hook fired after a gate-open stream batch merges, names are the accepted entries."""
+
+    def _on_ped_released(self, name: str, last_state: Pedestrian) -> None:
+        """Hook fired when possession of a ped is released."""
+
+    def _on_ped_moved(self, name: str, pose: Pose) -> None:
+        """Hook fired after a human/move teleport."""
 
     async def spawn_obstacles(self, obstacles: Sequence[Obstacle], layer: ObstacleLayer = ObstacleLayer.INUSE):
         """Spawns static obstacles.
@@ -272,6 +396,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 ),
             )
         await asyncio.gather(*futures)
+
+        for known in all_known:
+            self._ped_bus_index[known.obstacle.name] = known.obstacle
+            self._ped_bus_index[known.obstacle.sim_path] = known.obstacle
+        self._stream_gate = True
+        self._gate_open_stamp = self._now_s()
 
     _PEDESTRIAN_FALLBACK: typing.ClassVar[str] = "arenian"
 
@@ -410,6 +540,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         Prepares obstacles for reuse or removal.
         """
         self._logger.debug("unusing obstacles")
+        self._close_stream_gate()
 
         obstacle_names = [name for name, known in self._known_obstacles.items() if not isinstance(known.obstacle, DynamicObstacle) and known.layer == ObstacleLayer.UNUSED]
 
@@ -417,6 +548,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             self._remove_pedestrians_impl(),
             self._remove_obstacles_impl(obstacle_names),
         )
+        self._ped_bus_index.clear()
 
         for name in obstacle_names:
             self._known_obstacles.forget(name)
@@ -557,6 +689,12 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 else:
                     static.append(known.obstacle)
                 self._known_obstacles.forget(name=oid)
+
+        if dynamic:
+            self._close_stream_gate()
+            for obstacle in dynamic:
+                self._ped_bus_index.pop(obstacle.name, None)
+                self._ped_bus_index.pop(obstacle.sim_path, None)
 
         static_names = [o.name for o in static]
         if static_names:
@@ -724,18 +862,18 @@ async def dummy(**kwargs: object) -> BaseHumanSimulator:
     return DummyHumanSimulator(**kwargs)
 
 
+@HumanSimulatorRegistry.register(Constants.HumanSimulator.NONE)
+async def noop(**kwargs: object) -> BaseHumanSimulator:
+    from .noop import NoopHumanSimulator
+
+    return NoopHumanSimulator(**kwargs)
+
+
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.HUNAV)
 async def lazy_hunavsim(**kwargs: object) -> BaseHumanSimulator:
     from .hunav.hunav import HunavHumanSimulator
 
     return await HunavHumanSimulator.create(**kwargs)
-
-
-@HumanSimulatorRegistry.register(Constants.HumanSimulator.ISAAC)
-async def isaacsim(**kwargs: object) -> BaseHumanSimulator:
-    from .isaac import IsaacHumanSimulator
-
-    return IsaacHumanSimulator(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.ARENA)

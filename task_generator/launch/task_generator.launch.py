@@ -12,6 +12,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from arena_bringup.actions import IsolatedGroupAction
 from arena_bringup.extensions.NodeLogLevelExtension import SetGlobalLogLevelAction
+from arena_bringup.defaults import default_human
 from arena_bringup.substitutions import LaunchArgument
 from task_generator.utils.flags import expand_flag_namespace, truthy
 from launch.actions import (
@@ -117,7 +118,7 @@ def generate_launch_description():
     human = LaunchArgument(
         name="human",
         default_value="",
-        description="empty = derive from arena_sim ({dummy: dummy, gazebo|isaac: arena})",
+        description="empty = derive from arena_sim ({dummy: manual, gazebo|isaac: arena})",
     )
     robot = LaunchArgument(name="robot", default_value="auto")
     tm_robots = LaunchArgument(name="tm_robots", default_value="explore")
@@ -196,7 +197,7 @@ def generate_launch_description():
 
         atexit.register(_restore_terminal_titles)
 
-        human_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)) or {"dummy": "dummy", "gazebo": "arena", "isaac": "arena"}.get(arena_sim, "dummy")
+        human_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)) or default_human(arena_sim)
         mobile_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)) or {"dummy": "none"}.get(arena_sim, "nav2")
         arm_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(arm.substitution))
 
