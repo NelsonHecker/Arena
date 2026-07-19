@@ -244,6 +244,38 @@ def test_realize_unknown_type_raises(realizer):
         realizer.realize(object())
 
 
+def test_realize_schedule_prefixes_name(realizer):
+    from arena_simulation_setup.shared import Schedule
+    s = Schedule(name="fire_alarm", semantics=[{"preset": "schedule"}], extra={})
+    result = realizer.realize(s)
+    assert "fire_alarm" in result.name
+    assert "world" in result.name
+    assert [(cfg.role, cfg.name) for cfg in result.semantics] == [(cfg.role, cfg.name) for cfg in s.semantics]
+
+
+def test_realize_signal_prefixes_name(realizer):
+    from arena_simulation_setup.shared import Signal
+    s = Signal(name="crossing_1", semantics=[{"preset": "signal"}], extra={})
+    result = realizer.realize(s)
+    assert "crossing_1" in result.name
+    assert "world" in result.name
+    assert [(cfg.role, cfg.name) for cfg in result.semantics] == [(cfg.role, cfg.name) for cfg in s.semantics]
+
+
+def test_realize_polygon_translates_corners(realizer):
+    from arena_simulation_setup.utils.geometry import Position
+    corners = [Position(0, 0), Position(2, 0), Position(2, 2), Position(0, 2)]
+    ring = realizer.realize_polygon(corners)
+    assert ring == [(1.0, 2.0), (3.0, 2.0), (3.0, 4.0), (1.0, 4.0)]
+
+
+def test_realize_polygon_zero_offset(zero_realizer):
+    from arena_simulation_setup.utils.geometry import Position
+    corners = [Position(1, 1), Position(3, 1), Position(3, 3)]
+    ring = zero_realizer.realize_polygon(corners)
+    assert ring == [(1.0, 1.0), (3.0, 1.0), (3.0, 3.0)]
+
+
 def test_entity_sim_path_set_after_realize(realizer):
     from arena_simulation_setup.shared import Obstacle
     from arena_simulation_setup.utils.geometry import Pose, Position

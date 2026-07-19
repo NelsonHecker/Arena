@@ -2,6 +2,7 @@ import array
 import asyncio
 import contextlib
 import hashlib
+import random
 import traceback
 import typing
 import uuid
@@ -28,6 +29,7 @@ from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Sensor import SensorType
 from arena_runtime.sim import BaseSim, SimulatorRegistry
+from arena_simulation_setup.tree.World.Scenario import TimelineEntry
 from arena_viz.kinds import DisplayKind
 from arena_viz.style import StyleSpec
 from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterValue
@@ -60,6 +62,8 @@ from . import SafeCallbackNode
 if typing.TYPE_CHECKING:
     from arena_runtime.sim._semantics import SemanticChange, SemanticEntitySnapshot
 
+    from task_generator.shared import SemanticCfg
+
 _LATCHED = rclpy.qos.QoSProfile(
     depth=1,
     durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
@@ -70,6 +74,9 @@ _EPISODE_QOS = rclpy.qos.QoSProfile(
     depth=20,
     durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
 )
+
+# Scenario-timeline evaluation cadence, matching the mechanism-shim sim-time tick.
+_TIMELINE_TICK_RATE = 30.0
 
 
 @attrs.define
@@ -201,6 +208,16 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         self._staged_obstacles_params: dict[str, ParameterValue] = {}
         self._staged_robots_params: dict[str, ParameterValue] = {}
+
+        # M2 semantics write path: inert-zone field overrides, bare->realized entity
+        # name map, and the scenario timeline evaluated on sim time.
+        self._zone_overrides: dict[tuple[str, str], object] = {}
+        self._semantic_names: dict[str, str] = {}
+        self._timeline: list[TimelineEntry] = []
+        self._timeline_state: list[dict[str, object]] = []
+        self._timeline_seed: int = 0
+        self._timeline_t0: float | None = None
+        self._timeline_loop_task: asyncio.Task | None = None
 
         self._pub_task_reset = self.create_publisher(
             Int16,
@@ -412,6 +429,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     async def teardown(self) -> None:
         self._heartbeat_timer.cancel()
+        if self._timeline_loop_task is not None and not self._timeline_loop_task.done():
+            self._timeline_loop_task.cancel()
         await self._robots_manager.teardown()
 
     async def hold(self, reason: str) -> None:
@@ -484,6 +503,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._logger.info("Setting up robots manager")
         self._robots_manager = RobotsManager(node=self, environment_manager=self._environment_manager)
 
+        if self._timeline_loop_task is None or self._timeline_loop_task.done():
+            self._timeline_loop_task = asyncio.create_task(self._run_timeline_loop())
+
         self._logger.info("Managers set up")
 
     # RUNTIME
@@ -538,6 +560,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.continuous_values = list(snap.continuous.values())
         msg.predicate_names = list(snap.predicates.keys())
         msg.predicate_values = list(snap.predicates.values())
+        msg.members = list(snap.members)
         return msg
 
     def _semantic_event_msg(self, change: "SemanticChange") -> task_generator_msgs.msg.SemanticEvent:
@@ -551,6 +574,42 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.previous = change.previous
         msg.current = change.current
         return msg
+
+    @staticmethod
+    def _zone_field_role(cfg: "SemanticCfg") -> str:
+        """Coercion role of one inert-zone field: 'predicate' | 'continuous' | 'discrete'."""
+        if cfg.role == "predicate":
+            return "predicate"
+        if isinstance(cfg.value, str):
+            return "discrete"
+        return "continuous"
+
+    def _zone_semantic_lookup(self) -> dict[str, dict[str, str]]:
+        """Realized zone name -> {inert field name: role}, for write-path validation."""
+        lookup: dict[str, dict[str, str]] = {}
+        for level_id, level in self._world_manager.world.levels.items():
+            for zone in level.zones:
+                fields = {cfg.name: self._zone_field_role(cfg) for cfg in zone.semantics if cfg.value is not None}
+                if fields:
+                    lookup[self._realizer.prefix(zone.name, level_id)] = fields
+        return lookup
+
+    def _zone_field_value(self, entity: str, field: str) -> str | None:
+        """Current stringified value of one inert-zone field, honoring overrides."""
+        for level_id, level in self._world_manager.world.levels.items():
+            for zone in level.zones:
+                if self._realizer.prefix(zone.name, level_id) != entity:
+                    continue
+                for cfg in zone.semantics:
+                    if cfg.name != field or cfg.value is None:
+                        continue
+                    value = self._zone_overrides.get((entity, field), cfg.value)
+                    if cfg.role == "predicate":
+                        return "true" if bool(value) else "false"
+                    if isinstance(cfg.value, str):
+                        return str(value)
+                    return self._stringify_float(float(value))
+        return None
 
     def _zone_semantic_states(self) -> list[task_generator_msgs.msg.SemanticEntityState]:
         """Inert zone annotations from the loaded world, env-prefixed, appended to every snapshot."""
@@ -571,15 +630,16 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 for cfg in zone.semantics:
                     if cfg.value is None:
                         continue
+                    value = self._zone_overrides.get((msg.entity, cfg.name), cfg.value)
                     if cfg.role == "predicate":
                         predicate_names.append(cfg.name)
-                        predicate_values.append(bool(cfg.value))
+                        predicate_values.append(bool(value))
                     elif isinstance(cfg.value, str):
                         discrete_names.append(cfg.name)
-                        discrete_values.append(cfg.value)
+                        discrete_values.append(str(value))
                     else:
                         continuous_names.append(cfg.name)
-                        continuous_values.append(float(cfg.value))
+                        continuous_values.append(float(value))
                 msg.discrete_names = discrete_names
                 msg.discrete_values = discrete_values
                 msg.continuous_names = continuous_names
@@ -603,6 +663,201 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         for change in changes:
             self._pub_state_semantic_events.publish(self._semantic_event_msg(change))
         self._publish_semantics_snapshot()
+
+    # SEMANTICS WRITE PATH
+
+    @staticmethod
+    def _stringify_float(value: float) -> str:
+        return str(value)
+
+    @staticmethod
+    def _norm_token(value: object) -> str:
+        """Stringify a literal to the event convention: booleans render 'true'/'false'."""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
+    def _register_semantic_entity(self, bare: str, realized: str) -> None:
+        """Record the bare-authored -> realized name mapping for internal write resolution."""
+        self._semantic_names[bare] = realized
+
+    def _clear_semantic_entities(self) -> None:
+        """Drop the name map and zone overrides ahead of a world replacement."""
+        self._semantic_names.clear()
+        self._zone_overrides.clear()
+
+    def _resolve_semantic_entity(self, entity: str) -> str:
+        """Map a bare-authored entity name to its realized name, env-prefixing as a fallback."""
+        return self._semantic_names.get(entity) or str(self._realizer.prefix(entity))
+
+    @staticmethod
+    def _coerce_zone_value(role: str, value: str) -> object:
+        if role == "predicate":
+            token = value.strip().lower()
+            if token in ("true", "false"):
+                return token == "true"
+            raise ValueError("malformed value")
+        if role == "continuous":
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                raise ValueError("malformed value") from None
+        return value
+
+    def _apply_zone_override(self, entity: str, field: str, value: str) -> str:
+        """Apply an inert-zone override. '' on success, else a structured reason."""
+        fields = self._zone_semantic_lookup().get(entity)
+        if fields is None:
+            return "unknown entity"
+        role = fields.get(field)
+        if role is None:
+            return "field not writable"
+        try:
+            coerced = self._coerce_zone_value(role, value)
+        except ValueError:
+            return "malformed value"
+        self._zone_overrides[(entity, field)] = coerced
+        self._publish_semantics_snapshot()
+        return ""
+
+    def _apply_semantic_checked(self, entity: str, field: str, value: str) -> str:
+        """Apply one write to a runtime instance or inert zone. '' on success, else a structured reason."""
+        try:
+            if self._simulator.set_semantic_value(entity, field, value):
+                return ""
+        except ValueError as exc:
+            if str(exc) == "malformed value":
+                return "malformed value"
+            # read-only / not-writable runtime field: it may still be an inert zone field
+            if self._apply_zone_override(entity, field, value) == "":
+                return ""
+            return "field not writable"
+        return self._apply_zone_override(entity, field, value)
+
+    def _set_semantic(self, entity: str, field: str, value: str) -> bool:
+        """Internal authority entry (timeline, modules): resolve, coerce, apply, log-and-skip on error."""
+        realized = self._resolve_semantic_entity(entity)
+        reason = self._apply_semantic_checked(realized, field, value)
+        if reason:
+            self.get_logger().warning(f"semantics set skipped: {entity!r}.{field} = {value!r} ({reason})")
+            return False
+        return True
+
+    def _cb_set_semantic(
+        self,
+        request: task_generator_msgs.srv.SetSemantic.Request,
+        response: task_generator_msgs.srv.SetSemantic.Response,
+    ) -> task_generator_msgs.srv.SetSemantic.Response:
+        """External untrusted write: full validation, structured error_msg, no bare-name resolution."""
+        reason = self._apply_semantic_checked(request.entity, request.field, request.value)
+        response.success = not reason
+        response.error_msg = reason
+        return response
+
+    def _semantic_value(self, entity: str, field: str) -> str | None:
+        """Current stringified value of one semantic field across runtime and inert-zone entities."""
+        realized = self._resolve_semantic_entity(entity)
+        for snap in self._simulator.semantics_snapshot():
+            if snap.entity != realized:
+                continue
+            if field in snap.discrete:
+                return snap.discrete[field]
+            if field in snap.continuous:
+                return self._stringify_float(snap.continuous[field])
+            if field in snap.predicates:
+                return "true" if snap.predicates[field] else "false"
+        return self._zone_field_value(realized, field)
+
+    # SCENARIO TIMELINE
+
+    def register_timeline(self, entries: "Sequence[TimelineEntry]", seed: int) -> None:
+        """Arm the scenario timeline for the current episode under one seed."""
+        self._timeline = list(entries)
+        self._timeline_seed = seed
+        self._timeline_t0 = None
+        self._timeline_state = []
+        for idx, entry in enumerate(self._timeline):
+            nxt = (entry.offset + entry.every) if (entry.every is not None and entry.every > 0.0) else float("inf")
+            self._timeline_state.append(
+                {"fired": False, "next": nxt, "prev": False, "rng": random.Random(f"{seed}:{idx}")},
+            )
+
+    def reset_timeline(self) -> None:
+        """Clear timeline arm state and inert-zone overrides so the next reset replays identically."""
+        self._timeline = []
+        self._timeline_state = []
+        self._timeline_t0 = None
+        self._zone_overrides.clear()
+
+    def _resolve_timeline_value(self, raw: str, idx: int) -> str:
+        """Draw a seeded value for 'random' or a 'lo..hi' range, else return the literal verbatim."""
+        rng = self._timeline_state[idx]["rng"]
+        if raw == "random":
+            return str(rng.random())
+        if ".." in raw:
+            lo, _, hi = raw.partition("..")
+            try:
+                lo_f = float(lo)
+                hi_f = float(hi)
+            except ValueError:
+                return raw
+            return str(rng.uniform(lo_f, hi_f))
+        return raw
+
+    def _when_true(self, when: dict) -> bool:
+        expected = self._norm_token(when.get("is"))
+        current = self._semantic_value(str(when.get("entity", "")), str(when.get("field", "")))
+        return current is not None and current == expected
+
+    def _fire_timeline_entry(self, idx: int, entry: "TimelineEntry") -> None:
+        for action in entry.set:
+            entity = str(action.get("entity", ""))
+            field = str(action.get("field", ""))
+            value = self._resolve_timeline_value(self._norm_token(action.get("value")), idx)
+            self._set_semantic(entity, field, value)
+
+    def _evaluate_timeline(self, now: float) -> None:
+        """One sim-time tick of timeline evaluation. Captures t0 on the first post-unpause tick."""
+        if not self._timeline:
+            return
+        if self._timeline_t0 is None:
+            self._timeline_t0 = now
+        rel = now - self._timeline_t0
+        for idx, entry in enumerate(self._timeline):
+            state = self._timeline_state[idx]
+            fired = False
+            if entry.at is not None:
+                if not state["fired"] and rel >= entry.at:
+                    state["fired"] = True
+                    fired = True
+            elif entry.every is not None:
+                nxt = state["next"]
+                if rel >= nxt and (entry.until is None or nxt <= entry.until):
+                    fired = True
+                    while state["next"] <= rel:
+                        state["next"] += entry.every
+            elif entry.when is not None:
+                current = self._when_true(entry.when)
+                if current and not state["prev"]:
+                    fired = True
+                state["prev"] = current
+            if fired:
+                self._fire_timeline_entry(idx, entry)
+
+    async def _run_timeline_loop(self) -> None:
+        """Evaluate the scenario timeline on sim time at the mechanism tick rate."""
+        with self.sim_time_rate(_TIMELINE_TICK_RATE) as (done, rate):
+            while not done.is_set():
+                try:
+                    await rate.get()
+                except asyncio.CancelledError:
+                    raise
+                try:
+                    self._evaluate_timeline(self.sim_time.to_seconds())
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    self.get_logger().warning(f"timeline tick failed: {exc!r}")
 
     def _publish_viz_manifest(self) -> None:
         """Publish the env-level and per-robot display manifest."""
@@ -1512,6 +1767,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             task_generator_msgs.srv.DespawnRobot,
             self.service_namespace("runtime", "despawn_robot"),
             self._cb_despawn_robot,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.SetSemantic,
+            self.service_namespace("semantics", "set"),
+            self._cb_set_semantic,
         )
 
         from std_srvs.srv import Trigger

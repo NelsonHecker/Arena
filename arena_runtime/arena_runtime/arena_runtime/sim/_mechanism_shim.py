@@ -118,6 +118,29 @@ class _ElevatorStepResult:
     missing_destination: bool = False
 
 
+def _reset_door(runtime: _DoorRuntime) -> None:
+    """Reset a door runtime to spawn defaults (last_applied_progress = -1 forces a re-close next tick)."""
+    runtime.state = _DoorState.CLOSED
+    runtime.progress = 0.0
+    runtime.last_trigger_sim_time = -math.inf
+    runtime.last_applied_progress = -1.0
+
+
+def reset_mechanisms(mech: MechanismITF) -> None:
+    """Reset every door and elevator runtime to spawn defaults for a deterministic episode start."""
+    for runtime in mech._door_runtime.values():
+        _reset_door(runtime)
+    for name, runtime in mech._elevator_runtime.items():
+        runtime.arriving_eta = -math.inf
+        runtime.pending_occupants = ()
+        runtime.just_arrived = {}
+        runtime.departing = False
+        runtime.dispatched = set()
+        cabin = mech._door_runtime.get(f"{name}/door")
+        if cabin is not None:
+            _reset_door(cabin)
+
+
 def _effective_kind(
     logger: rclpy.impl.rcutils_logger.RcutilsLogger,
     door: Door,
@@ -448,6 +471,10 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
             INSIDE_DOOR_BLOCKER_RADIUS,
         )
         dest_runtime = mech._elevator_runtime.get(runtime.destination_name)
+        if mech._semantics.elevator_recalled(elev_name, now):
+            door_runtime.last_trigger_sim_time = now  # recall: hold cabin door open
+            runtime.departing = False
+            continue
         result = _step_elevator(runtime, door_runtime, dest_runtime, occupants, near_door, outside_trigger, now, outside_names=outside_names)
         if result.missing_destination:
             logger.warning(f"Elevator {elev_name!r}: destination {runtime.destination_name!r} unknown; door held open.")
@@ -458,8 +485,10 @@ async def _tick(mech: MechanismITF, dt: float) -> None:
     for name, runtime in mech._door_runtime.items():
         if name in elevator_door_names:
             continue
-        if _is_triggered(runtime.door, all_xys):
+        if _is_triggered(runtime.door, all_xys) and mech._semantics.trigger_allowed(name, now):
             runtime.last_trigger_sim_time = now
+
+    mech._semantics.apply_plate_drives(now)
 
     pending: list[typing.Awaitable] = []
     for name, runtime in mech._door_runtime.items():

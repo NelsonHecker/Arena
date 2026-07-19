@@ -132,3 +132,108 @@ def test_unstructure_semanticcfg_round_trip():
     raw = converter.unstructure(cfgs)
     restructured = converter.structure(raw, list[SemanticCfg])
     assert restructured == cfgs
+
+
+# ---------------------------------------------------------------------------
+# M2: params field
+# ---------------------------------------------------------------------------
+
+
+def test_parse_params_defaults_empty():
+    cfg = SemanticCfg.parse({'state': 'state'})
+    assert cfg.params == {}
+
+
+def test_parse_params_carried_through():
+    cfg = SemanticCfg.parse({'state': 'state', 'params': {'phases': [{'name': 'go', 'duration': 5.0}]}})
+    assert cfg.params == {'phases': [{'name': 'go', 'duration': 5.0}]}
+
+
+def test_serialize_omits_empty_params():
+    cfg = SemanticCfg.parse({'state': 'state'})
+    assert 'params' not in cfg.serialize()
+
+
+def test_serialize_includes_non_empty_params():
+    cfg = SemanticCfg.parse({'predicate': 'stop', 'params': {'regime': 'alarm'}})
+    assert cfg.serialize() == {'predicate': 'stop', 'params': {'regime': 'alarm'}}
+
+
+def test_params_round_trip_through_cattrs():
+    cfgs = parse_semantics([{'predicate': 'pressed', 'params': {'radius': 1.5, 'drives': 'north_fire_door'}}])
+    raw = converter.unstructure(cfgs)
+    restructured = converter.structure(raw, list[SemanticCfg])
+    assert restructured == cfgs
+
+
+# ---------------------------------------------------------------------------
+# M2: new presets
+# ---------------------------------------------------------------------------
+
+
+def test_parse_semantics_signal_preset_expands():
+    cfgs = parse_semantics([{'preset': 'signal'}])
+    assert [(c.role, c.name) for c in cfgs] == [
+        ('state', 'state'),
+        ('state', 'phase_remaining'),
+        ('predicate', 'stop'),
+    ]
+
+
+def test_parse_semantics_schedule_preset_expands():
+    cfgs = parse_semantics([{'preset': 'schedule'}])
+    assert [(c.role, c.name) for c in cfgs] == [
+        ('state', 'state'),
+        ('predicate', 'active'),
+        ('state', 'window_remaining'),
+    ]
+
+
+def test_parse_semantics_gate_preset_expands():
+    cfgs = parse_semantics([{'preset': 'gate'}])
+    assert [(c.role, c.name) for c in cfgs] == [
+        ('predicate', 'locked'),
+        ('predicate', 'blocked'),
+    ]
+
+
+def test_parse_semantics_pressure_plate_preset_expands():
+    cfgs = parse_semantics([{'preset': 'pressure_plate'}])
+    assert [(c.role, c.name) for c in cfgs] == [('predicate', 'pressed')]
+
+
+def test_parse_semantics_occupancy_cap_preset_expands():
+    cfgs = parse_semantics([{'preset': 'occupancy_cap'}])
+    assert [(c.role, c.name) for c in cfgs] == [
+        ('state', 'occupancy'),
+        ('state', 'cap'),
+        ('predicate', 'over_cap'),
+    ]
+
+
+def test_parse_semantics_elevator_full_preset_expands():
+    cfgs = parse_semantics([{'preset': 'elevator_full'}])
+    assert [(c.role, c.name) for c in cfgs] == [
+        ('state', 'arriving_eta'),
+        ('state', 'occupants'),
+        ('predicate', 'departing'),
+        ('predicate', 'in_transit'),
+        ('predicate', 'dispatched'),
+        ('predicate', 'just_arrived'),
+        ('state', 'cabin_door'),
+        ('state', 'cabin_door_progress'),
+    ]
+
+
+def test_parse_semantics_preset_params_applied_to_every_primitive():
+    cfgs = parse_semantics([{'preset': 'schedule', 'params': {'windows': [], 'regime': 'alarm'}}])
+    assert all(c.params == {'windows': [], 'regime': 'alarm'} for c in cfgs)
+
+
+def test_parse_semantics_pressure_plate_params_and_distance_override():
+    cfgs = parse_semantics([
+        {'preset': 'pressure_plate', 'distance': 1.0, 'params': {'position': [4.0, 2.0], 'press_on': 'alarm'}},
+    ])
+    assert len(cfgs) == 1
+    assert cfgs[0].distance == 1.0
+    assert cfgs[0].params == {'position': [4.0, 2.0], 'press_on': 'alarm'}

@@ -70,7 +70,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - state: max_speed
+    value: 1.0
   entities:
     static: []
     dynamic: []
@@ -169,7 +174,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - state: max_speed
+    value: 1.0
   entities:
     static:
     - pose:
@@ -364,7 +374,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: restricted
+    value: true
   entities:
     static:
     - pose:
@@ -637,6 +652,8 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   - name: patient_ward_door_2
     start:
       x: 8.0
@@ -652,7 +669,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: quiet
+    value: true
   entities:
     static:
     - pose:
@@ -1000,7 +1022,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: restricted
+    value: true
   entities:
     static:
     - pose:
@@ -1279,7 +1306,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: quiet
+    value: true
   entities:
     static:
     - pose:
@@ -1594,7 +1626,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: quiet
+    value: true
   entities:
     static:
     - pose:
@@ -1871,6 +1908,9 @@ zones:
       _modifiers: null
   doors: []
   elevators: []
+  semantics:
+  - state: max_speed
+    value: 0.8
   entities:
     static: []
     dynamic: []
@@ -1969,7 +2009,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: restricted
+    value: true
   entities:
     static:
     - pose:
@@ -2212,7 +2257,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: restricted
+    value: true
   entities:
     static:
     - pose:
@@ -3235,7 +3285,12 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
+    semantics:
+    - preset: door
   elevators: []
+  semantics:
+  - predicate: quiet
+    value: true
   entities:
     static:
     - pose:

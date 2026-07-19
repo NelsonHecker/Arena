@@ -5,6 +5,7 @@ sourced overlay), since the shim's data types live there.
 """
 from __future__ import annotations
 
+import asyncio
 import math
 
 import pytest
@@ -29,7 +30,10 @@ from arena_runtime.sim._mechanism_shim import (  # noqa: E402
     _is_triggered,
     _near_door_segment,
     _step_elevator,
+    _tick,
+    reset_mechanisms,
 )
+from arena_runtime.sim._semantics import SemanticsManager  # noqa: E402
 from arena_simulation_setup.utils.geometry import Orientation, Pose, Position  # noqa: E402
 from task_generator.shared import Door, Elevator  # noqa: E402
 
@@ -876,3 +880,223 @@ def test_wall_geometries_minus_y_door():
 def test_wall_z_at_top_of_cabin():
     for _suffix, _size, pose in _elevator_wall_geometries(_make_elevator()):
         assert pose.position.z == pytest.approx(1.25)
+
+
+# ---------------------------------------------------------------------------
+# tick-driven mechanism double + real SemanticsManager
+# ---------------------------------------------------------------------------
+
+
+class _StubLogger:
+    def warning(self, _msg: str) -> None: ...
+
+    def info(self, _msg: str) -> None: ...
+
+
+class _StubTime:
+    def __init__(self) -> None:
+        self.seconds = 0.0
+
+    def to_seconds(self) -> float:
+        return self.seconds
+
+
+class _StubNode:
+    def __init__(self) -> None:
+        self._logger = _StubLogger()
+        self.sim_time = _StubTime()
+
+    def get_logger(self) -> _StubLogger:
+        return self._logger
+
+
+class _Mech:
+    """Duck-typed MechanismITF exposing exactly the surface _tick and reset_mechanisms read."""
+
+    def __init__(self) -> None:
+        self.node = _StubNode()
+        self._human_simulator = None
+        self._door_runtime: dict[str, _DoorRuntime] = {}
+        self._elevator_runtime: dict[str, _ElevatorRuntime] = {}
+        self._elevator_doors: dict[str, str] = {}
+        self._robots: dict[str, tuple[float, float]] = {}
+        self._semantics = SemanticsManager(self)
+
+    def robot_positions_xy(self) -> list[tuple[str, tuple[float, float]]]:
+        return list(self._robots.items())
+
+    def robot_pose(self, sim_path: str) -> Pose | None:
+        xy = self._robots.get(sim_path)
+        if xy is None:
+            return None
+        return Pose(position=Position(xy[0], xy[1], 0.0), orientation=Orientation.from_yaw(0.0))
+
+    async def set_robot_pose(self, sim_path: str, pose: Pose) -> bool:
+        self._robots[sim_path] = (pose.position.x, pose.position.y)
+        return True
+
+    async def move_box(self, _name: str, _pose: Pose) -> bool:
+        return True
+
+
+class _Cfg:
+    """SemanticCfg stand-in: kinds read .name, the manager reads .params for USES_PARAMS kinds."""
+
+    def __init__(self, name: str, params: dict | None = None) -> None:
+        self.name = name
+        self.params = params or {}
+
+
+_DOOR_FIELDS = [_Cfg("state"), _Cfg("progress"), _Cfg("open"), _Cfg("in_transit"), _Cfg("triggered")]
+
+_ELEVATOR_FIELDS = [
+    _Cfg("arriving_eta"),
+    _Cfg("occupants"),
+    _Cfg("departing"),
+    _Cfg("in_transit"),
+    _Cfg("dispatched"),
+    _Cfg("just_arrived"),
+]
+
+
+# ---------------------------------------------------------------------------
+# reset_mechanisms: universal per-episode reset (annotated or bare)
+# ---------------------------------------------------------------------------
+
+
+def test_reset_mechanisms_resets_bare_door():
+    """A door with no semantics attached still resets to CLOSED on episode reset."""
+    mech = _Mech()
+    rt = _door_runtime(_door(name="d"), kind="sliding")
+    rt.state = _DoorState.OPEN
+    rt.progress = 1.0
+    rt.last_trigger_sim_time = 5.0
+    rt.last_applied_progress = 0.7
+    mech._door_runtime["d"] = rt
+    reset_mechanisms(mech)
+    assert rt.state == _DoorState.CLOSED
+    assert rt.progress == 0.0
+    assert rt.last_trigger_sim_time == -math.inf
+    assert rt.last_applied_progress == -1.0
+
+
+def test_reset_mechanisms_resets_bare_elevator_and_cabin_door():
+    """A bare elevator resets its runtime fields and its paired cabin door."""
+    mech = _Mech()
+    er = _elev_runtime(_elevator(name="e", destination="other"), door_name="e/door", destination="other")
+    er.arriving_eta = 8.0
+    er.pending_occupants = (("r", (1.0, 2.0)),)
+    er.just_arrived = {"r": True}
+    er.departing = True
+    er.dispatched = {"r"}
+    cabin = _door_runtime(_door(name="e/door"), kind="sliding")
+    cabin.state = _DoorState.OPEN
+    cabin.progress = 1.0
+    cabin.last_trigger_sim_time = 4.0
+    cabin.last_applied_progress = 0.5
+    mech._elevator_runtime["e"] = er
+    mech._door_runtime["e/door"] = cabin
+    reset_mechanisms(mech)
+    assert er.arriving_eta == -math.inf
+    assert er.pending_occupants == ()
+    assert er.just_arrived == {}
+    assert er.departing is False
+    assert er.dispatched == set()
+    assert cabin.state == _DoorState.CLOSED
+    assert cabin.progress == 0.0
+    assert cabin.last_trigger_sim_time == -math.inf
+    assert cabin.last_applied_progress == -1.0
+
+
+# ---------------------------------------------------------------------------
+# real _tick parity: observational semantics must not alter FSM evolution
+# ---------------------------------------------------------------------------
+
+
+async def _drive_door(mech: _Mech, *, near_ticks: int, total_ticks: int) -> list[tuple[_DoorState, float]]:
+    """Run the real wrapped _tick, robot at the doorway for near_ticks, then away."""
+    rt = mech._door_runtime["d"]
+    traj: list[tuple[_DoorState, float]] = []
+    t = 0.0
+    for i in range(total_ticks):
+        t += DT
+        mech.node.sim_time.seconds = t
+        mech._robots = {"r": (0.5, 0.5)} if i < near_ticks else {"r": (100.0, 100.0)}
+        await _tick(mech, DT)
+        traj.append((rt.state, rt.progress))
+    return traj
+
+
+def _make_door_mech() -> _Mech:
+    mech = _Mech()
+    mech._door_runtime["d"] = _door_runtime(_door(name="d", transition_time=1.0, hold_time=2.0), kind="sliding")
+    return mech
+
+
+def test_tick_door_parity_with_observational_semantics():
+    """Driving _tick end to end: a plain DoorSemantics observes but does not change FSM evolution."""
+    bare = _make_door_mech()
+    traj_bare = asyncio.run(_drive_door(bare, near_ticks=45, total_ticks=200))
+
+    annotated = _make_door_mech()
+    annotated._semantics.set_sim("gazebo")
+    annotated._semantics.attach("door", "d", _DOOR_FIELDS)
+    assert annotated._semantics.snapshot()  # semantics really attached, so the parity is not vacuous
+    traj_annotated = asyncio.run(_drive_door(annotated, near_ticks=45, total_ticks=200))
+
+    assert traj_bare == traj_annotated
+    # the drive must actually exercise a full trigger -> open -> close cycle.
+    assert {s for s, _ in traj_bare} == {
+        _DoorState.CLOSED,
+        _DoorState.OPENING,
+        _DoorState.OPEN,
+        _DoorState.CLOSING,
+    }
+
+
+def _make_elevator_mech() -> _Mech:
+    runtimes, doors = _prime_pair()
+    mech = _Mech()
+    mech._elevator_runtime = runtimes
+    mech._door_runtime = doors
+    mech._elevator_doors = {"a": "a/door", "b": "b/door"}
+    mech._robots = {"r1": (-0.5, 0.0)}  # inside cabin A, clear of the doorway
+    return mech
+
+
+async def _drive_elevator(mech: _Mech, *, total_ticks: int) -> list[tuple]:
+    """Run the real wrapped _tick over a boarding -> transit -> arrival cabin cycle."""
+    a = mech._elevator_runtime["a"]
+    b = mech._elevator_runtime["b"]
+    da = mech._door_runtime["a/door"]
+    db = mech._door_runtime["b/door"]
+    traj: list[tuple] = []
+    t = 0.0
+    for _ in range(total_ticks):
+        t += DT
+        mech.node.sim_time.seconds = t
+        await _tick(mech, DT)
+        traj.append((
+            da.state, da.progress, db.state, db.progress,
+            a.departing, b.arriving_eta, tuple(sorted(a.dispatched)),
+            tuple(sorted(b.just_arrived)), mech._robots.get("r1"),
+        ))
+    return traj
+
+
+def test_tick_elevator_parity_with_observational_semantics():
+    """Driving _tick end to end: a plain ElevatorSemantics observes but does not change FSM evolution."""
+    bare = _make_elevator_mech()
+    traj_bare = asyncio.run(_drive_elevator(bare, total_ticks=150))
+
+    annotated = _make_elevator_mech()
+    annotated._semantics.set_sim("gazebo")
+    annotated._semantics.attach("elevator", "a", _ELEVATOR_FIELDS)
+    annotated._semantics.attach("elevator", "b", _ELEVATOR_FIELDS)
+    assert len(annotated._semantics.snapshot()) == 2  # both elevators observed, so the parity is not vacuous
+    traj_annotated = asyncio.run(_drive_elevator(annotated, total_ticks=150))
+
+    assert traj_bare == traj_annotated
+    # the drive must actually complete a ride: rider teleported into B, B's door opened.
+    assert bare._robots["r1"] == pytest.approx((9.5, 0.0))
+    assert bare._door_runtime["b/door"].state == _DoorState.OPEN

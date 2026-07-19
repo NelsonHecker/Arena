@@ -227,6 +227,8 @@ class MechanismITF:
     if typing.TYPE_CHECKING:
         from collections.abc import Callable
 
+        from arena_simulation_setup.shared.semantics import SemanticCfg
+
         from ._mechanism_shim import _DoorRuntime, _ElevatorRuntime
         from ._semantics import SemanticChange, SemanticEntitySnapshot, SemanticsManager
 
@@ -293,10 +295,22 @@ class MechanismITF:
         return self._semantics.snapshot()
 
     def reset_semantics(self) -> None:
+        from ._mechanism_shim import reset_mechanisms
+
+        reset_mechanisms(self)
         self._semantics.reset()
 
     def set_semantics_callback(self, cb: "Callable[[Sequence[SemanticChange]], None]") -> None:
         self._semantics.set_change_callback(cb)
+
+    def attach_semantics(self, kind: str, entity: str, cfgs: "Sequence[SemanticCfg]", *, polygon: "Sequence[tuple[float, float]] | None" = None) -> None:
+        self._semantics.attach(kind, entity, cfgs, polygon=polygon)
+
+    def detach_semantics(self, entity: str) -> None:
+        self._semantics.detach(entity)
+
+    def set_semantic_value(self, entity: str, field: str, value: str) -> bool:
+        return self._semantics.set_value(entity, field, value)
 
     async def stop_mechanisms(self) -> None:
         """Cancel the mechanism tick loop if running."""

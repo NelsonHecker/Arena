@@ -92,11 +92,31 @@ class RegionAssignment:
 
 
 @attrs.define
+class TimelineEntry(Parseable):
+    """One scenario timeline entry: exactly one trigger (at/every/when) plus a set action list."""
+
+    set: list[dict] = attrs.field(factory=list)
+    at: float | None = None
+    every: float | None = None
+    offset: float = 0.0
+    until: float | None = None
+    when: dict | None = None
+
+    @classmethod
+    def parse(cls, value: dict) -> "TimelineEntry":
+        triggers = [key for key in ("at", "every", "when") if value.get(key) is not None]
+        if len(triggers) != 1:
+            raise ValueError(f"timeline entry must set exactly one of 'at', 'every', 'when'; got {triggers}")
+        return converter.structure_attrs_fromdict(dict(value), cls)
+
+
+@attrs.define
 class Scenario:
     static: list[Obstacle] = attrs.field(factory=list)
     dynamic: list[DynamicObstacle] = attrs.field(factory=list)
     robots: list[RobotGoal] = attrs.field(factory=list)
     regions: dict[str, RegionAssignment] = attrs.field(factory=dict)
+    timeline: list[TimelineEntry] = attrs.field(factory=list)
 
 
 class ScenarioView(PathView):

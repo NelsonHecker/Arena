@@ -20,24 +20,38 @@ def _raw_world_data() -> dict:
 
 
 def test_existing_world_loads_unchanged(_raw_world_data):
+    """Zones stay unannotated; doors/elevators carry whatever `semantics:` the fixture declares."""
     level_desc = converter.structure(_raw_world_data, LevelDescription)
-    for zone in level_desc.zones:
+    for raw_zone, zone in zip(_raw_world_data['zones'], level_desc.zones):
         assert zone.semantics == []
-        for door in zone.doors:
-            assert door.semantics == []
-        for elevator in zone.elevators:
-            assert elevator.semantics == []
+        for raw_door, door in zip(raw_zone.get('doors', []), zone.doors):
+            if 'semantics' in raw_door:
+                assert door.semantics != []
+            else:
+                assert door.semantics == []
+        for raw_elevator, elevator in zip(raw_zone.get('elevators', []), zone.elevators):
+            if 'semantics' in raw_elevator:
+                assert elevator.semantics != []
+            else:
+                assert elevator.semantics == []
 
 
 def test_existing_world_semantics_omitted_on_unstructure(_raw_world_data):
+    """Empty `semantics:` is omitted for doors/elevators, present when the fixture declares it."""
     level_desc = converter.structure(_raw_world_data, LevelDescription)
     unstructured = converter.unstructure(level_desc)
-    for zone in unstructured['zones']:
+    for raw_zone, zone in zip(_raw_world_data['zones'], unstructured['zones']):
         assert zone['semantics'] == []
-        for door in zone.get('doors', []):
-            assert 'semantics' not in door
-        for elevator in zone.get('elevators', []):
-            assert 'semantics' not in elevator
+        for raw_door, door in zip(raw_zone.get('doors', []), zone.get('doors', [])):
+            if 'semantics' in raw_door:
+                assert door['semantics']
+            else:
+                assert 'semantics' not in door
+        for raw_elevator, elevator in zip(raw_zone.get('elevators', []), zone.get('elevators', [])):
+            if 'semantics' in raw_elevator:
+                assert elevator['semantics']
+            else:
+                assert 'semantics' not in elevator
 
 
 def test_existing_world_reparse_is_stable(_raw_world_data):
@@ -47,9 +61,7 @@ def test_existing_world_reparse_is_stable(_raw_world_data):
     assert [zone.name for zone in reparsed.zones] == [zone.name for zone in level_desc.zones]
     assert [door.name for door in reparsed.all_doors] == [door.name for door in level_desc.all_doors]
     assert [elevator.name for elevator in reparsed.all_elevators] == [elevator.name for elevator in level_desc.all_elevators]
+    assert [door.semantics for door in reparsed.all_doors] == [door.semantics for door in level_desc.all_doors]
+    assert [elevator.semantics for elevator in reparsed.all_elevators] == [elevator.semantics for elevator in level_desc.all_elevators]
     for zone in reparsed.zones:
         assert zone.semantics == []
-        for door in zone.doors:
-            assert door.semantics == []
-        for elevator in zone.elevators:
-            assert elevator.semantics == []

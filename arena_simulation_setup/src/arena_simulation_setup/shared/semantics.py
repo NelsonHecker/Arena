@@ -17,6 +17,7 @@ class SemanticCfg(Parseable, Serializable):
     binding: str = 'kinematic'
     trigger: str = 'proximity'
     distance: float = -1.0
+    params: dict = attrs.field(factory=dict)
 
     @classmethod
     def parse(cls, value: dict) -> 'SemanticCfg':
@@ -39,11 +40,12 @@ class SemanticCfg(Parseable, Serializable):
             raise ValueError('trigger: contact is reserved and not supported in v1')
         cfg_value = value.pop('value', None)
         distance = float(value.pop('distance', -1.0))
+        params = dict(value.pop('params', {}))
 
         if value:
             raise ValueError(f'unknown semantics keys: {sorted(value)}')
 
-        return cls(role=role, name=name, value=cfg_value, binding=binding, trigger=trigger, distance=distance)
+        return cls(role=role, name=name, value=cfg_value, binding=binding, trigger=trigger, distance=distance, params=params)
 
     def serialize(self) -> dict:
         result: dict = {self.role: self.name}
@@ -55,6 +57,8 @@ class SemanticCfg(Parseable, Serializable):
             result['trigger'] = self.trigger
         if self.distance != -1.0:
             result['distance'] = self.distance
+        if self.params:
+            result['params'] = self.params
         return result
 
 
@@ -74,7 +78,30 @@ _PRESETS: dict[str, list[dict]] = {
         {'predicate': 'dispatched'},
         {'predicate': 'just_arrived'},
     ],
+    'signal': [
+        {'state': 'state'},
+        {'state': 'phase_remaining'},
+        {'predicate': 'stop'},
+    ],
+    'schedule': [
+        {'state': 'state'},
+        {'predicate': 'active'},
+        {'state': 'window_remaining'},
+    ],
+    'gate': [
+        {'predicate': 'locked'},
+        {'predicate': 'blocked'},
+    ],
+    'pressure_plate': [
+        {'predicate': 'pressed'},
+    ],
+    'occupancy_cap': [
+        {'state': 'occupancy'},
+        {'state': 'cap'},
+        {'predicate': 'over_cap'},
+    ],
 }
+_PRESETS['elevator_full'] = [*_PRESETS['elevator'], {'state': 'cabin_door'}, {'state': 'cabin_door_progress'}]
 
 
 def parse_semantics(value: list) -> list[SemanticCfg]:
@@ -89,8 +116,15 @@ def parse_semantics(value: list) -> list[SemanticCfg]:
             preset_name = item.pop('preset')
             if preset_name not in _PRESETS:
                 raise ValueError(f'unknown semantics preset: {preset_name}')
+            item_params = item.pop('params', {})
             for primitive in _PRESETS[preset_name]:
-                result.append(SemanticCfg.parse({**primitive, **item}))
+                primitive = dict(primitive)
+                primitive_params = primitive.pop('params', {})
+                merged = {**primitive, **item}
+                merged_params = {**primitive_params, **item_params}
+                if merged_params:
+                    merged['params'] = merged_params
+                result.append(SemanticCfg.parse(merged))
         else:
             result.append(SemanticCfg.parse(item))
     return result

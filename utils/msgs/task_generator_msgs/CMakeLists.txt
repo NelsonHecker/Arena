@@ -37,6 +37,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   srv/QueryWorlds.srv
   srv/QueueEpisode.srv
   srv/ResetEpisode.srv
+  srv/SetSemantic.srv
   srv/SpawnDynamic.srv
   srv/SpawnRobot.srv
   srv/SpawnStatic.srv

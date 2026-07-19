@@ -113,6 +113,85 @@ primitives (`{state: max_speed, value: 1.5}`, `{predicate: quiet, value: true}`)
 
 Full field reference: [worlds/README.md](worlds/README.md).
 
+### M2 kinds, params, and timelines
+
+M2 adds five scriptable/derived kinds on top of v1's `door`/`elevator`/`zone`,
+plus an `elevator_full` preset. Each new kind takes its config under a
+`params:` dict on the primitive or preset item, which round-trips opaquely
+(omitted on serialize when empty, no v1 kind reads it):
+
+| kind | attaches to | preset expansion | `params` keys |
+| --- | --- | --- | --- |
+| `signal` | a standalone `signals:` entry (zone-level) | `state`, `phase_remaining`, `stop` | `phases` (list of `{name, duration}`), `stop_phases`, `regime` |
+| `schedule` | a standalone `schedules:` entry (zone-level) | `state`, `active`, `window_remaining` | `windows` (list of `{start, end, value}`), `default`, `regime` |
+| `gate` | a `doors:` entry | `locked`, `blocked` | `authorized` (sim_paths/robot names), `unlock_on` |
+| `pressure_plate` | a `doors:`/`elevators:` entry (own `position`) | `pressed` | `position` (`[x, y]`), `radius`, `drives`, `latch`, `press_on`, `regime` |
+| `occupancy_cap` | a `zones:` entry | `occupancy`, `cap`, `over_cap` | `cap` |
+| `elevator_full` | an `elevators:` entry | v1 `elevator` expansion plus `cabin_door`, `cabin_door_progress` | (none, opt-in cabin door observability) |
+
+`signal` and `schedule` have no geometry of their own, so a zone carries them
+as sibling lists to `doors:`/`elevators:`:
+
+```yaml
+zones:
+- name: lobby
+  corners: [...]
+  schedules:
+  - name: fire_alarm
+    semantics:
+    - {preset: schedule, params: {windows: [], regime: alarm}}
+  signals:
+  - name: crosswalk_light
+    semantics:
+    - {preset: signal, params: {phases: [{name: go, duration: 20.0}, {name: stop, duration: 10.0}]}}
+```
+
+`gate` and `pressure_plate` reuse an existing `doors:`/`elevators:` entry as
+their attachment point, `occupancy_cap` reuses a `zones:` entry, all via the
+same `semantics:` list:
+
+```yaml
+doors:
+- name: north_fire_door
+  start: {x: 4.0, y: 1.55, z: 0.0}
+  end:   {x: 4.0, y: 2.45, z: 0.0}
+  semantics:
+  - {preset: gate, params: {authorized: [], unlock_on: alarm}}
+  - {preset: pressure_plate, params: {position: [4.0, 2.0], press_on: alarm, drives: north_fire_door}}
+```
+
+A `regime` (or its per-kind alias `unlock_on`/`press_on`/`recall_on`) names a
+boolean asserted by a scripted kind's driving predicate. Other kinds (gate,
+pressure_plate, elevator's cabin door recall) consult that name without a
+direct wire between the two entities, see the fire-alarm worked example below.
+
+### Scenario timelines
+
+`scenario.yaml` accepts an optional `timeline:` list. Each entry fires a `set`
+action list of `{entity, field, value}` writes against exactly one trigger:
+
+| trigger | meaning |
+| --- | --- |
+| `at: <seconds>` | fire once at episode second `t` |
+| `every: <seconds>` | fire each period, optional `offset`/`until` |
+| `when: {entity, field, is}` | fire on the false-to-true edge of a semantic value |
+
+```yaml
+timeline:
+- at: 12.0
+  set:
+  - {entity: fire_alarm, field: active, value: "true"}
+```
+
+At `t=12s` the `fire_alarm` schedule's `active` predicate goes true and
+asserts regime `alarm`: a gate with `unlock_on: alarm` reports `locked=false`,
+a pressure plate with `press_on: alarm` reports `pressed=true` and holds its
+`drives` door open, and an elevator with `recall_on: alarm` refuses calls and
+holds its cabin door open, all as pure regime consults with no per-effect
+timeline entry. See
+[worlds/three_storied_residential/scenarios/fire_alarm/scenario.yaml](worlds/three_storied_residential/scenarios/fire_alarm/scenario.yaml)
+for the reference timeline.
+
 ## 3. Generate the map
 
 ```bash

@@ -7,3 +7,4 @@ string[] continuous_names    # continuous state names, index-aligned with contin
 float64[] continuous_values  # continuous state float values
 string[] predicate_names     # predicate names, index-aligned with predicate_values
 bool[] predicate_values      # predicate boolean values
+string[] members             # committed occupant/inside ids, empty when identity is not cheaply known

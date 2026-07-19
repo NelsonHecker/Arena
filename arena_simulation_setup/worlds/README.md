@@ -132,6 +132,18 @@ seed are accepted verbatim.
 consistent with their other omit-if-default fields). `Zone` is plain attrs and
 always emits `semantics: []` when empty.
 
+### Annotated reference worlds
+
+`hospital_1` and `reception` carry `semantics:` annotations and are the
+reference for authoring new ones: throughput corridors/lobbies get
+`max_speed`, wards/waiting/rest rooms get `quiet`, staff-only or hazard rooms
+get `restricted`, and each annotated room's door carries `{preset: door}`.
+
+| World | Zones | Doors |
+| --- | --- | --- |
+| `hospital_1` | `max_speed`: `central_hallway`, `reception`, `sub_hallway`. `quiet`: `patient_ward`, `nurse_resting_room`, `waiting_area`, `doctors_resting_room`. `restricted`: `exam_room_1`, `pharmacy`, `operating_room`, `laboratory` | `{preset: door}` on each annotated zone's door(s) |
+| `reception` | `restricted`: `destination` (behind the counter). `quiet`: `entrance` (waiting chairs) | `{preset: door}` on the `door` entry connecting `destination` and `entrance` |
+
 ## `map/` directory
 
 A preview `map.png` + `map.yaml` can be rendered with `touch_world` (see

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import pytest
 import yaml
@@ -12,7 +13,9 @@ from arena_simulation_setup.tree.World.Scenario import (
     ScenarioGotoPhase,
     ScenarioPhase,
     ScenarioView,
+    TimelineEntry,
 )
+from arena_simulation_setup.utils.cattrs import converter
 from arena_simulation_setup.utils.geometry import Pose
 
 
@@ -254,3 +257,92 @@ def test_robot_goal_phases_takes_priority_over_goal():
     phases = rg.phase_list()
     assert len(phases) == 1
     assert isinstance(phases[0], ScenarioGesturePhase)
+
+
+# ---------------------------------------------------------------------------
+# TimelineEntry / Scenario.timeline (M2)
+# ---------------------------------------------------------------------------
+
+
+def test_timeline_entry_parse_at():
+    entry = TimelineEntry.parse({"at": 12.0, "set": [{"entity": "fire_alarm", "field": "active", "value": "true"}]})
+    assert entry.at == pytest.approx(12.0)
+    assert entry.every is None
+    assert entry.when is None
+    assert entry.set == [{"entity": "fire_alarm", "field": "active", "value": "true"}]
+
+
+def test_timeline_entry_parse_every():
+    entry = TimelineEntry.parse({"every": 5.0, "offset": 1.0, "until": 30.0, "set": []})
+    assert entry.every == pytest.approx(5.0)
+    assert entry.offset == pytest.approx(1.0)
+    assert entry.until == pytest.approx(30.0)
+
+
+def test_timeline_entry_parse_when():
+    entry = TimelineEntry.parse({"when": {"entity": "door_1", "field": "open", "is": True}, "set": []})
+    assert entry.when == {"entity": "door_1", "field": "open", "is": True}
+
+
+def test_timeline_entry_requires_exactly_one_trigger_none_set():
+    with pytest.raises(ValueError):
+        TimelineEntry.parse({"set": []})
+
+
+def test_timeline_entry_requires_exactly_one_trigger_multiple_set():
+    with pytest.raises(ValueError):
+        TimelineEntry.parse({"at": 1.0, "every": 2.0, "set": []})
+
+
+def test_timeline_entry_round_trip_through_cattrs():
+    entry = TimelineEntry.parse({"at": 12.0, "set": [{"entity": "fire_alarm", "field": "active", "value": "true"}]})
+    raw = converter.unstructure(entry)
+    reparsed = converter.structure(raw, TimelineEntry)
+    assert reparsed == entry
+
+
+def test_scenario_timeline_default_empty():
+    s = Scenario()
+    assert s.timeline == []
+
+
+def test_scenario_timeline_structures_from_yaml(tmp_path):
+    scenario_dir = tmp_path / "sc_timeline"
+    scenario_dir.mkdir()
+    data = {
+        "static": [],
+        "dynamic": [],
+        "robots": [],
+        "timeline": [
+            {"at": 12.0, "set": [{"entity": "fire_alarm", "field": "active", "value": "true"}]},
+        ],
+    }
+    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
+
+    scenario = ScenarioView(scenario_dir).load()
+    assert len(scenario.timeline) == 1
+    assert scenario.timeline[0].at == pytest.approx(12.0)
+
+
+# ---------------------------------------------------------------------------
+# Fire-alarm reference scenario (M2-D reference)
+# ---------------------------------------------------------------------------
+
+_FIRE_ALARM_SCENARIO = (
+    Path(__file__).resolve().parents[2]
+    / "worlds"
+    / "three_storied_residential"
+    / "scenarios"
+    / "fire_alarm"
+    / "scenario.yaml"
+)
+
+
+def test_fire_alarm_reference_scenario_parses():
+    if not _FIRE_ALARM_SCENARIO.exists():
+        pytest.skip(f"reference scenario not found: {_FIRE_ALARM_SCENARIO}")
+    scenario = ScenarioView(_FIRE_ALARM_SCENARIO.parent).load()
+    assert len(scenario.timeline) == 1
+    entry = scenario.timeline[0]
+    assert entry.at == pytest.approx(12.0)
+    assert entry.set == [{"entity": "fire_alarm", "field": "active", "value": "true"}]

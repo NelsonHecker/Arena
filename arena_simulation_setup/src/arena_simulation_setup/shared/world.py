@@ -90,3 +90,17 @@ class Ceiling(Named):
     z: float = attrs.field(converter=float, default=2.0)
     cast_shadows: bool = attrs.field(default=False)
     material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('ceiling'))
+
+
+@attrs.define
+class Schedule(Named):
+    """Standalone time-windowed semantic entity (kind = schedule), no geometry."""
+
+    semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
+
+
+@attrs.define
+class Signal(Named):
+    """Standalone cycling-phase semantic entity (kind = signal), no geometry."""
+
+    semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
