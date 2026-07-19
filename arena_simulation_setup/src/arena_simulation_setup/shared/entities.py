@@ -163,7 +163,7 @@ class CustomDynamicObstacle(DynamicObstacle):
 
         warnings.warn("CustomDynamicObstacle.parse is deprecated and will be removed in a future release. Call the constructor directly, e.g., CustomDynamicObstacle(**value).", FutureWarning, stacklevel=2)
 
-        obj = cls(**known_values)
+        obj = converter.structure_attrs_fromdict(known_values, cls)
         obj.extra.update(custom_fields)
         value = obj.asdict(True)
 

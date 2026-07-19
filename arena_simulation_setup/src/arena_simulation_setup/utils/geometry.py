@@ -282,8 +282,8 @@ class Pose(Parseable, Idempotent):
     3D pose
     """
 
-    position: Position = attrs.field(factory=lambda: Position(0, 0))
-    orientation: Orientation = attrs.field(factory=lambda: Orientation(1, 0, 0, 0))
+    position: Position = attrs.field(converter=Position.converter, factory=lambda: Position(0, 0))
+    orientation: Orientation = attrs.field(converter=Orientation.converter, factory=lambda: Orientation(1, 0, 0, 0))
 
     @classmethod
     def parse(cls, value: geometry_msgs.msg.Pose | Sequence[float] | Sequence[Sequence[float]]) -> Self:

@@ -18,12 +18,12 @@ from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
 from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 from arena_simulation_setup.utils.models import ModelType
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose as PoseMsg
 from visualization_msgs.msg import MarkerArray
 
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
-from task_generator.shared import Door, DynamicObstacle, Obstacle, Orientation, Region, Robot, Wall
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Orientation, Pose, Region, Robot, Wall
 from task_generator.simulators.human.gait import GaitGenerator
 from task_generator.simulators.human.possession import PossessionTable
 from task_generator.simulators.human.utils import (
@@ -248,7 +248,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             if tracked is None:
                 results.append(MovePedestrians.Response.NOT_FOUND)
                 continue
-            tracked.pose = ped.pose
+            tracked.pose = Pose.from_msg(ped.pose)
             await self._simulator.pedestrian_move([tracked])
             results.append(MovePedestrians.Response.SUCCESS)
             self._on_ped_moved(ped.name, ped.pose)
@@ -282,7 +282,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
     def _on_ped_released(self, name: str, last_state: Pedestrian) -> None:
         """Hook fired when possession of a ped is released."""
 
-    def _on_ped_moved(self, name: str, pose: Pose) -> None:
+    def _on_ped_moved(self, name: str, pose: PoseMsg) -> None:
         """Hook fired after a human/move teleport."""
 
     async def spawn_obstacles(self, obstacles: Sequence[Obstacle], layer: ObstacleLayer = ObstacleLayer.INUSE):
