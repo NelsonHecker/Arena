@@ -165,9 +165,7 @@ class ScenarioView(PathView):
             load_exc = e
 
         if isinstance(raw, dict) and _MODERN_ONLY_KEYS.intersection(raw):
-            raise RuntimeError(
-                f"Scenario {self.scenario_path}: modern-format scenario failed to parse, refusing to degrade to legacy. Underlying error:\n{''.join(traceback.format_exception(type(load_exc), load_exc, load_exc.__traceback__))}"
-            ) from load_exc
+            raise RuntimeError(f"Scenario {self.scenario_path}: modern-format scenario failed to parse, refusing to degrade to legacy. Underlying error:\n{''.join(traceback.format_exception(type(load_exc), load_exc, load_exc.__traceback__))}") from load_exc
 
         legacy_exc: Exception
         try:
