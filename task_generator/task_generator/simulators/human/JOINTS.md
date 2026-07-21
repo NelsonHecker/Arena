@@ -18,8 +18,9 @@ matches the body's generated URDF. The gait generator takes the agent id and suf
 
 Publish a position for all 20 base joints each tick (unanimated -> 0.0) so
 `robot_state_publisher` does not warn. Fixed joints (`torso`, `head`, `l/r_wrist`,
-`l/r_ankle`) are not part of the contract and never appear in `JointState`. Clamp every
-emitted value to the per-joint `[lo, hi]` limits in the Section 2 table.
+`l/r_ankle`) are not part of the contract and never appear in `JointState`. The
+per-joint `[lo, hi]` limits in the Section 2 table are advisory: generators may
+clamp their output to them, the stream and presentation layers never enforce them.
 
 ### Value semantics
 

@@ -5,6 +5,7 @@ Owns the QTimer tick (plugin.py) and wires canvas tool signals to driver calls.
 
 from __future__ import annotations
 
+import math
 import os
 from typing import TYPE_CHECKING
 
@@ -281,8 +282,9 @@ class _RosterRow(QWidget):
 class Panel(QWidget):
     """Toolbar, roster/canvas/controls splitter, status bar, ticks driver + canvas."""
 
-    def __init__(self, parent: object = None) -> None:
+    def __init__(self, parent: object = None, unlimited: bool = False) -> None:
         super().__init__(parent)
+        self._unlimited = unlimited
         self._driver: Driver | None = None
         self._namespaces: Namespaces | None = None
         self._selected: str | None = None
@@ -454,7 +456,10 @@ class Panel(QWidget):
             group_layout = QVBoxLayout(group_widget)
             group_layout.setContentsMargins(0, 0, 0, 0)
             for i, joint in enumerate(names):
-                lo, hi = LIMITS[start + i] if LIMITS else (-3.14, 3.14)
+                if self._unlimited:
+                    lo, hi = 0.0, 2.0 * math.pi
+                else:
+                    lo, hi = LIMITS[start + i] if LIMITS else (-3.14, 3.14)
                 row = _JointRow(joint, lo, hi, self._on_joint_changed)
                 self._joint_rows[joint] = row
                 group_layout.addWidget(row)
@@ -483,7 +488,7 @@ class Panel(QWidget):
 
     def attach(self, node: rclpy.node.Node, namespaces: Namespaces) -> None:
         self._namespaces = namespaces
-        self._driver = Driver(node, namespaces)
+        self._driver = Driver(node, namespaces, unlimited=self._unlimited)
         self.canvas.attach_ros(node, namespaces)
         self._refresh_window_title()
 

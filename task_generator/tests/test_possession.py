@@ -5,16 +5,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from task_generator.simulators.human.gait import LIMITS, GaitGenerator
 from task_generator.simulators.human.possession import (
     PossessionTable,
     bare_joint_names_valid,
-    clamp_joint_state,
     snapshot_roster,
     validate_stream,
 )
-
-_LIMIT_BY_NAME: dict[str, tuple[float, float]] = dict(zip(GaitGenerator.JOINT_NAMES, LIMITS, strict=True))
 
 
 def _ped(
@@ -55,15 +51,13 @@ def test_bare_name_mismatch_dropped() -> None:
     assert unknown == frozenset()
 
 
-def test_limit_clamp() -> None:
+def test_out_of_limit_angles_pass_through() -> None:
     ped = _ped("alice", joint_names=["l_elbow", "waist"], joint_positions=[99.0, -99.0])
     validated, _, _ = validate_stream([ped], gate_open=True, known_names={"alice"})
     assert len(validated) == 1
     positions = dict(zip(validated[0].joint_state.name, validated[0].joint_state.position, strict=True))
-    lo_elbow, hi_elbow = _LIMIT_BY_NAME["l_elbow"]
-    lo_waist, hi_waist = _LIMIT_BY_NAME["waist"]
-    assert positions["l_elbow"] == pytest.approx(hi_elbow)
-    assert positions["waist"] == pytest.approx(lo_waist)
+    assert positions["l_elbow"] == pytest.approx(99.0)
+    assert positions["waist"] == pytest.approx(-99.0)
 
 
 def test_model_uri_stripped() -> None:
@@ -102,13 +96,6 @@ def test_bare_joint_names_valid_accepts_known_and_empty() -> None:
     assert bare_joint_names_valid([])
     assert bare_joint_names_valid(["waist", "l_elbow"])
     assert not bare_joint_names_valid(["waist_body"])
-
-
-def test_clamp_joint_state_in_place() -> None:
-    ped = _ped("alice", joint_names=["l_knee"], joint_positions=[5.0])
-    clamp_joint_state(ped)
-    _, hi = _LIMIT_BY_NAME["l_knee"]
-    assert ped.joint_state.position[0] == pytest.approx(hi)
 
 
 # possession table

@@ -25,7 +25,7 @@ _WALKING = 1
 _RUNNING = 2
 # PANIC=3, SURPRISED=4, CURIOUS=5, THREATENING=6 -> treated as idle
 
-# Joint limits: (lo, hi) in radians, ordered to match JOINT_NAMES.
+# Advisory generator-side joint limits: (lo, hi) in radians, ordered to match JOINT_NAMES.
 LIMITS: tuple[tuple[float, float], ...] = (
     (-0.2, 1.0),  # waist
     (-1.0, 1.0),  # r_head

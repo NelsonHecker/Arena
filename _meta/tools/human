@@ -5,6 +5,7 @@ Usage:
   human               attach to the only running env (errors if more than one)
   human <env_id>      attach to the env whose namespace equals or basename-matches <env_id>
   human --ns <ns>     explicit form of the above
+  human --unlimited   pose sliders run 0..2pi, no joint-limit clamping
 
 Interactive control works on any backend serving human/*, driving a ped
 possesses it until the engine reclaims it. human:=dummy is the engine-less
@@ -60,6 +61,7 @@ def wait_for_env(target: str | None) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="arena human", description=__doc__)
     parser.add_argument("--ns", dest="ns")
+    parser.add_argument("--unlimited", action="store_true", help="pose sliders run 0..2pi, no joint-limit clamping")
     parser.add_argument("target", nargs="?")
     args = parser.parse_args()
 
@@ -81,6 +83,8 @@ def main() -> int:
 
     print(f"arena human: attaching to {chosen}", file=sys.stderr)
     cmd = ["rqt", "--standalone", "human_steering", "--args", "--ns", chosen]
+    if args.unlimited:
+        cmd.append("--unlimited")
     os.execvp(cmd[0], cmd)
 
 
