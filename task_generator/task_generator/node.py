@@ -416,7 +416,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         req = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request()
         req.action = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request.ACQUIRE
         req.caller_id = self.get_fully_qualified_name()
-        await self._arena_unpause_window_client.call_timeout(req)
+        await self._arena_unpause_window_client.call_forever(req)
         try:
             yield
         finally:

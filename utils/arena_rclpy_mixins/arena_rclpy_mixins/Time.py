@@ -167,6 +167,20 @@ class TimeNode(rclpy.node.Node):
         """
         return Time(self.__sim_time.sec, self.__sim_time.nanosec)
 
+    async def await_sim_step(self, timeout_sec: float | None = None) -> bool:
+        """Block until /clock advances past its current value (proof the sim is stepping). False on timeout."""
+        start = self.sim_time.to_seconds()
+
+        async def _wait() -> None:
+            while self.sim_time.to_seconds() <= start:
+                await asyncio.sleep(0.01)
+
+        try:
+            await asyncio.wait_for(_wait(), timeout=timeout_sec)
+        except TimeoutError:
+            return False
+        return True
+
     @property
     def wall_time(self) -> Time:
         """Get the current wall time.

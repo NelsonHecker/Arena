@@ -543,17 +543,19 @@ class RobotManager(NodeInterface):
                 )
             launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
-            self._launch_handle = await self.node.do_launch_tracked(launch_description)
-            await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
-            await self.wait_controllers_active()
+            async with self.node.unpause_window():
+                await self.node.await_sim_step()
+                self._launch_handle = await self.node.do_launch_tracked(launch_description)
+                await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
+                await self.wait_controllers_active()
             for adapter in self._adapter_instances:
                 await adapter.on_controllers_active(self)
 
     async def wait_controllers_active(self) -> None:
-        """Hold a sim-unpause window and block until every spawned controller reports active, so the
-        controller_manager can step them up. No controller_manager within the grace window (dummy sim)
-        means there is nothing to wait for. If they do not all reach active within the budget, log the
-        laggards and proceed rather than wedging the reset."""
+        """Block until every spawned controller reports active, so the controller_manager can step them
+        up. Must run inside an open sim-unpause window (the caller holds one). No controller_manager
+        within the grace window (dummy sim) means there is nothing to wait for. If they do not all reach
+        active within the budget, log the laggards and proceed rather than wedging the reset."""
         client = self.node.create_client_wrapper(
             controller_manager_msgs.srv.ListControllers,
             str(self.namespace("controller_manager", "list_controllers")),
@@ -561,16 +563,15 @@ class RobotManager(NodeInterface):
         )
         if not await client.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
             return
-        async with self.node.unpause_window():
-            deadline = time.monotonic() + _CONTROLLER_ACTIVE_TIMEOUT
-            resp = None
-            while time.monotonic() < deadline:
-                resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
-                if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
-                    return
-                await asyncio.sleep(_CONTROLLER_POLL)
-            laggards = [c.name for c in resp.controller if c.state != "active"] if resp is not None and resp.controller else []
-            self._logger.warning(f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}")
+        deadline = time.monotonic() + _CONTROLLER_ACTIVE_TIMEOUT
+        resp = None
+        while time.monotonic() < deadline:
+            resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
+            if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
+                return
+            await asyncio.sleep(_CONTROLLER_POLL)
+        laggards = [c.name for c in resp.controller if c.state != "active"] if resp is not None and resp.controller else []
+        self._logger.warning(f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}")
 
     async def update(self):
         # TODO implement record data dir

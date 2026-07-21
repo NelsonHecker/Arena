@@ -441,11 +441,16 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             self._windows.acquire(request.caller_id, _WINDOW_REASON)
             if was_empty:
                 try:
-                    await self._lifecycle.unpause()
+                    unpaused = await self._lifecycle.unpause()
                 except Exception as e:
                     self._windows.release(request.caller_id, _WINDOW_REASON)
                     response.success = False
                     response.error_msg = f"unpause failed: {e!r}"
+                    return response
+                if not unpaused:
+                    self._windows.release(request.caller_id, _WINDOW_REASON)
+                    response.success = False
+                    response.error_msg = "unpause returned failure"
                     return response
             response.success = True
             response.error_msg = ""

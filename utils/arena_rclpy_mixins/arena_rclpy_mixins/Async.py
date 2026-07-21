@@ -258,6 +258,13 @@ class ClientWrapper(typing.Generic[ServiceT]):
             )
         )
 
+    async def call_forever(
+        self,
+        request: ServiceT.Request,
+    ) -> ServiceT.Response:
+        """Await the response with no timeout. The caller owns cancellation (e.g. via shutdown)."""
+        return await self._node.await_ros(self._client.call_async(request))
+
     async def ensure(self, timeout_sec: float | None = None) -> bool:
         return await self._node.wait_for_service_async(self._client, timeout=timeout_sec)
 
