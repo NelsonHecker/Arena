@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import lifecycle_msgs.msg
 from arena_robots.bringup.mobile.nav2 import Nav2Bringup
@@ -118,33 +118,34 @@ class Nav2Adapter(MobileAdapter):
         if self.client.is_done() is False:
             self.client.cancel()
         await super().on_reset(robot, ctx)
-        await self._clear_local_costmap(robot)
+        await self._clear_costmap(robot, "local")
 
     async def on_move(
         self,
         pose: Pose,
         robot: RobotManager,
     ) -> None:
-        await self._clear_local_costmap(robot)
+        await self._clear_costmap(robot, "local")
 
         request = robot._current_request
         if request is None or robot._phase_index >= len(request.phases):
             return
         await self.dispatch_phase(request.phases[robot._phase_index], robot)
 
-    async def _clear_local_costmap(
+    async def _clear_costmap(
         self,
         robot: RobotManager,
+        which: Literal["local", "global"] = "local",
         reset_distance: float = -1.0,
     ) -> bool:
-        node_name = robot.namespace("local_costmap/local_costmap")
+        node_name = robot.namespace(f"{which}_costmap/{which}_costmap")
 
         if reset_distance < 0:
-            srv_name = os.path.abspath(node_name("../clear_entirely_local_costmap"))
+            srv_name = os.path.abspath(node_name(f"../clear_entirely_{which}_costmap"))
             srv_type = ClearEntireCostmap
             req = ClearEntireCostmap.Request()
         else:
-            srv_name = os.path.abspath(node_name("../clear_around_local_costmap"))
+            srv_name = os.path.abspath(node_name(f"../clear_around_{which}_costmap"))
             srv_type = ClearCostmapAroundRobot
             req = ClearCostmapAroundRobot.Request()
             req.reset_distance = reset_distance
