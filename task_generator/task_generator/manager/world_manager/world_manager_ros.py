@@ -158,8 +158,13 @@ class WorldManagerROS(MapServerHandler, WorldManager):
         """Render (map.png bytes, map.yaml text) for a world, memoized per world for this process."""
         cached = self._map_render_memo.get(world_name)
         if cached is None:
-            # rasterizing a large world is CPU-heavy; keep it off the event loop
-            cached = await asyncio.to_thread(description.render_map_files, level_origins=level_origins, resolution=_DEFAULT_RESOLUTION)
+            # rasterizing a large world is CPU-heavy, keep it off the event loop
+            cached = await asyncio.to_thread(
+                description.render_map_files,
+                level_origins=level_origins,
+                resolution=_DEFAULT_RESOLUTION,
+                asset_color="black",
+            )
             self._map_render_memo[world_name] = cached
         return cached
 

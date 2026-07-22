@@ -253,15 +253,18 @@ class LevelDescription:
         if asset_color is not None:
             static_objects: list[tuple[str, shapely.Polygon]] = []
             for entity in self.all_static_entities:
-                try:
-                    bbox = entity.asdict(expand_extra=True).get('bbox')
-                    if bbox is None:
-                        if default_asset_bbox is None:
-                            raise ValueError(f"Static entity '{entity.name}' does not have a bbox and no default_asset_bbox was provided.")
-                        bbox = default_asset_bbox
-                    (x_min, x_max), (y_min, y_max), *_ = bbox
-                except Exception:
+                bbox = entity.asdict(expand_extra=True).get('bbox') or default_asset_bbox
+                if bbox is None:
                     continue
+                try:
+                    (x_min, x_max), (y_min, y_max), *z_pair = bbox
+                except (ValueError, TypeError):
+                    continue
+                if z_pair:
+                    (z_min, _z_max) = z_pair[0]
+                    # skip fixtures mounted above passage height (lamps, signs) whose 2D footprint would falsely block the floor
+                    if entity.pose.position.z + z_min > _PASSAGE_CLEARANCE:
+                        continue
                 poly = shapely.box(x_min, y_min, x_max, y_max)
                 poly = shapely.affinity.rotate(poly, entity.pose.orientation.to_yaw(), use_radians=True)
                 poly = shapely.affinity.translate(poly, entity.pose.position.x, entity.pose.position.y)
@@ -763,6 +766,9 @@ def _door_polygon(start: Position, end: Position) -> list[Position]:
 
 
 _ELEVATOR_DOORWAY_DEPTH = 0.3
+
+# robot-agnostic clearance above which a static entity is treated as overhead and not rasterized
+_PASSAGE_CLEARANCE = 2.0
 
 
 def _door_axis(door_side: str) -> tuple[tuple[float, float], tuple[float, float]]:
