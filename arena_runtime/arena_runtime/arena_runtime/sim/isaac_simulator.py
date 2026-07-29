@@ -558,7 +558,7 @@ class IsaacSimulator(BaseSim, NodeInterface):
             return map(create_segment, segments), map(create_obstacle, obstacles)
 
         wall_futures = await asyncio.gather(*map(create_wall, walls))
-        segment_futures, obstacle_futures = zip(*wall_futures, strict=False)
+        segment_futures, obstacle_futures = zip(*wall_futures, strict=False) if wall_futures else ((), ())
 
         walls_req = SpawnWalls.Request()
         prims_req = SpawnPrims.Request()
