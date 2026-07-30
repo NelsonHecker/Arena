@@ -1,0 +1,7 @@
+std_msgs/Header header
+float32 total_level_aeq_dba
+float32 total_level_zeq_db
+float32 baseline_level_dba
+float32 drivetrain_level_dba
+float32 uncertainty_1sigma_dba
+uint32 validity_flags
