@@ -5,3 +5,6 @@ float32 baseline_level_dba
 float32 drivetrain_level_dba
 float32 uncertainty_1sigma_dba
 uint32 validity_flags
+float32 systematic_bias_bound_dba
+string operating_state
+string calibration_status

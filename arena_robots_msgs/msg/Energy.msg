@@ -1,0 +1,3 @@
+std_msgs/Header header
+float32 total_energy_consumed_wh
+float32 battery_soc_percent

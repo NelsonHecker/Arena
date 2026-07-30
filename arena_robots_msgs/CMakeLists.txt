@@ -12,6 +12,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/PlayGesture.action"
   "action/ReachPose.action"
   "msg/Acoustics.msg"
+  "msg/Power.msg"
+  "msg/Energy.msg"
   "msg/CollisionEvent.msg"
   "msg/CollisionEvents.msg"
   DEPENDENCIES geometry_msgs action_msgs std_msgs

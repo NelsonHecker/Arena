@@ -1,0 +1,9 @@
+std_msgs/Header header
+float32 total_power_w
+float32 static_power_w
+float32 total_mechanical_power_w
+float32 total_thermal_power_w
+string[] joint_names
+float32[] joint_mechanical_power_w
+float32[] joint_thermal_power_w
+float32[] joint_total_power_w
