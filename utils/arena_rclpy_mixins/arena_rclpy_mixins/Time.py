@@ -15,6 +15,8 @@ import rclpy.timer
 import rosgraph_msgs.msg
 from typing_extensions import Self
 
+T = typing.TypeVar('T')
+
 _CLOCK_QOS = rclpy.qos.QoSProfile(
     depth=1,
     reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
@@ -167,9 +169,51 @@ class TimeNode(rclpy.node.Node):
         """
         return Time(self.__sim_time.sec, self.__sim_time.nanosec)
 
+    async def await_forever(
+        self,
+        awaitable: typing.Awaitable[T],
+        what: str,
+        warn_period: float = 10.0,
+    ) -> T:
+        """Unbounded await that narrates the wait on a fixed cadence. The caller owns cancellation."""
+        task = asyncio.ensure_future(awaitable)
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        try:
+            while True:
+                done, _ = await asyncio.wait({task}, timeout=warn_period)
+                if done:
+                    return task.result()
+                self.get_logger().warning(f"waiting on {what} ({loop.time() - start:.0f}s)")
+        except asyncio.CancelledError:
+            task.cancel()
+            raise
+
+    async def poll(
+        self,
+        predicate: typing.Callable[[], bool],
+        what: str,
+        warn_period: float = 10.0,
+        interval: float = 0.1,
+    ) -> None:
+        """Unbounded predicate poll that narrates the wait on a fixed cadence."""
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        next_warn = warn_period
+        while not predicate():
+            await asyncio.sleep(interval)
+            elapsed = loop.time() - start
+            if elapsed >= next_warn:
+                self.get_logger().warning(f"waiting on {what} ({elapsed:.0f}s)")
+                next_warn = elapsed + warn_period
+
     async def await_sim_step(self, timeout_sec: float | None = None) -> bool:
         """Block until /clock advances past its current value (proof the sim is stepping). False on timeout."""
         start = self.sim_time.to_seconds()
+
+        if timeout_sec is None:
+            await self.poll(lambda: self.sim_time.to_seconds() > start, "sim clock step")
+            return True
 
         async def _wait() -> None:
             while self.sim_time.to_seconds() <= start:

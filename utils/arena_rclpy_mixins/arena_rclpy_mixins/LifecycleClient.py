@@ -79,6 +79,8 @@ class AsyncLifecycleClient(AsyncNode):
             srv_name := os.path.join(node_name, sub_path),
             **kwargs,
         )
+        if timeout is None:
+            return await cli.call_forever(request)
         if not await cli.ensure(timeout_sec=timeout):
             raise TimeoutError(f'timed out waiting for {srv_name} after {timeout}s')
         res = await cli.call_timeout(request, timeout_sec=timeout)

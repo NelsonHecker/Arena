@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 from typing import TYPE_CHECKING, ClassVar, Literal
 
@@ -110,8 +109,7 @@ class Nav2Adapter(MobileAdapter):
             await super().wait_until_ready(robot, node_paths)
             return
         bt_node_path = str(robot.namespace("bt_navigator"))
-        while bt_node_path not in node_paths:
-            await asyncio.sleep(0.01)
+        await robot.node.poll(lambda: bt_node_path in node_paths, f"node {bt_node_path}", interval=0.01)
         await super().wait_until_ready(robot, node_paths)
 
     async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
