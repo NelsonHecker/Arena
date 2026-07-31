@@ -334,6 +334,7 @@ log_level:=debug     # verbose output from all nodes
 use_sim_time:=false  # real-time clock (unusual, only for real robots)
 complexity:=2        # AMCL (position unknown); 3 = SLAM
 record_data_dir:=/tmp/arena_run  # enable data recording
+fail_on_collision:=true  # abort the episode as FAILED when the robot footprint contacts a wall, static obstacle, or pedestrian (default false)
 ```
 
 ### sim:=
