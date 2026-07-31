@@ -260,7 +260,11 @@ class WorldManagerROS(MapServerHandler, WorldManager):
                 await self._push_world_to_map_server(compacted_description, level_origins=level_origins)
 
         await self._environment_manager.reset(purge=ObstacleLayer.WORLD)
-        detected_walls = {disk_level: tuple(disk_map.detect_walls())} if disk_mode else {}
+        detected_walls = {}
+        if disk_mode:
+            zones = [zone for level in world.all_levels for zone in level.zones]
+            if not zones or any(zone.wall_material.name for zone in zones):
+                detected_walls = {disk_level: tuple(disk_map.detect_walls())}
         await self._environment_manager.spawn_world_obstacles(self._world, detected_walls=detected_walls)
 
         return True
