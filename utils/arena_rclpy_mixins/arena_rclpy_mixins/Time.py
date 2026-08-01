@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import datetime
 import functools
+import math
 import typing
 
 import attrs
@@ -24,6 +25,8 @@ _CLOCK_QOS = rclpy.qos.QoSProfile(
     history=rclpy.qos.HistoryPolicy.KEEP_LAST,
 )
 
+_NANOSECONDS_PER_SECOND = 10**9
+
 
 @functools.total_ordering
 @attrs.define
@@ -43,21 +46,19 @@ class Time:
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, type(self)):
             other = self.parse(other)  # type: ignore
-        return self.sec < other.sec or self.nanosec < other.nanosec
+        return (self.sec, self.nanosec) < (other.sec, other.nanosec)
 
     def __add__(self, other: object) -> Self:
         if not isinstance(other, type(self)):
             other = self.parse(other)  # type: ignore
 
-        return self.from_float(self.to_seconds() + other.to_seconds())
+        return self.from_nanoseconds(self.to_nanoseconds() + other.to_nanoseconds())
 
     def __sub__(self, other: object) -> Self:
+        """Differences may be negative, e.g. across a sim-clock rewind or wall-clock skew."""
         if not isinstance(other, type(self)):
             other = self.parse(other)  # type: ignore
-        new_time = self.to_seconds() - other.to_seconds()
-        if new_time < 0:
-            raise ValueError('Subtraction leads to negative time.')
-        return self.from_float(new_time)
+        return self.from_nanoseconds(self.to_nanoseconds() - other.to_nanoseconds())
 
     # Parsing
 
@@ -82,8 +83,17 @@ class Time:
 
     @classmethod
     def from_float(cls, v: float) -> Self:
-        sec = int(v)
+        sec = math.floor(v)
         nanosec = int((v - sec) * 1e9)
+        return cls(
+            sec=sec,
+            nanosec=nanosec,
+        )
+
+    @classmethod
+    def from_nanoseconds(cls, v: int) -> Self:
+        """Normalizes so nanosec stays in [0, 1e9), which `to_msg` requires (uint32)."""
+        sec, nanosec = divmod(int(v), _NANOSECONDS_PER_SECOND)
         return cls(
             sec=sec,
             nanosec=nanosec,
@@ -136,6 +146,12 @@ class Time:
         Convert to seconds
         """
         return self.sec + self.nanosec / 1e9
+
+    def to_nanoseconds(self) -> int:
+        """
+        Convert to nanoseconds
+        """
+        return self.sec * _NANOSECONDS_PER_SECOND + self.nanosec
 
 
 class TimeNode(rclpy.node.Node):
