@@ -58,9 +58,7 @@ def _subrepos() -> list[tuple[Path, str, str]]:
     for line in listing.splitlines():
         key, _, path = line.partition(" ")
         name = key.removeprefix("submodule.").removesuffix(".path")
-        url = _git(
-            ["config", "-f", ".gitmodules", f"submodule.{name}.url"], REPO_ROOT
-        ).removesuffix(".git")
+        url = _git(["config", "-f", ".gitmodules", f"submodule.{name}.url"], REPO_ROOT).removesuffix(".git")
         sha = _git(["rev-parse", "HEAD"], REPO_ROOT / path)
         repos.append((Path(path), url, sha))
     repos.sort(key=lambda entry: len(entry[0].parts), reverse=True)
