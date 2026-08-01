@@ -175,16 +175,16 @@ class IsaacHost(SimLifecycle):
         )
 
     async def pause(self) -> bool:
-        res = await self._pause_client.call_timeout(std_srvs.srv.Trigger.Request())
-        return bool(res) and res.success
+        res = await self._pause_client.call_forever(std_srvs.srv.Trigger.Request())
+        return res.success
 
     async def unpause(self) -> bool:
         res = await self._unpause_client.call_forever(std_srvs.srv.Trigger.Request())
         return res.success
 
     async def cleanup_namespace(self, prefix: str) -> int:
-        res = await self._delete_prims_client.call_timeout(DeletePrims.Request(names=[prefix]))
-        if res is None or not res.ret:
+        res = await self._delete_prims_client.call_forever(DeletePrims.Request(names=[prefix]))
+        if not res.ret:
             return 0
         return 1 if res.ret[0] else 0
 
