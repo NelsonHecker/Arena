@@ -436,7 +436,7 @@ class RobotManager(NodeInterface):
         outcomes: dict[str, BaseException | None] = {}
         for adapter, result in zip(self._adapter_instances, results, strict=True):
             if isinstance(result, BaseException):
-                self._logger.warning(f"adapter {adapter.kind!r} on_reset failed: {result!r}")
+                self._logger.error(f"adapter {adapter.kind!r} on_reset failed: {result!r}")
                 outcomes[adapter.kind] = result
             else:
                 outcomes[adapter.kind] = None
@@ -445,7 +445,9 @@ class RobotManager(NodeInterface):
     async def _apply_pose(self, pose: Pose):
         pose.position.z += self._config.model_params.z_offset
         self.robot.pose = pose
-        await self._environment_manager.move_robot((self.robot,))
+        results = await self._environment_manager.move_robot((self.robot,))
+        if not results or not all(results):
+            raise RuntimeError(f"simulator rejected teleport of robot {self.name!r} (move_robot -> {tuple(results)})")
         import time
 
         time.sleep(0.001)  # wait for the robot to move
