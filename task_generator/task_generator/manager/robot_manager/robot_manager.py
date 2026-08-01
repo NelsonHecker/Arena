@@ -106,18 +106,25 @@ class RobotManager(NodeInterface):
         return self._adapter.controls_orientation if self._adapter is not None else True
 
     @property
-    def pose(self) -> Pose | None:
-        """Current robot pose in the map frame (None during reset/respawn windows)."""
+    def pose_stamped(self) -> tuple[Pose, rclpy.time.Time] | None:
+        """Current map-frame pose with its TF stamp (None during reset/respawn windows)."""
         base = self.frame(self._config.model_params.base_frame).raw()
         try:
             t = self.node.tf_buffer.lookup_transform('map', base, rclpy.time.Time())
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
             return None
         tr = t.transform.translation
-        return Pose(
+        pose = Pose(
             Position(tr.x, tr.y),
             Orientation.from_msg(t.transform.rotation),
         )
+        return pose, rclpy.time.Time.from_msg(t.header.stamp)
+
+    @property
+    def pose(self) -> Pose | None:
+        """Current robot pose in the map frame (None during reset/respawn windows)."""
+        stamped = self.pose_stamped
+        return None if stamped is None else stamped[0]
 
     def __init__(
         self,
