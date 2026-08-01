@@ -229,6 +229,7 @@ via `/arena/spawn_env`.
 | `headless` | `false` | `true` = hide the sim GUI (server-only mode for Gazebo). Implicitly sets `viz:=false` unless `viz:=true` is explicit. |
 | `viz` | `true` | Controls whether `arena viz --all` is called after envs come up. Ignored when `headless:=true` unless overridden. |
 | `human.steering` | `auto` | Per-env `human_steering` panel. `auto` = attach when the resolved `human` backend is `dummy` (and not headless). `true` = always attach, wins over `headless`. `false` = never. |
+| `humansim.markers` | `2` | Debug marker level of the `arena` human backend: `0` = off (also hides its rviz panels), `1` = agent bodies, headings and infrastructure, `2` = adds goals, paths, waypoints, vision cones and force vectors. Lower it to cut per-tick marker cost in crowded scenarios. |
 | `viz.view` | `map` | Camera view in rviz: `map` (TopDownOrtho), `robot` (Orbit on robot base), `robot3p` (ThirdPersonFollower on robot base). |
 | `viz.robot` | `0` | Robot index in the fleet for `viz.view:=robot*`. `all` spawns one rviz window per robot. Ignored when `view=map`. |
 
