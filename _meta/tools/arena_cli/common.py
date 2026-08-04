@@ -33,8 +33,9 @@ def _run(*argv: str) -> int:
 
 
 def extend_ros_path() -> None:
-    """Make ROS and workspace packages importable under -E -S."""
-    for entry in os.environ.get("PYTHONPATH", "").split(":"):
+    """Make ROS and workspace packages importable, PYTHONPATH is stashed by the shell shim."""
+    paths = os.environ.get("ARENA_PYTHONPATH") or os.environ.get("PYTHONPATH", "")
+    for entry in paths.split(":"):
         if entry and entry not in sys.path:
             sys.path.append(entry)
 
