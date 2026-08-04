@@ -3,17 +3,26 @@
 import os
 import sys
 
-import click
 import common
+from common import CLIError, Verb, make_verb
 
 SCRIPT_SHA256 = "f4c6f25f6956145715fa3f2a5914fa41eb12b445d83c6e9416767720616d9581"
 
 NAME = "training"
 
+DESCRIPTION = (
+    "arena_training + rosnav_rl for DRL-based navigation.\n\n"
+    "This enables:\n\n"
+    "\b\n"
+    "- Training RL agents with Stable Baselines 3 and DreamerV3\n"
+    "- Deploying trained agents as nav2 local planners\n"
+    "- Action server for real-time model inference"
+)
+
 
 def _require() -> None:
     if not common._reg_has(NAME):
-        raise click.ClickException(f"{NAME} is not installed; run 'arena feature {NAME} install' first.")
+        raise CLIError(f"{NAME} is not installed; run 'arena feature {NAME} install' first.")
 
 
 def _update() -> int:
@@ -59,42 +68,28 @@ def _update() -> int:
     ).returncode
 
 
-@click.group(
-    name="training",
-    no_args_is_help=True,
-    context_settings=common.HELP_NAMES,
-    help=(
-        "arena_training + rosnav_rl for DRL-based navigation.\n\n"
-        "This enables:\n\n"
-        "\b\n"
-        "- Training RL agents with Stable Baselines 3 and DreamerV3\n"
-        "- Deploying trained agents as nav2 local planners\n"
-        "- Action server for real-time model inference"
-    ),
-)
-def group() -> None:
-    pass
-
-
-@group.command()
-def install() -> None:
+def install(argv: list[str]) -> None:
     """register feature, pull arena_training + rosnav_rl submodules and rebuild"""
+    if argv:
+        raise CLIError("unexpected arguments")
     from features import default_install
 
     sys.exit(default_install(NAME, _update))
 
 
-@group.command()
-def update() -> None:
+def update(argv: list[str]) -> None:
     """pull arena_training + rosnav_rl submodules and rebuild"""
+    if argv:
+        raise CLIError("unexpected arguments")
     if not common._reg_has(NAME):
-        raise click.ClickException(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
+        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
     sys.exit(_update())
 
 
-@group.command()
-def uninstall() -> None:
+def uninstall(argv: list[str]) -> None:
     """deinit arena_training and remove from registry"""
+    if argv:
+        raise CLIError("unexpected arguments")
     import subprocess
 
     arena_dir = common._env("ARENA_DIR")
@@ -102,9 +97,18 @@ def uninstall() -> None:
     common._reg_remove(NAME)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def launch(args: tuple[str, ...]) -> None:
+def launch(argv: list[str]) -> None:
     """launch training (ros2 launch arena_training training.launch.py)"""
     _require()
-    common._exec("ros2", "launch", "arena_training", "training.launch.py", *args)
+    common._exec("ros2", "launch", "arena_training", "training.launch.py", *argv)
+
+
+COMMANDS: dict[str, Verb] = {
+    v.name: v
+    for v in [
+        make_verb("install", install),
+        make_verb("update", update),
+        make_verb("uninstall", uninstall),
+        make_verb("launch", launch, passthrough=True),
+    ]
+}

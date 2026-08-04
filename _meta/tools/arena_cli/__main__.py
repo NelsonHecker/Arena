@@ -1,8 +1,10 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["click"]
-# ///
-"""Bootstrap for the arena CLI, run as `uv run --script` by the shell shim."""
+"""Bootstrap for the arena CLI, run by the shell shim."""
+
+import sys
+
+if sys.version_info < (3, 10):
+    sys.stderr.write("arena: python >= 3.10 required\n")
+    sys.exit(1)
 
 import cli
 

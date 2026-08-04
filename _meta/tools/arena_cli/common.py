@@ -1,19 +1,43 @@
 """Shared plumbing for arena CLI modules."""
 
+import dataclasses
 import os
 import sys
+from collections.abc import Callable
 from typing import NoReturn
 
-import click
 
-PASSTHROUGH = {"ignore_unknown_options": True}
-HELP_NAMES = {"help_option_names": ["-h", "--help"]}
+class CLIError(Exception):
+    """User-facing CLI failure, printed as `Error: <message>`."""
+
+
+@dataclasses.dataclass
+class Verb:
+    """One CLI verb. `run` receives the raw argv after the verb name and returns an exit code (None means 0).
+
+    `passthrough` verbs forward unknown tokens verbatim, so -h/--help only
+    triggers help when it appears before the first non-option token.
+    """
+
+    name: str
+    run: Callable[[list[str]], int | None]
+    short: str
+    help: str
+    hidden: bool = False
+    passthrough: bool = False
+
+
+def make_verb(name: str, run: Callable[[list[str]], int | None], *, hidden: bool = False, passthrough: bool = False, help_text: str | None = None) -> Verb:
+    text = (help_text if help_text is not None else run.__doc__) or ""
+    text = "\n".join(line.strip() for line in text.replace("\b", "").strip().splitlines())
+    short = text.splitlines()[0] if text else ""
+    return Verb(name, run, short, text, hidden, passthrough)
 
 
 def _env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise click.ClickException(f"${name} is not set, run 'source arena' from the workspace first")
+        raise CLIError(f"${name} is not set, run 'source arena' from the workspace first")
     return value
 
 
@@ -23,7 +47,7 @@ def _exec(*argv: str) -> NoReturn:
     try:
         os.execvp(argv[0], list(argv))
     except OSError as e:
-        raise click.ClickException(f"{argv[0]}: {e}") from e
+        raise CLIError(f"{argv[0]}: {e}") from e
 
 
 def _run(*argv: str) -> int:
@@ -31,13 +55,6 @@ def _run(*argv: str) -> int:
 
     return subprocess.run(list(argv), check=False).returncode
 
-
-def extend_ros_path() -> None:
-    """Make ROS and workspace packages importable, PYTHONPATH is stashed by the shell shim."""
-    paths = os.environ.get("ARENA_PYTHONPATH") or os.environ.get("PYTHONPATH", "")
-    for entry in paths.split(":"):
-        if entry and entry not in sys.path:
-            sys.path.append(entry)
 
 
 # mirror of _feature_registry in _meta/tools/source
@@ -83,7 +100,7 @@ def _reg_pull(name: str) -> None:
         return
     rc = _run("vcs", "import", "--input", repos, "--shallow", "--recursive", "--ff", "--add-existing", os.path.join(_env("ARENA_WS_DIR"), "src"))
     if rc:
-        click.echo(f"failed to pull all {name} repos, ignoring", err=True)
+        print(f"failed to pull all {name} repos, ignoring", file=sys.stderr)
 
 
 def _features_line() -> str:
@@ -106,10 +123,10 @@ def _feature_subshell(path: str, argv: tuple[str, ...]) -> int:
 def _feature_dispatch(name: str, argv: tuple[str, ...]) -> int:
     path = _reg_resolve(name)
     if path is None:
-        raise click.ClickException(f"unknown feature '{name}' (available: {_features_line()})")
+        raise CLIError(f"unknown feature '{name}' (available: {_features_line()})")
     verb = argv[0] if argv else ""
     if verb in ("update", "launch") and not _reg_has(name):
-        raise click.ClickException(f"{name} is not installed, run 'arena feature {name} install' first")
+        raise CLIError(f"{name} is not installed, run 'arena feature {name} install' first")
     return _feature_subshell(path, argv)
 
 

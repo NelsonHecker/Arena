@@ -3,28 +3,14 @@
 import os
 import sys
 
-import click
 import common
+from common import CLIError, Verb, make_verb
 
 SCRIPT_SHA256: str = "9ec049d7d266aa4c448747ccb4a141174e8b11c59b2766c27e7757e52b5dc3f8"
 
 _NAME = "planners"
 
-
-def _payload() -> str:
-    path = common._reg_resolve(_NAME)
-    if path is None:
-        raise click.ClickException(f"unknown feature '{_NAME}'")
-    return os.path.join(os.path.dirname(path), f"{_NAME}.py")
-
-
-def _deps_build() -> int:
-    import shlex
-
-    src = common._env("SOURCE_FILE")
-    return common._run(os.environ.get("SHELL", "/bin/bash"), "-c", f"source {shlex.quote(src)} > /dev/null 2>&1 && arena deps && arena build --executor sequential")
-
-_HELP = (
+DESCRIPTION = (
     "Per-planner submodule management.\n\n"
     "\b\n"
     "  add <name...>        clone planner's submodules (alias: install)\n"
@@ -36,63 +22,72 @@ _HELP = (
 )
 
 
-def _forward(verb: str, args: tuple[str, ...]) -> int:
+def _payload() -> str:
+    path = common._reg_resolve(_NAME)
+    if path is None:
+        raise CLIError(f"unknown feature '{_NAME}'")
+    return os.path.join(os.path.dirname(path), f"{_NAME}.py")
+
+
+def _deps_build() -> int:
+    import shlex
+
+    src = common._env("SOURCE_FILE")
+    return common._run(os.environ.get("SHELL", "/bin/bash"), "-c", f"source {shlex.quote(src)} > /dev/null 2>&1 && arena deps && arena build --executor sequential")
+
+
+def _forward(verb: str, args: list[str]) -> int:
     import subprocess
 
     return subprocess.run(["python3", _payload(), verb, *args], check=False).returncode
 
 
-@click.group(name=_NAME, no_args_is_help=True, context_settings=common.HELP_NAMES, help=_HELP)
-def group() -> None:
-    pass
-
-
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES, help="clone planner's submodules (alias: install)")
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def add(args: tuple[str, ...]) -> None:
-    rc = _forward("add", args)
+def add(argv: list[str]) -> None:
+    rc = _forward("add", argv)
     sys.exit(rc if rc else _deps_build())
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES, help="Update the feature to the latest state.")
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def update(args: tuple[str, ...]) -> None:
+def update(argv: list[str]) -> None:
     if not common._reg_has(_NAME):
-        raise click.ClickException(f"{_NAME} is not installed, run 'arena feature {_NAME} install' first")
-    rc = _forward("update", args)
+        raise CLIError(f"{_NAME} is not installed, run 'arena feature {_NAME} install' first")
+    rc = _forward("update", argv)
     sys.exit(rc if rc else _deps_build())
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES, help="deinit planner's submodules (alias: uninstall <name...>)")
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def rm(args: tuple[str, ...]) -> None:
-    sys.exit(_forward("rm", args))
+def rm(argv: list[str]) -> None:
+    sys.exit(_forward("rm", argv))
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES, help="list planners, [x] ready, [ ] pending")
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def ls(args: tuple[str, ...]) -> None:
-    sys.exit(_forward("ls", args))
+def ls(argv: list[str]) -> None:
+    sys.exit(_forward("ls", argv))
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES, help="verify planner submodules are initialized")
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def check(args: tuple[str, ...]) -> None:
-    sys.exit(_forward("check", args))
+def check(argv: list[str]) -> None:
+    sys.exit(_forward("check", argv))
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES, help="clone planner's submodules (alias for add)")
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def install(args: tuple[str, ...]) -> None:
-    rc = _forward("add", args)
+def install(argv: list[str]) -> None:
+    rc = _forward("add", argv)
     sys.exit(rc if rc else _deps_build())
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES, help="Uninstall and unregister the feature.")
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def uninstall(args: tuple[str, ...]) -> None:
-    if args:
-        sys.exit(_forward("rm", args))
-    _forward("uninstall", ())
+def uninstall(argv: list[str]) -> None:
+    if argv:
+        sys.exit(_forward("rm", argv))
+    _forward("uninstall", [])
     common._reg_remove(_NAME)
     sys.exit(0)
+
+
+COMMANDS: dict[str, Verb] = {
+    v.name: v
+    for v in [
+        make_verb("add", add, passthrough=True, help_text="clone planner's submodules (alias: install)"),
+        make_verb("update", update, passthrough=True, help_text="Update the feature to the latest state."),
+        make_verb("rm", rm, passthrough=True, help_text="deinit planner's submodules (alias: uninstall <name...>)"),
+        make_verb("ls", ls, passthrough=True, help_text="list planners, [x] ready, [ ] pending"),
+        make_verb("check", check, passthrough=True, help_text="verify planner submodules are initialized"),
+        make_verb("install", install, passthrough=True, help_text="clone planner's submodules (alias for add)"),
+        make_verb("uninstall", uninstall, passthrough=True, help_text="Uninstall and unregister the feature."),
+    ]
+}

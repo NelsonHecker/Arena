@@ -3,8 +3,8 @@
 import os
 import sys
 
-import click
 import common
+from common import CLIError, Verb, make_verb
 
 from features import default_install
 
@@ -12,6 +12,8 @@ SCRIPT_SHA256 = "5010ed764da2aced24169dc59e3c2f82b26a1e166e549924bc8f64c9023dfba
 
 NAME = "isaac"
 ISAAC_VERSION = "4.2.0"
+
+DESCRIPTION = "NVIDIA Isaac Sim simulator."
 
 _FASTDDS_XML = """<?xml version="1.0" encoding="UTF-8" ?>
 
@@ -137,40 +139,47 @@ def _update() -> int:
 
 def _require_installed() -> None:
     if not common._reg_has(NAME):
-        raise click.ClickException(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
+        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
 
 
-@click.group(name="isaac", no_args_is_help=True, context_settings=common.HELP_NAMES)
-def group() -> None:
-    """NVIDIA Isaac Sim simulator."""
-
-
-@group.command()
-def install() -> None:
+def install(argv: list[str]) -> None:
     """Install the feature (pull repos, register, run its update)."""
+    if argv:
+        raise CLIError("unexpected arguments")
     sys.exit(default_install(NAME, _update))
 
 
-@group.command()
-def update() -> None:
+def update(argv: list[str]) -> None:
     """Update the feature to the latest state."""
+    if argv:
+        raise CLIError("unexpected arguments")
     if not common._reg_has(NAME):
-        raise click.ClickException(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
+        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
     sys.exit(_update())
 
 
-@group.command()
-def uninstall() -> None:
+def uninstall(argv: list[str]) -> None:
     """Uninstall and unregister the feature."""
+    if argv:
+        raise CLIError("unexpected arguments")
     import subprocess
 
     subprocess.run(["git", "submodule", "deinit", "-f", "arena_isaac"], cwd=common._env("ARENA_DIR"), check=False)
     common._reg_remove(NAME)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def launch(args: tuple[str, ...]) -> None:
+def launch(argv: list[str]) -> None:
     """Launch Isaac Sim."""
     _require_installed()
-    common._exec("ros2", "launch", "arena_isaac", "run_isaacsim.launch.py", *args)
+    common._exec("ros2", "launch", "arena_isaac", "run_isaacsim.launch.py", *argv)
+
+
+COMMANDS: dict[str, Verb] = {
+    v.name: v
+    for v in [
+        make_verb("install", install),
+        make_verb("update", update),
+        make_verb("uninstall", uninstall),
+        make_verb("launch", launch, passthrough=True),
+    ]
+}

@@ -3,17 +3,19 @@
 import os
 import sys
 
-import click
 import common
+from common import CLIError, Verb, make_verb
 
 SCRIPT_SHA256 = "cd5e8276c1a82d186e77767a0081594de5b60b885cdf0ddecae7b5d824655d6f"
 
 NAME = "evaluation"
 
+DESCRIPTION = "arena_evaluation for recording, metrics, and benchmarking."
+
 
 def _require() -> None:
     if not common._reg_has(NAME):
-        raise click.ClickException(f"{NAME} is not installed; run 'arena feature {NAME} install' first.")
+        raise CLIError(f"{NAME} is not installed; run 'arena feature {NAME} install' first.")
 
 
 def _update() -> int:
@@ -41,35 +43,28 @@ def _update() -> int:
     ).returncode
 
 
-@click.group(
-    name="evaluation",
-    no_args_is_help=True,
-    context_settings=common.HELP_NAMES,
-    help="arena_evaluation for recording, metrics, and benchmarking.",
-)
-def group() -> None:
-    pass
-
-
-@group.command()
-def install() -> None:
+def install(argv: list[str]) -> None:
     """register feature, pull arena_evaluation submodule and rebuild"""
+    if argv:
+        raise CLIError("unexpected arguments")
     from features import default_install
 
     sys.exit(default_install(NAME, _update))
 
 
-@group.command()
-def update() -> None:
+def update(argv: list[str]) -> None:
     """pull arena_evaluation submodule and rebuild"""
+    if argv:
+        raise CLIError("unexpected arguments")
     if not common._reg_has(NAME):
-        raise click.ClickException(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
+        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
     sys.exit(_update())
 
 
-@group.command()
-def uninstall() -> None:
+def uninstall(argv: list[str]) -> None:
     """deinit arena_evaluation and remove from registry"""
+    if argv:
+        raise CLIError("unexpected arguments")
     import subprocess
 
     arena_dir = common._env("ARENA_DIR")
@@ -77,73 +72,74 @@ def uninstall() -> None:
     common._reg_remove(NAME)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def benchmark(args: tuple[str, ...]) -> None:
+def benchmark(argv: list[str]) -> None:
     """run a benchmark suite (ros2 run arena_evaluation benchmark)"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "benchmark", *args)
+    common._exec("ros2", "run", "arena_evaluation", "benchmark", *argv)
 
 
-@group.command(name="list", context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def list_(args: tuple[str, ...]) -> None:
+def list_(argv: list[str]) -> None:
     """list available evaluations"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "list", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "list", *argv)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def status(args: tuple[str, ...]) -> None:
+def status(argv: list[str]) -> None:
     """show status of a running or completed evaluation"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "status", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "status", *argv)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def tail(args: tuple[str, ...]) -> None:
+def tail(argv: list[str]) -> None:
     """stream live output of a running evaluation"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "tail", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "tail", *argv)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def extract(args: tuple[str, ...]) -> None:
+def extract(argv: list[str]) -> None:
     """extract MCAP topics into the Parquet cache"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation", "extract", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation", "extract", *argv)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def run(args: tuple[str, ...]) -> None:
+def run(argv: list[str]) -> None:
     """process recording and generate HTML report"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation", "run", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation", "run", *argv)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def process(args: tuple[str, ...]) -> None:
+def process(argv: list[str]) -> None:
     """process recording to generate metrics.parquet"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation", "process", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation", "process", *argv)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def report(args: tuple[str, ...]) -> None:
+def report(argv: list[str]) -> None:
     """generate HTML report from processed metrics"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation", "report", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation", "report", *argv)
 
 
-@group.command(context_settings=common.PASSTHROUGH | common.HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def plot(args: tuple[str, ...]) -> None:
+def plot(argv: list[str]) -> None:
     """generate static PNG plots from processed metrics"""
     _require()
-    common._exec("ros2", "run", "arena_evaluation", "evaluation", "plot", *args)
+    common._exec("ros2", "run", "arena_evaluation", "evaluation", "plot", *argv)
+
+
+COMMANDS: dict[str, Verb] = {
+    v.name: v
+    for v in [
+        make_verb("install", install),
+        make_verb("update", update),
+        make_verb("uninstall", uninstall),
+        make_verb("benchmark", benchmark, passthrough=True),
+        make_verb("list", list_, passthrough=True),
+        make_verb("status", status, passthrough=True),
+        make_verb("tail", tail, passthrough=True),
+        make_verb("extract", extract, passthrough=True),
+        make_verb("run", run, passthrough=True),
+        make_verb("process", process, passthrough=True),
+        make_verb("report", report, passthrough=True),
+        make_verb("plot", plot, passthrough=True),
+    ]
+}

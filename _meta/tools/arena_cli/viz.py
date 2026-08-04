@@ -4,8 +4,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-import click
-from common import HELP_NAMES, PASSTHROUGH, extend_ros_path
+from common import make_verb
 
 if TYPE_CHECKING:
     from types import FrameType
@@ -119,7 +118,7 @@ def _main(argv: list[str]) -> int:
             continue
         passthrough.append(tok)
 
-    parser = argparse.ArgumentParser(prog="arena viz", description=cmd.help)
+    parser = argparse.ArgumentParser(prog="arena viz", description=VERB.help)
     parser.add_argument("--all", dest="all_envs", action="store_true")
     parser.add_argument("--ns", dest="ns")
     parser.add_argument("target", nargs="?")
@@ -153,9 +152,7 @@ def _main(argv: list[str]) -> int:
     return _attach_all([chosen], viz_args)
 
 
-@click.command(name="viz", context_settings=PASSTHROUGH | HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def cmd(args: tuple[str, ...]) -> None:
+def cmd(argv: list[str]) -> None:
     """Attach a viz backend to a running arena env.
 
     \b
@@ -186,5 +183,7 @@ def cmd(args: tuple[str, ...]) -> None:
     Polls `ros2 topic list` for `<ns>/state/viz_manifest` topics to discover envs,
     waiting forever (10s heartbeat) until a match appears.
     """
-    extend_ros_path()
-    sys.exit(_main(list(args)))
+    sys.exit(_main(list(argv)))
+
+
+VERB = make_verb("viz", cmd, passthrough=True)

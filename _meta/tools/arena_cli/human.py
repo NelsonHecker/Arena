@@ -3,8 +3,7 @@
 import os
 import sys
 
-import click
-from common import HELP_NAMES, PASSTHROUGH
+from common import make_verb
 
 MANIFEST_SUFFIX = "/state/viz_manifest"
 
@@ -50,7 +49,7 @@ def _wait_for_env(target: str | None) -> list[str]:
 def _main(argv: list[str]) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="arena human", description=cmd.help)
+    parser = argparse.ArgumentParser(prog="arena human", description=VERB.help)
     parser.add_argument("--ns", dest="ns")
     parser.add_argument("--unlimited", action="store_true", help="pose sliders run 0..2pi, no joint-limit clamping")
     parser.add_argument("target", nargs="?")
@@ -79,9 +78,7 @@ def _main(argv: list[str]) -> int:
     os.execvp(argv_cmd[0], argv_cmd)
 
 
-@click.command(name="human", context_settings=PASSTHROUGH | HELP_NAMES)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def cmd(args: tuple[str, ...]) -> None:
+def cmd(argv: list[str]) -> None:
     """Attach the human_steering rqt panel to a running arena env.
 
     \b
@@ -98,4 +95,7 @@ def cmd(args: tuple[str, ...]) -> None:
     Polls `ros2 topic list` for `<ns>/state/viz_manifest` topics to discover envs,
     waiting forever (10s heartbeat) until a match appears.
     """
-    sys.exit(_main(list(args)))
+    sys.exit(_main(list(argv)))
+
+
+VERB = make_verb("human", cmd, passthrough=True)
