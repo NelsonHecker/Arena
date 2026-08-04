@@ -1,12 +1,11 @@
 """isaac feature: NVIDIA Isaac Sim."""
 
 import os
-import sys
 
 import common
-from common import CLIError, Verb, make_verb
+from common import Verb, make_verb
 
-from features import default_install
+from features import lifecycle_verbs
 
 SCRIPT_SHA256 = "5010ed764da2aced24169dc59e3c2f82b26a1e166e549924bc8f64c9023dfba8"
 
@@ -137,49 +136,16 @@ def _update() -> int:
     return 0
 
 
-def _require_installed() -> None:
-    if not common._reg_has(NAME):
-        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
-
-
-def install(argv: list[str]) -> None:
-    """Install the feature (pull repos, register, run its update)."""
-    if argv:
-        raise CLIError("unexpected arguments")
-    sys.exit(default_install(NAME, _update))
-
-
-def update(argv: list[str]) -> None:
-    """Update the feature to the latest state."""
-    if argv:
-        raise CLIError("unexpected arguments")
-    if not common._reg_has(NAME):
-        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
-    sys.exit(_update())
-
-
-def uninstall(argv: list[str]) -> None:
-    """Uninstall and unregister the feature."""
-    if argv:
-        raise CLIError("unexpected arguments")
-    import subprocess
-
-    subprocess.run(["git", "submodule", "deinit", "-f", "arena_isaac"], cwd=common._env("ARENA_DIR"), check=False)
-    common._reg_remove(NAME)
-
-
 def launch(argv: list[str]) -> None:
     """Launch Isaac Sim."""
-    _require_installed()
+    common._reg_require(NAME)
     common._exec("ros2", "launch", "arena_isaac", "run_isaacsim.launch.py", *argv)
 
 
 COMMANDS: dict[str, Verb] = {
     v.name: v
     for v in [
-        make_verb("install", install),
-        make_verb("update", update),
-        make_verb("uninstall", uninstall),
+        *lifecycle_verbs(NAME, _update, deinit="arena_isaac"),
         make_verb("launch", launch, passthrough=True),
     ]
 }

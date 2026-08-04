@@ -56,6 +56,31 @@ def _run(*argv: str) -> int:
     return subprocess.run(list(argv), check=False).returncode
 
 
+def _cli(*argv: str, env: dict[str, str] | None = None) -> int:
+    """Re-run an arena verb in a subprocess."""
+    import subprocess
+
+    return subprocess.run(
+        [sys.executable, os.path.join(_env("TOOLS_DIR"), "arena_cli", "__main__.py"), *argv],
+        cwd=_env("ARENA_WS_DIR"),
+        env=env,
+        check=False,
+    ).returncode
+
+
+def _resourced(cmd: str) -> int:
+    """Run a shell command in a freshly re-sourced arena environment."""
+    import shlex
+    import subprocess
+
+    src = _env("SOURCE_FILE")
+    return subprocess.run(
+        [os.environ.get("SHELL", "/bin/bash"), "-c", f"source {shlex.quote(src)} > /dev/null 2>&1 && {cmd}"],
+        cwd=_env("ARENA_WS_DIR"),
+        check=False,
+    ).returncode
+
+
 # mirror of _feature_registry in _meta/tools/source
 
 
@@ -69,6 +94,11 @@ def _reg_list() -> list[str]:
 
 def _reg_has(name: str) -> bool:
     return name in _reg_list()
+
+
+def _reg_require(name: str) -> None:
+    if not _reg_has(name):
+        raise CLIError(f"{name} is not installed, run 'arena feature {name} install' first")
 
 
 def _reg_add(name: str) -> None:
