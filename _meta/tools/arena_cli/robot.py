@@ -6,8 +6,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-import click
-from common import HELP_NAMES, PASSTHROUGH, extend_ros_path
+from common import make_verb
 
 if TYPE_CHECKING:
     import argparse
@@ -342,16 +341,12 @@ forever (10s heartbeat) until a match appears.
 """
 
 
-@click.command(name="robot", context_settings=PASSTHROUGH | HELP_NAMES, help=HELP)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def cmd(args: tuple[str, ...]) -> None:
-    extend_ros_path()
+def _main(argv: list[str]) -> int:
     import argparse
 
-    raw = list(args)
     kv: dict[str, str] = {}
     passthrough: list[str] = []
-    for tok in raw:
+    for tok in argv:
         if ":=" in tok:
             key, _, value = tok.partition(":=")
             kv[key] = value
@@ -366,13 +361,13 @@ def cmd(args: tuple[str, ...]) -> None:
         parser.add_argument("--all", dest="all_envs", action="store_true")
         pargs = parser.parse_args(passthrough[1:])
         pargs.target = None if pargs.all_envs else _resolve_target(pargs)
-        sys.exit(cmd_ls(pargs))
+        return cmd_ls(pargs)
 
     if sub == "caps":
         parser = argparse.ArgumentParser(prog="arena robot caps")
         parser.add_argument("model")
         pargs = parser.parse_args(passthrough[1:])
-        sys.exit(cmd_caps(pargs.model))
+        return cmd_caps(pargs.model)
 
     if sub == "rm":
         parser = argparse.ArgumentParser(prog="arena robot rm")
@@ -381,7 +376,7 @@ def cmd(args: tuple[str, ...]) -> None:
         parser.add_argument("--nowait", action="store_true")
         pargs = parser.parse_args(passthrough[1:])
         pargs.target = _resolve_target(pargs)
-        sys.exit(cmd_rm(pargs.name, pargs))
+        return cmd_rm(pargs.name, pargs)
 
     parser = argparse.ArgumentParser(prog="arena robot", description=HELP)
     parser.add_argument("model")
@@ -389,4 +384,7 @@ def cmd(args: tuple[str, ...]) -> None:
     parser.add_argument("--nowait", action="store_true")
     pargs = parser.parse_args(passthrough)
     pargs.target = _resolve_target(pargs)
-    sys.exit(cmd_spawn(pargs.model, kv, pargs))
+    return cmd_spawn(pargs.model, kv, pargs)
+
+
+VERB = make_verb("robot", _main, passthrough=True, help_text=HELP)

@@ -14,7 +14,6 @@ maintainers = [{ name = "Volodymyr Shcherbyna", email = "dev@voshch.dev" }]
 requires-python = "==3.12.*"
 dependencies = [
     "pip",
-    "click",
     "colcon-common-extensions",
     "pytest",
     "lark",
