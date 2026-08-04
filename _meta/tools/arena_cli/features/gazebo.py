@@ -125,9 +125,7 @@ def _update() -> int:
         build_env["BASE_PATHS"] = "src/tools/gz-usd"
         rc = subprocess.run(
             [
-                os.path.join(common._env("ARENA_VENV_DIR"), "bin", "python3"),
-                "-E",
-                "-S",
+                sys.executable,
                 os.path.join(common._env("TOOLS_DIR"), "arena_cli", "__main__.py"),
                 "build",
             ],

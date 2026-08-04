@@ -151,7 +151,16 @@ if [ -f "$ARENA_WS_DIR/.env" ] ; then
     set +a
 fi
 
+_arena_venv_provision(){
+    rm -f "$ARENA_VENV_DIR/.installed"
+    uv venv "$ARENA_VENV_DIR" --allow-existing --system-site-packages && \
+    UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project "$ARENA_DIR" "$@" && \
+    touch "$ARENA_VENV_DIR/.installed"
+}
+export -f _arena_venv_provision 2>/dev/null || true
+
 _arena_heal_pip(){
+    command -v python > /dev/null 2>&1 || return 0
     python -c 'import pip.__main__' 2>/dev/null || python -m ensurepip --upgrade >/dev/null
 }
 export -f _arena_heal_pip 2>/dev/null || true
@@ -165,35 +174,31 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     
     # python env
     pushd "$ARENA_DIR" > /dev/null || return 1
-        if [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
-            uv venv "$ARENA_VENV_DIR" --allow-existing --system-site-packages && \
-            UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project . && \
-            touch "$ARENA_VENV_DIR/.installed"
+        if ! command -v uv > /dev/null 2>&1; then
+            echo "arena: uv not found on PATH" >&2
+        elif [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
+            _arena_venv_provision || echo "arena: venv provisioning failed, retry with 'arena resource'" >&2
         fi
 
-        # if [ "$venv_path" != "$VIRTUAL_ENV" ] ; then
-        . "$ARENA_VENV_DIR/bin/activate"
-        dirs=("$ARENA_VENV_DIR"/lib/*/site-packages)
-        _IFS=$IFS IFS=':'
-        export PYTHONPATH="${dirs[*]}:$PYTHONPATH"
-        IFS=$_IFS
-        unset _IFS
-        unset dirs
-        unset venv_path
+        if [ -f "$ARENA_VENV_DIR/bin/activate" ]; then
+            . "$ARENA_VENV_DIR/bin/activate"
+            dirs=("$ARENA_VENV_DIR"/lib/*/site-packages)
+            _IFS=$IFS IFS=':'
+            export PYTHONPATH="${dirs[*]}:$PYTHONPATH"
+            IFS=$_IFS
+            unset _IFS
+            unset dirs
+        fi
     popd > /dev/null || return 1
     
     
     r2st(){ ros2 service call "$1" "$(ros2 service type "$1")";}
 
     _arena_cli(){
-        "$ARENA_VENV_DIR/bin/python3" -E -S "$TOOLS_DIR/arena_cli/__main__.py" "$@"
-        local rc=$?
-        case "$rc" in
-            113|126|127)
-                echo "arena: CLI failed to start (rc $rc); if the venv is broken, run 'arena repair'" >&2
-            ;;
-        esac
-        return $rc
+        command -v uv > /dev/null 2>&1 || { echo "arena: uv not found on PATH" >&2; return 127; }
+        # shellcheck disable=SC2097,SC2098
+        ARENA_PYTHONPATH="$PYTHONPATH" PYTHONPATH='' UV_PYTHON_PREFERENCE=system \
+            uv run --no-project --script "$TOOLS_DIR/arena_cli/__main__.py" "$@"
     }
     export -f _arena_cli 2>/dev/null || true
 
@@ -223,10 +228,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                     echo "arena repair must run inside a container (the venv is shared with /opt/venv)" >&2
                     result=1
                 else
-                    rm -f "$ARENA_VENV_DIR/.installed"
-                    uv venv "$ARENA_VENV_DIR" --allow-existing --system-site-packages && \
-                    UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project "$ARENA_DIR" "$@" && \
-                    touch "$ARENA_VENV_DIR/.installed"
+                    _arena_venv_provision "$@"
                     result=$?
                 fi
             ;;
