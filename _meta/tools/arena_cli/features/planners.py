@@ -30,10 +30,7 @@ def _payload() -> str:
 
 
 def _deps_build() -> int:
-    import shlex
-
-    src = common._env("SOURCE_FILE")
-    return common._run(os.environ.get("SHELL", "/bin/bash"), "-c", f"source {shlex.quote(src)} > /dev/null 2>&1 && arena deps && arena build --executor sequential")
+    return common._resourced("arena deps && arena build --executor sequential")
 
 
 def _forward(verb: str, args: list[str]) -> int:
@@ -48,8 +45,7 @@ def add(argv: list[str]) -> None:
 
 
 def update(argv: list[str]) -> None:
-    if not common._reg_has(_NAME):
-        raise CLIError(f"{_NAME} is not installed, run 'arena feature {_NAME} install' first")
+    common._reg_require(_NAME)
     rc = _forward("update", argv)
     sys.exit(rc if rc else _deps_build())
 

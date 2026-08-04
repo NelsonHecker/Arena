@@ -46,6 +46,8 @@ update(){
     BASE_PATHS=src/tools/gz-usd arena build
     echo "Successfully installed gz-usd"
   fi
+
+  BASE_PATHS=src/gazebo arena build
 }
 
 uninstall(){

@@ -1,14 +1,13 @@
 """gazebo feature: ros_gz and OpenUSD tooling."""
 
 import os
-import sys
 
 import common
-from common import CLIError, Verb, make_verb
+from common import Verb, make_verb
 
-from features import default_install
+from features import lifecycle_verbs
 
-SCRIPT_SHA256 = "be2a9c6b386b82e82670c6e6c9ced1b980cbdebc715b2ab0e6043d8c62ee80d2"
+SCRIPT_SHA256 = "9ca27ab8b87980010b699996f39a681e6b1092ae0109f44ed9f09ea5f3af0ec0"
 
 NAME = "gazebo"
 
@@ -123,65 +122,24 @@ def _update() -> int:
         ).returncode
         if rc:
             return rc
-        build_env = dict(env)
-        build_env["BASE_PATHS"] = "src/tools/gz-usd"
-        rc = subprocess.run(
-            [
-                sys.executable,
-                os.path.join(common._env("TOOLS_DIR"), "arena_cli", "__main__.py"),
-                "build",
-            ],
-            cwd=ws_dir,
-            env=build_env,
-            check=False,
-        ).returncode
+        rc = common._cli("build", env={**env, "BASE_PATHS": "src/tools/gz-usd"})
         if rc:
             return rc
         print("Successfully installed gz-usd")
 
-    return 0
-
-
-def _require_installed() -> None:
-    if not common._reg_has(NAME):
-        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
-
-
-def install(argv: list[str]) -> None:
-    """Install the feature (pull repos, register, run its update)."""
-    if argv:
-        raise CLIError("unexpected arguments")
-    sys.exit(default_install(NAME, _update))
-
-
-def update(argv: list[str]) -> None:
-    """Update the feature to the latest state."""
-    if argv:
-        raise CLIError("unexpected arguments")
-    if not common._reg_has(NAME):
-        raise CLIError(f"{NAME} is not installed, run 'arena feature {NAME} install' first")
-    sys.exit(_update())
-
-
-def uninstall(argv: list[str]) -> None:
-    """Uninstall and unregister the feature."""
-    if argv:
-        raise CLIError("unexpected arguments")
-    common._reg_remove(NAME)
+    return common._cli("build", env={**env, "BASE_PATHS": "src/gazebo"})
 
 
 def launch(argv: list[str]) -> None:
     """Launch gazebo."""
-    _require_installed()
+    common._reg_require(NAME)
     common._exec("ros2", "launch", "arena_bringup", "gazebo.launch.py", *argv)
 
 
 COMMANDS: dict[str, Verb] = {
     v.name: v
     for v in [
-        make_verb("install", install),
-        make_verb("update", update),
-        make_verb("uninstall", uninstall),
+        *lifecycle_verbs(NAME, _update),
         make_verb("launch", launch, passthrough=True),
     ]
 }
