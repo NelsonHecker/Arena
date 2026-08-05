@@ -240,6 +240,8 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
                 result=0
             ;;
             resource)
+                trap - EXIT
+                popd > /dev/null || true
                 arena deactivate
                 source "$SOURCE_FILE"
                 return $?
@@ -259,11 +261,11 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     export -f arena 2>/dev/null || true
 
 
+    _arena_heal_pip
+
     export ARENA_SOURCED=1
     export PS1_BACKUP
     export PS1="(Arena) $PS1_BACKUP"
     export PROMPT="(Arena) $PROMPT"
     echo 'sourced Arena environment'
 fi
-
-_arena_heal_pip
