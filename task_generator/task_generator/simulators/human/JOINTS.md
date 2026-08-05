@@ -5,7 +5,7 @@ and every pedestrian renderer (RViz, Gazebo, Isaac). `Pedestrian.joint_state` is
 animation single source of truth (SSOT): it carries the 30 base joint names from
 `GaitGenerator.JOINT_NAMES`, and every renderer resolves its own convention from that
 one field. (Contract v2: the single torso triple became the three-triple spine stack
-of the Spine stack section; every pre-stack recording carries 24 names and needs the
+of the Spine stack section. Every pre-stack recording carries 24 names and needs the
 zero-fill migration described there.)
 
 ## 1. Wire contract (normative)
@@ -16,9 +16,9 @@ Every joint/link carries a `_<ID>` suffix where **`<ID> = str(pedestrian.id)`**.
 `sensor_msgs/JointState.name[i]` MUST be the full suffixed name (e.g. `l_r_hip_7`) so it
 matches the body's generated URDF. The gait generator takes the agent id and suffixes it.
 
-### Publish all 30
+### Publish all 36
 
-Publish a position for all 30 base joints each tick (unanimated -> 0.0) so
+Publish a position for all 36 base joints each tick (unanimated -> 0.0) so
 `robot_state_publisher` does not warn. Fixed joints (`torso`, `head`, `l/r_wrist`) are
 not part of the contract and never appear in `JointState`. Per-joint advisory limits
 live in `GaitGenerator.LIMITS`: generators may clamp their output to them, the stream
@@ -44,8 +44,9 @@ exception: their wire values are anatomical, not raw URDF axis values.
 
 ### Section 1a: shoulder triple composition (both sides identical sign convention)
 
-The wire triple (y, p, r) defines the rotation of the upper arm relative to the torso
-frame (REP-155 body-aligned: X fwd, Y left, Z up), composed intrinsically:
+The wire triple (y, p, r) defines the rotation of the upper arm relative to its
+parent COLLAR frame (v3: body-aligned at collar rest, REP-155 X fwd, Y left, Z up),
+composed intrinsically:
 
 ```
 R_arm = Rz(y) * R_axis((0,-1,0), p) * R_axis((0,0,-1), r)
@@ -81,22 +82,36 @@ y_chest -> chest -> torso`, ALL joint origins `rpy="0 0 0"` (every frame body-al
 at rest). Axes per cluster: roll `(1,0,0)`, yaw `(0,0,1)`, pitch `(0,1,0)`. With
 body-aligned frames the raw URDF axis meaning coincides with the wire semantic, so the
 RViz adapter passes all nine through untouched (same as the head triple) -- new spine
-DOFs MUST keep this property; a wire DOF that needs a composition adapter is a design
+DOFs MUST keep this property: a wire DOF that needs a composition adapter is a design
 smell (see the Section 1a shoulder history). Arms and head keep parenting to `torso`
 (now the top of the chest segment), legs stay parented to `body`: `y_waist` remains
 the body-torque seam (torso turns, pelvis and legs do not).
 
 Segment values are LOCAL (each relative to the segment below), so the chest world
 rotation is the composition of all three triples. A producer with only a lumped torso
-estimate puts it on the waist triple and zeros spine/chest (exact wire-v1 rendering);
-distributing a lumped bend as waist 0.5 / spine 0.3 / chest 0.2 reproduces what the
+estimate puts it on the waist triple and zeros spine/chest (exact wire-v1 rendering).
+Distributing a lumped bend as waist 0.5 / spine 0.3 / chest 0.2 reproduces what the
 Isaac renderer's weighted spread used to fake. Migration of v1 (24-name) recordings:
 insert the six spine/chest DOFs as 0.0.
 
+### Collars (v3)
+
+`l/r_y_collar`, `l/r_p_collar`: two DOFs per clavicle, joints collocated at the
+sternum (torso origin), the shoulder socket hangs off `p_collar` at the clavicle
+length. `y_collar` is protraction (positive swings the socket FORWARD, both sides),
+`p_collar` is elevation/shrug (positive up, both sides). Axes are mirrored in the
+URDF (`y`: `(0,0,-1)` left / `(0,0,1)` right, `p`: `(1,0,0)` left / `(-1,0,0)`
+right) exactly like `p_hip`, so the raw URDF meaning coincides with the wire
+semantic and the RViz adapter passes both through untouched. The shoulder triple
+(Section 1a) composes on top of the collar frame.
+
 ### Ankles
 
-`l_ankle`/`r_ankle` are revolute about `(0,-1,0)`, same sagittal family as knees and
-elbows. Positive lifts the toes (dorsiflexion).
+`l/r_y_ankle` is foot yaw (toe direction) about `(0,0,-1)`, the same unmirrored
+axis family as `y_hip`, applied BEFORE the sagittal ankle in the chain
+(`knee -> y_ankle -> ankle`). `l_ankle`/`r_ankle` are revolute about
+`(0,-1,0)`, same sagittal family as knees and elbows. Positive lifts the toes
+(dorsiflexion).
 
 ### Gait synthesis
 
@@ -111,9 +126,9 @@ opposite leg).
   Limb pairs share one canonical profile with the right side evaluated at `phi + pi`,
   so L/R antiphase is exact by construction. Antiphase means `l(phi) = r(phi + pi)`,
   NOT `l = -r`: the profiles carry nonzero means (hips average forward-flexed, elbows
-  ~18 deg bent). Torso roll/yaw, the spine/chest triples, ankle, and shoulder
-  azimuth/twist DOFs stay 0.0 (the baked profile predates the spine stack and stays
-  lumped on the waist triple).
+  ~18 deg bent). Torso roll/yaw, the spine/chest triples, collars, ankles (both
+  DOFs), and shoulder azimuth/twist stay 0.0 (the baked profile predates the spine
+  stack and stays lumped on the waist triple).
 - **run** (`RUNNING`): the same profiles at 1.6x amplitude, `cadence` higher.
 - **idle** (`IDLE` and the behavior states `PANIC/SURPRISED/CURIOUS/THREATENING` for now):
   near-zero limbs, tiny breathing sway `waist = 0.03*sin(phi)` and a slow gaze wander
@@ -130,8 +145,8 @@ Per-agent phase keyed by id, cleared on despawn. Seed initial `phi` from `id`
 ## 2. ros4hri URDF rendering (RViz adapter)
 
 The ros4hri `human_description` package is a vendored fork at
-`src/deps/human_description` (branch `arena-v2`) carrying the torso triple and the
-revolute ankles. It preserves the stock ros4hri link/frame set.
+`src/deps/human_description` (branch `arena-v2`) carrying the spine stack, the
+collars, and the two-DOF ankles. It preserves the stock ros4hri link/frame set.
 
 ### URDF generation (per body)
 
@@ -153,19 +168,18 @@ body-aligned at rest (REP-155: X forward, Y left, Z up).
 
 The arm macro reflects axes per side: `l_p_shoulder` axis `(1,0,0)`, `r_p_shoulder`
 axis `(-1,0,0)`, `l_y_shoulder` `(0,0,-1)`, `r_y_shoulder` `(0,0,1)`, `l_r_shoulder`
-`(0,0,1)`, `r_r_shoulder` `(0,0,-1)`. So the raw URDF meaning of `p_shoulder` is
-**lateral abduction** (rotation about body-forward X), positive = outward on both
-sides, not a sagittal swing.
+`(0,0,1)`, `r_r_shoulder` `(0,0,-1)`, and the collar pair per the Collars section.
+So the raw URDF meaning of `p_shoulder` is **lateral abduction** (rotation about
+body-forward X), positive = outward on both sides, not a sagittal swing.
 
 Leg sagittal joints are not reflected: `l_r_hip`/`r_r_hip` are both `(0,-1,0)`,
 positive = forward. Knees, elbows, and ankles are `(0,-1,0)` on both sides. `l_p_hip`/
 `r_p_hip` are mirrored (`(1,0,0)`/`(-1,0,0)`), positive = abduct outward on both sides,
 which coincides with the semantic meaning (gait idles both at `0.0`), so only the
-shoulder triples need the Section 1 exception. The torso triple (`r_waist`/`y_waist`/
-`waist`) is not reflected either: single links on the midline, same axes as the head
-triple.
+shoulder triples need the Section 1 exception. The spine stack is not reflected
+either: single links on the midline, same axes as the head triple.
 
-### Articulated joints (30 revolute, all others fixed)
+### Articulated joints (36 revolute, all others fixed)
 
 | # | base name | axis | limits [lo, hi] (rad) | role |
 |---|---|---|---|---|
@@ -181,24 +195,30 @@ triple.
 | 10 | `r_head` | (1,0,0) | [-1.0, 1.0] | head roll |
 | 11 | `y_head` | (0,0,1) | [-1.4, 1.4] | head yaw |
 | 12 | `p_head` | (0,-1,0) | [-1.5, 1.5] | head pitch |
-| 13 | `l_y_shoulder` | (0,0,-1) | [-1.1, 1.9] | L shoulder yaw |
-| 14 | `l_p_shoulder` | (1,0,0) | [-0.4, 3.3] | **L arm abduction (raw axis)** * |
-| 15 | `l_r_shoulder` | (0,0,1) | [-1.7, 1.5] | L shoulder roll |
-| 16 | `l_elbow` | (0,-1,0) | [0.0, 2.5] | **L elbow** |
-| 17 | `r_y_shoulder` | (0,0,1) | [-1.1, 1.9] | R shoulder yaw |
-| 18 | `r_p_shoulder` | (-1,0,0) | [-0.4, 3.3] | **R arm abduction (raw axis)** * |
-| 19 | `r_r_shoulder` | (0,0,-1) | [-1.7, 1.5] | R shoulder roll |
-| 20 | `r_elbow` | (0,-1,0) | [0.0, 2.5] | **R elbow** |
-| 21 | `l_y_hip` | (0,0,-1) | [-0.1, 0.6] | L hip yaw |
-| 22 | `l_p_hip` | (1,0,0) | [-0.4, 3.3] | L hip abduction |
-| 23 | `l_r_hip` | (0,-1,0) | [-0.4, 0.7] | **L leg sagittal swing** |
-| 24 | `l_knee` | (0,-1,0) | [-2.5, 0.0] | **L knee** |
-| 25 | `r_y_hip` | (0,0,-1) | [-0.1, 0.6] | R hip yaw |
-| 26 | `r_p_hip` | (-1,0,0) | [-0.4, 3.3] | R hip abduction |
-| 27 | `r_r_hip` | (0,-1,0) | [-0.4, 0.7] | **R leg sagittal swing** |
-| 28 | `r_knee` | (0,-1,0) | [-2.5, 0.0] | **R knee** |
-| 29 | `l_ankle` | (0,-1,0) | [-0.9, 0.6] | **L ankle sagittal (dorsiflexion)** |
-| 30 | `r_ankle` | (0,-1,0) | [-0.9, 0.6] | **R ankle sagittal (dorsiflexion)** |
+| 13 | `l_y_collar` | (0,0,-1) | [-0.5, 0.5] | L clavicle protraction |
+| 14 | `l_p_collar` | (1,0,0) | [-0.2, 0.6] | L clavicle elevation (shrug) |
+| 15 | `l_y_shoulder` | (0,0,-1) | [-1.1, 1.9] | L shoulder yaw |
+| 16 | `l_p_shoulder` | (1,0,0) | [-0.4, 3.3] | **L arm abduction (raw axis)** * |
+| 17 | `l_r_shoulder` | (0,0,1) | [-1.7, 1.5] | L shoulder roll |
+| 18 | `l_elbow` | (0,-1,0) | [0.0, 2.5] | **L elbow** |
+| 19 | `r_y_collar` | (0,0,1) | [-0.5, 0.5] | R clavicle protraction |
+| 20 | `r_p_collar` | (-1,0,0) | [-0.2, 0.6] | R clavicle elevation (shrug) |
+| 21 | `r_y_shoulder` | (0,0,1) | [-1.1, 1.9] | R shoulder yaw |
+| 22 | `r_p_shoulder` | (-1,0,0) | [-0.4, 3.3] | **R arm abduction (raw axis)** * |
+| 23 | `r_r_shoulder` | (0,0,-1) | [-1.7, 1.5] | R shoulder roll |
+| 24 | `r_elbow` | (0,-1,0) | [0.0, 2.5] | **R elbow** |
+| 25 | `l_y_hip` | (0,0,-1) | [-0.1, 0.6] | L hip yaw |
+| 26 | `l_p_hip` | (1,0,0) | [-0.4, 3.3] | L hip abduction |
+| 27 | `l_r_hip` | (0,-1,0) | [-0.4, 0.7] | **L leg sagittal swing** |
+| 28 | `l_knee` | (0,-1,0) | [-2.5, 0.0] | **L knee** |
+| 29 | `r_y_hip` | (0,0,-1) | [-0.1, 0.6] | R hip yaw |
+| 30 | `r_p_hip` | (-1,0,0) | [-0.4, 3.3] | R hip abduction |
+| 31 | `r_r_hip` | (0,-1,0) | [-0.4, 0.7] | **R leg sagittal swing** |
+| 32 | `r_knee` | (0,-1,0) | [-2.5, 0.0] | **R knee** |
+| 33 | `l_y_ankle` | (0,0,-1) | [-0.6, 0.6] | L foot yaw (toe direction) |
+| 34 | `l_ankle` | (0,-1,0) | [-0.9, 0.6] | **L ankle sagittal (dorsiflexion)** |
+| 35 | `r_y_ankle` | (0,0,-1) | [-0.6, 0.6] | R foot yaw (toe direction) |
+| 36 | `r_ankle` | (0,-1,0) | [-0.9, 0.6] | **R ankle sagittal (dorsiflexion)** |
 
 The spine/chest limits are per-segment halves of the lumped waist range: the stack's
 advisory sum intentionally exceeds the old lumped range (real spines bend further
@@ -216,9 +236,9 @@ ZXZ-extraction outputs, not passthrough of the wire `y`/`r`.
 URDF frame before `robot_state_publisher` sees them, via `rviz_utils/hri/rig.py`.
 `rig.py` stays stateless. Its obligations per DOF group:
 
-- **Spine stack (all nine DOFs) and ankles**: passthrough, the raw URDF axis meaning
-  already coincides with the wire semantic (see Spine stack / Ankles above and Mirror
-  convention).
+- **Spine stack (all nine DOFs), collars, and ankles (both DOFs)**: passthrough,
+  the raw URDF axis meaning already coincides with the wire semantic (see Spine
+  stack / Collars / Ankles above and Mirror convention).
 - **Shoulder triples**: the only math. `rig.py` composes `R_arm` from the wire triple
   (Section 1a) and extracts the URDF chain values via closed-form ZXZ Euler extraction:
   left `Rz(-y_u) Rx(p_u) Rz(r_u)`, right `Rz(y_u) Rx(-p_u) Rz(-r_u)`. Each side solves
@@ -243,7 +263,7 @@ URDF frame before `robot_state_publisher` sees them, via `rviz_utils/hri/rig.py`
   antiphase baked into the values). `BONE_MAP` is regenerated from the contract rig by
   `tests/peds/test_bone_map_parity.py`: shoulder azimuth/twist on the Arm bones, the
   spine stack 1:1 onto the LowerBack/Spine/Spine1 chain (waist triple -> LowerBack,
-  spine triple -> Spine, chest triple -> Spine1; the pre-stack 0.5/0.3/0.2 weighted
+  spine triple -> Spine, chest triple -> Spine1 -- the pre-stack 0.5/0.3/0.2 weighted
   spread of the lumped waist is retired), head DOFs over neck plus head, ankles on the
   Foot bones. Axes come from the measured-probe procedure, not eyeballing.
   `ExternalPoseProvider` replaces mapped bones with the wire pose instead of composing
