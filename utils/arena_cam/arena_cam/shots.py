@@ -46,7 +46,7 @@ def discover() -> None:
         return
     _DISCOVERED = True
     try:
-        share = get_package_share_directory("arena_runtime")
+        share = get_package_share_directory("arena_cam")
     except PackageNotFoundError:
         return
     shots_dir = Path(share) / "configs" / "cam" / "shots"

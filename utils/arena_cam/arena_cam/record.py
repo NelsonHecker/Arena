@@ -35,6 +35,25 @@ def record_dir(out_dir: str, force: bool = False) -> Path:
     return path
 
 
+def encode_ppm(image: Image) -> bytes:
+    """A captured frame as binary PPM (P6), so writing needs no encoder dependency."""
+    width, height, step = image.width, image.height, image.step
+    row = width * 3
+    data = bytes(image.data)
+    if step != row:  # strip any per-row padding the renderer added
+        data = b"".join(data[r * step : r * step + row] for r in range(height))
+    return f"P6\n{width} {height}\n255\n".encode() + data
+
+
+def next_still(directory: Path) -> Path:
+    """The first free `still_*.ppm` in a directory, so stills accumulate across sessions."""
+    taken = {path.name for path in directory.glob("still_*.ppm")}
+    n = 0
+    while f"still_{n:05d}.ppm" in taken:
+        n += 1
+    return directory / f"still_{n:05d}.ppm"
+
+
 class Recorder:
     """Numbers `ViewportCapture` frames into the (already-prepared) output directory."""
 
@@ -45,11 +64,5 @@ class Recorder:
         self.n = 0
 
     def write(self, image: Image) -> None:
-        width, height, step = image.width, image.height, image.step
-        row = width * 3
-        data = bytes(image.data)
-        if step != row:  # strip any per-row padding the renderer added
-            data = b"".join(data[r * step : r * step + row] for r in range(height))
-        header = f"P6\n{width} {height}\n255\n".encode()
-        (self.dir / f"frame_{self.n:05d}.ppm").write_bytes(header + data)
+        (self.dir / f"frame_{self.n:05d}.ppm").write_bytes(encode_ppm(image))
         self.n += 1
