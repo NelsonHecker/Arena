@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-ARENA_PROJECT_NAME="arena-$(basename "$ARENA_WS_DIR")"
+ARENA_PROJECT_NAME="arena-$(basename "${HOST_ARENA_WS_DIR:-$ARENA_WS_DIR}")"
 export ARENA_PROJECT_NAME
 export ARENA_IMAGE_TAG="$ARENA_PROJECT_NAME"
 export ARENA_IMAGE="arena:${ARENA_IMAGE_TAG}"
