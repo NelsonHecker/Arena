@@ -5,6 +5,7 @@ Owns the QTimer tick (plugin.py) and wires canvas tool signals to driver calls.
 
 from __future__ import annotations
 
+import math
 import os
 from typing import TYPE_CHECKING
 
@@ -50,8 +51,13 @@ if TYPE_CHECKING:
 _SLIDER_FACTOR = 1000.0
 _SPEED_RANGE_MPS = (0.0, 3.0)
 _STATE_LABELS = (("Auto", None), ("Idle", 0), ("Walking", 1), ("Running", 2))
-_GROUP_SIZE = 4
-_GROUP_LABELS = ("Torso / Head", "Left arm", "Right arm", "Left leg", "Right leg")
+_JOINT_GROUPS = (
+    ("Torso / Head", ("r_waist", "y_waist", "waist", "r_spine", "y_spine", "spine", "r_chest", "y_chest", "chest", "r_head", "y_head", "p_head")),
+    ("Left arm", ("l_y_collar", "l_p_collar", "l_y_shoulder", "l_p_shoulder", "l_r_shoulder", "l_elbow")),
+    ("Right arm", ("r_y_collar", "r_p_collar", "r_y_shoulder", "r_p_shoulder", "r_r_shoulder", "r_elbow")),
+    ("Left leg", ("l_y_hip", "l_p_hip", "l_r_hip", "l_knee", "l_y_ankle", "l_ankle")),
+    ("Right leg", ("r_y_hip", "r_p_hip", "r_r_hip", "r_knee", "r_y_ankle", "r_ankle")),
+)
 _COLLAPSED_GROUPS = frozenset({"Left leg", "Right leg"})
 _BACKEND_BANNER_TEXT = "this env exposes no human control endpoints"
 _BASE_TITLE = "human_steering"
@@ -281,8 +287,9 @@ class _RosterRow(QWidget):
 class Panel(QWidget):
     """Toolbar, roster/canvas/controls splitter, status bar, ticks driver + canvas."""
 
-    def __init__(self, parent: object = None) -> None:
+    def __init__(self, parent: object = None, unlimited: bool = False) -> None:
         super().__init__(parent)
+        self._unlimited = unlimited
         self._driver: Driver | None = None
         self._namespaces: Namespaces | None = None
         self._selected: str | None = None
@@ -447,14 +454,17 @@ class Panel(QWidget):
 
         self._joint_rows: dict[str, _JointRow] = {}
         joint_names = GaitGenerator.JOINT_NAMES if GaitGenerator is not None else ()
-        for group_index, label in enumerate(_GROUP_LABELS):
-            start = group_index * _GROUP_SIZE
-            names = joint_names[start : start + _GROUP_SIZE]
+        for label, names in _JOINT_GROUPS:
             group_widget = QWidget()
             group_layout = QVBoxLayout(group_widget)
             group_layout.setContentsMargins(0, 0, 0, 0)
-            for i, joint in enumerate(names):
-                lo, hi = LIMITS[start + i] if LIMITS else (-3.14, 3.14)
+            for joint in names:
+                if joint not in joint_names:
+                    continue
+                if self._unlimited:
+                    lo, hi = 0.0, 2.0 * math.pi
+                else:
+                    lo, hi = LIMITS[joint_names.index(joint)] if LIMITS else (-3.14, 3.14)
                 row = _JointRow(joint, lo, hi, self._on_joint_changed)
                 self._joint_rows[joint] = row
                 group_layout.addWidget(row)
@@ -483,7 +493,7 @@ class Panel(QWidget):
 
     def attach(self, node: rclpy.node.Node, namespaces: Namespaces) -> None:
         self._namespaces = namespaces
-        self._driver = Driver(node, namespaces)
+        self._driver = Driver(node, namespaces, unlimited=self._unlimited)
         self.canvas.attach_ros(node, namespaces)
         self._refresh_window_title()
 

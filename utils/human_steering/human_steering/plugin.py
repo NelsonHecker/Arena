@@ -20,6 +20,7 @@ TICK_MS = 50
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="human_steering")
     parser.add_argument("--ns", dest="ns", default=None, help="env or node namespace to attach to (see arena viz)")
+    parser.add_argument("--unlimited", action="store_true", help="pose sliders run 0..2pi and the driver skips joint-limit clamping")
     return parser.parse_args(argv)
 
 
@@ -33,10 +34,11 @@ class HumanSteering(Plugin):
         self._node = context.node
         # the stream gate compares sim-time stamps, follow /clock
         self._node.set_parameters([Parameter("use_sim_time", Parameter.Type.BOOL, True)])
-        self._target_ns = _parse_args(context.argv()).ns
+        args = _parse_args(context.argv())
+        self._target_ns = args.ns
         self._attached = False
 
-        self._panel = Panel()
+        self._panel = Panel(unlimited=args.unlimited)
         self._panel.setObjectName("HumanSteeringUi")
         self._panel.set_instance_number(context.serial_number())
         context.add_widget(self._panel)

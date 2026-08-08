@@ -175,7 +175,19 @@ def cmd_update(arena: Path, _args) -> int:
     sdk = arena / _SDK_SUBDIR
     if not (sdk / ".gitmodules").is_file():
         return 0
-    return _git(["submodule", "update", "--recursive"], sdk, check=False)
+    subs = robot_submodules(arena)
+    status = submodule_status(arena)
+    installed = {r for r, paths in subs.items() if any(status.get(p) == "init" for p in paths)}
+    rc = 0
+    # --checkout overrides update=none
+    for p in sorted({p for r in installed for p in subs[r]}):
+        sub_path = Path(p).relative_to(_SDK_SUBDIR).as_posix()
+        code = _git(["-c", "protocol.file.allow=always",
+                     "submodule", "update", "--init", "--recursive", "--checkout", sub_path],
+                    sdk, check=False)
+        rc = rc or code
+    code = _git(["submodule", "update", "--recursive"], sdk, check=False)
+    return rc or code
 
 
 def cmd_uninstall(arena: Path, _args) -> int:

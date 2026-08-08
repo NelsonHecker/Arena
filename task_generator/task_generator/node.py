@@ -454,7 +454,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         req = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request()
         req.action = arena_runtime_msgs.srv.LifecycleUnpauseWindow.Request.ACQUIRE
         req.caller_id = self.get_fully_qualified_name()
-        await self._arena_unpause_window_client.call_timeout(req)
+        await self._arena_unpause_window_client.call_forever(req)
         try:
             yield
         finally:
@@ -1184,9 +1184,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     def fail_episode(self, reason: str) -> None:
         """Abort the running episode as FAILED with ``reason``, unless it is already aborting."""
-        if self._task.abort_reason is None:
-            self.get_logger().warn(f"failing episode: {reason}")
-            self._task.abort_episode(reason)
+        if self._task.abort_reason is not None:
+            return
+        self.get_logger().warn(f"failing episode: {reason}")
+        self._task.abort_episode(reason)
+        fut = self._episodes.pending_outcomes.get(self._episodes.current.episode_id)
+        if fut is not None and not fut.done():
+            fut.set_result((task_generator_msgs.action.RunEpisode.Result.FAILED, reason))
 
     # SERVICE CALLBACKS
 

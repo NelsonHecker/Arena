@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+ARENA_PROJECT_NAME="arena-$(basename "${HOST_ARENA_WS_DIR:-$ARENA_WS_DIR}")"
+export ARENA_PROJECT_NAME
+export ARENA_IMAGE_TAG="$ARENA_PROJECT_NAME"
+export ARENA_IMAGE="arena:${ARENA_IMAGE_TAG}"
+
 arena_docker_compose(){
     local files="$ARENA_DIR/_meta/docker/docker-compose.yaml"
     if [ -f "$ARENA_DIR/.installed" ]; then
@@ -9,7 +14,7 @@ arena_docker_compose(){
             [ -f "$ov" ] && files="${files}:${ov}"
         done < "$ARENA_DIR/.installed"
     fi
-    ${arena_compose_sudo} env ${docker_env} COMPOSE_FILE="$files" \
+    ${arena_compose_sudo} env ${docker_env} ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-1}" COMPOSE_FILE="$files" \
         docker compose \
         --project-directory "$ARENA_WS_DIR" \
         --project-name "$ARENA_PROJECT_NAME" \

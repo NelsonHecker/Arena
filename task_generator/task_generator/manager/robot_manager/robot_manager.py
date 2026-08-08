@@ -106,18 +106,25 @@ class RobotManager(NodeInterface):
         return self._adapter.controls_orientation if self._adapter is not None else True
 
     @property
-    def pose(self) -> Pose | None:
-        """Current robot pose in the map frame (None during reset/respawn windows)."""
+    def pose_stamped(self) -> tuple[Pose, rclpy.time.Time] | None:
+        """Current map-frame pose with its TF stamp (None during reset/respawn windows)."""
         base = self.frame(self._config.model_params.base_frame).raw()
         try:
             t = self.node.tf_buffer.lookup_transform('map', base, rclpy.time.Time())
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
             return None
         tr = t.transform.translation
-        return Pose(
+        pose = Pose(
             Position(tr.x, tr.y),
             Orientation.from_msg(t.transform.rotation),
         )
+        return pose, rclpy.time.Time.from_msg(t.header.stamp)
+
+    @property
+    def pose(self) -> Pose | None:
+        """Current robot pose in the map frame (None during reset/respawn windows)."""
+        stamped = self.pose_stamped
+        return None if stamped is None else stamped[0]
 
     def __init__(
         self,
@@ -429,7 +436,7 @@ class RobotManager(NodeInterface):
         outcomes: dict[str, BaseException | None] = {}
         for adapter, result in zip(self._adapter_instances, results, strict=True):
             if isinstance(result, BaseException):
-                self._logger.warning(f"adapter {adapter.kind!r} on_reset failed: {result!r}")
+                self._logger.error(f"adapter {adapter.kind!r} on_reset failed: {result!r}")
                 outcomes[adapter.kind] = result
             else:
                 outcomes[adapter.kind] = None
@@ -438,7 +445,9 @@ class RobotManager(NodeInterface):
     async def _apply_pose(self, pose: Pose):
         pose.position.z += self._config.model_params.z_offset
         self.robot.pose = pose
-        await self._environment_manager.move_robot((self.robot,))
+        results = await self._environment_manager.move_robot((self.robot,))
+        if not results or not all(results):
+            raise RuntimeError(f"simulator rejected teleport of robot {self.name!r} (move_robot -> {tuple(results)})")
         import time
 
         time.sleep(0.001)  # wait for the robot to move
@@ -543,17 +552,19 @@ class RobotManager(NodeInterface):
                 )
             launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
-            self._launch_handle = await self.node.do_launch_tracked(launch_description)
-            await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
-            await self.wait_controllers_active()
+            async with self.node.unpause_window():
+                await self.node.await_sim_step()
+                self._launch_handle = await self.node.do_launch_tracked(launch_description)
+                await asyncio.gather(*(a.wait_until_ready(self, node_paths) for a in self._adapter_instances))
+                await self.wait_controllers_active()
             for adapter in self._adapter_instances:
                 await adapter.on_controllers_active(self)
 
     async def wait_controllers_active(self) -> None:
-        """Hold a sim-unpause window and block until every spawned controller reports active, so the
-        controller_manager can step them up. No controller_manager within the grace window (dummy sim)
-        means there is nothing to wait for. If they do not all reach active within the budget, log the
-        laggards and proceed rather than wedging the reset."""
+        """Block until every spawned controller reports active, so the controller_manager can step them
+        up. Must run inside an open sim-unpause window (the caller holds one). No controller_manager
+        within the grace window (dummy sim) means there is nothing to wait for. If they do not all reach
+        active within the budget, log the laggards and proceed rather than wedging the reset."""
         client = self.node.create_client_wrapper(
             controller_manager_msgs.srv.ListControllers,
             str(self.namespace("controller_manager", "list_controllers")),
@@ -561,16 +572,15 @@ class RobotManager(NodeInterface):
         )
         if not await client.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
             return
-        async with self.node.unpause_window():
-            deadline = time.monotonic() + _CONTROLLER_ACTIVE_TIMEOUT
-            resp = None
-            while time.monotonic() < deadline:
-                resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
-                if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
-                    return
-                await asyncio.sleep(_CONTROLLER_POLL)
-            laggards = [c.name for c in resp.controller if c.state != "active"] if resp is not None and resp.controller else []
-            self._logger.warning(f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}")
+        deadline = time.monotonic() + _CONTROLLER_ACTIVE_TIMEOUT
+        resp = None
+        while time.monotonic() < deadline:
+            resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
+            if resp is not None and resp.controller and all(c.state == "active" for c in resp.controller):
+                return
+            await asyncio.sleep(_CONTROLLER_POLL)
+        laggards = [c.name for c in resp.controller if c.state != "active"] if resp is not None and resp.controller else []
+        self._logger.warning(f"controllers not active within budget, proceeding: {laggards or '<no controller_manager response>'}")
 
     async def update(self):
         # TODO implement record data dir

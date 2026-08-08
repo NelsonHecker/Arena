@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 import typing
 
-from task_generator.simulators.human.gait import LIMITS, GaitGenerator
+from task_generator.simulators.human.gait import GaitGenerator
 
-_JOINT_LIMITS: dict[str, tuple[float, float]] = dict(zip(GaitGenerator.JOINT_NAMES, LIMITS, strict=True))
+_JOINT_NAMES: frozenset[str] = frozenset(GaitGenerator.JOINT_NAMES)
 
 POSSESSION_TIMEOUT_S = 1.0
 
@@ -30,12 +30,7 @@ class _PossessableLike(_PedestrianLike, typing.Protocol):
 
 def bare_joint_names_valid(names: typing.Iterable[str]) -> bool:
     """True if every name is a bare GaitGenerator.JOINT_NAMES entry (no hri_producer suffix)."""
-    return all(name in _JOINT_LIMITS for name in names)
-
-
-def clamp_joint_state[PedestrianT: _PedestrianLike](ped: PedestrianT) -> None:
-    """Clamp ped.joint_state.position to gait.LIMITS in place, matched by joint_state.name."""
-    ped.joint_state.position = [_clamp(position, *_JOINT_LIMITS[name]) for name, position in zip(ped.joint_state.name, ped.joint_state.position, strict=True)]
+    return all(name in _JOINT_NAMES for name in names)
 
 
 def validate_stream[PedestrianT: _PedestrianLike](
@@ -44,7 +39,7 @@ def validate_stream[PedestrianT: _PedestrianLike](
     gate_open: bool,
     known_names: typing.Container[str],
 ) -> tuple[list[PedestrianT], frozenset[str], frozenset[str]]:
-    """Return (clamped copies with model_uri cleared, unknown names, bad joint names), all empty while the gate is closed."""
+    """Return (copies with model_uri cleared, unknown names, bad joint names), all empty while the gate is closed."""
     if not gate_open:
         return [], frozenset(), frozenset()
 
@@ -59,20 +54,15 @@ def validate_stream[PedestrianT: _PedestrianLike](
         if len(names) != len(ped.joint_state.position) or not bare_joint_names_valid(names):
             bad_joints.add(ped.name)
             continue
-        clamped = copy.deepcopy(ped)
-        clamped.model_uri = ""
-        clamp_joint_state(clamped)
-        validated.append(clamped)
+        accepted = copy.deepcopy(ped)
+        accepted.model_uri = ""
+        validated.append(accepted)
     return validated, frozenset(unknown), frozenset(bad_joints)
 
 
 def snapshot_roster[PedestrianT: _PedestrianLike](cache: typing.Mapping[str, PedestrianT]) -> list[PedestrianT]:
     """Deep copies, safe to mutate/publish without touching the cache."""
     return [copy.deepcopy(ped) for ped in cache.values()]
-
-
-def _clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, value))
 
 
 class PossessionTable[PedestrianT: _PossessableLike]:

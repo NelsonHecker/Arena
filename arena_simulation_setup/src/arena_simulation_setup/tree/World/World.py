@@ -5,7 +5,7 @@ import os
 import tarfile
 import time
 import typing
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from copy import deepcopy
 from pathlib import Path
 
@@ -81,6 +81,10 @@ class LevelDescription:
             converter=MaterialIdentifier.converter,
             default=Material.default('ceiling'),
         )
+        wall_material: MaterialIdentifier = attrs.field(
+            converter=MaterialIdentifier.converter,
+            default=Material.default('wall'),
+        )
         semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
 
         @property
@@ -98,7 +102,7 @@ class LevelDescription:
 
     @property
     def all_walls(self) -> typing.Iterable[Wall]:
-        return (wall for zone in self.zones for wall in zone.walls)
+        return (wall for zone in self.zones for wall in zone.walls if wall.material is None or wall.material.name)
 
     @property
     def all_doors(self) -> typing.Iterable[Door]:
@@ -118,12 +122,14 @@ class LevelDescription:
 
     @property
     def all_floors(self) -> typing.Iterable[Floor]:
-        return (zone.floor for zone in self.zones)
+        return (zone.floor for zone in self.zones if zone.material.name)
 
     async def all_ceilings(self) -> list[Ceiling]:
         result: list[Ceiling] = []
         for zone in self.zones:
             if not zone.ceiling:
+                continue
+            if not zone.ceiling_material.name:
                 continue
             if not zone.corners:
                 continue
@@ -268,15 +274,18 @@ class LevelDescription:
         if asset_color is not None:
             static_objects: list[tuple[str, shapely.Polygon]] = []
             for entity in self.all_static_entities:
-                try:
-                    bbox = entity.asdict(expand_extra=True).get('bbox')
-                    if bbox is None:
-                        if default_asset_bbox is None:
-                            raise ValueError(f"Static entity '{entity.name}' does not have a bbox and no default_asset_bbox was provided.")
-                        bbox = default_asset_bbox
-                    (x_min, x_max), (y_min, y_max), *_ = bbox
-                except Exception:
+                bbox = entity.asdict(expand_extra=True).get('bbox') or default_asset_bbox
+                if bbox is None:
                     continue
+                try:
+                    (x_min, x_max), (y_min, y_max), *z_pair = bbox
+                except (ValueError, TypeError):
+                    continue
+                if z_pair:
+                    (z_min, _z_max) = z_pair[0]
+                    # skip fixtures mounted above passage height (lamps, signs) whose 2D footprint would falsely block the floor
+                    if entity.pose.position.z + z_min > _PASSAGE_CLEARANCE:
+                        continue
                 poly = shapely.box(x_min, y_min, x_max, y_max)
                 poly = shapely.affinity.rotate(poly, entity.pose.orientation.to_yaw(), use_radians=True)
                 poly = shapely.affinity.translate(poly, entity.pose.position.x, entity.pose.position.y)
@@ -393,6 +402,24 @@ class LevelDescription:
                     tarball.addfile(tarinfo=info, fileobj=io.BytesIO(content))
             tar_stream.seek(0)
             return tarfile.open(fileobj=io.BytesIO(tar_stream.getvalue()))
+
+
+_ZONE_KEY_ALIASES = {'mat': 'material', 'ceiling_mat': 'ceiling_material', 'wall_mat': 'wall_material'}
+
+
+def _structure_zone(value: object, cls: type) -> object:
+    if isinstance(value, cls):
+        return value
+    if isinstance(value, Mapping):
+        remapped = dict(value)
+        for alias, field in _ZONE_KEY_ALIASES.items():
+            if alias in remapped and field not in remapped:
+                remapped[field] = remapped.pop(alias)
+        value = remapped
+    return converter.structure_attrs_fromdict(value, cls)
+
+
+converter.register_structure_hook(LevelDescription.Zone, _structure_zone)
 
 
 @attrs.define
@@ -778,6 +805,9 @@ def _door_polygon(start: Position, end: Position) -> list[Position]:
 
 
 _ELEVATOR_DOORWAY_DEPTH = 0.3
+
+# robot-agnostic clearance above which a static entity is treated as overhead and not rasterized
+_PASSAGE_CLEARANCE = 2.0
 
 
 def _door_axis(door_side: str) -> tuple[tuple[float, float], tuple[float, float]]:

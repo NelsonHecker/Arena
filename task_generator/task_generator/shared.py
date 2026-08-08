@@ -127,11 +127,6 @@ class Robot(Entity):
             view = None
 
         if view is not None and view.assembly is not None:
-            from arena_runtime.constants import SimSimulator  # noqa: PLC0415
-
-            if directives and node.conf.Arena.SIM.value is SimSimulator.ISAAC:
-                raise RuntimeError(f"robot {name!r}: morphology parametrization not available on isaac")
-
             from arena_robots import assembly as arena_assembly  # noqa: PLC0415
 
             try:

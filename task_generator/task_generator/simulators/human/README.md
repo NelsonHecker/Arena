@@ -2,7 +2,7 @@
 
 `BaseHumanSimulator` manages the pedestrian lifecycle (spawn, move, remove)
 and the per-episode obstacle bookkeeping layer. Implementations are registered
-in `HumanSimulatorRegistry`. See also [sim interface](../sim/README.md) for the
+in `HumanSimulatorRegistry`. See also [sim interface](../../../../arena_runtime/arena_runtime/arena_runtime/sim/README.md) for the
 physics-simulator counterpart (`BaseSim`).
 
 ## `BaseHumanSimulator`
@@ -156,8 +156,9 @@ name absent from a valid batch is released instantly, and silence past
 evaluated lazily on sim time with no timers. Batches are dropped while the
 reset gate is closed and when their header stamp predates the gate-open
 stamp (ped names persist across episodes). Unknown names and non-bare joint
-names drop per entry (suffixing stays `hri_producer`'s job), positions are
-clamped to `gait.LIMITS`, `model_uri` is ignored.
+names drop per entry (suffixing stays `hri_producer`'s job), positions pass
+through unclamped (`gait.LIMITS` is advisory and generator-side), `model_uri`
+is ignored.
 
 Enforcement is substitution at the two outbound funnels: `publish_arena_peds`
 (the bus) and `relay_pedestrian_update` (the sim). Substitution is

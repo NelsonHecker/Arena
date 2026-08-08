@@ -9,14 +9,14 @@ the reference implementation). Launch with `arena human` (or `rqt
 
 The panel is the motion engine, not a viewer. It composes each pedestrian's
 intent (waypoints, teleop, clips, pose sliders, gaze) into full `Pedestrian`
-state and streams it out. The backend only validates, clamps, caches, fills
+state and streams it out. The backend only validates, caches, fills
 gait for peds the panel is not driving, and relays the result to the
 physics sim.
 
 ```
 canvas / sliders / teleop / clips -> Driver (compose slider > gaze > clip > gait)
                                    -> human/stream (all held peds)
-backend: validate, clamp, merge into cache
+backend: validate, merge into cache
                                    -> publish full roster (fills gait for idle peds)
                                    -> relay to the physics/engine sim
 ```
@@ -59,7 +59,9 @@ and it engages: the row turns bold and accented, and a small "x" appears.
 Click "x" to release the joint back to the bus. "Clear pose" releases every
 engaged joint for the selected ped. Group headers (Torso / Head, arms,
 legs) only collapse and expand, they hold no state of their own. An empty
-clip library disables Play and Stop.
+clip library disables Play and Stop. Sliders span `gait.LIMITS` by default,
+`--unlimited` widens them to `0..2pi` and skips the driver's compose-time
+clamp.
 
 STOP and Release are both toolbar buttons (and canvas context-menu entries)
 acting on the selected ped, and they differ in scope. STOP kills motion
@@ -94,7 +96,7 @@ target the head tracks continuously.
 
 | Module | ROS/Qt | Role |
 | --- | --- | --- |
-| [`plugin.py`](human_steering/plugin.py) | rqt/Qt | `rqt_gui_py.plugin.Plugin` shell: `--ns` arg, QTimer(50 ms) tick, wires panel + driver |
+| [`plugin.py`](human_steering/plugin.py) | rqt/Qt | `rqt_gui_py.plugin.Plugin` shell: `--ns` / `--unlimited` args, QTimer(50 ms) tick, wires panel + driver |
 | [`panel.py`](human_steering/panel.py) | Qt | toolbar, roster, Drive/Clips/Pose groups, FK preview, status bar |
 | [`canvas.py`](human_steering/canvas.py) | Qt+ROS | `QGraphicsView`: map/marker underlay, ped rendering, direct-manipulation tools |
 | [`driver.py`](human_steering/driver.py) | ROS (Qt-free) | the motion engine: roster mirror, per-ped intent, integration, composition, publishing |

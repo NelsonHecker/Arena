@@ -245,10 +245,11 @@ class Driver:
     claim set onto human/stream. Qt-free, construct against a real node once
     resolve_namespace() succeeds."""
 
-    def __init__(self, node: rclpy.node.Node, namespaces: Namespaces) -> None:
+    def __init__(self, node: rclpy.node.Node, namespaces: Namespaces, unlimited: bool = False) -> None:
         self._node = node
         self._env_ns = namespaces.env_ns.rstrip("/")
         self._node_ns = namespaces.node_ns.rstrip("/")
+        self._unlimited = unlimited
 
         self._intents = IntentStore()
         self._gait: dict[str, GaitGenerator] = {}
@@ -617,7 +618,8 @@ class Driver:
 
         names = GaitGenerator.JOINT_NAMES
         composed = compose.compose(names, slider=intent.posed, gaze=gaze_angles, clip=clip_angles, gait=gait_angles)
-        composed = {n: _clamp(v, *LIMITS[i]) for i, (n, v) in enumerate(composed.items())}
+        if not self._unlimited:
+            composed = {n: _clamp(v, *LIMITS[i]) for i, (n, v) in enumerate(composed.items())}
         self._last_composed[name] = composed
         return self._build_pedestrian(name, x, y, yaw, speed, state, composed)
 
