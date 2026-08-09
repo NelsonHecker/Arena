@@ -43,12 +43,6 @@ class DummySimulator(BaseSim):
 
     SIM_NAME = 'dummy'
 
-    async def before_reset_episode(self) -> bool:
-        return True
-
-    async def after_reset_episode(self) -> bool:
-        return True
-
     # fake spawn
     @staticmethod
     async def _wrap_future(v: T) -> T:

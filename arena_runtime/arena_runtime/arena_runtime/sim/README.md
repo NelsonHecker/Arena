@@ -101,12 +101,12 @@ Registered in `LifecycleRegistry` alongside `SimulatorRegistry` ([`__init__.py`]
 class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, MechanismITF, abc.ABC):
 ```
 
-Additional abstract methods:
+Overridable hooks (concrete default no-ops):
 
 | Method | Purpose |
 | --- | --- |
-| `before_reset_episode()` | called before every episode reset; implementations pause the sim |
-| `after_reset_episode()` | called after every episode reset; implementations unpause the sim |
+| `before_reset_episode()` | episode-boundary hook before every reset, for sim work that must not ride the mid-episode pause path; default no-op |
+| `after_reset_episode()` | episode-boundary hook after every reset; default no-op |
 | `step(n=1)` | advance simulation by `n` ticks; default no-op returns `True` |
 
 ## Sim-paused invariant
@@ -133,9 +133,10 @@ instantiated via `SimulatorRegistry.get(key, **kwargs)`.
 ## Adding a new simulator
 
 1. Subclass `BaseSim`; implement all abstract methods from the four
-   sub-interfaces plus `before_reset_episode` and `after_reset_episode`.
-   Define `SIM_NAME` (`ClassVar[str]`), consumed by
+   sub-interfaces. Define `SIM_NAME` (`ClassVar[str]`), consumed by
    `MechanismITF.__init__` to tag semantics with the simulator key.
+   `before_reset_episode`/`after_reset_episode`/`step` default to no-ops,
+   override only if the simulator needs episode-boundary or stepped-sim work.
 2. Implement the four `MechanismITF` primitives (`spawn_box`, `move_box`,
    `delete_box`, `set_robot_pose`) to get door + elevator animation out of
    the box, and call `_register_agent_robot` on spawn / `_forget_agent_robot`

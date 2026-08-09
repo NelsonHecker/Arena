@@ -209,12 +209,6 @@ class GazeboSimulator(BaseSim):
 
         self._viewport_camera_pose: Pose | None = None
 
-    async def before_reset_episode(self) -> bool:
-        return True
-
-    async def after_reset_episode(self) -> bool:
-        return True
-
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
         args: dict[str, object] = {
             **robot.asdict(),

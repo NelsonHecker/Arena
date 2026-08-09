@@ -669,12 +669,6 @@ class IsaacSimulator(BaseSim, NodeInterface):
             return False
         return await self._move_entity(prim_name, pose)
 
-    async def before_reset_episode(self) -> bool:
-        return True
-
-    async def after_reset_episode(self) -> bool:
-        return True
-
     async def step(self, n: int = 1) -> bool:
         async with self.node.unpause_window():
             await asyncio.sleep(0.01 * n)
