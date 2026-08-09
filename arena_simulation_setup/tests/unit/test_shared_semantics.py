@@ -67,28 +67,11 @@ def test_serialize_includes_non_default_distance():
 # ---------------------------------------------------------------------------
 
 
-def test_parse_semantics_door_preset_expands():
-    cfgs = parse_semantics([{'preset': 'door', 'distance': 2.0}])
-    assert [(c.role, c.name) for c in cfgs] == [
-        ('state', 'state'),
-        ('state', 'progress'),
-        ('predicate', 'open'),
-        ('predicate', 'in_transit'),
-        ('predicate', 'triggered'),
-    ]
-    assert all(c.distance == 2.0 for c in cfgs)
-
-
-def test_parse_semantics_elevator_preset_expands():
-    cfgs = parse_semantics([{'preset': 'elevator'}])
-    assert [(c.role, c.name) for c in cfgs] == [
-        ('state', 'arriving_eta'),
-        ('state', 'occupants'),
-        ('predicate', 'departing'),
-        ('predicate', 'in_transit'),
-        ('predicate', 'dispatched'),
-        ('predicate', 'just_arrived'),
-    ]
+def test_parse_semantics_door_and_elevator_presets_removed():
+    with pytest.raises(ValueError):
+        parse_semantics([{'preset': 'door'}])
+    with pytest.raises(ValueError):
+        parse_semantics([{'preset': 'elevator'}])
 
 
 def test_parse_semantics_unknown_preset_rejected():
@@ -118,8 +101,8 @@ def test_parse_semantics_empty_list():
 
 
 def test_structure_list_of_semanticcfg_expands_preset():
-    cfgs = converter.structure([{'preset': 'door'}], list[SemanticCfg])
-    assert len(cfgs) == 5
+    cfgs = converter.structure([{'preset': 'gate'}], list[SemanticCfg])
+    assert len(cfgs) == 2
 
 
 def test_structure_list_of_semanticcfg_rejects_joint_binding():
@@ -128,7 +111,7 @@ def test_structure_list_of_semanticcfg_rejects_joint_binding():
 
 
 def test_unstructure_semanticcfg_round_trip():
-    cfgs = parse_semantics([{'preset': 'door', 'distance': 2.0}])
+    cfgs = parse_semantics([{'preset': 'gate', 'distance': 2.0}])
     raw = converter.unstructure(cfgs)
     restructured = converter.structure(raw, list[SemanticCfg])
     assert restructured == cfgs
@@ -211,18 +194,9 @@ def test_parse_semantics_occupancy_cap_preset_expands():
     ]
 
 
-def test_parse_semantics_elevator_full_preset_expands():
-    cfgs = parse_semantics([{'preset': 'elevator_full'}])
-    assert [(c.role, c.name) for c in cfgs] == [
-        ('state', 'arriving_eta'),
-        ('state', 'occupants'),
-        ('predicate', 'departing'),
-        ('predicate', 'in_transit'),
-        ('predicate', 'dispatched'),
-        ('predicate', 'just_arrived'),
-        ('state', 'cabin_door'),
-        ('state', 'cabin_door_progress'),
-    ]
+def test_parse_semantics_elevator_full_preset_removed():
+    with pytest.raises(ValueError):
+        parse_semantics([{'preset': 'elevator_full'}])
 
 
 def test_parse_semantics_preset_params_applied_to_every_primitive():

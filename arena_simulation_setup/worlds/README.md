@@ -76,25 +76,35 @@ and [shared/walls.py](../src/arena_simulation_setup/shared/walls.py).
 
 ## Semantic annotations
 
-An optional `semantics:` list can be added to any `doors:` entry, `elevators:`
-entry, or to a zone itself (`LevelDescription.Zone`). Each item is either a
-preset or a primitive, parsed into a `SemanticCfg`
-([shared/semantics.py](../src/arena_simulation_setup/shared/semantics.py)):
+Door and elevator state is intrinsic: every spawned door and elevator
+publishes its full state/predicate vocabulary (the kind's
+`DISCRETE`/`CONTINUOUS`/`PREDICATES` in
+[arena_runtime `_semantics.py`](../../arena_runtime/arena_runtime/arena_runtime/sim/_semantics.py))
+with no annotation required. An `Elevator`'s fire-recall regime is a
+first-class `recall_on: <regime>` field, not a semantics annotation:
 
 ```yaml
-doors:
-- name: door_edge_1_1
-  start: {x: 4.0, y: 1.55, z: 0.0}
-  end:   {x: 4.0, y: 2.45, z: 0.0}
-  semantics:
-  - preset: door
-    distance: 2.0
 elevators:
 - name: 1_elevator
   position: {x: 5.0, y: 0.0, z: 0.0}
   destination: "2.2_elevator"
+  recall_on: alarm
+```
+
+An optional `semantics:` list can still be added to any `doors:` entry,
+`elevators:` entry, or to a zone itself (`LevelDescription.Zone`). On a door
+or elevator entry it attaches a *scripted* kind (`gate`, `pressure_plate`),
+not door/elevator state. Each item is either a preset or a primitive, parsed
+into a `SemanticCfg`
+([shared/semantics.py](../src/arena_simulation_setup/shared/semantics.py)):
+
+```yaml
+doors:
+- name: north_fire_door
+  start: {x: 4.0, y: 1.55, z: 0.0}
+  end:   {x: 4.0, y: 2.45, z: 0.0}
   semantics:
-  - preset: elevator
+  - {preset: gate, params: {authorized: [], unlock_on: alarm}}
 zones:
 - name: lobby
   corners: [...]
@@ -107,11 +117,13 @@ zones:
     value: false
 ```
 
-A preset (`{preset: door}` or `{preset: elevator}`) expands to the fixed set of
-states and predicates that kind's runtime handler already tracks. Any other
-keys on the preset item (e.g. `distance`) apply as overrides to every expanded
-primitive. Expansion happens at parse time, so `SemanticCfg`s never retain the
-preset name.
+A preset (e.g. `{preset: gate}`) expands to the fixed set of states and
+predicates that kind's runtime handler tracks. Any other keys on the preset
+item (e.g. `distance`) apply as overrides to every expanded primitive.
+Expansion happens at parse time, so `SemanticCfg`s never retain the preset
+name. Annotating a door/elevator entry with a field from that mechanism's own
+published vocabulary (e.g. `{state: progress}` on a door) is rejected at
+world-load time: remove the annotation, the field publishes on its own.
 
 A primitive is `{state: <name>, ...}` or `{predicate: <name>, ...}`, with
 optional keys:
@@ -134,15 +146,16 @@ always emits `semantics: []` when empty.
 
 ### Annotated reference worlds
 
-`hospital_1` and `reception` carry `semantics:` annotations and are the
+`hospital_1` and `reception` carry zone `semantics:` annotations and are the
 reference for authoring new ones: throughput corridors/lobbies get
 `max_speed`, wards/waiting/rest rooms get `quiet`, staff-only or hazard rooms
-get `restricted`, and each annotated room's door carries `{preset: door}`.
+get `restricted`. Their doors carry no annotation: door state publishes on
+its own.
 
-| World | Zones | Doors |
-| --- | --- | --- |
-| `hospital_1` | `max_speed`: `central_hallway`, `reception`, `sub_hallway`. `quiet`: `patient_ward`, `nurse_resting_room`, `waiting_area`, `doctors_resting_room`. `restricted`: `exam_room_1`, `pharmacy`, `operating_room`, `laboratory` | `{preset: door}` on each annotated zone's door(s) |
-| `reception` | `restricted`: `destination` (behind the counter). `quiet`: `entrance` (waiting chairs) | `{preset: door}` on the `door` entry connecting `destination` and `entrance` |
+| World | Zones |
+| --- | --- |
+| `hospital_1` | `max_speed`: `central_hallway`, `reception`, `sub_hallway`. `quiet`: `patient_ward`, `nurse_resting_room`, `waiting_area`, `doctors_resting_room`. `restricted`: `exam_room_1`, `pharmacy`, `operating_room`, `laboratory` |
+| `reception` | `restricted`: `destination` (behind the counter). `quiet`: `entrance` (waiting chairs) |
 
 ## `map/` directory
 

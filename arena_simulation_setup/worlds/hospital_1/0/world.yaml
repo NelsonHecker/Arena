@@ -70,8 +70,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - state: max_speed
@@ -174,8 +172,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - state: max_speed
@@ -374,8 +370,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: restricted
@@ -652,8 +646,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   - name: patient_ward_door_2
     start:
       x: 8.0
@@ -669,8 +661,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: quiet
@@ -1022,8 +1012,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: restricted
@@ -1306,8 +1294,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: quiet
@@ -1626,8 +1612,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: quiet
@@ -2009,8 +1993,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: restricted
@@ -2257,8 +2239,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: restricted
@@ -3285,8 +3265,6 @@ zones:
     material:
     - Aluminum_Anodized
     - {}
-    semantics:
-    - preset: door
   elevators: []
   semantics:
   - predicate: quiet

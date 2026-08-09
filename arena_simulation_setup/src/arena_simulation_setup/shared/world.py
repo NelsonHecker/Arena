@@ -26,11 +26,13 @@ class Elevator(Named):
     door_side: typing.Literal['+x', '-x', '+y', '-y'] = '+x'
     material: MaterialIdentifier = attrs.field(converter=MaterialIdentifier.converter, default=Material.default('elevator'))
     destination: str = attrs.field(default="")
-    activation_distance: float = 1.5
+    # must cover v_max * transition_time plus latency so the door is fully open before arrival
+    activation_distance: float = 3.0
     transition_time: float = 1.0
     hold_time: float = 2.0
     travel_time: float = 3.0
     accept_outside_calls: bool = True
+    recall_on: str | None = None
     semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
 
     def cabin_corners(self) -> list[Position]:

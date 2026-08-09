@@ -227,8 +227,6 @@ zones:
       y: 2.45
       z: 0.0
     width: 0.09999999999999964
-    semantics:
-    - preset: door
   elevators:
   - name: 1_elevator
     position:
@@ -236,8 +234,6 @@ zones:
       y: 0.0
       z: 0.0
     destination: "2.2_elevator"
-    semantics:
-    - preset: elevator
   entities:
     static:
     - name: Toilet_0

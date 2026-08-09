@@ -3,7 +3,6 @@ import typing
 from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
-import attrs
 import shapely
 import shapely.affinity
 from arena_runtime._node import NodeInterface
@@ -34,38 +33,24 @@ def _kind_vocab(kind_cls: type) -> frozenset[str]:
     return frozenset((*kind_cls.DISCRETE, *kind_cls.CONTINUOUS, *kind_cls.PREDICATES))
 
 
-def _group_semantics(cfgs: Sequence[SemanticCfg], host_kind: str) -> tuple[list[SemanticCfg], dict[str, list[SemanticCfg]]]:
-    """Split cfgs into the host kind's own vocabulary and per-kind groups for other runtime kinds."""
+def _route_semantics(cfgs: Sequence[SemanticCfg], host_kind: str) -> dict[str, list[SemanticCfg]]:
+    """Route a mechanism entry's cfgs to their owning scripted kind, raising on
+    host-vocabulary or unknown names (mechanism state publishes intrinsically)."""
     host_vocab = _kind_vocab(_SEMANTIC_KINDS[host_kind])
-    own: list[SemanticCfg] = []
     extras: dict[str, list[SemanticCfg]] = {}
     for cfg in cfgs:
         if cfg.name in host_vocab:
-            own.append(cfg)
-            continue
+            raise ValueError(f"semantics: every {host_kind} publishes {cfg.name!r} intrinsically, remove the annotation")
         for kname, kcls in _SEMANTIC_KINDS.items():
             if kname != host_kind and cfg.name in _kind_vocab(kcls):
                 extras.setdefault(kname, []).append(cfg)
                 break
         else:
-            own.append(cfg)
-    return own, extras
+            raise ValueError(f"semantics: {cfg.name!r} matches no scripted kind's vocabulary")
+    return extras
 
 
 _OCCUPANCY_CAP_VOCAB = _kind_vocab(_SEMANTIC_KINDS["occupancy_cap"])
-_ELEVATOR_VOCAB = _kind_vocab(_SEMANTIC_KINDS["elevator"])
-
-
-def _prepare_elevator_semantics(cfgs: Sequence[SemanticCfg]) -> list[SemanticCfg]:
-    """Keep only elevator-vocabulary cfgs, carrying any recall_on param onto them for HOOK-C."""
-    own = [cfg for cfg in cfgs if cfg.name in _ELEVATOR_VOCAB]
-    merged: dict = {}
-    for cfg in cfgs:
-        merged.update(cfg.params)
-    recall = merged.get("recall_on")
-    if recall is not None and own:
-        own = [attrs.evolve(own[0], params={**own[0].params, "recall_on": recall}), *own[1:]]
-    return own
 
 
 class EnvironmentManager(NodeInterface):
@@ -202,8 +187,8 @@ class EnvironmentManager(NodeInterface):
             for d in level.all_doors:
                 realized = self._realizer.realize(d, fid)
                 self.node._register_semantic_entity(d.name, realized.name)
-                own, extras = _group_semantics(realized.semantics, "door")
-                doors_list.append(attrs.evolve(realized, semantics=own))
+                extras = _route_semantics(realized.semantics, "door")
+                doors_list.append(realized)
                 pending.extend((kind, realized.name, cfgs, None) for kind, cfgs in extras.items())
         doors = tuple(doors_list)
         floors = tuple(self._realizer.realize(f, fid) for fid, level in _world.levels.items() if _match_level_id(fid) for f in level.all_floors)
@@ -220,7 +205,9 @@ class EnvironmentManager(NodeInterface):
             for e in level.all_elevators:
                 realized_e = self._realizer.realize(e, fid)
                 self.node._register_semantic_entity(e.name, realized_e.name)
-                elevators_list.append(attrs.evolve(realized_e, semantics=_prepare_elevator_semantics(realized_e.semantics)))
+                extras = _route_semantics(realized_e.semantics, "elevator")
+                elevators_list.append(realized_e)
+                pending.extend((kind, realized_e.name, cfgs, None) for kind, cfgs in extras.items())
             for sched in level.all_schedules:
                 realized_s = self._realizer.realize(sched, fid)
                 self.node._register_semantic_entity(sched.name, realized_s.name)

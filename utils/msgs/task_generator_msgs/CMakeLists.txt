@@ -22,7 +22,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   msg/RobotQueue.msg
   msg/RobotState.msg
   msg/SemanticEntityState.msg
-  msg/SemanticEvent.msg
   msg/SemanticSnapshot.msg
   srv/DespawnRobot.srv
   srv/GetTaskModes.srv

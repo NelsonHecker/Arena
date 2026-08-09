@@ -23,21 +23,10 @@ def _ros_gate() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_group_semantics_pure_door_keeps_all_own() -> None:
+def test_route_semantics_splits_gate_and_plate_off_door() -> None:
     from arena_simulation_setup.shared.semantics import parse_semantics
 
-    from task_generator.manager.environment_manager import _group_semantics
-
-    cfgs = parse_semantics([{"preset": "door"}])
-    own, extras = _group_semantics(cfgs, "door")
-    assert [c.name for c in own] == [c.name for c in cfgs]
-    assert extras == {}
-
-
-def test_group_semantics_splits_gate_and_plate_off_door() -> None:
-    from arena_simulation_setup.shared.semantics import parse_semantics
-
-    from task_generator.manager.environment_manager import _group_semantics
+    from task_generator.manager.environment_manager import _route_semantics
 
     cfgs = parse_semantics(
         [
@@ -45,30 +34,42 @@ def test_group_semantics_splits_gate_and_plate_off_door() -> None:
             {"preset": "pressure_plate", "params": {"position": [1.0, 2.0]}},
         ],
     )
-    own, extras = _group_semantics(cfgs, "door")
-    assert own == []
+    extras = _route_semantics(cfgs, "door")
     assert sorted(extras) == ["gate", "pressure_plate"]
     assert {c.name for c in extras["gate"]} == {"locked", "blocked"}
     assert {c.name for c in extras["pressure_plate"]} == {"pressed"}
 
 
-def test_prepare_elevator_semantics_carries_recall_on() -> None:
+def test_route_semantics_splits_plate_off_elevator() -> None:
     from arena_simulation_setup.shared.semantics import parse_semantics
 
-    from task_generator.manager.environment_manager import _prepare_elevator_semantics
+    from task_generator.manager.environment_manager import _route_semantics
 
-    cfgs = parse_semantics(
-        [
-            {"preset": "elevator_full"},
-            {"predicate": "locked", "params": {"recall_on": "alarm"}},
-        ],
-    )
-    own = _prepare_elevator_semantics(cfgs)
-    assert all(c.name != "locked" for c in own)
-    merged: dict = {}
-    for c in own:
-        merged.update(c.params)
-    assert merged.get("recall_on") == "alarm"
+    cfgs = parse_semantics([{"preset": "pressure_plate", "params": {"position": [1.0, 2.0]}}])
+    extras = _route_semantics(cfgs, "elevator")
+    assert sorted(extras) == ["pressure_plate"]
+    assert {c.name for c in extras["pressure_plate"]} == {"pressed"}
+
+
+def test_route_semantics_base_vocabulary_field_on_door_raises() -> None:
+    """Door state publishes intrinsically now: annotating a door-vocabulary field is stale."""
+    from arena_simulation_setup.shared.semantics import parse_semantics
+
+    from task_generator.manager.environment_manager import _route_semantics
+
+    cfgs = parse_semantics([{"state": "progress"}])
+    with pytest.raises(ValueError, match="every door publishes 'progress' intrinsically"):
+        _route_semantics(cfgs, "door")
+
+
+def test_route_semantics_unknown_field_raises() -> None:
+    from arena_simulation_setup.shared.semantics import parse_semantics
+
+    from task_generator.manager.environment_manager import _route_semantics
+
+    cfgs = parse_semantics([{"state": "not_a_real_field"}])
+    with pytest.raises(ValueError, match="matches no scripted kind"):
+        _route_semantics(cfgs, "door")
 
 
 # ---------------------------------------------------------------------------

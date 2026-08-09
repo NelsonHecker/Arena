@@ -76,8 +76,8 @@ _EPISODE_QOS = rclpy.qos.QoSProfile(
     durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
 )
 
-# Scenario-timeline evaluation cadence, matching the mechanism-shim sim-time tick.
-_TIMELINE_TICK_RATE = 30.0
+# Node tick cadence, matching the mechanism-shim sim-time tick.
+_SIM_TICK_RATE = 30.0
 
 
 @attrs.define
@@ -219,7 +219,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._timeline_seed: int = 0
         self._timeline_t0: float | None = None
         self._episode_conditions: list[EpisodeCondition] = []
-        self._timeline_loop_task: asyncio.Task | None = None
+        self._tick_loop_task: asyncio.Task | None = None
+        self._semantics_dirty = False
 
         self._pub_task_reset = self.create_publisher(
             Int16,
@@ -270,12 +271,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             task_generator_msgs.msg.SemanticSnapshot,
             self.service_namespace("state", "semantics"),
             _LATCHED,
-        )
-
-        self._pub_state_semantic_events = self.create_publisher(
-            task_generator_msgs.msg.SemanticEvent,
-            self.service_namespace("state", "semantic_events"),
-            _EPISODE_QOS,
         )
 
         self._pub_heartbeat = self.create_publisher(
@@ -431,8 +426,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     async def teardown(self) -> None:
         self._heartbeat_timer.cancel()
-        if self._timeline_loop_task is not None and not self._timeline_loop_task.done():
-            self._timeline_loop_task.cancel()
+        if self._tick_loop_task is not None and not self._tick_loop_task.done():
+            self._tick_loop_task.cancel()
         await self._robots_manager.teardown()
 
     async def hold(self, reason: str) -> None:
@@ -505,8 +500,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._logger.info("Setting up robots manager")
         self._robots_manager = RobotsManager(node=self, environment_manager=self._environment_manager)
 
-        if self._timeline_loop_task is None or self._timeline_loop_task.done():
-            self._timeline_loop_task = asyncio.create_task(self._run_timeline_loop())
+        if self._tick_loop_task is None or self._tick_loop_task.done():
+            self._tick_loop_task = asyncio.create_task(self._run_tick_loop())
 
         self._logger.info("Managers set up")
 
@@ -566,18 +561,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.members = list(snap.members)
         return msg
 
-    def _semantic_event_msg(self, change: "SemanticChange") -> task_generator_msgs.msg.SemanticEvent:
-        msg = task_generator_msgs.msg.SemanticEvent()
-        msg.stamp = self.sim_time.to_msg()
-        msg.env_id = self._env_id
-        msg.entity = change.entity
-        msg.kind = change.kind
-        msg.field_kind = task_generator_msgs.msg.SemanticEvent.STATE if change.field_kind == "state" else task_generator_msgs.msg.SemanticEvent.PREDICATE
-        msg.field = change.field
-        msg.previous = change.previous
-        msg.current = change.current
-        return msg
-
     @staticmethod
     def _zone_field_role(cfg: "SemanticCfg") -> str:
         """Coercion role of one inert-zone field: 'predicate' | 'continuous' | 'discrete'."""
@@ -587,72 +570,77 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             return "discrete"
         return "continuous"
 
+    def _iter_zones(self) -> typing.Iterator[tuple[str, World.LevelDescription.Zone]]:
+        """All zones across levels as (realized name, zone)."""
+        for level_id, level in self._world_manager.world.levels.items():
+            for zone in level.zones:
+                yield self._realizer.prefix(zone.name, level_id), zone
+
     def _zone_semantic_lookup(self) -> dict[str, dict[str, str]]:
         """Realized zone name -> {inert field name: role}, for write-path validation."""
         lookup: dict[str, dict[str, str]] = {}
-        for level_id, level in self._world_manager.world.levels.items():
-            for zone in level.zones:
-                fields = {cfg.name: self._zone_field_role(cfg) for cfg in zone.semantics if cfg.value is not None}
-                if fields:
-                    lookup[self._realizer.prefix(zone.name, level_id)] = fields
+        for name, zone in self._iter_zones():
+            fields = {cfg.name: self._zone_field_role(cfg) for cfg in zone.semantics if cfg.value is not None}
+            if fields:
+                lookup[name] = fields
         return lookup
 
     def _zone_field_value(self, entity: str, field: str) -> str | None:
         """Current stringified value of one inert-zone field, honoring overrides."""
-        for level_id, level in self._world_manager.world.levels.items():
-            for zone in level.zones:
-                if self._realizer.prefix(zone.name, level_id) != entity:
+        for name, zone in self._iter_zones():
+            if name != entity:
+                continue
+            for cfg in zone.semantics:
+                if cfg.name != field or cfg.value is None:
                     continue
-                for cfg in zone.semantics:
-                    if cfg.name != field or cfg.value is None:
-                        continue
-                    value = self._zone_overrides.get((entity, field), cfg.value)
-                    if cfg.role == "predicate":
-                        return "true" if bool(value) else "false"
-                    if isinstance(cfg.value, str):
-                        return str(value)
-                    return self._stringify_float(float(value))
+                value = self._zone_overrides.get((entity, field), cfg.value)
+                if cfg.role == "predicate":
+                    return "true" if bool(value) else "false"
+                if isinstance(cfg.value, str):
+                    return str(value)
+                return self._stringify_float(float(value))
         return None
 
     def _zone_semantic_states(self) -> list[task_generator_msgs.msg.SemanticEntityState]:
         """Inert zone annotations from the loaded world, env-prefixed, appended to every snapshot."""
         states: list[task_generator_msgs.msg.SemanticEntityState] = []
-        for level_id, level in self._world_manager.world.levels.items():
-            for zone in level.zones:
-                if not zone.semantics:
+        for name, zone in self._iter_zones():
+            if not zone.semantics:
+                continue
+            msg = task_generator_msgs.msg.SemanticEntityState()
+            msg.entity = name
+            msg.kind = "zone"
+            discrete_names: list[str] = []
+            discrete_values: list[str] = []
+            continuous_names: list[str] = []
+            continuous_values: list[float] = []
+            predicate_names: list[str] = []
+            predicate_values: list[bool] = []
+            for cfg in zone.semantics:
+                if cfg.value is None:
                     continue
-                msg = task_generator_msgs.msg.SemanticEntityState()
-                msg.entity = self._realizer.prefix(zone.name, level_id)
-                msg.kind = "zone"
-                discrete_names: list[str] = []
-                discrete_values: list[str] = []
-                continuous_names: list[str] = []
-                continuous_values: list[float] = []
-                predicate_names: list[str] = []
-                predicate_values: list[bool] = []
-                for cfg in zone.semantics:
-                    if cfg.value is None:
-                        continue
-                    value = self._zone_overrides.get((msg.entity, cfg.name), cfg.value)
-                    if cfg.role == "predicate":
-                        predicate_names.append(cfg.name)
-                        predicate_values.append(bool(value))
-                    elif isinstance(cfg.value, str):
-                        discrete_names.append(cfg.name)
-                        discrete_values.append(str(value))
-                    else:
-                        continuous_names.append(cfg.name)
-                        continuous_values.append(float(value))
-                msg.discrete_names = discrete_names
-                msg.discrete_values = discrete_values
-                msg.continuous_names = continuous_names
-                msg.continuous_values = continuous_values
-                msg.predicate_names = predicate_names
-                msg.predicate_values = predicate_values
-                states.append(msg)
+                value = self._zone_overrides.get((msg.entity, cfg.name), cfg.value)
+                if cfg.role == "predicate":
+                    predicate_names.append(cfg.name)
+                    predicate_values.append(bool(value))
+                elif isinstance(cfg.value, str):
+                    discrete_names.append(cfg.name)
+                    discrete_values.append(str(value))
+                else:
+                    continuous_names.append(cfg.name)
+                    continuous_values.append(float(value))
+            msg.discrete_names = discrete_names
+            msg.discrete_values = discrete_values
+            msg.continuous_names = continuous_names
+            msg.continuous_values = continuous_values
+            msg.predicate_names = predicate_names
+            msg.predicate_values = predicate_values
+            states.append(msg)
         return states
 
     def _publish_semantics_snapshot(self) -> None:
+        """Immediate publish, world-boundary only. Change-driven publishes ride the tick flush."""
+        self._semantics_dirty = False
         msg = task_generator_msgs.msg.SemanticSnapshot()
         msg.stamp = self.sim_time.to_msg()
         msg.env_id = self._env_id
@@ -663,9 +651,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._pub_state_semantics.publish(msg)
 
     def _on_semantics_changed(self, changes: "Sequence[SemanticChange]") -> None:
-        for change in changes:
-            self._pub_state_semantic_events.publish(self._semantic_event_msg(change))
-        self._publish_semantics_snapshot()
+        self._semantics_dirty = True
 
     # SEMANTICS WRITE PATH
 
@@ -720,7 +706,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         except ValueError:
             return "malformed value"
         self._zone_overrides[(entity, field)] = coerced
-        self._publish_semantics_snapshot()
+        self._semantics_dirty = True
         return ""
 
     def _apply_semantic_checked(self, entity: str, field: str, value: str) -> str:
@@ -852,9 +838,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             if fired:
                 self._fire_timeline_entry(idx, entry)
 
-    async def _run_timeline_loop(self) -> None:
-        """Evaluate the scenario timeline on sim time at the mechanism tick rate."""
-        with self.sim_time_rate(_TIMELINE_TICK_RATE) as (done, rate):
+    async def _run_tick_loop(self) -> None:
+        """Sim-paced node tick: timeline evaluation plus semantics flush at the mechanism rate."""
+        with self.sim_time_rate(_SIM_TICK_RATE) as (done, rate):
             while not done.is_set():
                 try:
                     await rate.get()
@@ -862,10 +848,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     raise
                 try:
                     self._evaluate_timeline(self.sim_time.to_seconds())
+                    if self._semantics_dirty:
+                        self._publish_semantics_snapshot()
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    self.get_logger().warning(f"timeline tick failed: {exc!r}")
+                    self.get_logger().warning(f"sim tick failed: {exc!r}")
 
     def _publish_viz_manifest(self) -> None:
         """Publish the env-level and per-robot display manifest."""

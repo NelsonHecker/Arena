@@ -55,8 +55,6 @@ zones:
         end: [15.0, 5.0]
         height: 2.0
         kind: "sliding"
-        semantics:
-          - preset: door
 
     semantics:
       - predicate: quiet

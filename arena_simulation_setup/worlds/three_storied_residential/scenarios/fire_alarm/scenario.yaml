@@ -1,8 +1,4 @@
-# Reference scenario for the M2 semantic timeline (SPEC_M2 M2.C3 worked example).
-# Flips the fire_alarm schedule's `active` predicate at t=12s; the regime
-# cascade (gate unlock_on, pressure_plate press_on, elevator recall_on) reacts
-# without any per-effect timeline entry. Pairs with a world.yaml carrying the
-# schedule/gate/pressure_plate/elevator_full wiring documented in AUTHORING.md.
+# Timeline reference: flips the fire_alarm schedule's `active` at t=12s, see AUTHORING.md
 static: []
 dynamic: []
 robots: []

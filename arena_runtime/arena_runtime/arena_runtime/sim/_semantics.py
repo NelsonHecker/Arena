@@ -10,7 +10,7 @@ from typing import ClassVar
 
 import attrs
 
-from ._mechanism_shim import _DoorState, _near_door_segment
+from ._mechanism_shim import _DoorState, _near_door_segment, _reset_door
 
 if typing.TYPE_CHECKING:
     from arena_simulation_setup.shared.semantics import SemanticCfg
@@ -72,9 +72,9 @@ def _merge_params(cfgs: Sequence[SemanticCfg]) -> dict:
 
 def _agents_xy(mech: MechanismITF) -> list[tuple[str, tuple[float, float]]]:
     """Every tracked agent (robots plus peds) as (name, (x, y)), mirroring the _tick scan."""
-    agents = list(mech.robot_positions_xy())
+    agents = [(name, xy) for name, xy, _radius in mech.robot_discs()]
     if mech._human_simulator is not None:
-        agents.extend(mech._human_simulator.pedestrian_positions_xy())
+        agents.extend((name, xy) for name, xy, _radius in mech._human_simulator.pedestrian_discs())
     return agents
 
 
@@ -106,8 +106,6 @@ class SemanticKind(abc.ABC):
     QUANTA: ClassVar[dict[str, float]] = {}
     # Writable field names for the M2 write path. Empty means read-only.
     WRITABLE: ClassVar[frozenset[str]] = frozenset()
-    # True when the kind reads SemanticCfg.params (M2). v1 door/zone kinds do not.
-    USES_PARAMS: ClassVar[bool] = False
 
     def __init__(self, entity: str, discrete: tuple[str, ...], continuous: tuple[str, ...], predicates: tuple[str, ...]) -> None:
         self._entity = entity
@@ -197,15 +195,10 @@ class DoorSemantics(SemanticKind):
 
     @classmethod
     def attach(cls, mech: MechanismITF, entity: str, cfgs: Sequence[SemanticCfg], *, polygon: Sequence[tuple[float, float]] | None = None) -> SemanticKind:
-        discrete, continuous, predicates = cls._classify(cfgs)
-        return cls(entity, mech._door_runtime[entity], discrete, continuous, predicates)
+        return cls(entity, mech._door_runtime[entity], cls.DISCRETE, cls.CONTINUOUS, cls.PREDICATES)
 
     def reset(self) -> None:
-        rt = self._runtime
-        rt.state = _DoorState.CLOSED
-        rt.progress = 0.0
-        rt.last_trigger_sim_time = -math.inf
-        rt.last_applied_progress = -1.0
+        _reset_door(self._runtime)
 
     def snapshot(self) -> SemanticEntitySnapshot:
         rt = self._runtime
@@ -233,7 +226,6 @@ class ElevatorSemantics(SemanticKind):
     CONTINUOUS = ('arriving_eta', 'occupants', 'cabin_door_progress')
     PREDICATES = ('departing', 'in_transit', 'dispatched', 'just_arrived')
     QUANTA = {'cabin_door_progress': 0.1}
-    USES_PARAMS = True
 
     def __init__(
         self,
@@ -250,9 +242,8 @@ class ElevatorSemantics(SemanticKind):
 
     @classmethod
     def attach(cls, mech: MechanismITF, entity: str, cfgs: Sequence[SemanticCfg], *, polygon: Sequence[tuple[float, float]] | None = None) -> SemanticKind:
-        discrete, continuous, predicates = cls._classify(cfgs)
         cabin = mech._door_runtime.get(f"{entity}/door")
-        return cls(entity, mech._elevator_runtime[entity], cabin, discrete, continuous, predicates)
+        return cls(entity, mech._elevator_runtime[entity], cabin, cls.DISCRETE, cls.CONTINUOUS, cls.PREDICATES)
 
     def reset(self) -> None:
         rt = self._runtime
@@ -263,10 +254,7 @@ class ElevatorSemantics(SemanticKind):
         rt.dispatched = set()
         cabin = self._cabin_door
         if cabin is not None:
-            cabin.state = _DoorState.CLOSED
-            cabin.progress = 0.0
-            cabin.last_trigger_sim_time = -math.inf
-            cabin.last_applied_progress = -1.0
+            _reset_door(cabin)
 
     def _members(self) -> list[str]:
         rt = self._runtime
@@ -312,7 +300,6 @@ class SignalSemantics(SemanticKind):
     PREDICATES = ('stop',)
     QUANTA = {'phase_remaining': 1.0}
     WRITABLE = frozenset({'state'})
-    USES_PARAMS = True
 
     def __init__(
         self,
@@ -414,7 +401,6 @@ class ScheduleSemantics(SemanticKind):
     PREDICATES = ('active',)
     QUANTA = {'window_remaining': 1.0}
     WRITABLE = frozenset({'state', 'active'})
-    USES_PARAMS = True
 
     def __init__(
         self,
@@ -507,7 +493,6 @@ class GateSemantics(SemanticKind):
 
     PREDICATES = ('locked', 'blocked')
     WRITABLE = frozenset({'locked'})
-    USES_PARAMS = True
 
     def __init__(
         self,
@@ -587,7 +572,6 @@ class PressurePlateSemantics(SemanticKind):
 
     PREDICATES = ('pressed',)
     WRITABLE = frozenset({'pressed'})
-    USES_PARAMS = True
 
     def __init__(
         self,
@@ -691,7 +675,6 @@ class OccupancyCapSemantics(SemanticKind):
     PREDICATES = ('over_cap',)
     QUANTA = {'occupancy': 1.0, 'cap': 1.0}
     WRITABLE = frozenset({'cap'})
-    USES_PARAMS = True
 
     def __init__(
         self,
@@ -776,10 +759,8 @@ class SemanticsManager:
     def set_sim(self, name: str) -> None:
         self._sim = name
 
-    def attach(self, kind: str, entity: str, cfgs: Sequence[SemanticCfg], *, polygon: Sequence[tuple[float, float]] | None = None) -> None:
-        """Instantiate the kind for entity, skipping unsupported sims and empty cfg lists."""
-        if not cfgs:
-            return
+    def attach(self, kind: str, entity: str, cfgs: Sequence[SemanticCfg] = (), *, polygon: Sequence[tuple[float, float]] | None = None) -> None:
+        """Instantiate the kind for entity, skipping unsupported sims."""
         kind_cls = _SEMANTIC_KINDS.get(kind)
         if kind_cls is None:
             self._mech.node.get_logger().info(f"semantics: unknown kind {kind!r} for {entity!r}, skipping")
@@ -789,10 +770,13 @@ class SemanticsManager:
             return
         instance = kind_cls.attach(self._mech, entity, cfgs, polygon=polygon)
         self._instances.setdefault(entity, []).append(instance)
-        if instance.USES_PARAMS:
-            recall = _merge_params(cfgs).get('recall_on')
-            if recall is not None:
-                self._recall[entity] = recall
+
+    def set_recall(self, entity: str, regime: str | None) -> None:
+        """Register (or clear) the regime name that recalls an elevator's cabin (HOOK-C)."""
+        if regime is None:
+            self._recall.pop(entity, None)
+        else:
+            self._recall[entity] = regime
 
     def detach(self, entity: str) -> None:
         self._instances.pop(entity, None)

@@ -5,8 +5,11 @@ import asyncio
 import typing
 from collections.abc import Iterable, Mapping, Sequence
 
+import rclpy.time
+import tf2_ros
 from arena_people_msgs.msg import Pedestrians
 from arena_simulation_setup.shared import Ceiling
+from arena_simulation_setup.utils.geometry import Orientation, Position
 from task_generator.shared import (
     Door,
     DynamicObstacle,
@@ -19,10 +22,23 @@ from task_generator.shared import (
 )
 
 if typing.TYPE_CHECKING:
+    import arena_robots.Robot
     from arena_rclpy_mixins import ArenaMixinNode
 
 
 _BOX_FLOOR_CLEARANCE = 0.01  # keep the box base off the floor plane to avoid z-fight / poke-through
+
+DEFAULT_AGENT_RADIUS = 0.3
+
+
+def robot_footprint_radius(model_params: "arena_robots.Robot.ModelParams") -> float:
+    """Footprint radius from the mobile cap, DEFAULT_AGENT_RADIUS when unspecified."""
+    caps = model_params.caps
+    if 'mobile' in caps.available:
+        radius = caps.mobile.radius
+        if radius is not None:
+            return float(radius)
+    return DEFAULT_AGENT_RADIUS
 
 
 async def resolve_obstacle_box(obstacle: Obstacle) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
@@ -42,7 +58,7 @@ async def resolve_obstacle_box(obstacle: Obstacle) -> tuple[tuple[float, float, 
 class HumanSimulator(typing.Protocol):
     """Capabilities the mechanism layer reads from the attached human simulator."""
 
-    def pedestrian_positions_xy(self) -> Iterable[tuple[str, tuple[float, float]]]: ...
+    def pedestrian_discs(self) -> Iterable[tuple[str, tuple[float, float], float]]: ...
 
     async def pedestrian_teleport(self, destinations: Mapping[str, tuple[float, float]]) -> bool: ...
 
@@ -241,6 +257,11 @@ class MechanismITF:
         _elevator_doors: dict[str, str]
         _mechanism_loop_task: asyncio.Task | None
         _semantics: SemanticsManager
+        _agent_robots: dict[str, tuple[str, float]]
+        _mechanism_tf_buffer: tf2_ros.Buffer | None
+        _mechanism_tf_listener: tf2_ros.TransformListener | None
+
+    SIM_NAME: typing.ClassVar[str]
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
@@ -254,6 +275,23 @@ class MechanismITF:
         self._elevator_doors = {}
         self._mechanism_loop_task = None
         self._semantics = SemanticsManager(self)
+        self._semantics.set_sim(self.SIM_NAME)
+        self._agent_robots = {}
+        self._mechanism_tf_buffer = None
+        self._mechanism_tf_listener = None
+
+    def _register_agent_robot(self, robot: Robot, model_params: "arena_robots.Robot.ModelParams") -> None:
+        """Track a spawned robot for disc and pose reads, bringing up the TF machinery on first use."""
+        if self._mechanism_tf_buffer is None:
+            self._mechanism_tf_buffer = tf2_ros.Buffer()
+            self._mechanism_tf_listener = tf2_ros.TransformListener(self._mechanism_tf_buffer, self.node)
+        self._agent_robots[robot.sim_path] = (
+            robot.frame.tf(model_params.base_frame),
+            robot_footprint_radius(model_params),
+        )
+
+    def _forget_agent_robot(self, sim_path: str) -> None:
+        self._agent_robots.pop(sim_path, None)
 
     def attach_human_simulator(self, hs: HumanSimulator) -> None:
         """Attach a human simulator for ped position reads and teleport dispatch."""
@@ -266,7 +304,7 @@ class MechanismITF:
         ok = await shim_spawn_doors(self, doors)
         for door in doors:
             if door.name in self._door_runtime:
-                self._semantics.attach("door", door.name, door.semantics)
+                self._semantics.attach("door", door.name)
         return ok
 
     async def remove_doors(self, names: Sequence[str]) -> bool:
@@ -281,7 +319,8 @@ class MechanismITF:
 
         ok = await shim_spawn_elevators(self, elevators)
         for elevator in elevators:
-            self._semantics.attach("elevator", elevator.name, elevator.semantics)
+            self._semantics.attach("elevator", elevator.name)
+            self._semantics.set_recall(elevator.name, elevator.recall_on)
         return ok
 
     async def remove_elevators(self, names: Sequence[str]) -> bool:
@@ -339,10 +378,32 @@ class MechanismITF:
         """Teleport a robot to the given pose."""
         raise NotImplementedError
 
-    def robot_positions_xy(self) -> Iterable[tuple[str, tuple[float, float]]]:
-        """Yield (sim_path, (x, y)) for each tracked robot."""
-        raise NotImplementedError
+    def robot_discs(self) -> Iterable[tuple[str, tuple[float, float], float]]:
+        """Yield (sim_path, (x, y), footprint radius) for each tracked robot."""
+        if self._mechanism_tf_buffer is None:
+            return []
+        out: list[tuple[str, tuple[float, float], float]] = []
+        for sim_path, (frame, radius) in list(self._agent_robots.items()):
+            try:
+                t = self._mechanism_tf_buffer.lookup_transform('map', frame, rclpy.time.Time())
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                continue
+            out.append((sim_path, (t.transform.translation.x, t.transform.translation.y), radius))
+        return out
 
     def robot_pose(self, sim_path: str) -> Pose | None:
         """Return the current full pose of a tracked robot, or None if unavailable."""
-        raise NotImplementedError
+        entry = self._agent_robots.get(sim_path)
+        if entry is None or self._mechanism_tf_buffer is None:
+            return None
+        frame, _radius = entry
+        try:
+            t = self._mechanism_tf_buffer.lookup_transform('map', frame, rclpy.time.Time())
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            return None
+        tr = t.transform.translation
+        rot = t.transform.rotation
+        return Pose(
+            position=Position(x=tr.x, y=tr.y, z=tr.z),
+            orientation=Orientation(w=rot.w, x=rot.x, y=rot.y, z=rot.z),
+        )

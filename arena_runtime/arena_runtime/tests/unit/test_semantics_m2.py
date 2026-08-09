@@ -73,8 +73,8 @@ class _HumanSim:
     def __init__(self, peds):
         self._peds = list(peds)
 
-    def pedestrian_positions_xy(self):
-        return list(self._peds)
+    def pedestrian_discs(self):
+        return [(name, xy, 0.3) for name, xy in self._peds]
 
 
 class _Mech:
@@ -86,8 +86,8 @@ class _Mech:
         self._human_simulator = _HumanSim(peds) if peds is not None else None
         self._semantics = None
 
-    def robot_positions_xy(self):
-        return list(self._robots)
+    def robot_discs(self):
+        return [(name, xy, 0.3) for name, xy in self._robots]
 
 
 def _manager(mech, sim="gazebo"):
@@ -516,12 +516,9 @@ def test_occupancy_cap_writable_and_reset():
 # ---------------------------------------------------------------------------
 
 
-def _elevator_full_cfgs(recall_on=None):
-    params = {}
-    if recall_on is not None:
-        params["recall_on"] = recall_on
+def _elevator_full_cfgs():
     return [
-        _MCfg("state", "arriving_eta", params=params),
+        _MCfg("state", "arriving_eta"),
         _MCfg("state", "occupants"),
         _MCfg("predicate", "departing"),
         _MCfg("predicate", "in_transit"),
@@ -731,11 +728,14 @@ def test_trigger_allowed_true_with_no_gate():
 
 
 def test_elevator_recalled_registers_and_consults_regime():
+    """set_recall (the Elevator.recall_on plumbing) drives elevator_recalled the same
+    way the old params-carried recall_on used to."""
     mech = _Mech()
     mech._elevator_runtime["e"] = _elevator_runtime("e")
     mech._door_runtime["e/door"] = _door_runtime("e/door")
     mgr = _manager(mech)
-    mgr.attach("elevator", "e", _elevator_full_cfgs(recall_on="alarm"))
+    mgr.attach("elevator", "e")
+    mgr.set_recall("e", "alarm")
     sched = _attach_schedule(mech, _schedule_cfgs([{"start": 0.0, "end": 100.0, "value": "v"}], regime="alarm"), entity="fire")
     mgr._instances["fire"] = [sched]
     assert mgr.elevator_recalled("e", 5.0) is False  # regime not yet stepped true
@@ -745,12 +745,26 @@ def test_elevator_recalled_registers_and_consults_regime():
     assert mgr.elevator_recalled("other", 5.0) is False
 
 
-def test_elevator_recall_not_registered_without_param():
+def test_elevator_recall_not_registered_without_set_recall():
     mech = _Mech()
     mech._elevator_runtime["e"] = _elevator_runtime("e")
     mech._door_runtime["e/door"] = _door_runtime("e/door")
     mgr = _manager(mech)
-    mgr.attach("elevator", "e", _elevator_full_cfgs())
+    mgr.attach("elevator", "e")
+    assert mgr.elevator_recalled("e", 5.0) is False
+
+
+def test_set_recall_none_clears_registration():
+    mech = _Mech()
+    mech._elevator_runtime["e"] = _elevator_runtime("e")
+    mech._door_runtime["e/door"] = _door_runtime("e/door")
+    mgr = _manager(mech)
+    mgr.attach("elevator", "e")
+    mgr.set_recall("e", "alarm")
+    mgr.set_recall("e", None)
+    sched = _attach_schedule(mech, _schedule_cfgs([{"start": 0.0, "end": 100.0, "value": "v"}], regime="alarm"), entity="fire")
+    mgr._instances["fire"] = [sched]
+    mgr.step(5.0)
     assert mgr.elevator_recalled("e", 5.0) is False
 
 

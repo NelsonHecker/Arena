@@ -189,24 +189,31 @@ def test_door_triggered_stale_is_false():
     assert inst.snapshot().predicates["triggered"] is False
 
 
-def test_door_only_requested_fields():
+def test_door_attach_ignores_cfgs_publishes_full_vocab():
+    """Mechanism semantics are intrinsic: a restricted (or bogus) cfg list is ignored,
+    attach always binds the kind's full DISCRETE/CONTINUOUS/PREDICATES vocabulary."""
     rt = _door_runtime()
     mech = _Mech()
     mech._door_runtime["d"] = rt
-    inst = DoorSemantics.attach(mech, "d", [_Cfg("predicate", "open")])
+    inst = DoorSemantics.attach(mech, "d", [_Cfg("predicate", "sideways")])
     inst.step(0.0)
     snap = inst.snapshot()
-    assert snap.discrete == {}
-    assert snap.continuous == {}
-    assert snap.predicates == {"open": False}
+    assert snap.discrete == {"state": "closed"}
+    assert snap.continuous == {"progress": 0.0}
+    assert snap.predicates == {"open": False, "in_transit": False, "triggered": False}
 
 
-def test_door_unknown_field_raises():
+def test_door_attach_with_no_cfgs_publishes_full_vocab():
+    """A bare, unannotated door still attaches: state publishes because the door exists."""
     rt = _door_runtime()
     mech = _Mech()
     mech._door_runtime["d"] = rt
-    with pytest.raises(ValueError, match="unknown field"):
-        DoorSemantics.attach(mech, "d", [_Cfg("predicate", "sideways")])
+    inst = DoorSemantics.attach(mech, "d", [])
+    inst.step(0.0)
+    snap = inst.snapshot()
+    assert snap.discrete == {"state": "closed"}
+    assert snap.continuous == {"progress": 0.0}
+    assert snap.predicates == {"open": False, "in_transit": False, "triggered": False}
 
 
 # ---------------------------------------------------------------------------
@@ -448,14 +455,40 @@ def test_manager_attaches_on_supported_sim():
     assert len(mgr.snapshot()) == 1
 
 
-def test_manager_skips_empty_cfgs():
+def test_manager_attach_with_no_cfgs_publishes_full_door_vocab():
+    """A spawned door with no annotation still snapshots the full door vocabulary (intrinsic)."""
     rt = _door_runtime()
     mech = _Mech()
     mech._door_runtime["d"] = rt
     mgr = SemanticsManager(mech)
     mgr.set_sim("gazebo")
-    mgr.attach("door", "d", [])
-    assert mgr.snapshot() == []
+    mgr.attach("door", "d")
+    snaps = mgr.snapshot()
+    assert len(snaps) == 1
+    assert snaps[0].discrete == {"state": "closed"}
+    assert snaps[0].continuous == {"progress": 0.0}
+    assert snaps[0].predicates == {"open": False, "in_transit": False, "triggered": False}
+
+
+def test_manager_attach_with_no_cfgs_publishes_full_elevator_vocab():
+    """A spawned elevator with no annotation snapshots the full vocabulary, including the
+    cabin door fields, which are no longer opt-in via a separate preset."""
+    rt = _elevator_runtime()
+    cabin = _door_runtime("e/door")
+    mech = _Mech()
+    mech._elevator_runtime["e"] = rt
+    mech._door_runtime["e/door"] = cabin
+    mgr = SemanticsManager(mech)
+    mgr.set_sim("gazebo")
+    mgr.attach("elevator", "e")
+    snaps = mgr.snapshot()
+    assert len(snaps) == 1
+    assert snaps[0].discrete == {"cabin_door": "closed"}
+    assert snaps[0].continuous == {
+        "arriving_eta": -1.0,
+        "occupants": 0.0,
+        "cabin_door_progress": 0.0,
+    }
 
 
 def test_manager_skips_unknown_kind():

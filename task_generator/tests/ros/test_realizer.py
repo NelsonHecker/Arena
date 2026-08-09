@@ -156,7 +156,7 @@ def test_realize_floor_translates_and_prefixes_name(realizer):
 def test_realize_door_preserves_semantics_with_prefixed_name(realizer):
     from arena_simulation_setup.shared import Door
     from arena_simulation_setup.utils.geometry import Position
-    d = Door(start=Position(0, 0), end=Position(1, 0), name="door1", semantics=[{"preset": "door"}], extra={})
+    d = Door(start=Position(0, 0), end=Position(1, 0), name="door1", semantics=[{"preset": "gate"}], extra={})
     result = realizer.realize(d)
     assert "door1" in result.name
     assert [(cfg.role, cfg.name) for cfg in result.semantics] == [(cfg.role, cfg.name) for cfg in d.semantics]
@@ -174,7 +174,7 @@ def test_realize_elevator_translates_and_prefixes(realizer):
 def test_realize_elevator_preserves_semantics_with_prefixed_name(realizer):
     from arena_simulation_setup.shared import Elevator
     from arena_simulation_setup.utils.geometry import Position
-    e = Elevator(position=Position(0, 0), name="elev1", semantics=[{"preset": "elevator"}], extra={})
+    e = Elevator(position=Position(0, 0), name="elev1", semantics=[{"preset": "pressure_plate"}], extra={})
     result = realizer.realize(e)
     assert "elev1" in result.name
     assert [(cfg.role, cfg.name) for cfg in result.semantics] == [(cfg.role, cfg.name) for cfg in e.semantics]

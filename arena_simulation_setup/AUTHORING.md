@@ -100,30 +100,41 @@ the sun, so interiors stay lit without global illumination.
 
 ### Semantic annotations
 
-Doors, elevators, and zones accept an optional `semantics:` list of state and
-predicate annotations:
+Door and elevator state is intrinsic: every spawned door/elevator publishes
+its full vocabulary (`state`/`progress`/`open`/... for a door; `arriving_eta`,
+`occupants`, `cabin_door`, `cabin_door_progress`, ... for an elevator) with no
+annotation needed. `semantics:` on a `doors:`/`elevators:` entry is only for
+attaching a *scripted* kind (`gate`, `pressure_plate`) to that entry. Zones
+accept an optional `semantics:` list of literal state/predicate primitives:
 
 ```yaml
-doors:
-- name: door_edge_1_1
-  start: {x: 4.0, y: 1.55, z: 0.0}
-  end:   {x: 4.0, y: 2.45, z: 0.0}
+zones:
+- name: lobby
+  corners: [...]
   semantics:
-  - preset: door
+  - {state: max_speed, value: 1.5}
+  - {predicate: quiet, value: true}
 ```
 
-`preset: door` and `preset: elevator` expand to the fixed set of states and
-predicates each kind's runtime handler tracks. Zones instead take literal
-primitives (`{state: max_speed, value: 1.5}`, `{predicate: quiet, value: true}`).
+An `Elevator` entry configures its fire-recall regime as a first-class field,
+not a semantics annotation:
+
+```yaml
+elevators:
+- name: 1_elevator
+  position: {x: 5.0, y: 0.0, z: 0.0}
+  destination: "2.2_elevator"
+  recall_on: alarm
+```
 
 Full field reference: [worlds/README.md](worlds/README.md).
 
 ### M2 kinds, params, and timelines
 
-M2 adds five scriptable/derived kinds on top of v1's `door`/`elevator`/`zone`,
-plus an `elevator_full` preset. Each new kind takes its config under a
-`params:` dict on the primitive or preset item, which round-trips opaquely
-(omitted on serialize when empty, no v1 kind reads it):
+M2 adds scriptable/derived kinds on top of the intrinsic `door`/`elevator`
+vocabularies and `zone`. Each kind takes its config under a `params:` dict on
+the primitive or preset item, which round-trips opaquely (omitted on
+serialize when empty):
 
 | kind | attaches to | preset expansion | `params` keys |
 | --- | --- | --- | --- |
@@ -132,7 +143,6 @@ plus an `elevator_full` preset. Each new kind takes its config under a
 | `gate` | a `doors:` entry | `locked`, `blocked` | `authorized` (sim_paths/robot names), `unlock_on` |
 | `pressure_plate` | a `doors:`/`elevators:` entry (own `position`) | `pressed` | `position` (`[x, y]`), `radius`, `drives`, `latch`, `press_on`, `regime` |
 | `occupancy_cap` | a `zones:` entry | `occupancy`, `cap`, `over_cap` | `cap` |
-| `elevator_full` | an `elevators:` entry | v1 `elevator` expansion plus `cabin_door`, `cabin_door_progress` | (none, opt-in cabin door observability) |
 
 `signal` and `schedule` have no geometry of their own, so a zone carries them
 as sibling lists to `doors:`/`elevators:`:
@@ -165,10 +175,13 @@ doors:
   - {preset: pressure_plate, params: {position: [4.0, 2.0], press_on: alarm, drives: north_fire_door}}
 ```
 
-A `regime` (or its per-kind alias `unlock_on`/`press_on`/`recall_on`) names a
-boolean asserted by a scripted kind's driving predicate. Other kinds (gate,
-pressure_plate, elevator's cabin door recall) consult that name without a
-direct wire between the two entities, see the fire-alarm worked example below.
+A `regime` (or its per-kind alias `unlock_on`/`press_on`) names a boolean
+asserted by a scripted kind's driving predicate. Other kinds (gate,
+pressure_plate) consult that name without a direct wire between the two
+entities. An elevator's `recall_on` field is the same regime-consult
+mechanism, just wired as a first-class `Elevator` field instead of a
+`semantics:` alias, since recall is mechanism configuration rather than
+published state. See the fire-alarm worked example below.
 
 ### Scenario timelines
 

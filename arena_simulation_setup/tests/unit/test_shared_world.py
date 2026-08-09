@@ -131,10 +131,10 @@ def test_door_semantics_preset_round_trip():
         'name': 'door_edge_1_1',
         'start': {'x': 4.0, 'y': 1.55, 'z': 0.0},
         'end': {'x': 4.0, 'y': 2.45, 'z': 0.0},
-        'semantics': [{'preset': 'door', 'distance': 2.0}],
+        'semantics': [{'preset': 'gate', 'distance': 2.0}],
     }
     d = converter.structure(raw, Door)
-    assert [c.name for c in d.semantics] == ['state', 'progress', 'open', 'in_transit', 'triggered']
+    assert [c.name for c in d.semantics] == ['locked', 'blocked']
     unstructured = converter.unstructure(d)
     d2 = converter.structure(unstructured, Door)
     assert d2.semantics == d.semantics
@@ -177,15 +177,23 @@ def test_elevator_semantics_preset_round_trip():
         'name': '1_elevator',
         'position': {'x': 5.0, 'y': 0.0, 'z': 0.0},
         'destination': '2.2_elevator',
-        'semantics': [{'preset': 'elevator'}],
+        'semantics': [{'preset': 'pressure_plate', 'params': {'position': [5.0, 0.0]}}],
     }
     e = converter.structure(raw, Elevator)
-    assert [c.name for c in e.semantics] == [
-        'arriving_eta', 'occupants', 'departing', 'in_transit', 'dispatched', 'just_arrived',
-    ]
+    assert [c.name for c in e.semantics] == ['pressed']
     unstructured = converter.unstructure(e)
     e2 = converter.structure(unstructured, Elevator)
     assert e2.semantics == e.semantics
+
+
+def test_elevator_recall_on_default_none():
+    e = Elevator(name="elev", position=_elev_pos())
+    assert e.recall_on is None
+
+
+def test_elevator_recall_on_first_class_field():
+    e = Elevator(name="elev", position=_elev_pos(), recall_on="alarm")
+    assert e.recall_on == "alarm"
 
 
 def test_door_semantics_evolve_preserves_semantics():

@@ -63,21 +63,6 @@ class SemanticCfg(Parseable, Serializable):
 
 
 _PRESETS: dict[str, list[dict]] = {
-    'door': [
-        {'state': 'state'},
-        {'state': 'progress'},
-        {'predicate': 'open'},
-        {'predicate': 'in_transit'},
-        {'predicate': 'triggered'},
-    ],
-    'elevator': [
-        {'state': 'arriving_eta'},
-        {'state': 'occupants'},
-        {'predicate': 'departing'},
-        {'predicate': 'in_transit'},
-        {'predicate': 'dispatched'},
-        {'predicate': 'just_arrived'},
-    ],
     'signal': [
         {'state': 'state'},
         {'state': 'phase_remaining'},
@@ -101,7 +86,6 @@ _PRESETS: dict[str, list[dict]] = {
         {'predicate': 'over_cap'},
     ],
 }
-_PRESETS['elevator_full'] = [*_PRESETS['elevator'], {'state': 'cabin_door'}, {'state': 'cabin_door_progress'}]
 
 
 def parse_semantics(value: list) -> list[SemanticCfg]:
