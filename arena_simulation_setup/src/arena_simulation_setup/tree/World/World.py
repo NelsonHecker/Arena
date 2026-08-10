@@ -22,8 +22,12 @@ from arena_simulation_setup.shared import (
     Elevator,
     Floor,
     Obstacle,
+    Schedule,
+    SemanticCfg,
+    Signal,
     Wall,
 )
+from arena_simulation_setup.shared.semantics import parse_semantics
 from arena_simulation_setup.tree import FallbackResolver, Identifier, PathView
 from arena_simulation_setup.tree.assets.Material import (
     Material,
@@ -67,6 +71,8 @@ class LevelDescription:
         walls: list[Wall] = attrs.field(factory=list)
         doors: list[Door] = attrs.field(factory=list)
         elevators: list[Elevator] = attrs.field(factory=list)
+        schedules: list[Schedule] = attrs.field(factory=list)
+        signals: list[Signal] = attrs.field(factory=list)
         entities: WorldEntities = attrs.field(factory=WorldEntities)
         ceiling: bool = attrs.field(default=True)
         ceiling_height: float | None = attrs.field(default=None)
@@ -79,6 +85,7 @@ class LevelDescription:
             converter=MaterialIdentifier.converter,
             default=Material.default('wall'),
         )
+        semantics: list[SemanticCfg] = attrs.field(factory=list, converter=parse_semantics)
 
         @property
         def floor(self) -> Floor:
@@ -104,6 +111,14 @@ class LevelDescription:
     @property
     def all_elevators(self) -> typing.Iterable[Elevator]:
         return (elevator for zone in self.zones for elevator in zone.elevators)
+
+    @property
+    def all_schedules(self) -> typing.Iterable[Schedule]:
+        return (schedule for zone in self.zones for schedule in zone.schedules)
+
+    @property
+    def all_signals(self) -> typing.Iterable[Signal]:
+        return (signal for zone in self.zones for signal in zone.signals)
 
     @property
     def all_floors(self) -> typing.Iterable[Floor]:
