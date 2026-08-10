@@ -80,6 +80,7 @@ def _resourced(cmd: str) -> int:
         check=False,
     ).returncode
 
+
 # mirror of _feature_registry in _meta/tools/source
 
 

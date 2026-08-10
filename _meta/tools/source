@@ -151,6 +151,17 @@ if [ -f "$ARENA_WS_DIR/.env" ] ; then
     set +a
 fi
 
+_arena_venv_provision(){
+    [ -f "$ARENA_VENV_DIR/.installed" ] && return 0
+    (
+        cd "$ARENA_DIR" || exit 1
+        uv venv "$ARENA_VENV_DIR" --allow-existing --system-site-packages && \
+        UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project "$ARENA_DIR" "$@" && \
+        touch "$ARENA_VENV_DIR/.installed"
+    )
+}
+export -f _arena_venv_provision 2>/dev/null || true
+
 _arena_heal_pip(){
     command -v python > /dev/null 2>&1 || return 0
     python -c 'import pip.__main__' 2>/dev/null || python -m ensurepip --upgrade >/dev/null
@@ -167,9 +178,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     # python env
     pushd "$ARENA_DIR" > /dev/null || return 1
         if [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
-            uv venv "$ARENA_VENV_DIR" --allow-existing --system-site-packages && \
-            UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project . && \
-            touch "$ARENA_VENV_DIR/.installed"
+            echo "arena: venv not ready, run 'arena repair' or wait for container setup" >&2
         fi
 
         if [ -f "$ARENA_VENV_DIR/bin/activate" ]; then
@@ -187,14 +196,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
     r2st(){ ros2 service call "$1" "$(ros2 service type "$1")";}
 
     _arena_cli(){
-        "$ARENA_VENV_DIR/bin/python3" -E -S "$TOOLS_DIR/arena_cli/__main__.py" "$@"
-        local rc=$?
-        case "$rc" in
-            113|126|127)
-                echo "arena: CLI failed to start (rc $rc); if the venv is broken, run 'arena repair'" >&2
-            ;;
-        esac
-        return $rc
+        python3 "$TOOLS_DIR/arena_cli/__main__.py" "$@"
     }
     export -f _arena_cli 2>/dev/null || true
 
@@ -222,9 +224,7 @@ if [ -z ${ARENA_SOURCED+x} ] ; then
             repair)
                 if [ -f /.dockerenv ] || [ ! -f "$ARENA_VENV_DIR/.installed" ]; then
                     rm -f "$ARENA_VENV_DIR/.installed"
-                    uv venv "$ARENA_VENV_DIR" --allow-existing --system-site-packages && \
-                    UV_PROJECT_ENVIRONMENT="$ARENA_VENV_DIR" uv sync --inexact --project "$ARENA_DIR" "$@" && \
-                    touch "$ARENA_VENV_DIR/.installed"
+                    _arena_venv_provision "$@"
                     result=$?
                 else
                     echo "arena repair must run inside a container (the venv is shared with /opt/venv)" >&2
