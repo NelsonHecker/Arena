@@ -18,10 +18,10 @@ setup(
     ],
     install_requires=['setuptools', 'mcp>=1.0'],
     zip_safe=True,
-    author='voshch',
-    author_email='voshch@arena-rosnav.org',
-    maintainer='voshch',
-    maintainer_email='voshch@arena-rosnav.org',
+    author='NelsonHecker',
+    author_email='heckernelson@gmail.com',
+    maintainer='NelsonHecker',
+    maintainer_email='heckernelson@gmail.com',
     description='MCP server giving agents full control over the Arena evaluation pipeline: '
                 'discover, configure, run benchmarks, process metrics, create report manifests, '
                 'analyze results, and inject insights into reports.',
