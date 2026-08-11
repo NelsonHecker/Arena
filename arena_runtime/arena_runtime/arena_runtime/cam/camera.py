@@ -435,15 +435,18 @@ class Camera:
         """Connect to the live sim, run the shot, disconnect. Blocks until done."""
         CamNode.run_main(timeline=self, targets=self._targets)
 
-    def record(self, out_dir: str, fps: float = 30.0, force: bool = False) -> None:
+    def record(self, out_dir: str, fps: float = 30.0, force: bool = False, lockstep: bool = False) -> None:
         """Render the shot to a numbered PPM sequence, one capture per frame.
 
         A bare `out_dir` name lands under `$ARENA_DATA_DIR/recordings/`; an absolute
         or slash-bearing path is used verbatim. Raises `FileExistsError` if the
         directory is not empty unless `force`. Blocks until done.
+
+        `lockstep` steps the sim by 1/fps between frames instead of recording at
+        the sim's live rate, so the scene and physics are frame-exact (Gazebo only).
         """
         path = record_dir(out_dir, force)
-        CamNode.run_main(timeline=self, targets=self._targets, record=(str(path), float(fps)))
+        CamNode.run_main(timeline=self, targets=self._targets, record=(str(path), float(fps)), lockstep=bool(lockstep))
 
     async def run(self, node: CamNode) -> None:
         """Execute the queued actions against a connected node (called by CamNode.setup)."""

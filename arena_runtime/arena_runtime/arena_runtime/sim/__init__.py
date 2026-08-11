@@ -92,7 +92,7 @@ async def lazy_gazebo(**kwargs: object) -> BaseSim:
 
 
 @LifecycleRegistry.register(SimSimulator.GAZEBO)
-async def lazy_gazebo_lifecycle(node: object, **kwargs: object) -> SimLifecycle:
+async def lazy_gazebo_lifecycle(node: object, physics_dt: float = 0.0333, **kwargs: object) -> SimLifecycle:
     import asyncio
 
     from arena_rclpy_mixins import ArenaMixinNode
@@ -109,6 +109,7 @@ async def lazy_gazebo_lifecycle(node: object, **kwargs: object) -> SimLifecycle:
         service_control_world=node.create_client_wrapper(ControlWorld, "/world/default/control"),
         service_delete_entity=node.create_client_wrapper(DeleteEntity, "/world/default/remove"),
         logger=node.get_logger().get_child("GazeboHost"),
+        physics_dt=physics_dt,
     )
 
 

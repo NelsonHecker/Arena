@@ -108,6 +108,56 @@ Additional abstract methods:
 | `after_reset_episode()` | called after every episode reset; implementations unpause the sim |
 | `step(n=1)` | advance simulation by `n` ticks; default no-op returns `True` |
 
+## Lockstep
+
+`SimLifecycle.step_seconds(seconds) -> float` advances a held sim by an exact
+sim-time delta, quantized to whole physics steps (`physics_dt` rosparam,
+default 0.0333 matching `empty.sdf`); the base raises `NotImplementedError`.
+Gazebo sends one `ControlWorld` request with `pause=True` and `multi_step=n`
+(both fields in the same message, else gz free-runs). Isaac calls
+`/isaac/StepSimulationN` and awaits `/clock` reaching the projected target.
+
+`arena_node` exposes it as `sim_lifecycle/step` (valid only while holds are
+active and no unpause window is open), plus the lockstep control plane
+driving the [`LockstepScheduler`](../lockstep.py).
+
+Components self-register their data channels via
+`sim_lifecycle/lockstep/register` (LockstepRegister: `caller`, `env`,
+`channels[]` of `{name, topic, type, period_s, hard}`. Re-registering under
+a `caller` replaces its set, an empty `channels[]` clears it, per-env
+registrations drop when their env despawns, and registrations merge into a
+running lockstep live. The arena_humansim adapter self-registers `engine`
+(hard) and `peds` (soft). The hunav adapter self-registers `roster` (hard).
+Producers publish with `header.stamp` reflecting the sim time they have
+actually covered. Gates are per-period windows: each window of `period_s`
+sim seconds must receive one covering stamp before the sim advances past
+it. A producer driven by a sim-clock timer registers `period_s` equal to
+its own tick length, which paces the sim to the producer's true coverage.
+An elapsed-based rate loop registers a period strictly above its interval.
+
+`sim_lifecycle/lockstep/start` (LockstepStart: `target_rtf`, `ungated`)
+starts a run or reconfigures one in place: `target_rtf` of 0 is unpaced,
+`ungated` free-steps ignoring every gate. Hard channels freeze-and-wait: the
+scheduler will not advance past a tick until every hard channel has a
+`header.stamp` covering it, so the weakest hard producer sets the pace by
+design. `soft` channels are observed and reported only. The scheduler also
+idles while a foreign hold or an unpause window is open (episode resets).
+`sim_lifecycle/lockstep/stop` ends the run and restores the pre-run
+pause state and gz `real_time_factor`. `sim_lifecycle/lockstep/pause` /
+`sim_lifecycle/lockstep/resume` freeze and unfreeze the clock within a run
+without ending it. Status is the latched `/arena/state/lockstep` topic
+(LockstepStatus): `active`, `paused`, `ungated`, `target_rtf`,
+`measured_rtf`, `tick`, `registrations`, `waiting_on`, `arrived`.
+
+`lockstep.autostart`/`lockstep.channels`/`lockstep.target_rtf`/
+`lockstep.paused` params are read once at bringup (launch args
+`lockstep:=true lockstep.channels:="..."`), registering the channels under
+caller `launch`. Channel specs are `name|topic|type|period_s|hard-or-soft`
+with `{env}` expanded per env. CLI: `arena lockstep run [rtf:=N] [ungated]`
+(blocks, ctrl-c pauses), `on [rtf:=N] [ungated]`, `off`, `pause`, `resume`,
+`status`, and `arena lockstep gate [engine|peds|<spec> ...]` to register
+extra channels under caller `cli`.
+
 ## Sim-paused invariant
 
 The sim is paused for the entire body of `Task._reset_episode`. Only

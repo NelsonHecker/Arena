@@ -417,26 +417,28 @@ arena cam show establishing
 
 ## Recording
 
-`Camera.record(out_dir, fps=30)` is the offline sibling of `play()`: it renders
-the timeline to a numbered PPM sequence (`frame_00000.ppm`, ...) by capturing
-each frame at an exact pose through the `capture` service, so the result is
-smooth and deterministic regardless of render speed. A bare `out_dir` name lands
-under `$ARENA_DATA_DIR/recordings/`; an absolute or slash-bearing path is used
-as given. Recording into a non-empty directory errors (a take is never silently
-clobbered); pass `-f` / `--force` to overwrite it.
+`Camera.record(out_dir, fps=30, lockstep=False)` is the offline sibling of
+`play()`: it renders the timeline to a numbered PPM sequence (`frame_00000.ppm`,
+...) by capturing each frame at an exact pose through the `capture` service, so
+the result is smooth and deterministic regardless of render speed. A bare
+`out_dir` name lands under `$ARENA_DATA_DIR/recordings/` and an absolute or
+slash-bearing path is used as given. Recording into a non-empty directory errors
+(a take is never silently clobbered); pass `-f` / `--force` to overwrite it.
 
 ```python
 cam = Camera()
 cam.add("orbit", radius=4, elevation_deg=30, sweep_deg=360, duration=8)
 cam.record("orbit", fps=30)        # -> $ARENA_DATA_DIR/recordings/orbit/
+cam.record("orbit", fps=30, lockstep=True)  # physics-lockstep take
 ```
 
-On the CLI, `record` (output dir) and `fps` are reserved params, popped before
-the rest reach the verb, shot, or file:
+On the CLI, `record` (output dir), `fps`, and `lockstep` are reserved params,
+popped before the rest reach the verb, shot, or file:
 
 ```
 arena cam tour record=tour fps=30
 arena cam orbit radius=4 duration=8 record=orbit
+arena cam orbit radius=4 duration=8 record=orbit lockstep=true
 ```
 
 A streamed segment emits `round(duration * fps)` frames, a discrete `look` /
@@ -444,9 +446,12 @@ A streamed segment emits `round(duration * fps)` frames, a discrete `look` /
 `reference`, `projection`) none. Frames are raw `P6` PPM; assemble with e.g.
 `ffmpeg -framerate <fps> -i frame_%05d.ppm -pix_fmt yuv420p out.mp4`.
 
-Recording is camera-locked, not physics-locked: the camera path is deterministic
-but the scene advances at the sim's own rate, so pause the sim first for a fully
-reproducible take. Stepping the sim per frame is a future follow-up.
+Recording is camera-locked by default: the camera path is deterministic but the
+scene advances at the sim's own rate, so pause the sim first for a fully
+reproducible take. Pass `lockstep=True` (CLI: `lockstep=true`) for physics-lockstep
+recording instead: `Cam` acquires a sim hold, steps physics by exactly `1/fps`
+before each frame, and only captures once the scene has caught up to that sim
+time, so camera, physics, and frame are all in lockstep. Gazebo only for now.
 
 ---
 
@@ -463,11 +468,11 @@ wait up to 10 seconds for the services and log an error if they are absent.
 ## Not yet / next phase
 
 Deterministic camera recording is implemented (see Recording above): the
-camera path is smooth and frame-perfect via the `capture` service. What
-remains future:
+camera path is smooth and frame-perfect via the `capture` service.
+Physics-lockstep recording (`lockstep=True`) is also implemented for Gazebo:
+the sim is held and stepped by exactly `1/fps` per frame, so the scene and
+physics advance in lockstep with the camera instead of at the sim's live rate.
+What remains future:
 
-- **Physics-lockstep / sim-time stepping** for full scene reproducibility:
-  step the sim by dt, snap, grab a frame, repeat, so the scene and physics
-  advance in lockstep with the camera instead of at the sim's live rate.
 - **Isaac viewport parity:** the recording surface (and the rest of the
-  `/arena/viewport/*` contract) is Gazebo-only today.
+  `/arena/viewport/*` contract), including physics-lockstep, is Gazebo-only today.
