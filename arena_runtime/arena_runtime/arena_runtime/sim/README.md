@@ -129,9 +129,13 @@ registrations drop when their env despawns, and registrations merge into a
 running lockstep live. The arena_humansim adapter self-registers `engine`
 (hard) and `peds` (soft). The hunav adapter self-registers `roster` (hard).
 The arena_robots task_server registers per-robot beats only while a goal is
-active: `nav/<robot>` (hard, one controller period, pulsed per cmd_vel)
-during goto_pose, `reach/<robot>` and `gesture/<robot>` (hard, pulsed per
-JTC controller_state) during reach_pose / play_gesture. Beats republish
+active: `nav/<robot>` (hard, pulsed per cmd_vel) during goto_pose for both
+nav2 (one controller period) and the goal-window passthrough stacks
+(drl/rosnav_rl/external, fixed 0.25 s period, action held open until
+arrival), `reach/<robot>` and `gesture/<robot>` (hard, pulsed per
+JTC controller_state) during reach_pose / play_gesture. The `none`,
+`manual`, and `test_collision` bringups keep fire-and-forget goto_pose and
+stay ungated. Beats republish
 `LockstepHeartbeat` coverage stamps; a wall-clock grace watchdog publishes
 forward keepalives through legitimately silent phases (MoveIt planning,
 nav2 recovery behaviors), so a producer that itself needs sim time to pass
