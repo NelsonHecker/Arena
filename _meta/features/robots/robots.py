@@ -82,6 +82,28 @@ def robot_submodules(arena: Path) -> dict[str, list[str]]:
     return out
 
 
+def submodule_sparse(arena: Path) -> dict[str, str]:
+    """{path-relative-to-arena: sparse-checkout dirs} from `sparse = <dir...>` tags, for
+    submodules whose repo carries packages we must keep out of the colcon workspace.
+    Applied after every init/update since sparse config does not propagate via clone."""
+    sdk_gitmodules = arena / _SDK_SUBDIR / ".gitmodules"
+    if not sdk_gitmodules.is_file():
+        return {}
+    cfg = configparser.ConfigParser()
+    cfg.read(sdk_gitmodules)
+    return {
+        f"{_SDK_SUBDIR}/{cfg[section].get('path', '').strip()}": sparse
+        for section in cfg.sections()
+        if section.startswith("submodule ") and (sparse := cfg[section].get("sparse", "").strip())
+    }
+
+
+def _apply_sparse(arena: Path, path: str) -> None:
+    sparse = submodule_sparse(arena).get(path)
+    if sparse and (arena / path / ".git").exists():
+        _git(["sparse-checkout", "set", *sparse.split()], arena / path, check=False)
+
+
 def component_families(arena: Path) -> set[str]:
     """{'<type>/<name>'} for every catalog component (dirs holding a component.yaml)."""
     root = arena / COMPONENTS_PREFIX
@@ -184,6 +206,7 @@ def cmd_add(arena: Path, args) -> int:
             sub_path = Path(p).relative_to(_SDK_SUBDIR).as_posix()
             _git(["-c", "protocol.file.allow=always",
                   "submodule", "update", "--init", "--recursive", "--checkout", sub_path], sdk)
+            _apply_sparse(arena, p)
     return 0
 
 
@@ -240,6 +263,7 @@ def cmd_update(arena: Path, _args) -> int:
         code = _git(["-c", "protocol.file.allow=always",
                      "submodule", "update", "--init", "--recursive", "--checkout", sub_path],
                     sdk, check=False)
+        _apply_sparse(arena, p)
         rc = rc or code
     code = _git(["submodule", "update", "--recursive"], sdk, check=False)
     return rc or code
