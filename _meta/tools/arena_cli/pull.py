@@ -31,9 +31,13 @@ def pull_main(argv: list[str]) -> int:
 
         if do_git:
             print("updating Arena...")
-            rc = subprocess.run(["git", "pull", "--ff-only", "--autostash"], env=env, check=False).returncode
-            if rc:
-                return rc
+            has_upstream = subprocess.run(["git", "rev-parse", "--verify", "-q", "@{u}"], env=env, check=False, capture_output=True).returncode == 0
+            if has_upstream:
+                rc = subprocess.run(["git", "pull", "--ff-only", "--autostash"], env=env, check=False).returncode
+                if rc:
+                    return rc
+            else:
+                print("no upstream for current branch, skipping Arena pull")
 
             if subprocess.run(["git", "submodule", "update", "--init", "--checkout", "arena_planners", "arena_robots", "humansim"], env=env, check=False).returncode:
                 print("failed to init/update arena_planners/arena_robots/humansim, ignoring")
