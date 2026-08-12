@@ -45,8 +45,7 @@ class ExternalAdapter(MobileAdapter):
             self.client.cancel()
         goal = GotoPose.Goal()
         goal.target = self._phase_to_pose_stamped(phase, robot)
-        goal.pose_tolerance = float(phase.tolerance_radius or 0.0)
-        goal.yaw_tolerance = float(phase.tolerance_angle or 0.0)
+        goal.pose_tolerance, goal.yaw_tolerance = self._resolve_tolerances(phase, robot)
         await self.client.send_goal(goal)
 
     async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
