@@ -15,8 +15,7 @@ keys:
 simulator key  →  action
 ──────────────────────────────────────────────────────────────────
 dummy          →  empty GroupAction (no nodes)
-none           →  empty GroupAction (no nodes)
-hunav          →  hunav/hunav.launch.py
+isaac          →  empty GroupAction (no nodes)
 arena          →  arena_humansim/arena_humansim.launch.py
 ```
 
@@ -36,20 +35,21 @@ explicitly with `human:=<key>`.
 
 ```
 launch/human/
-├── human.launch.py        : dispatcher
-└── hunav/
-    └── hunav.launch.py    : hunav_agent_manager node
+├── human.launch.py        — dispatcher
+└── arena_humansim/
+    └── arena_humansim.launch.py    — arena_humansim node (subsystem mode)
 ```
 
-### hunav/hunav.launch.py
+### arena_humansim/arena_humansim.launch.py
 
-Starts `hunav_agent_manager/arena_hunav_agent_manager` in the given namespace.
+Includes the `arena_humansim` package launch in `subsystem` mode in the given
+namespace, so the node is driven externally by the task generator's
+`ArenaHumanSimulator` adapter over services and the `world_state` topic.
 
 | Arg | Default | Meaning |
 |---|---|---|
 | `use_sim_time` | `true` | Passed to the node as a bool parameter |
-| `namespace` | (required) | ROS namespace for the agent manager node |
-| `world_file` | `` (empty) | Passed through; callers may provide a world SDF path |
+| `namespace` | (required) | ROS namespace for the arena_humansim node |
 
 ## Adding a new human simulator
 

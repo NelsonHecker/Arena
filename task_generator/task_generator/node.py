@@ -541,54 +541,58 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 topic_must_exist=False,
             ),
         ]
-        latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
-        env_displays.append(
-            AdapterDisplay(
-                name="Pedestrians",
-                topic=f"{env_ns}/humans",
-                topic_type="",
-                kind=DisplayKind.PEDESTRIANS,
-                style_json=StyleSpec().to_json(),
-                topic_must_exist=False,
-                group="Pedestrians",
-            )
-        )
-        # Backend-internal debug overlay, off by default.
-        env_displays.append(
-            AdapterDisplay(
-                name="Extra",
-                topic=f"{env_ns}/pedestrian_markers/extra",
-                topic_type="visualization_msgs/MarkerArray",
-                kind=DisplayKind.MARKER_ARRAY,
-                style_json=StyleSpec(enabled=False).to_json(),
-                topic_must_exist=False,
-                group="Pedestrians",
-            )
-        )
-        # Static environment geometry: not pedestrians, own group.
-        env_displays.append(
-            AdapterDisplay(
-                name="Static",
-                topic=f"{env_ns}/pedestrian_markers/static",
-                topic_type="visualization_msgs/MarkerArray",
-                kind=DisplayKind.MARKER_ARRAY,
-                style_json=latched,
-                topic_must_exist=False,
-                group="Static",
-            )
-        )
-        for leaf in ("static_walls", "static_objects"):
+        human_sim = self.conf.Arena.HUMAN.value
+        if human_sim not in (Constants.HumanSimulator.DUMMY, Constants.HumanSimulator.NONE):
+            latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
             env_displays.append(
                 AdapterDisplay(
-                    name=leaf.replace("_", " ").title(),
-                    topic=f"{env_ns}/pedestrian_markers/{leaf}",
+                    name="Pedestrians",
+                    topic=f"{env_ns}/humans",
+                    topic_type="",
+                    kind=DisplayKind.PEDESTRIANS,
+                    style_json=StyleSpec().to_json(),
+                    topic_must_exist=False,
+                    group="Pedestrians",
+                )
+            )
+            # Backend marker overlay. On by default: the canonical Skeletons3D
+            # display cannot render namespaced envs (upstream hri_rviz reads
+            # absolute /humans paths), so this is the working pedestrian view.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Extra",
+                    topic=f"{env_ns}/pedestrian_markers/extra",
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.MARKER_ARRAY,
+                    style_json=StyleSpec().to_json(),
+                    topic_must_exist=False,
+                    group="Pedestrians",
+                )
+            )
+            # Static environment geometry: not pedestrians, own group.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Static",
+                    topic=f"{env_ns}/pedestrian_markers/static",
                     topic_type="visualization_msgs/MarkerArray",
                     kind=DisplayKind.MARKER_ARRAY,
                     style_json=latched,
-                    topic_must_exist=True,
+                    topic_must_exist=False,
                     group="Static",
                 )
             )
+            for leaf in ("static_walls", "static_objects"):
+                env_displays.append(
+                    AdapterDisplay(
+                        name=leaf.replace("_", " ").title(),
+                        topic=f"{env_ns}/pedestrian_markers/{leaf}",
+                        topic_type="visualization_msgs/MarkerArray",
+                        kind=DisplayKind.MARKER_ARRAY,
+                        style_json=latched,
+                        topic_must_exist=True,
+                        group="Static",
+                    )
+                )
 
         entries: list[AdapterEntry] = []
         for mgr in self._robots_manager.managers.values():

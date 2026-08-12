@@ -15,7 +15,7 @@ class Constants:
     class HumanSimulator(Enum):
         DUMMY = "dummy"
         NONE = "none"
-        HUNAV = "hunav"
+        ISAAC = "isaac"
         ARENA = "arena"
 
     class TaskMode:

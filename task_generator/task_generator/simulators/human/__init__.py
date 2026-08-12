@@ -863,17 +863,19 @@ async def dummy(**kwargs: object) -> BaseHumanSimulator:
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.NONE)
-async def noop(**kwargs: object) -> BaseHumanSimulator:
-    from .noop import NoopHumanSimulator
+async def none(**kwargs: object) -> BaseHumanSimulator:
+    # 'none' launches no human-sim node (empty GroupAction in human.launch.py);
+    # the node still needs a no-op backend for the registry lookup.
+    from .dummy import DummyHumanSimulator
 
-    return NoopHumanSimulator(**kwargs)
+    return DummyHumanSimulator(**kwargs)
 
 
-@HumanSimulatorRegistry.register(Constants.HumanSimulator.HUNAV)
-async def lazy_hunavsim(**kwargs: object) -> BaseHumanSimulator:
-    from .hunav.hunav import HunavHumanSimulator
+@HumanSimulatorRegistry.register(Constants.HumanSimulator.ISAAC)
+async def isaacsim(**kwargs: object) -> BaseHumanSimulator:
+    from .isaac import IsaacHumanSimulator
 
-    return await HunavHumanSimulator.create(**kwargs)
+    return IsaacHumanSimulator(**kwargs)
 
 
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.ARENA)

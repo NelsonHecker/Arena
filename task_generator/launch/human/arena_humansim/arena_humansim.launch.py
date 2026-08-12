@@ -18,6 +18,9 @@ def generate_launch_description():
                 'mode': 'subsystem',
                 'use_sim_time': 'true',
                 'markers': '2',
+                # arena's env rviz is the canonical viewer; markers!=0 would
+                # otherwise auto-start a second, unnamespaced rviz instance
+                'rviz': 'false',
                 'namespace': namespace,
             },
         ),

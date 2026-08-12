@@ -25,8 +25,6 @@ setup(
         (os.path.join('share', package_name, 'launch'), existing('launch/*.launch.py')),
         (os.path.join('share', package_name, 'launch', 'human'),
          existing('launch/human/*.launch.py', 'launch/human/*.md')),
-        (os.path.join('share', package_name, 'launch', 'human', 'hunav'),
-         existing('launch/human/hunav/*.launch.py')),
         (os.path.join('share', package_name, 'launch', 'human', 'arena_humansim'),
          existing('launch/human/arena_humansim/*.launch.py')),
     ],
