@@ -4,9 +4,9 @@ import os
 import sys
 
 import common
-from common import CLIError, Verb, make_verb
+from common import Verb, make_verb
 
-SCRIPT_SHA256: str = "8db19c9d083ddb774a6906321235f9dd8a49eca824af193743e2c337f8de1b74"
+import features
 
 _NAME = "robots"
 
@@ -24,10 +24,7 @@ DESCRIPTION = (
 
 
 def _payload() -> str:
-    path = common._reg_resolve(_NAME)
-    if path is None:
-        raise CLIError(f"unknown feature '{_NAME}'")
-    return os.path.join(os.path.dirname(path), f"{_NAME}.py")
+    return os.path.join(features.assets_dir(_NAME), f"{_NAME}.py")
 
 
 def _deps_build() -> int:

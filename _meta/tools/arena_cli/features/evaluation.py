@@ -5,8 +5,6 @@ from common import Verb, make_verb
 
 from features import lifecycle_verbs
 
-SCRIPT_SHA256 = "eb325b11cd0d5ce9b4a2ad59a8f87004f8bfba2c0be50194f2faa6239a852789"
-
 NAME = "evaluation"
 
 DESCRIPTION = "arena_evaluation for recording, metrics, and benchmarking."
@@ -63,11 +61,6 @@ def console(argv: list[str]) -> None:
     common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "console", *argv)
 
 
-def source(argv: list[str]) -> None:
-    """no-op; sourced by the feature dispatcher"""
-    return None
-
-
 def acoustic(argv: list[str]) -> None:
     """acoustic field visualization (list, animate, snapshot)"""
     common._reg_require(NAME)
@@ -114,7 +107,6 @@ COMMANDS: dict[str, Verb] = {
         make_verb("tail", tail, passthrough=True),
         make_verb("ps", ps_, passthrough=True),
         make_verb("console", console, passthrough=True),
-        make_verb("source", source, passthrough=True),
         make_verb("extract", extract, passthrough=True),
         make_verb("run", run, passthrough=True),
         make_verb("process", process, passthrough=True),

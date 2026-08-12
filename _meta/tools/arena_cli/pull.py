@@ -9,7 +9,8 @@ def pull_main(argv: list[str]) -> int:
     import shutil
     import subprocess
 
-    from common import _env, _feature_dispatch, _reg_list, _reg_pull, _reg_resolve
+    import features
+    from common import _cli, _env, _reg_list, _reg_pull
 
     arena_dir = _env("ARENA_DIR")
     arena_ws_dir = _env("ARENA_WS_DIR")
@@ -65,10 +66,10 @@ def pull_main(argv: list[str]) -> int:
                 return 1
 
             for name in _reg_list():
-                if _reg_resolve(name) is None:
+                if features.load(name) is None:
                     continue
                 _reg_pull(name)
-                if _feature_dispatch(name, ("update",)):
+                if _cli("feature", name, "update"):
                     print(f"failed to update feature {name}, ignoring", file=sys.stderr)
 
         if do_rosdep:
