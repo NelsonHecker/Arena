@@ -29,6 +29,7 @@ Per-env episode types (`EpisodeRecord`, `RunEpisode`, query/spawn services) live
 | `HoldEntry.msg` | One `(caller_id, reason, count)` triple. |
 | `HoldRegistry.msg` | All active `HoldEntry`s. Published latched on `state/holders`. |
 | `LockstepChannel.msg` | One registered data channel: `name`, `topic`, `type`, `period_s`, `hard`. |
+| `LockstepHeartbeat.msg` | Coverage stamp republished by producers with no natively stamped output (task_server beats). |
 | `LockstepRegistration.msg` | One caller's channel set: `caller`, `env`, `channels[]` (`LockstepChannel`). |
 | `LockstepStatus.msg` | Scheduler state: run flags, target/measured RTF, gated tick, registrations, stall lists. Published latched on `state/lockstep`. |
 | `ShutdownRequest.msg` | Broadcast asking `env_id` to shut down (reason carried as a string). |

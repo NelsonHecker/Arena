@@ -128,6 +128,15 @@ a `caller` replaces its set, an empty `channels[]` clears it, per-env
 registrations drop when their env despawns, and registrations merge into a
 running lockstep live. The arena_humansim adapter self-registers `engine`
 (hard) and `peds` (soft). The hunav adapter self-registers `roster` (hard).
+The arena_robots task_server registers per-robot beats only while a goal is
+active: `nav/<robot>` (hard, one controller period, pulsed per cmd_vel)
+during goto_pose, `reach/<robot>` and `gesture/<robot>` (hard, pulsed per
+JTC controller_state) during reach_pose / play_gesture. Beats republish
+`LockstepHeartbeat` coverage stamps; a wall-clock grace watchdog publishes
+forward keepalives through legitimately silent phases (MoveIt planning,
+nav2 recovery behaviors), so a producer that itself needs sim time to pass
+cannot freeze the sim. Training-mode robots have no task_server and stay
+outside the gate set.
 Producers publish with `header.stamp` reflecting the sim time they have
 actually covered. Gates are per-period windows: each window of `period_s`
 sim seconds must receive one covering stamp before the sim advances past
