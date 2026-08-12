@@ -5,6 +5,7 @@ import logging
 import pathlib
 import subprocess
 import traceback
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -983,7 +984,7 @@ def _warn_unknown_maps(yaml_content: str, bridge: EvalBridge) -> list[str]:
 
 def _create_config(
     args: dict, bridge: EvalBridge, kind: str,
-    validator, path_resolver,
+    validator: Callable[[str], dict], path_resolver: Callable[[str], pathlib.Path],
 ) -> dict:
     name = args["name"]
     yaml_content = args["yaml_content"]
@@ -1450,7 +1451,7 @@ def _find_top_n(args: dict, bridge: EvalBridge) -> dict:
     result = df.group_by(planner_col).agg(agg)
 
     scores = {}
-    for m, w in zip(metrics, weights):
+    for m, w in zip(metrics, weights, strict=False):
         vals = result[m].to_list()
         mn, mx = min(vals), max(vals)
         rng = mx - mn if mx != mn else 1.0

@@ -5,6 +5,8 @@ from common import Verb, make_verb
 
 from features import lifecycle_verbs
 
+SCRIPT_SHA256 = "eb325b11cd0d5ce9b4a2ad59a8f87004f8bfba2c0be50194f2faa6239a852789"
+
 NAME = "evaluation"
 
 DESCRIPTION = "arena_evaluation for recording, metrics, and benchmarking."

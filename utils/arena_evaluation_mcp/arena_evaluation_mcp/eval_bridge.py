@@ -7,16 +7,12 @@ import re
 import signal
 import subprocess
 import time
-import typing
-from datetime import datetime
 
 import polars as pl
 import yaml
-
 from arena_evaluation.processing.parquet_store import ParquetStore
 from arena_evaluation.storage.data_root import benchmarks_root
 from arena_evaluation.storage.folder_manager import FolderManager
-from arena_evaluation.storage.manifest import MetadataWriter
 
 
 class EvalBridge:
@@ -699,12 +695,12 @@ class EvalBridge:
 
     def read_benchmark_manifest(self, benchmark_id: str) -> dict | None:
         """Read the manifest.yaml for a benchmark run."""
-        path = self._data_root / benchmark_id / "manifest.yaml"
+        path = self.benchmark_dir(benchmark_id) / "manifest.yaml"
         return self.read_yaml(path)
 
     def read_benchmark_state(self, benchmark_id: str) -> dict | None:
         """Read .benchmark_state.json for a benchmark run."""
-        path = self._data_root / benchmark_id / ".benchmark_state.json"
+        path = self.benchmark_dir(benchmark_id) / ".benchmark_state.json"
         if not path.exists():
             return None
         try:
@@ -717,7 +713,7 @@ class EvalBridge:
         import csv
         import io
 
-        path = self._data_root / benchmark_id / "progress.csv"
+        path = self.benchmark_dir(benchmark_id) / "progress.csv"
         if not path.exists():
             return None
         try:
@@ -733,7 +729,7 @@ class EvalBridge:
 
     def read_notes(self, benchmark_id: str) -> list[dict] | None:
         """Read notes.yaml from a benchmark directory."""
-        path = self._data_root / benchmark_id / "notes.yaml"
+        path = self.benchmark_dir(benchmark_id) / "notes.yaml"
         if not path.exists():
             return None
         try:
@@ -942,7 +938,9 @@ class EvalBridge:
 
 
     def benchmark_dir(self, benchmark_id: str) -> pathlib.Path:
-        """Return the resolved benchmark directory."""
+        """Return the resolved benchmark directory. Rejects path-traversing ids."""
+        if benchmark_id in (".", "..") or "/" in benchmark_id or "\\" in benchmark_id:
+            raise ValueError(f"invalid benchmark id: {benchmark_id!r}")
         return self._data_root / benchmark_id
 
     def suite_path(self, name: str, location: str = "install") -> pathlib.Path:

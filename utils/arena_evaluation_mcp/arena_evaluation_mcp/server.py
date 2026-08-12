@@ -7,17 +7,17 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import (
     CallToolRequestParams,
-    PaginatedRequestParams,
-    ReadResourceRequestParams,
     CallToolResult,
     ListResourcesResult,
     ListToolsResult,
+    PaginatedRequestParams,
+    ReadResourceRequestParams,
     ReadResourceResult,
 )
 
 from .eval_bridge import EvalBridge
-from .tools import build_tools_list, dispatch_tool_call
 from .resources import build_resources_list, read_resource_content
+from .tools import build_tools_list, dispatch_tool_call
 
 logger = logging.getLogger(__name__)
 

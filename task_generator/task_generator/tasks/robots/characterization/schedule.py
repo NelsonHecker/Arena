@@ -6,7 +6,6 @@ import dataclasses
 import pathlib
 from enum import StrEnum
 
-
 VX_MIN = 0.0          # m/s
 VX_MAX = 2.0          # m/s — default maximum rated linear speed
 VX_STEP = 0.25        # m/s

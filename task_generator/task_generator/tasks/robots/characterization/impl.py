@@ -36,7 +36,7 @@ from .schedule import (
 )
 
 if typing.TYPE_CHECKING:
-    from task_generator.manager.robot_manager.robot_manager import RobotManager
+    pass
 
 
 class TM_Characterization(TM_Robots):
@@ -70,9 +70,6 @@ class TM_Characterization(TM_Robots):
 
         # Place every robot near the map centre (a free cell) so the sweep's
         # out-and-back legs (max excursion ≈ 5·vx_max m) stay inside the arena.
-        from task_generator.manager.world_manager.world_manager import _occupancy_to_available
-        from task_generator.shared import Orientation, Pose, Position
-        from task_generator.tasks.robots._placement import random_placement
 
         self._start_poses = {}
         robot_positions = list(kwargs.get("ROBOT_POSITIONS", []) or [])
@@ -143,7 +140,7 @@ class TM_Characterization(TM_Robots):
             self._logger.warning(f"TM_Characterization centre placement failed ({e!r}), using random")
         return await random_placement(self._ctx)
 
-    def _make_odom_cb(self, robot_name: str):
+    def _make_odom_cb(self, robot_name: str) -> typing.Callable[[Odometry], None]:
         def _cb(msg: Odometry) -> None:
             self._last_odom[robot_name] = self._sim_now()
         return _cb

@@ -1,5 +1,4 @@
 from task_generator.shared import Pose
-from task_generator.tasks import TaskContext
 from task_generator.tasks.robots import TM_Robots
 
 
@@ -8,13 +7,13 @@ class TM_Stationary(TM_Robots):
 
     async def reset(self, **kwargs: object) -> None:
         await super().reset(**kwargs)
-        
+
         pos_x = self.node.get_parameter("stationary.pos_x").value if self.node.has_parameter("stationary.pos_x") else None
         pos_y = self.node.get_parameter("stationary.pos_y").value if self.node.has_parameter("stationary.pos_y") else None
-        
+
         override_pose = None
         if pos_x is not None and pos_y is not None:
-            from task_generator.shared import Position, Pose, Orientation
+            from task_generator.shared import Orientation, Pose, Position
             override_pose = Pose(
                 position=Position(x=pos_x, y=pos_y, z=0.0),
                 orientation=Orientation(0.0, 0.0, 0.0, 1.0)
