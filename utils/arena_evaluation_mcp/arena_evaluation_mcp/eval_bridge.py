@@ -106,11 +106,22 @@ class EvalBridge:
                     "steps_failed": statuses.count("failed"),
                     "steps_partial": statuses.count("partial"),
                     "steps_in_progress": statuses.count("in_progress"),
+                    "running_pid": None,
                     "has_combined_metrics": (run_path / "combined_metrics.parquet").exists(),
                     "has_report": (run_path / "report.html").exists(),
                 })
             except Exception:
                 continue
+
+        try:
+            from arena_evaluation.benchmark.debug import running_pids_by_run_id
+
+            pids = running_pids_by_run_id()
+            for r in runs:
+                r["running_pid"] = pids.get(r["run_id"])
+        except Exception:
+            pass
+
         return runs
 
 
@@ -551,8 +562,8 @@ class EvalBridge:
         try:
             from arena_evaluation.processing.map_registry import MapRegistry
 
-            meta = MapRegistry.get_map(
-                map_name, cache_dir=self._data_root / "_map_cache"
+            # single shared map cache (MapRegistry default: /opt/arena_ws/data/maps_cache)
+            meta = MapRegistry.get_map(map_name
             )
             if meta:
                 info["map_metadata"] = {
@@ -767,6 +778,10 @@ class EvalBridge:
 
         Used for run_benchmark which can take minutes to hours.
         Returns the Popen process handle.
+
+        Console output is NOT captured here: the benchmark runner itself
+        writes ``benchmarks/<run_id>/runner.log`` (Python logging + launch
+        output), which is what the console/debug tools tail.
         """
         return subprocess.Popen(
             self._cli_command(*args),
@@ -774,6 +789,35 @@ class EvalBridge:
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
+
+    # ── Debugging: processes and console logs ───────────────────────────
+
+    def running_processes(self) -> list[dict]:
+        """All arena-related processes on the system, categorized."""
+        from arena_evaluation.benchmark.debug import running_processes
+
+        return running_processes()
+
+    def tail_console(self, run_id: str | None = None, lines: int = 200) -> dict:
+        """Tail the console log of a benchmark run.
+
+        run_id None → the most recently started benchmark runner.
+        """
+        from arena_evaluation.benchmark.debug import (
+            latest_running_run_id,
+            tail_console,
+        )
+
+        if run_id is None:
+            run_id = latest_running_run_id()
+            if run_id is None:
+                return {
+                    "run_id": None,
+                    "exists": False,
+                    "lines": [],
+                    "note": "no running benchmark found and no run_id given",
+                }
+        return tail_console(run_id, lines=lines)
 
     # ── Stopping benchmarks ─────────────────────────────────────────────
 

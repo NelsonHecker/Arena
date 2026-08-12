@@ -67,6 +67,41 @@ def build_tools_list(bridge: EvalBridge) -> list[Tool]:
             input_schema={"type": "object", "properties": {}},
         ),
         Tool(
+            name="list_running_processes",
+            description="List arena-related OS processes currently running: benchmark runners, "
+                        "the arena CLI wrapper, Gazebo simulation, arena/recorder nodes, and "
+                        "world generators. Each entry has pid, kind, elapsed_s (seconds since "
+                        "start), and the command line. Use this to check whether a benchmark "
+                        "is actually running, whether simulation processes are still up, or to "
+                        "spot stuck/orphaned processes before stopping them.",
+            input_schema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="get_benchmark_console",
+            description="Tail the console log of a benchmark run. Reads the benchmark's own "
+                        "runner.log inside its run directory (benchmarks/<run_id>/runner.log, "
+                        "written by the benchmark runner for every run). Omitting run_id uses "
+                        "the most recently started benchmark runner. Returns the last N lines, "
+                        "the log file path, the runner PID, and whether the runner is still "
+                        "alive. Use while a benchmark runs to watch live progress, or after "
+                        "completion to inspect the output.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "run_id": {
+                        "type": "string",
+                        "description": "Run id to tail (e.g. '20260811-031709-hospital_complex-basic'). "
+                                       "Default: most recently started running benchmark.",
+                    },
+                    "lines": {
+                        "type": "integer",
+                        "default": 200,
+                        "description": "Number of tail lines to return.",
+                    },
+                },
+            },
+        ),
+        Tool(
             name="list_benchmark_runs",
             description="List existing benchmark runs with status metadata. Optional filters: "
                         "exact suite / contest name, run status, or a case-insensitive substring "
@@ -717,6 +752,15 @@ def _dispatch(name: str, args: dict[str, Any], bridge: EvalBridge) -> dict[str, 
 
     if name == "list_available_metrics":
         return {"metrics": bridge.discover_available_metrics()}
+
+    if name == "list_running_processes":
+        return {"processes": bridge.running_processes()}
+
+    if name == "get_benchmark_console":
+        return bridge.tail_console(
+            run_id=args.get("run_id"),
+            lines=int(args.get("lines", 200)),
+        )
 
     if name == "list_benchmark_runs":
         limit = int(args.get("limit", 50))
