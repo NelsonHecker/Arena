@@ -28,7 +28,7 @@ from arena_simulation_setup.shared import (
     Wall,
 )
 from arena_simulation_setup.shared.semantics import parse_semantics
-from arena_simulation_setup.tree import FallbackResolver, Identifier, PathView
+from arena_simulation_setup.tree import FallbackResolver, Identifier, PathView, SimplePathResolver
 from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
@@ -994,7 +994,14 @@ class WorldIdentifier(Identifier[MultiLevelWorldView]):
     @classmethod
     def listall(cls, **kwargs: object) -> Iterator[Self]:
         del kwargs
-        yield from (WorldIdentifier(name) for name in os.listdir(ASS_DIR / 'worlds') if name.lower() != 'readme.md')
+        seen: set[str] = set()
+        for root in [*_world_search_roots(), ASS_DIR / 'worlds']:
+            if not root.is_dir():
+                continue
+            for name in os.listdir(root):
+                if name.lower() != 'readme.md' and name not in seen:
+                    seen.add(name)
+                    yield WorldIdentifier(name)
 
     def load(self, path: Path, /, **kwargs: object) -> MultiLevelWorldView:
         del kwargs
@@ -1014,4 +1021,10 @@ class WorldIdentifier(Identifier[MultiLevelWorldView]):
         return name, ids or None
 
 
+def _world_search_roots() -> list[Path]:
+    """Extra world roots from ARENA_WORLD_PATH (colon-separated), searched before the canonical tree."""
+    return [Path(p) for p in os.environ.get('ARENA_WORLD_PATH', '').split(':') if p]
+
+
+WorldIdentifier.use(*(SimplePathResolver(WorldIdentifier, root) for root in _world_search_roots()))
 WorldIdentifier.use(FallbackResolver(WorldIdentifier, ASS_DIR / 'worlds'))
