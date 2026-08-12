@@ -112,7 +112,7 @@ Additional abstract methods:
 
 `SimLifecycle.step_seconds(seconds) -> float` advances a held sim by an exact
 sim-time delta, quantized to whole physics steps (`physics_dt` rosparam,
-default 0.0333 matching `empty.sdf`); the base raises `NotImplementedError`.
+default 0.0333 matching `empty.sdf`). The base raises `NotImplementedError`.
 Gazebo sends one `ControlWorld` request with `pause=True` and `multi_step=n`
 (both fields in the same message, else gz free-runs). Isaac calls
 `/isaac/StepSimulationN` and awaits `/clock` reaching the projected target.
@@ -135,8 +135,11 @@ nav2 (one controller period) and the goal-window passthrough stacks
 arrival), `reach/<robot>` and `gesture/<robot>` (hard, pulsed per
 JTC controller_state) during reach_pose / play_gesture. The `none`,
 `manual`, and `test_collision` bringups keep fire-and-forget goto_pose and
-stay ungated. Beats republish
-`LockstepHeartbeat` coverage stamps; a wall-clock grace watchdog publishes
+stay ungated. `arena cam ... lockstep=true` recording registers `cam`
+(hard, 1/fps) for the take when a lockstep run is active, so the recording
+is gated like any other producer and frame-exact at any target rtf. With no
+run active it holds and steps the sim itself. Beats republish
+`LockstepHeartbeat` coverage stamps, and a wall-clock grace watchdog publishes
 forward keepalives through legitimately silent phases (MoveIt planning,
 nav2 recovery behaviors), so a producer that itself needs sim time to pass
 cannot freeze the sim. Training-mode robots have no task_server and stay

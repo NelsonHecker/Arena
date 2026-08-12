@@ -442,8 +442,9 @@ class Camera:
         or slash-bearing path is used verbatim. Raises `FileExistsError` if the
         directory is not empty unless `force`. Blocks until done.
 
-        `lockstep` steps the sim by 1/fps between frames instead of recording at
-        the sim's live rate, so the scene and physics are frame-exact (Gazebo only).
+        `lockstep` makes the recording frame-exact (Gazebo only): with a run active
+        the cam rides it as a hard channel gated at 1/fps, with no run it takes its
+        own hold and steps the sim by 1/fps between frames.
         """
         path = record_dir(out_dir, force)
         CamNode.run_main(timeline=self, targets=self._targets, record=(str(path), float(fps)), lockstep=bool(lockstep))

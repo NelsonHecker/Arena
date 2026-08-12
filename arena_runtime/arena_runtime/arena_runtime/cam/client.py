@@ -21,9 +21,16 @@ import dataclasses
 import typing
 
 import rclpy
-from arena_rclpy_mixins import ArenaMixinNode, Time
-from arena_runtime_msgs.msg import EnvRegistry
-from arena_runtime_msgs.srv import LifecycleHold, LifecycleStep
+from arena_rclpy_mixins import ArenaMixinNode
+from arena_rclpy_mixins.Time import Time
+from arena_runtime_msgs.msg import (
+    EnvRegistry,
+    LockstepChannel,
+    LockstepHeartbeat,
+    LockstepRegistration,
+    LockstepStatus,
+)
+from arena_runtime_msgs.srv import LifecycleHold, LifecycleStep, LockstepRegister
 from builtin_interfaces.msg import Time as RosTime
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from rclpy.duration import Duration
@@ -159,9 +166,16 @@ class CamNode(ArenaMixinNode):
         self._hold_client: ClientWrapper | None = None
         self._step_client: ClientWrapper | None = None
         self._lockstep_time: Time | None = None
+        # Follower mode: an active LockstepScheduler owns stepping and the cam rides
+        # it as a registered hard channel instead of taking its own hold.
+        self._scheduler_active = False
+        self._run_paused = False
+        self._follower = False
+        self._beat_pub = None
 
     async def setup(self) -> None:
         self.create_subscription(EnvRegistry, _ENVS_TOPIC, self._on_envs, _ENVS_QOS)
+        self.create_subscription(LockstepStatus, "/arena/state/lockstep", self._on_lockstep_status, _ENVS_QOS)
 
         found = await self._await_endpoints()
         if not found:
@@ -190,7 +204,9 @@ class CamNode(ArenaMixinNode):
             names = ", ".join(endpoint.ns for endpoint in self._endpoints)
             self.get_logger().info(f"viewport connected ({names}), {'recording' if self._recorder else 'playing'} shot")
             await self.arrives(f"{self._endpoints[0].ns}/viewport/camera_pose", PoseStamped)  # seed the cursor
-            if self._lockstep:
+            if self._lockstep and self._scheduler_active:
+                await self._run_follower()
+            elif self._lockstep:
                 await self._run_lockstep()
             else:
                 await self._timeline.run(self)
@@ -200,6 +216,55 @@ class CamNode(ArenaMixinNode):
                 else:
                     self.get_logger().info("shot complete")
         rclpy.try_shutdown()
+
+    def _on_lockstep_status(self, msg: LockstepStatus) -> None:
+        if self._follower and self._scheduler_active and not msg.active:
+            self.get_logger().warning("lockstep run ended mid-take, remaining frames are not gated")
+        self._scheduler_active = bool(msg.active)
+        self._run_paused = bool(msg.active and msg.paused)
+
+    async def _await_resumed(self) -> None:
+        """Hold the take while the ridden lockstep run is paused."""
+        if not self._run_paused:
+            return
+        self.get_logger().info("lockstep run paused, recording holding until resume")
+        while self._run_paused and rclpy.ok():
+            await asyncio.sleep(0.2)
+
+    async def _run_follower(self) -> None:
+        """Ride the active lockstep run instead of driving the sim: register a hard
+        cam channel at 1/fps, pulse one window per frame, then capture the frozen
+        tick, so frames are gate-exact with every producer's window data arrived."""
+        register = self.create_client_wrapper(LockstepRegister, "/arena/sim_lifecycle/lockstep/register")
+        topic = f"{self.get_fully_qualified_name()}/lockstep"
+        registration = LockstepRegistration(
+            caller=topic,
+            env="",
+            channels=[
+                LockstepChannel(
+                    name="cam",
+                    topic=topic,
+                    type="arena_runtime_msgs/msg/LockstepHeartbeat",
+                    period_s=1.0 / self._recorder.fps,
+                    hard=True,
+                )
+            ],
+        )
+        response = await register.call_timeout(LockstepRegister.Request(registration=registration))
+        if response is None or not response.success:
+            detail = "service timed out" if response is None else response.error_msg
+            self.get_logger().warning(f"cam channel registration failed ({detail}), falling back to hold-and-step record")
+            await self._run_lockstep()
+            return
+        self._beat_pub = self.create_publisher(LockstepHeartbeat, topic, 10)
+        self._follower = True
+        self._lockstep_time = self.sim_time
+        self.get_logger().info(f"riding active lockstep run: cam gated at {self._recorder.fps:g} fps")
+        try:
+            await self._timeline.run(self)
+        finally:
+            self._follower = False
+            await register.call_timeout(LockstepRegister.Request(registration=LockstepRegistration(caller=topic, env="", channels=[])))
 
     async def _run_lockstep(self) -> None:
         """Acquire a sim hold and run the timeline with physics stepped 1/fps per recorded frame."""
@@ -367,7 +432,16 @@ class CamNode(ArenaMixinNode):
 
     async def _record_frame(self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float) -> bool:
         min_sim_time = None
-        if self._lockstep:
+        if self._follower:
+            # cover the next frame window so the scheduler advances one period and
+            # freezes at its gate, then capture that frozen tick
+            await self._await_resumed()
+            self._lockstep_time = self._lockstep_time + Time.from_float(1.0 / self._recorder.fps)
+            beat = LockstepHeartbeat()
+            beat.header.stamp = self._lockstep_time.to_msg()
+            self._beat_pub.publish(beat)
+            min_sim_time = self._lockstep_time.to_msg()
+        elif self._lockstep:
             step_req = LifecycleStep.Request()
             step_req.seconds = 1.0 / self._recorder.fps
             step_res = await self._step_client.call_timeout(step_req)
@@ -377,8 +451,15 @@ class CamNode(ArenaMixinNode):
                 return False
             self._lockstep_time = self._lockstep_time + Time.from_float(step_res.advanced)
             min_sim_time = self._lockstep_time.to_msg()
-        res = await self.capture(endpoint, position, quat, world_orientation, fov, min_sim_time)
-        if res is None or not res.success:
+        while True:
+            res = await self.capture(endpoint, position, quat, world_orientation, fov, min_sim_time)
+            if res is not None and res.success:
+                break
+            if self._follower and self._run_paused:
+                # the run paused mid-frame and the deferred capture hit its
+                # deadline, retry the same tick once the run resumes
+                await self._await_resumed()
+                continue
             detail = "service timed out" if res is None else res.message
             self.get_logger().warning(f"capture failed ({detail}), stopping record")
             return False

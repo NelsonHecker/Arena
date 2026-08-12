@@ -11,8 +11,9 @@ A verb and a shot launch identically; the caller need not know which a name is.
 Params are bare `key=value` (coerced: number / x,y,z tuple / bool / string);
 launcher options are `--flags`. Nested or list-valued params live in a shot file.
 The reserved params `record` (output dir), `fps`, and `lockstep` switch from live
-playback to deterministic capture; `lockstep` additionally steps physics by 1/fps
-between frames.
+playback to deterministic capture. `lockstep` rides an active lockstep run as a
+registered hard channel gated at 1/fps, or steps physics by 1/fps between frames
+itself when no run is active.
 
 Targets select which viewport cameras the shot drives. With no flag it drives
 everything: the sim GUI camera plus every env's rviz camera. `--sim` is sim only,
