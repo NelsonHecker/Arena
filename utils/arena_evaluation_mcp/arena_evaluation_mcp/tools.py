@@ -307,8 +307,17 @@ def build_tools_list(bridge: EvalBridge) -> list[Tool]:
                 "Create a report manifest YAML. Pass complete manifest content as a YAML string — "
                 "the agent has FULL control over every PlotSpec field. Read the bundled examples "
                 "first with get_config_template(kind='manifest', name=<standard|social|safety|"
-                "ecological|characterization>) to see the exact schema. Use a table plot with "
-                "options.notes: notes.yaml for agent-authored insights."
+                "ecological|characterization>) to see the exact schema.\n"
+                "AGENT CONTENT (all optional):\n"
+                "- table plot options.notes: notes.yaml → renders as a STANDALONE callout "
+                "section below the table (never mixed into metric rows).\n"
+                "- table plot options.rows: [{label, value}, ...] → an agent-authored "
+                "two-column table, exactly as given (no predefined layout).\n"
+                "- ANY plot: options.note: '<inline markdown string>' → a note box under "
+                "that plot; or options.notes_key: '<label>' → pulls the matching value "
+                "from the benchmark's notes.yaml.\n"
+                "- summary_group_by: [local_planner] → controls the Performance Summary "
+                "grouping (defaults to planner when omitted)."
             ),
             input_schema={
                 "type": "object",
