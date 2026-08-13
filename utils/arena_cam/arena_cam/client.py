@@ -5,8 +5,9 @@ the sim GUI camera at `/arena/viewport/*` and any number of per-env rviz cameras
 `/arena/env_<id>/task_generator_node/viewport/*`. The `Camera` facade authors the
 shot in world coordinates. Each endpoint subtracts its env's world origin (the
 registry `reference`) so the same absolute shot lands at the matching place in every
-env. Entity-anchored steps pass through untouched, since each backend resolves the
-entity in its own frame. The sim endpoint has a zero offset.
+env. That localization stops once a reference frame is set: the camera pose is then
+composed as reference * local, so poses are relative to the reference and only the
+reference pose itself is localized. The sim endpoint has a zero offset.
 
 It runs via `run_main`: `setup` discovers the selected endpoints, plays the timeline,
 then shuts down. A segment drives two ways. LIVE: stream keyframes on `cmd_view`,
@@ -17,15 +18,13 @@ synchronously, so the output is deterministic. Record requires a single endpoint
 from __future__ import annotations
 
 import asyncio
-import dataclasses
 import typing
 
 import rclpy
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_runtime_msgs.msg import EnvRegistry
-from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
+from geometry_msgs.msg import Point, PoseStamped
 from rclpy.duration import Duration
-from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from viewport_control_msgs.msg import ViewportView
 from viewport_control_msgs.srv import (
     ViewportCapture,
@@ -34,9 +33,10 @@ from viewport_control_msgs.srv import (
     ViewportSetView,
 )
 
-from . import curves
+from . import curves, surfaces
 from .curves import Quat, Vec3
 from .record import Recorder
+from .surfaces import TargetSelection
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -48,55 +48,13 @@ if typing.TYPE_CHECKING:
     # A frame sampler: eased progress in [0, 1] -> (position, quat, fov).
     Frame = Callable[[float], tuple[Vec3, Quat, float]]
 
-# Best-effort, deep queue: the plugin buffers keyframes, so none should be dropped.
-_STREAM_QOS = QoSProfile(depth=64, history=HistoryPolicy.KEEP_LAST, reliability=ReliabilityPolicy.BEST_EFFORT)
-
-# Match the latched EnvRegistry publisher so the env reference table arrives at once.
-_ENVS_QOS = QoSProfile(depth=1, history=HistoryPolicy.KEEP_LAST, durability=DurabilityPolicy.TRANSIENT_LOCAL)
-
-_ARENA_ROOT = "/arena"
-_ENVS_TOPIC = "/arena/state/envs"
-_VIEW_SUFFIX = "/viewport/set_view"
-
-_REFERENCE_MODES = {
-    "full": ViewportSetReferenceFrame.Request.FULL,
-    "yaw": ViewportSetReferenceFrame.Request.YAW_ONLY,
-    "position": ViewportSetReferenceFrame.Request.POSITION_ONLY,
-}
-
 # cmd_view publish rate for streamed segments (Hz, wall-clock LIVE mode).
 _FRAME_RATE = 60.0
 
 # Keyframes are stamped this far ahead, so the plugin's buffer rides out publish
-# stalls up to this long. The cost is this much added view latency.
-_LEAD = 0.3
-
-
-@dataclasses.dataclass(frozen=True)
-class TargetSelection:
-    """Which viewport surfaces a shot drives. Resolved against the live graph in setup."""
-
-    include_sim: bool
-    viz_all: bool
-    viz_env: int | None
-
-
-def _env_id_from_ns(ns: str) -> int | None:
-    """Parse the env index from a viewport namespace (`/arena/env_3/...` -> 3)."""
-    for part in ns.strip("/").split("/"):
-        if part.startswith("env_"):
-            try:
-                return int(part[len("env_") :])
-            except ValueError:
-                return None
-    return None
-
-
-def _ros_pose(position: Vec3, quat: Quat) -> Pose:
-    return Pose(
-        position=Point(x=float(position[0]), y=float(position[1]), z=float(position[2])),
-        orientation=Quaternion(w=float(quat[0]), x=float(quat[1]), y=float(quat[2]), z=float(quat[3])),
-    )
+# stalls up to this long. The cost is this much added view latency, which the
+# interactive driver trades away for responsiveness (see drive.DRIVE_LEAD).
+LEAD = 0.3
 
 
 class _Endpoint:
@@ -110,7 +68,7 @@ class _Endpoint:
         self.set_projection = node.create_client_wrapper(ViewportSetProjection, f"{ns}/viewport/set_projection", timeout=10.0)
         # Generous timeout: a capture round-trips a full rendered frame.
         self.capture = node.create_client_wrapper(ViewportCapture, f"{ns}/viewport/capture", timeout=30.0)
-        self.cmd_view = node.create_publisher(ViewportView, f"{ns}/viewport/cmd_view", _STREAM_QOS)
+        self.cmd_view = node.create_publisher(ViewportView, f"{ns}/viewport/cmd_view", surfaces.STREAM_QOS)
         self._pose: tuple[Vec3, Quat] | None = None
         node.create_subscription(PoseStamped, f"{ns}/viewport/camera_pose", self._on_pose, 10)
 
@@ -120,7 +78,7 @@ class _Endpoint:
 
     def localize(self, position: Vec3) -> Vec3:
         """World coords -> this env's local frame (pure planar offset, no rotation)."""
-        return (position[0] - self._ox, position[1] - self._oy, position[2])
+        return surfaces.localize((self._ox, self._oy), position)
 
     def world_pose(self) -> tuple[Vec3, Quat] | None:
         """Latest camera pose lifted back into world coords, or None if not yet seen."""
@@ -140,19 +98,22 @@ class CamNode(ArenaMixinNode):
         targets: TargetSelection,
         node_name: str = "arena_cam",
         record: tuple[str, float] | None = None,
+        lead: float = LEAD,
     ) -> None:
         super().__init__(node_name)
         self._timeline = timeline
         self._selection = targets
+        self.lead = lead
         self._recorder = Recorder(*record) if record is not None else None
         self._env_refs: dict[int, tuple[float, float]] = {}
         self._endpoints: list[_Endpoint] = []
-        # True while an entity anchor is active: poses are already in that frame, so
-        # they must not be localized (the env offset only applies to world coords).
-        self._anchored = False
+        # True once a reference frame is set: from then on poses are relative to it and
+        # must not be localized. Until then the reference is identity and the env offset
+        # is what maps an absolute shot into each env.
+        self._referenced = False
 
     async def setup(self) -> None:
-        self.create_subscription(EnvRegistry, _ENVS_TOPIC, self._on_envs, _ENVS_QOS)
+        self.create_subscription(EnvRegistry, surfaces.ENVS_TOPIC, self._on_envs, surfaces.ENVS_QOS)
 
         found = await self._await_endpoints()
         if not found:
@@ -190,7 +151,7 @@ class CamNode(ArenaMixinNode):
         rclpy.try_shutdown()
 
     def _on_envs(self, msg: EnvRegistry) -> None:
-        self._env_refs = {r.env_id: (float(r.reference[0]), float(r.reference[1])) for r in msg.envs}
+        self._env_refs = surfaces.env_refs(msg)
 
     async def _await_endpoints(self) -> list[tuple[str, tuple[float, float]]]:
         """Wait for the selected viewport surfaces to appear, then resolve their offsets."""
@@ -206,21 +167,8 @@ class CamNode(ArenaMixinNode):
         return []
 
     def _find_targets(self) -> list[tuple[str, tuple[float, float]]]:
-        out: list[tuple[str, tuple[float, float]]] = []
-        for name, _types in self.get_service_names_and_types():
-            if not name.endswith(_VIEW_SUFFIX):
-                continue
-            ns = name[: -len(_VIEW_SUFFIX)]
-            if ns == _ARENA_ROOT:
-                if self._selection.include_sim:
-                    out.append((ns, (0.0, 0.0)))
-                continue
-            env_id = _env_id_from_ns(ns)
-            if env_id is None:
-                continue
-            if self._selection.viz_all or self._selection.viz_env == env_id:
-                out.append((ns, self._env_refs.get(env_id, (0.0, 0.0))))
-        return out
+        names = [name for name, _types in self.get_service_names_and_types()]
+        return surfaces.find_targets(names, self._selection, self._env_refs)
 
     def ok(self) -> bool:
         """False once the rclpy context is shutting down, so streaming stops cleanly."""
@@ -235,8 +183,8 @@ class CamNode(ArenaMixinNode):
         return None
 
     def _local(self, endpoint: _Endpoint, position: Vec3) -> Vec3:
-        """World coords -> endpoint-local, unless an entity anchor is active (already local)."""
-        return position if self._anchored else endpoint.localize(position)
+        """World coords -> endpoint-local, unless a reference is set (poses are relative to it)."""
+        return position if self._referenced else endpoint.localize(position)
 
     # low-level verbs ------------------------------------------------------
 
@@ -254,16 +202,17 @@ class CamNode(ArenaMixinNode):
         return ok
 
     async def set_reference(self, entity: str = "", pose: tuple[Vec3, Quat] | None = None, mode: str = "full") -> bool:
-        self._anchored = bool(entity)
         ok = True
         for endpoint in self._endpoints:
             req = ViewportSetReferenceFrame.Request()
             req.entity = entity
             req.has_pose = pose is not None
             if pose is not None:
-                req.pose = _ros_pose(self._local(endpoint, pose[0]), pose[1])
-            req.mode = _REFERENCE_MODES[mode]
+                # The reference pose is authored in world coords, so it localizes once here.
+                req.pose = surfaces.ros_pose(endpoint.localize(pose[0]), pose[1])
+            req.mode = surfaces.REFERENCE_MODES[mode]
             ok = await self._call(endpoint.set_reference, req) and ok
+        self._referenced = True
         return ok
 
     async def set_projection(self, projection: str) -> bool:
@@ -277,11 +226,11 @@ class CamNode(ArenaMixinNode):
     def stream(self, position: Vec3, quat: Quat, world_orientation: bool = False, fov: float = 0.0) -> None:
         if not rclpy.ok():
             return
-        stamp = (self.get_clock().now() + Duration(seconds=_LEAD)).to_msg()
+        stamp = (self.get_clock().now() + Duration(seconds=self.lead)).to_msg()
         for endpoint in self._endpoints:
             msg = ViewportView()
             msg.target_time = stamp
-            msg.pose = _ros_pose(self._local(endpoint, position), quat)
+            msg.pose = surfaces.ros_pose(self._local(endpoint, position), quat)
             msg.world_orientation = bool(world_orientation)
             msg.fov = float(fov)
             endpoint.cmd_view.publish(msg)
@@ -321,7 +270,7 @@ class CamNode(ArenaMixinNode):
 
     async def capture(self, endpoint: _Endpoint, position: Vec3, quat: Quat, world_orientation: bool, fov: float) -> object | None:
         req = ViewportCapture.Request()
-        req.pose = _ros_pose(self._local(endpoint, position), quat)
+        req.pose = surfaces.ros_pose(self._local(endpoint, position), quat)
         req.world_orientation = bool(world_orientation)
         req.fov = float(fov)
         try:

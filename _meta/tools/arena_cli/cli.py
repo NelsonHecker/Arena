@@ -186,7 +186,7 @@ _register(_robot_mod.VERB)
 @verb("cam", passthrough=True)
 def cam(args: list[str]) -> None:
     """Control the simulator viewport camera."""
-    _exec("ros2", "run", "arena_runtime", "cam", *args)
+    _exec("ros2", "run", "arena_cam", "cam", *args)
 
 
 @verb("preload", passthrough=True)

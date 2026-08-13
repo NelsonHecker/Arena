@@ -1,12 +1,13 @@
-# Cam: scripted viewport-camera control
+# Cam: viewport-camera control
 
-`Cam` is a standalone ROS 2 client that drives the Arena Gazebo viewport
-user-camera over the `/arena/viewport/*` contract: services `set_view`,
+`arena_cam` is a standalone ROS 2 client that drives the Arena viewport
+cameras over the `/arena/viewport/*` contract: services `set_view`,
 `set_reference_frame`, `set_projection`, `capture`, stream topic `cmd_view`, and
 feedback topic `camera_pose`. It lets you script camera moves (flybys,
 orbits, tracking, dolly-zoom) against a LIVE sim from Python or a YAML
-shot file. The wire namespace is `/arena/viewport/*`; the Python/CLI
-surface is named `cam`.
+shot file, and fly the same cameras from the keyboard (see
+[Driving interactively](#driving-interactively)). The wire namespace is
+`/arena/viewport/*`; the Python/CLI surface is named `cam`.
 
 ## Mental model
 
@@ -66,7 +67,7 @@ An unknown name raises `ValueError` listing both vocabularies. The call
 shape is identical regardless of whether the name is a verb or a shot.
 
 ```python
-from arena_runtime.cam import Camera
+from arena_cam import Camera
 
 cam = Camera()
 cam.add("projection", "perspective")
@@ -192,9 +193,8 @@ timeline:                        # list of single-key steps {name: params}
 
 `projection:` and `reference:` are header shortcuts: they desugar into
 leading timeline steps, so the effective schema is just `params:` plus a
-flat `timeline:`. A step's `name` key may be a verb OR another shot, so
-a "meta-shot" (a shot that includes other shots in its timeline) subsumes
-any separate sequence concept; there is no extra sequence tier.
+flat `timeline:`. A step's `name` key may be a verb OR another shot, so a
+"meta-shot" can include other shots in its timeline.
 
 ### `${param}` substitution
 
@@ -215,16 +215,13 @@ recursively. Cycles are detected at load time and raise `ValueError`
 
 ### Bundled shots and auto-registration
 
-Data shots live in [`configs/cam/shots/<name>.yaml`](../../configs/cam/shots/)
+Data shots live in [`configs/cam/shots/<name>.yaml`](../configs/cam/shots/)
 and are auto-registered by file stem at package import. The stem may not
 shadow an existing verb name (import-time `ValueError`). Two shots ship:
 
 - `establishing` -- a single-take orbit with a look, orbit, and hold.
 - `tour` -- a meta-shot: includes `establishing`, sets a reference, then
   runs `dolly` and `pan` verbs.
-
-A `@shot(...)` code decorator for shots requiring procedural math is
-deferred and not yet available.
 
 ---
 
@@ -271,7 +268,7 @@ A shot file describes a `Camera` timeline declaratively. Load and run it
 with `load_shot`:
 
 ```python
-from arena_runtime.cam import load_shot
+from arena_cam import load_shot
 load_shot("my_shot.yaml").play()
 ```
 
@@ -353,7 +350,7 @@ timeline:
 
 ## CLI
 
-`arena cam` wraps the console script `cam = arena_runtime.cam.cli:main`.
+`arena cam` wraps the console script `cam = arena_cam.cli:main`.
 The interface is fully generic: one positional name dispatches verbs, shots,
 and files uniformly.
 
@@ -374,8 +371,10 @@ Run a verb, a shot, or a YAML file against the live sim.
 
   The sim camera is in world coordinates. Each rviz camera is per-env, so a shot
   in absolute coordinates is localized into each env's frame (the registry
-  `reference` offset) before being sent. Record mode needs the selection to
-  resolve to a single camera.
+  `reference` offset) before being sent. Once a shot sets a reference frame,
+  poses are relative to it and go out as authored, and only the reference pose
+  itself is localized. Record mode needs the selection to resolve to a single
+  camera.
 
 ```
 arena cam look eye=8,8,6 target=0,0,0.5
@@ -415,6 +414,62 @@ arena cam show establishing
 
 ---
 
+## Driving interactively
+
+`arena cam drive` opens an rqt panel that flies the same cameras from the
+keyboard, over the same selection a shot uses (no flag drives everything,
+`--sim` and `--viz [ENV_ID]` narrow it).
+
+```
+arena cam drive               # every viewport camera
+arena cam drive --sim         # the sim GUI camera only
+arena cam drive --viz 0       # env 0's rviz camera
+```
+
+The panel drives the camera while its window is active and releases it as soon as
+the window is not, so there is nothing to take or hand back. Keys set a target
+velocity each axis damps toward, so a held key accelerates and a released one
+coasts down. `Space` stops the motion without releasing. While the panel is idle
+it mirrors the live camera pose, so the readout stays true and `P` captures where
+the camera actually is.
+
+| key | fly | orbit (`Tab` toggles) |
+| --- | --- | --- |
+| `W` / `S` | dolly along the view axis | elevation over the focus |
+| `A` / `D` | truck left / right | azimuth about the focus |
+| `Q` / `E` | down / up along world Z | radius (true subject distance) |
+| arrows | look (yaw / pitch) | pan the focus |
+| `Shift` / `Ctrl` | boost / crawl | boost / crawl |
+| `[` / `]` | fov | fov |
+
+Anywhere: `F` frames the target entity, `Shift+F` cycles its reference mode
+(`full` / `yaw` / `position`), `H` returns to the world frame, `1` / `3` / `7`
+snap to front / right / top, `Space` brakes, `P` captures a still to
+`$ARENA_DATA_DIR/recordings/stills/`. Keys are ignored while a text field has
+focus, so the target box stays typeable.
+
+`[` / `]` are a held axis like the movement keys, not a step: fov ramps at
+0.5 rad/s while held, so a tap moves it by a degree or two.
+
+Framing sets the reference frame to the entity and orbits its local origin, so the
+camera follows it as it drives. The target picker lists live robot frames
+(`env_0/jackal`); any other `sim_path` can be typed in.
+
+Two behaviours differ from scripted playback:
+
+- **Lead.** Keyframes lead by 30 ms instead of 0.3 s, trading jitter tolerance for
+  responsiveness. Raise the panel's lead slider if a loaded GUI stutters. What is
+  left on top of that is the GUI's own frame time: rviz only moves the camera on a
+  render frame, so a heavy scene adds its frame interval to the lead.
+- **Release.** Streaming is continuous while engaged, including at rest, because the
+  plugin takes the camera back after ~400 ms of silence. Releasing is just stopping
+  the stream; the camera stays where it was left.
+
+The horizon never tilts and no roll is produced. fov stays untouched until a fov key
+is pressed, so the panel never overrides the sim's own value by default.
+
+---
+
 ## Recording
 
 `Camera.record(out_dir, fps=30)` is the offline sibling of `play()`: it renders
@@ -446,28 +501,24 @@ A streamed segment emits `round(duration * fps)` frames, a discrete `look` /
 
 Recording is camera-locked, not physics-locked: the camera path is deterministic
 but the scene advances at the sim's own rate, so pause the sim first for a fully
-reproducible take. Stepping the sim per frame is a future follow-up.
+reproducible take.
 
 ---
 
 ## Requirements
 
-The viewport services (`set_view`, `set_reference_frame`, `set_projection`,
-`capture`) and the `cmd_view` / `camera_pose` topics are hosted by the
-ViewportCamera GUI system plugin. They are **only available when the Gazebo GUI is
-running**. They do not exist in headless mode (`gz sim -s`). `Cam` will
-wait up to 10 seconds for the services and log an error if they are absent.
+Two backends host the `/arena/viewport/*` contract (`set_view`,
+`set_reference_frame`, `set_projection`, `capture`, plus the `cmd_view` /
+`camera_pose` topics):
 
----
+- **Gazebo**, under `/arena`, via the `ViewportCamera` GUI system plugin. It is a
+  GUI plugin, so nothing exists in headless mode (`gz sim -s`).
+- **rviz**, under each env's namespace, via the `rviz_viewport_control` view
+  controller that [rviz_config.py](../../rviz_utils/rviz_utils/scripts/rviz_config.py)
+  writes into the generated config.
 
-## Not yet / next phase
+Isaac hosts no part of the contract, so nothing here works under `sim:=isaac`.
 
-Deterministic camera recording is implemented (see Recording above): the
-camera path is smooth and frame-perfect via the `capture` service. What
-remains future:
-
-- **Physics-lockstep / sim-time stepping** for full scene reproducibility:
-  step the sim by dt, snap, grab a frame, repeat, so the scene and physics
-  advance in lockstep with the camera instead of at the sim's live rate.
-- **Isaac viewport parity:** the recording surface (and the rest of the
-  `/arena/viewport/*` contract) is Gazebo-only today.
+`capture` is Gazebo-only; the rviz side answers `capture not yet supported`, so
+recording and `P` need the sim camera. `Cam` waits up to 10 seconds for the
+services and logs an error if they are absent.

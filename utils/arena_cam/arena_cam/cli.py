@@ -4,6 +4,7 @@ One command shape for everything:
 
     arena cam <name> [key=value ...] [--sim] [--viz [ENV_ID]]   # name is verb, shot, or .yaml
     arena cam <name> ... record=<dir> [fps=30] [-f]   # render to a PPM frame sequence instead
+    arena cam drive [--sim] [--viz [ENV_ID]]     # fly the camera from the keyboard
     arena cam list                               # catalog of verbs and shots
     arena cam show <name>                        # parameters of a verb or shot
 
@@ -28,9 +29,9 @@ import sys
 
 import yaml
 
-from arena_runtime.cam import Camera, TargetSelection, load_shot
-from arena_runtime.cam.registry import PRIMITIVES
-from arena_runtime.cam.shots import SHOTS
+from arena_cam import Camera, TargetSelection, load_shot
+from arena_cam.registry import PRIMITIVES
+from arena_cam.shots import SHOTS
 
 # Sentinel for `--viz` given with no env id (all vizes), distinct from `--viz` absent.
 _VIZ_ALL = object()
@@ -79,6 +80,8 @@ def _is_path(name: str) -> bool:
 
 
 def _print_catalog() -> None:
+    print("interactive:")
+    print("  drive")
     print("verbs:")
     for verb in sorted(PRIMITIVES):
         print(f"  {verb}")
@@ -87,6 +90,22 @@ def _print_catalog() -> None:
         print(f"  {shot}")
     if not SHOTS:
         print("  (none installed)")
+
+
+def _drive(sim_flag: bool, viz_arg: object) -> None:
+    """Hand the camera to the rqt panel, forwarding the target flags."""
+    flags: list[str] = []
+    if sim_flag:
+        flags.append("--sim")
+    if viz_arg is _VIZ_ALL:
+        flags.append("--viz")
+    elif viz_arg is not None:
+        flags += ["--viz", str(viz_arg)]
+    # force-discover: an rqt plugin cache written before this panel existed hides it.
+    argv = ["rqt", "--force-discover", "--standalone", "arena_cam"]
+    if flags:
+        argv += ["--args", *flags]
+    os.execvp(argv[0], argv)
 
 
 def _show(name: str) -> None:
@@ -109,7 +128,7 @@ def _show(name: str) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="arena cam", description="Arena viewport-camera CLI")
-    parser.add_argument("name", nargs="?", help="verb, shot, or .yaml file (or 'list' / 'show')")
+    parser.add_argument("name", nargs="?", help="verb, shot, or .yaml file (or 'list' / 'show' / 'drive')")
     parser.add_argument("params", nargs="*", metavar="key=value", help="verb or shot parameters")
     parser.add_argument("--sim", action="store_true", help="drive the sim GUI camera")
     parser.add_argument(
@@ -130,6 +149,11 @@ def main(argv: list[str] | None = None) -> None:
         if not args.params:
             parser.error("show needs a name: arena cam show <verb|shot>")
         _show(args.params[0])
+        return
+    if args.name == "drive":
+        if args.params:
+            parser.error("drive takes no params, only the target flags")
+        _drive(args.sim, args.viz)
         return
     params = _parse_params(args.params)
     record = params.pop("record", None)
