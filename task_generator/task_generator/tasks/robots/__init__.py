@@ -28,6 +28,9 @@ class TM_Robots(TaskMode):
         self._last_reset = self.node.sim_time.sec
         self._start_poses = {}
 
+    async def teardown(self) -> None:
+        """Release everything this mode drives; called when the mode is replaced or the task ends."""
+
     async def set_position(self, pose: Pose):
         """Handle an external pose-estimate override for the robots in this mode.
 

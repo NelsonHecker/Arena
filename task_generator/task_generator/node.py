@@ -428,6 +428,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._heartbeat_timer.cancel()
         if self._tick_loop_task is not None and not self._tick_loop_task.done():
             self._tick_loop_task.cancel()
+        await self._task.teardown()
         await self._robots_manager.teardown()
 
     async def hold(self, reason: str) -> None:

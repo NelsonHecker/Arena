@@ -3,23 +3,28 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import pathlib
 from enum import StrEnum
 
+import yaml
+
+_log = logging.getLogger(__name__)
+
 VX_MIN = 0.0          # m/s
-VX_MAX = 2.0          # m/s — default maximum rated linear speed
+VX_MAX = 2.0          # m/s, default maximum rated linear speed
 VX_STEP = 0.25        # m/s
-LINEAR_DWELL_S = 5.0  # s — steady-state capture per velocity step
-RAMP_HORIZONS_S = (0.5, 1.0, 2.0)  # s — 0→vx_max acceleration/deceleration horizons
-RAMP_SETTLE_S = 1.0   # s — settle at the ramp apex before decelerating
+LINEAR_DWELL_S = 5.0  # s, steady-state capture per velocity step
+RAMP_HORIZONS_S = (0.5, 1.0, 2.0)  # s, zero-to-vx_max acceleration/deceleration horizons
+RAMP_SETTLE_S = 1.0   # s, settle at the ramp apex before decelerating
 WZ_MIN = -2.5         # rad/s
-WZ_MAX = 2.5          # rad/s — default maximum rated angular rate
+WZ_MAX = 2.5          # rad/s, default maximum rated angular rate
 WZ_STEP = 0.5         # rad/s
-ANGULAR_DWELL_S = 5.0  # s — per pivot rate
-IDLE_DURATION_S = 10.0  # s — mandatory standstill blocks (baseline standby draw)
+ANGULAR_DWELL_S = 5.0  # s, per pivot rate
+IDLE_DURATION_S = 10.0  # s, mandatory standstill blocks (baseline standby draw)
 
 CONTROL_RATE_HZ = 20.0     # cmd_vel publish rate during a maneuver
-ODOM_STALL_TIMEOUT_S = 3.0  # odom silent for this long → zero cmd_vel + abort
+ODOM_STALL_TIMEOUT_S = 3.0  # odom silent for this long: zero cmd_vel + abort
 MAX_SCHEDULE_DURATION_S = 3600.0  # global safety ceiling for one run
 
 
@@ -40,7 +45,7 @@ class Phase:
     vx_target: float     # m/s
     wz_target: float     # rad/s
     duration_s: float    # s to hold the target (ramp: the ramp horizon)
-    ramp_s: float = 0.0  # >0 for ramps: linearly interpolate vx 0→target over this horizon
+    ramp_s: float = 0.0  # >0 for ramps: linearly interpolate vx from 0 to target over this horizon
 
     @property
     def key(self) -> tuple[str, float, float]:
@@ -65,6 +70,8 @@ def resolve_envelope(
     wz_max = WZ_MAX
     if fallback is not None:
         vx_max, wz_max = fallback
+
+    mobile: pathlib.Path | None = None
     try:
         if caps_dir is not None:
             mobile = pathlib.Path(caps_dir) / f"{robot_name}/caps/mobile.yaml" if robot_name else None
@@ -77,7 +84,6 @@ def resolve_envelope(
                 pathlib.Path(get_package_share_directory("arena_robots"))
                 / "robots" / (robot_name or "") / "caps" / "mobile.yaml"
             )
-        import yaml
 
         cfg = yaml.safe_load(mobile.read_text())
         continuous = (cfg or {}).get("actions", {}).get("continuous", {})
@@ -88,8 +94,11 @@ def resolve_envelope(
             angular = continuous.get("angular")
             if isinstance(angular, dict) and angular.get("max") is not None:
                 wz_max = float(angular["max"])
-    except Exception:
-        pass
+    except (OSError, KeyError, TypeError, ValueError, AttributeError, yaml.YAMLError) as e:
+        _log.warning(
+            f"characterization: robot {robot_name!r} envelope falls back to "
+            f"vx_max={vx_max} wz_max={wz_max}, could not read {mobile}: {e!r}"
+        )
     return {"vx_max": vx_max, "wz_max": wz_max}
 
 
