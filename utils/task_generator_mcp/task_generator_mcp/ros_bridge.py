@@ -6,7 +6,7 @@ from typing import Any
 
 import rclpy
 import rclpy.qos
-from arena_rclpy_mixins.shared import ActionClientWrapper, AsyncNode, ClientWrapper
+from arena_rclpy_mixins import ActionClientWrapper, AsyncNode, ClientWrapper
 from arena_runtime_msgs.srv import LifecycleHold
 from geometry_msgs.msg import PoseStamped
 from rcl_interfaces.srv import DescribeParameters, GetParameters, ListParameters, SetParameters

@@ -20,7 +20,7 @@ Transport: stdio (v0). Works with Claude Desktop, `mcp-cli`, and any stdio-MCP c
 
 | Tool | Args | Returns | Purpose |
 |---|---|---|---|
-| `lifecycle_reset_episode` | `world: str = ""`, `seed: int = -1` | `{success, error_msg}` | Advance to a new episode. Empty world inherits current; seed ≥ 0 for bit-perfect replay. |
+| `lifecycle_reset_episode` | `world: str = ""`, `seed: int = -1` | `{success, error_msg}` | Advance to a new episode. Empty world inherits current; seed >= 0 for bit-perfect replay. |
 | `lifecycle_pause` | - | `{success}` | Pause simulation clock. |
 | `lifecycle_unpause` | - | `{success}` | Resume simulation clock. |
 | `lifecycle_wait_for_world` | - | `{success}` | Block until the active world is fully loaded. |
