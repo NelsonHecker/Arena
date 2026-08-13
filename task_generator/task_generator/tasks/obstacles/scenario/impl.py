@@ -35,17 +35,14 @@ class TM_Scenario(TM_Obstacles):
         else:
             is_valid = None
 
-        # Build a converter that resolves zone refs to concrete geometry
         zone_conv = world_description.zone_converter(
             self.node.conf.General.RNG.stream("obstacles", "scenario"),
             is_valid=is_valid,
         )
 
-        # Load and structure the scenario with zone-aware conversion
         scenario_view = WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario(scenario_name).resolve_sync()
         scenario = scenario_view.load(converter=zone_conv)
 
-        # Set up regions
         regions = [
             Region(
                 name=name,

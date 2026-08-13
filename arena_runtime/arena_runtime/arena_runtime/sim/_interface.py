@@ -231,7 +231,7 @@ class MechanismITF:
     """Door + elevator orchestration with shim-backed defaults.
 
     Defaults spawn box geometry, animate doors, and pair-teleport elevator cabins.
-    Simulators plug in by overriding the five primitives below. The attached
+    Simulators plug in by overriding the four primitives below. The attached
     HumanSimulator supplies ground-truth ped positions and ped teleport.
 
     The shim helpers read ``self.node`` (an ArenaMixinNode) for sim_time, the

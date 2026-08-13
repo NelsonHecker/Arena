@@ -472,7 +472,7 @@ def test_manager_attach_with_no_cfgs_publishes_full_door_vocab():
 
 def test_manager_attach_with_no_cfgs_publishes_full_elevator_vocab():
     """A spawned elevator with no annotation snapshots the full vocabulary, including the
-    cabin door fields, which are no longer opt-in via a separate preset."""
+    cabin door fields."""
     rt = _elevator_runtime()
     cabin = _door_runtime("e/door")
     mech = _Mech()

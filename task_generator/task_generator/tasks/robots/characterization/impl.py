@@ -1,14 +1,8 @@
-"""TM_Characterization: open-loop maneuver sweep task mode.
-
-Drives every robot in the episode directly through its own operating envelope
-(linear sweep to the rated max, transient ramps, angular pivot rates) by
-publishing exact ``cmd_vel`` profiles, without navigation goals or planners.
-Each maneuver is tagged with a phase marker on
-``<robot_ns>/characterization_phase`` so the offline Layer 3 calculator can map
-energy/acoustic samples to exact working points.
-
-Safety: an odometry stall watchdog zeroes ``cmd_vel`` and aborts the episode if
-a robot's odom goes silent beyond ``ODOM_STALL_TIMEOUT_S``.
+"""TM_Characterization: open-loop maneuver sweep publishing exact ``cmd_vel`` profiles
+through each robot's rated envelope, without navigation goals or planners. Every maneuver
+is tagged on ``<robot_ns>/characterization_phase`` so offline calculators can map
+energy/acoustic samples to working points. Odom silent beyond ``ODOM_STALL_TIMEOUT_S``
+zeroes ``cmd_vel`` and aborts the episode.
 """
 
 from __future__ import annotations
@@ -96,11 +90,7 @@ class TM_Characterization(TM_Robots):
             schedule = build_schedule(vx_max=envelope["vx_max"], wz_max=envelope["wz_max"])
             self._runs[manager.name] = _Run(schedule=schedule, phase_start=now)
             self._last_odom[manager.name] = now
-            self._logger.info(
-                f"TM_Characterization: {manager.name} (model={manager.model_name}) "
-                f"{len(schedule)} phases, {schedule_duration(schedule):.0f}s "
-                f"(vx up to {envelope['vx_max']:.2f} m/s, wz up to {envelope['wz_max']:.2f} rad/s)"
-            )
+            self._logger.info(f"TM_Characterization: {manager.name} (model={manager.model_name}) {len(schedule)} phases, {schedule_duration(schedule):.0f}s (vx up to {envelope['vx_max']:.2f} m/s, wz up to {envelope['wz_max']:.2f} rad/s)")
 
         if self._runs:
             self._driver = asyncio.create_task(self._drive())
@@ -123,9 +113,7 @@ class TM_Characterization(TM_Robots):
             ns = str(manager.namespace)
             self._twist_pubs[manager.name] = self.node.create_publisher(Twist, f"{ns}/cmd_vel", _CMD_QOS)
             self._phase_pubs[manager.name] = self.node.create_publisher(String, f"{ns}/characterization_phase", _CMD_QOS)
-            self._odom_subs[manager.name] = self.node.create_subscription(
-                Odometry, f"{ns}/odom", self._make_odom_cb(manager.name), _ODOM_QOS
-            )
+            self._odom_subs[manager.name] = self.node.create_subscription(Odometry, f"{ns}/odom", self._make_odom_cb(manager.name), _ODOM_QOS)
 
     async def _centre_placement(self) -> Pose:
         """A free cell closest to the map centre (fallback: random placement)."""
@@ -155,6 +143,7 @@ class TM_Characterization(TM_Robots):
             # A queued callback must not resurrect a robot dropped at reset.
             if robot_name in self._last_odom:
                 self._last_odom[robot_name] = self._sim_now()
+
         return _cb
 
     def _sim_now(self) -> float:
@@ -235,10 +224,7 @@ class TM_Characterization(TM_Robots):
             marker = String()
             marker.data = phase.name
             self._phase_pubs[robot_name].publish(marker)
-            self._logger.info(
-                f"TM_Characterization {robot_name} phase {phase.name} "
-                f"(vx={phase.vx_target} wz={phase.wz_target} dt={phase.duration_s}s)"
-            )
+            self._logger.info(f"TM_Characterization {robot_name} phase {phase.name} (vx={phase.vx_target} wz={phase.wz_target} dt={phase.duration_s}s)")
 
         self._twist_pubs[robot_name].publish(self._target_twist(phase, now - run.phase_start))
 

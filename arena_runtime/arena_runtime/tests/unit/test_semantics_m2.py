@@ -1,8 +1,7 @@
 """Pure-logic tests for the M2 semantic kinds, write path, regime bus, quantization and hooks.
 
 Skipped if task_generator / arena_simulation_setup aren't importable (no sourced overlay),
-since the door/elevator runtime types live there. Appends to the v1 test_semantics.py suite,
-never modifies it.
+since the door/elevator runtime types live there.
 """
 from __future__ import annotations
 
@@ -728,8 +727,7 @@ def test_trigger_allowed_true_with_no_gate():
 
 
 def test_elevator_recalled_registers_and_consults_regime():
-    """set_recall (the Elevator.recall_on plumbing) drives elevator_recalled the same
-    way the old params-carried recall_on used to."""
+    """set_recall (the Elevator.recall_on plumbing) drives elevator_recalled."""
     mech = _Mech()
     mech._elevator_runtime["e"] = _elevator_runtime("e")
     mech._door_runtime["e/door"] = _door_runtime("e/door")

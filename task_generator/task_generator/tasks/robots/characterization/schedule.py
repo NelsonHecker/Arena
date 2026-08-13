@@ -11,19 +11,19 @@ import yaml
 
 _log = logging.getLogger(__name__)
 
-VX_MIN = 0.0          # m/s
-VX_MAX = 2.0          # m/s, default maximum rated linear speed
-VX_STEP = 0.25        # m/s
+VX_MIN = 0.0  # m/s
+VX_MAX = 2.0  # m/s, default maximum rated linear speed
+VX_STEP = 0.25  # m/s
 LINEAR_DWELL_S = 5.0  # s, steady-state capture per velocity step
 RAMP_HORIZONS_S = (0.5, 1.0, 2.0)  # s, zero-to-vx_max acceleration/deceleration horizons
-RAMP_SETTLE_S = 1.0   # s, settle at the ramp apex before decelerating
-WZ_MIN = -2.5         # rad/s
-WZ_MAX = 2.5          # rad/s, default maximum rated angular rate
-WZ_STEP = 0.5         # rad/s
+RAMP_SETTLE_S = 1.0  # s, settle at the ramp apex before decelerating
+WZ_MIN = -2.5  # rad/s
+WZ_MAX = 2.5  # rad/s, default maximum rated angular rate
+WZ_STEP = 0.5  # rad/s
 ANGULAR_DWELL_S = 5.0  # s, per pivot rate
 IDLE_DURATION_S = 10.0  # s, mandatory standstill blocks (baseline standby draw)
 
-CONTROL_RATE_HZ = 20.0     # cmd_vel publish rate during a maneuver
+CONTROL_RATE_HZ = 20.0  # cmd_vel publish rate during a maneuver
 ODOM_STALL_TIMEOUT_S = 3.0  # odom silent for this long: zero cmd_vel + abort
 MAX_SCHEDULE_DURATION_S = 3600.0  # global safety ceiling for one run
 
@@ -41,10 +41,10 @@ class Phase:
     """One maneuver block: a target twist held for a duration (optionally a ramp)."""
 
     kind: PhaseKind
-    name: str            # unique label, e.g. "linear_vx_1.00"
-    vx_target: float     # m/s
-    wz_target: float     # rad/s
-    duration_s: float    # s to hold the target (ramp: the ramp horizon)
+    name: str  # unique label, e.g. "linear_vx_1.00"
+    vx_target: float  # m/s
+    wz_target: float  # rad/s
+    duration_s: float  # s to hold the target (ramp: the ramp horizon)
     ramp_s: float = 0.0  # >0 for ramps: linearly interpolate vx from 0 to target over this horizon
 
     @property
@@ -80,10 +80,7 @@ def resolve_envelope(
         else:
             from ament_index_python.packages import get_package_share_directory
 
-            mobile = (
-                pathlib.Path(get_package_share_directory("arena_robots"))
-                / "robots" / (robot_name or "") / "caps" / "mobile.yaml"
-            )
+            mobile = pathlib.Path(get_package_share_directory("arena_robots")) / "robots" / (robot_name or "") / "caps" / "mobile.yaml"
 
         cfg = yaml.safe_load(mobile.read_text())
         continuous = (cfg or {}).get("actions", {}).get("continuous", {})
@@ -95,10 +92,7 @@ def resolve_envelope(
             if isinstance(angular, dict) and angular.get("max") is not None:
                 wz_max = float(angular["max"])
     except (OSError, KeyError, TypeError, ValueError, AttributeError, yaml.YAMLError) as e:
-        _log.warning(
-            f"characterization: robot {robot_name!r} envelope falls back to "
-            f"vx_max={vx_max} wz_max={wz_max}, could not read {mobile}: {e!r}"
-        )
+        _log.warning(f"characterization: robot {robot_name!r} envelope falls back to vx_max={vx_max} wz_max={wz_max}, could not read {mobile}: {e!r}")
     return {"vx_max": vx_max, "wz_max": wz_max}
 
 
