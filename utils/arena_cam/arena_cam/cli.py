@@ -3,7 +3,7 @@
 One command shape for everything:
 
     arena cam <name> [key=value ...] [--sim] [--viz [ENV_ID]]   # name is verb, shot, or .yaml
-    arena cam <name> ... record=<dir> [fps=30] [-f]   # render to a PPM frame sequence instead
+    arena cam <name> ... record=<dir> [fps=30] [lockstep=true] [-f]   # render to a PPM frame sequence instead
     arena cam drive [--sim] [--viz [ENV_ID]]     # fly the camera from the keyboard
     arena cam list                               # catalog of verbs and shots
     arena cam show <name>                        # parameters of a verb or shot
@@ -11,8 +11,10 @@ One command shape for everything:
 A verb and a shot launch identically; the caller need not know which a name is.
 Params are bare `key=value` (coerced: number / x,y,z tuple / bool / string);
 launcher options are `--flags`. Nested or list-valued params live in a shot file.
-The reserved params `record` (output dir) and `fps` switch from live playback to
-deterministic capture.
+The reserved params `record` (output dir), `fps`, and `lockstep` switch from live
+playback to deterministic capture. `lockstep` rides an active lockstep run as a
+registered hard channel gated at 1/fps, or steps physics by 1/fps between frames
+itself when no run is active.
 
 Targets select which viewport cameras the shot drives. With no flag it drives
 everything: the sim GUI camera plus every env's rviz camera. `--sim` is sim only,
@@ -158,12 +160,13 @@ def main(argv: list[str] | None = None) -> None:
     params = _parse_params(args.params)
     record = params.pop("record", None)
     fps = float(params.pop("fps", 30.0))
+    lockstep = bool(params.pop("lockstep", False))
 
     targets = _resolve_targets(args.sim, args.viz)
     cam = load_shot(args.name, targets) if _is_path(args.name) else Camera(targets).add(args.name, params)
     if record is not None:
         try:
-            cam.record(str(record), fps=fps, force=args.force)
+            cam.record(str(record), fps=fps, force=args.force, lockstep=lockstep)
         except FileExistsError as e:
             raise SystemExit(str(e)) from e
     else:

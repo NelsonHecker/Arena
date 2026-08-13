@@ -86,6 +86,11 @@ class SimLifecycle(abc.ABC):
         """Block until the underlying sim's services are reachable."""
         ...
 
+    async def step_seconds(self, seconds: float) -> float:
+        """Advance the held sim by an exact sim-time delta. Returns sim time actually advanced."""
+        del seconds
+        raise NotImplementedError('lockstep stepping unsupported')
+
 
 class ObstacleITF(abc.ABC):
     """Abstract base class for obstacle management in simulators."""
