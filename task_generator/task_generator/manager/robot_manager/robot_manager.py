@@ -554,8 +554,10 @@ class RobotManager(NodeInterface):
             if self._adapter_instances:
                 try:
                     adapter_actions.extend(self._adapter_instances[0].bringup.telemetry_actions())
-                except Exception as e:
-                    self.node.get_logger().error(f"Failed to add telemetry actions: {e}")
+                except (OSError, ValueError, RuntimeError) as e:
+                    self.node.get_logger().error(
+                        f"Failed to add telemetry actions for robot {self.model_name!r}: {e!r}"
+                    )
 
             launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
