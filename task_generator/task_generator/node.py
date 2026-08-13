@@ -779,6 +779,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._timeline_t0 = None
         self._episode_conditions = []
         self._zone_overrides.clear()
+        self._semantics_dirty = True
 
     def register_conditions(self, conditions: "Sequence[EpisodeCondition]") -> None:
         """Carry the active scenario's episode conditions through to the episode record."""

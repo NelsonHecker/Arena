@@ -315,11 +315,12 @@ class MechanismITF:
         return await shim_remove_doors(self, names)
 
     async def spawn_elevators(self, elevators: Sequence[Elevator]) -> bool:
-        from ._mechanism_shim import shim_spawn_elevators
+        from ._mechanism_shim import _ensure_loop, shim_spawn_elevators
 
         ok = await shim_spawn_elevators(self, elevators)
         for elevator in elevators:
-            self._semantics.attach("elevator", elevator.name)
+            if self._semantics.attach("elevator", elevator.name):
+                _ensure_loop(self)
             self._semantics.set_recall(elevator.name, elevator.recall_on)
         return ok
 
@@ -343,7 +344,10 @@ class MechanismITF:
         self._semantics.set_change_callback(cb)
 
     def attach_semantics(self, kind: str, entity: str, cfgs: "Sequence[SemanticCfg]", *, polygon: "Sequence[tuple[float, float]] | None" = None) -> None:
-        self._semantics.attach(kind, entity, cfgs, polygon=polygon)
+        from ._mechanism_shim import _ensure_loop
+
+        if self._semantics.attach(kind, entity, cfgs, polygon=polygon):
+            _ensure_loop(self)
 
     def detach_semantics(self, entity: str) -> None:
         self._semantics.detach(entity)

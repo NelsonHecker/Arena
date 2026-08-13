@@ -94,6 +94,10 @@ def _in_polygon(x: float, y: float, polygon: Sequence[tuple[float, float]]) -> b
     return inside
 
 
+class SemanticAttachError(Exception):
+    """Raised by a kind's attach when the entity cannot back it, so the manager skips it."""
+
+
 class SemanticKind(abc.ABC):
     KIND: ClassVar[str]
     SUPPORTED_SIMS: ClassVar[frozenset[str]]
@@ -316,6 +320,7 @@ class SignalSemantics(SemanticKind):
         self._stop_phases = stop_phases
         self._regime = regime
         self._t0: float | None = None
+        self._pending_offset: float | None = None
         self._stop = self._phase(0.0)[0] in stop_phases if phases else False
 
     @classmethod
@@ -348,11 +353,13 @@ class SignalSemantics(SemanticKind):
     def step(self, now: float) -> None:
         super().step(now)
         if self._t0 is None:
-            self._t0 = now
+            self._t0 = now - (self._pending_offset or 0.0)
+            self._pending_offset = None
         self._stop = self._phase(now)[0] in self._stop_phases
 
     def reset(self) -> None:
         self._t0 = None
+        self._pending_offset = None
         self._stop = (self._phases[0].name in self._stop_phases) if self._phases else False
 
     def set_value(self, field: str, value: str) -> None:
@@ -362,7 +369,11 @@ class SignalSemantics(SemanticKind):
         offset = 0.0
         for phase in self._phases:
             if phase.name == token:
-                self._t0 = self._now - offset
+                if math.isfinite(self._now):
+                    self._t0 = self._now - offset
+                else:
+                    self._pending_offset = offset
+                    self._t0 = None
                 self._stop = phase.name in self._stop_phases
                 return
             offset += phase.duration
@@ -523,8 +534,10 @@ class GateSemantics(SemanticKind):
         for cfg in cfgs:
             if cfg.name == 'locked' and cfg.value is not None:
                 initial = bool(cfg.value)
-        door = mech._door_runtime[entity].door
-        return cls(mech, entity, door, authorized, initial, params.get('unlock_on'), discrete, continuous, predicates)
+        runtime = mech._door_runtime.get(entity)
+        if runtime is None:
+            raise SemanticAttachError(f"gate {entity!r} has no door runtime")
+        return cls(mech, entity, runtime.door, authorized, initial, params.get('unlock_on'), discrete, continuous, predicates)
 
     def _authorized_match(self, name: str) -> bool:
         return name in self._authorized or name.rsplit('/', 1)[-1] in self._authorized
@@ -759,17 +772,22 @@ class SemanticsManager:
     def set_sim(self, name: str) -> None:
         self._sim = name
 
-    def attach(self, kind: str, entity: str, cfgs: Sequence[SemanticCfg] = (), *, polygon: Sequence[tuple[float, float]] | None = None) -> None:
-        """Instantiate the kind for entity, skipping unsupported sims."""
+    def attach(self, kind: str, entity: str, cfgs: Sequence[SemanticCfg] = (), *, polygon: Sequence[tuple[float, float]] | None = None) -> bool:
+        """Instantiate the kind for entity, skipping unsupported sims. True when an instance was created."""
         kind_cls = _SEMANTIC_KINDS.get(kind)
         if kind_cls is None:
             self._mech.node.get_logger().info(f"semantics: unknown kind {kind!r} for {entity!r}, skipping")
-            return
+            return False
         if self._sim not in kind_cls.SUPPORTED_SIMS:
             self._mech.node.get_logger().info(f"semantics: kind {kind!r} unsupported on sim {self._sim!r}, skipping {entity!r}")
-            return
-        instance = kind_cls.attach(self._mech, entity, cfgs, polygon=polygon)
+            return False
+        try:
+            instance = kind_cls.attach(self._mech, entity, cfgs, polygon=polygon)
+        except SemanticAttachError as e:
+            self._mech.node.get_logger().warning(f"semantics: {e}, skipping")
+            return False
         self._instances.setdefault(entity, []).append(instance)
+        return True
 
     def set_recall(self, entity: str, regime: str | None) -> None:
         """Register (or clear) the regime name that recalls an elevator's cabin (HOOK-C)."""
