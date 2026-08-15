@@ -701,6 +701,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         stale_doors = [name for name, known in self._known_doors.items() if purge >= known.layer]
 
         if purge >= ObstacleLayer.WORLD:
+            await self._simulator.remove_mechanisms()
             futures.append(self._simulator.remove_world())
 
         if stale_walls:

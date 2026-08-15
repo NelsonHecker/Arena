@@ -336,6 +336,11 @@ class MechanismITF:
             self._semantics.detach(name)
         return await shim_remove_elevators(self, names)
 
+    async def remove_mechanisms(self) -> bool:
+        """Remove all mechanisms."""
+        ok = await self.remove_elevators(tuple(self._elevator_runtime))
+        return await self.remove_doors(tuple(self._door_runtime)) and ok
+
     def semantics_snapshot(self) -> "list[SemanticEntitySnapshot]":
         return self._semantics.snapshot()
 
