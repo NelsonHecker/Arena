@@ -81,12 +81,12 @@ def _values() -> tuple[dict[str, list[str]], list[str]]:
     values = {
         "sim": _enum_names(runtime_sim.SimulatorRegistry.keys()),
         "human": _enum_names(human_sim.HumanSimulatorRegistry.keys()),
-        "tm_robots": _enum_names(registry.ROBOTS_MODES.keys()),
-        "tm_obstacles": _enum_names(registry.OBSTACLES_MODES.keys()),
-        "tm_modules": _enum_names(registry.MODULE_MODES.keys()),
+        "task.robots": _enum_names(registry.ROBOTS_MODES.keys()),
+        "task.obstacles": _enum_names(registry.OBSTACLES_MODES.keys()),
+        "task.modules": _enum_names(registry.MODULE_MODES.keys()),
         "world": sorted(registry.identifier_to_available(WorldIdentifier)),
         "robot": sorted(set(registry.identifier_to_available(RobotIdentifier)) - _uninstalled_robots(arena)),
-        "planner": _installed_planners(arena),
+        "robot.planner": _installed_planners(arena),
     }
     deps = [
         os.path.realpath(m.__file__)
