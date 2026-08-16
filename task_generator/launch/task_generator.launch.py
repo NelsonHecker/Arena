@@ -121,6 +121,101 @@ def generate_launch_description():
         default_value="",
         description="empty = derive from arena_sim ({dummy: manual, gazebo|isaac: arena})",
     )
+    auditory = LaunchArgument(
+        name="auditory",
+        choices=["none", "arena"],
+        default_value="none",
+        description="Auditory pipeline: none, or arena (propagation, robot hearing, robot sound, human sound).",
+    )
+    auditory_viz = LaunchArgument(
+        name="auditory.viz",
+        default_value="false",
+        description="Publish source/portal/listener propagation markers.",
+    )
+    auditory_playback = LaunchArgument(
+        name="auditory.playback",
+        default_value="auto",
+        description="PortAudio output device for workstation playback; auto = system default, none = no playback nodes.",
+    )
+    auditory_block_size = LaunchArgument(
+        name="auditory.block_size",
+        default_value="2048",
+        description="Audio callback block size; raise on repeated PulseAudio underflows.",
+    )
+    auditory_assets = LaunchArgument(
+        name="auditory.assets",
+        default_value=PathJoinSubstitution([
+            FindPackageShare("task_generator"),
+            "config", "auditory", "acoustic_assets.yaml",
+        ]),
+        description="Acoustic asset catalog used by all playback nodes.",
+    )
+    auditory_sound_dir = LaunchArgument(
+        name="auditory.sound_dir",
+        default_value=PathJoinSubstitution([
+            FindPackageShare("task_generator"),
+            "sounds",
+        ]),
+        description="Directory containing WAV files named by the catalog.",
+    )
+    auditory_propagation = LaunchArgument(
+        name="auditory.propagation",
+        choices=["level3", "pyroomacoustics"],
+        default_value="pyroomacoustics",
+        description="Propagation backend.",
+    )
+    auditory_multi_portal = LaunchArgument(
+        name="auditory.multi_portal",
+        default_value="true",
+        description="Allow pyroomacoustics RIR rendering across multi-hop door/opening portal routes.",
+    )
+    auditory_rir_in_propagation = LaunchArgument(
+        name="auditory.rir_in_propagation",
+        default_value="true",
+        description="Compute RIR metadata in the propagation node instead of deferring to playback.",
+    )
+    auditory_robot_sound = LaunchArgument(
+        name="auditory.robot_sound",
+        default_value="true",
+        description="Let robots emit motor audio (robots stay listeners regardless).",
+    )
+    auditory_motor = LaunchArgument(
+        name="auditory.motor",
+        choices=["off", "wav", "procedural"],
+        default_value="procedural",
+        description="Motor audio: off, WAV sequence, or calibrated procedural synthesis (Jackal; other models use WAVs).",
+    )
+    auditory_motor_playback = LaunchArgument(
+        name="auditory.motor.playback",
+        choices=["sequence", "single_loop"],
+        default_value="sequence",
+        description="WAV motor audio: start/loop/stop sequence, or a single repeating loop.",
+    )
+    auditory_environment_playback = LaunchArgument(
+        name="auditory.environment_playback",
+        default_value="true",
+        description="Play propagated environment audio locally; emission and robot hearing continue when false.",
+    )
+    auditory_static_devices = LaunchArgument(
+        name="auditory.static_devices",
+        default_value="[]",
+        description="YAML list of world-independent environment audio systems (radios, alarms); non-empty enables the audio_systems module.",
+    )
+    auditory_listener = LaunchArgument(
+        name="auditory.listener",
+        default_value="",
+        description="Microphone ID that feeds playback (e.g. robot1_mic); RViz selects it when empty.",
+    )
+    auditory_microphones = LaunchArgument(
+        name="auditory.microphones",
+        default_value="[]",
+        description="YAML list of robot microphone mappings (owner, robot, placement, frame, index).",
+    )
+    auditory_viewport_height = LaunchArgument(
+        name="auditory.viewport_height",
+        default_value="1.6",
+        description="Listening height of the viewport camera's down-projection microphone.",
+    )
     robot = LaunchArgument(name="robot", default_value="auto")
     tm_robots = LaunchArgument(name="tm_robots", default_value="explore")
     task_config = LaunchArgument(name="task_config", default_value="")
@@ -183,7 +278,6 @@ def generate_launch_description():
         arena_sim: str,
         context: launch.LaunchContext,
     ) -> list[launch.LaunchDescriptionEntity]:
-        fqn = f"/{allocated_ns}"
         prefix_val = f"env_{allocated_id}"
 
         _label = f"arena env_{allocated_id}"
@@ -201,6 +295,27 @@ def generate_launch_description():
         human_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(human.substitution)) or default_human(arena_sim)
         mobile_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(mobile.substitution)) or {"dummy": "none"}.get(arena_sim, "nav2")
         arm_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(arm.substitution))
+        tm_modules_val = launch.utilities.perform_substitutions(
+            context,
+            launch.utilities.normalize_to_list_of_substitutions(
+                tm_modules.substitution
+            ),
+        )
+        configured_modules = [
+            value.strip()
+            for value in tm_modules_val.split(",")
+            if value.strip()
+        ]
+        static_devices_val = launch.utilities.perform_substitutions(
+            context,
+            launch.utilities.normalize_to_list_of_substitutions(
+                auditory_static_devices.substitution
+            ),
+        ).strip()
+        static_audio_enabled = static_devices_val not in ("", "[]")
+        if static_audio_enabled and "audio_systems" not in configured_modules:
+            configured_modules.append("audio_systems")
+        tm_modules_val = ",".join(configured_modules)
 
         planner_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(planner.substitution))
         _planner_selector_override: tuple[str, str] | None = None
@@ -232,6 +347,28 @@ def generate_launch_description():
             launch_arguments={
                 "simulator": human_val,
                 "namespace": allocated_ns,
+                # Launch substitutions preserve a relative value as relative
+                # to each node namespace.  Keep this explicitly absolute so
+                # auditory nodes do not resolve it below task_generator_node.
+                "environment_namespace": (
+                    "/" + os.path.dirname(allocated_ns).strip("/")
+                ),
+                **auditory.dict,
+                **auditory_viz.dict,
+                **auditory_playback.dict,
+                **auditory_block_size.dict,
+                **auditory_assets.dict,
+                **auditory_sound_dir.dict,
+                **auditory_propagation.dict,
+                **auditory_multi_portal.dict,
+                **auditory_rir_in_propagation.dict,
+                **auditory_robot_sound.dict,
+                **auditory_motor.dict,
+                **auditory_motor_playback.dict,
+                **auditory_environment_playback.dict,
+                **auditory_listener.dict,
+                **auditory_microphones.dict,
+                **auditory_viewport_height.dict,
             }.items(),
         )
 
@@ -296,8 +433,9 @@ def generate_launch_description():
                     **robot.str_param,
                     **tm_robots.str_param,
                     **tm_obstacles.str_param,
-                    **tm_modules.str_param,
+                    "tm_modules": tm_modules_val,
                     **world.str_param,
+                    "static_audio_devices": auditory_static_devices.param_value(str),
                     **record_data_dir.str_param,
                     **auto_reset.param(bool),
                     **fail_on_collision.param(bool),

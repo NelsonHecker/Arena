@@ -869,6 +869,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         }
 
         env_ns = self.get_namespace()
+        auditory_ns = self.get_fully_qualified_name()
 
         env_displays: list[AdapterDisplay] = [
             AdapterDisplay(
@@ -936,7 +937,39 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     group="Static",
                 )
             )
-
+        for name, topic in (
+            (
+                "Microphones",
+                f"{auditory_ns}/microphone_markers",
+            ),
+            (
+                "Environment Audio Sources",
+                f"{auditory_ns}/environment_audio_source_markers",
+            ),
+            (
+                "Pedestrian Heard Sound",
+                f"{auditory_ns}/pedestrian_sound_propagation_markers",
+            ),
+            (
+                "Robot Heard Sound",
+                f"{auditory_ns}/robot_sound_propagation_markers",
+            ),
+        ):
+            env_displays.append(
+                AdapterDisplay(
+                    name=name,
+                    topic=topic,
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.MARKER_ARRAY,
+                    style_json=(
+                        latched
+                        if name == "Microphones"
+                        else StyleSpec(enabled=True).to_json()
+                    ),
+                    topic_must_exist=False,
+                    group="Sound Propagation",
+                )
+            )
         entries: list[AdapterEntry] = []
         for mgr in self._robots_manager.managers.values():
             ns_value = str(mgr.namespace)
@@ -966,6 +999,25 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                         displays=sensor_displays,
                     )
                 )
+            entries.append(
+                AdapterEntry(
+                    robot_ns=ns_value,
+                    adapter_kind="_auditory",
+                    displays=[
+                        AdapterDisplay(
+                            name="Motor Sound",
+                            topic=(
+                                f"{auditory_ns}/{robot_value}/"
+                                "motor_sound_markers"
+                            ),
+                            topic_type="visualization_msgs/MarkerArray",
+                            kind=DisplayKind.MARKER_ARRAY,
+                            style_json=StyleSpec(enabled=True).to_json(),
+                            topic_must_exist=False,
+                        )
+                    ],
+                )
+            )
 
             for adapter in mgr._adapter_instances:
 
