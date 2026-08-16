@@ -138,12 +138,12 @@ def _supervisor(*argv: str) -> None:
     _exec("python3", "-m", "arena_bringup.supervisor", *argv)
 
 
-_LAUNCH_FILES = {"task_config": Files(), "scenario_file": Files(), "parameter_file": Files(), "record_data_dir": Files()}
+_LAUNCH_FILES = {"task.config": Files(), "task.scenario": Files(), "task.params": Files(), "record.dir": Files()}
 RUNTIME_ARGS = LaunchArgs("arena_bringup", "arena_runtime.launch.py", _LAUNCH_FILES)
 ENV_ARGS = LaunchArgs("task_generator", "task_generator.launch.py", _LAUNCH_FILES)
 SUPERVISOR_KNOBS = Kv(
     {
-        "env_n": None,
+        "env.n": None,
         "viz": Static(["true", "false"]),
         "headless": Static(["true", "false"]),
         "human.steering": Static(["auto", "true", "false"]),
@@ -157,7 +157,7 @@ LAUNCH_SPEC = Union(SUPERVISOR_KNOBS, RUNTIME_ARGS, ENV_ARGS)
 def launch(args: list[str]) -> None:
     """Start a full simulation (runtime, envs, viz).
 
-    Attaches additively if a runtime is already up, spawning env_n more
+    Attaches additively if a runtime is already up, spawning env.n more
     envs against it (errors on sim:= mismatch). Otherwise starts
     arena_runtime.launch.py, spawns N envs, and attaches rviz unless
     headless:=true.
@@ -165,12 +165,13 @@ def launch(args: list[str]) -> None:
     _supervisor(*args)
 
 
-DEMO_DEFAULTS = ("tm_robots:=demo", "world:=demo", "sim:=isaac", "viz.view:=robot3p")
+DEMO_DEFAULTS = ("task.robots:=demo", "world:=demo", "sim:=isaac", "viz.view:=robot3p")
+_DEMO_ALIASES = {"tm_robots": "task.robots"}
 
 
 @verb("demo", passthrough=True, complete=LAUNCH_SPEC, help_text=f"Launch a demo.\n\nSame as `arena launch` with defaults {' '.join(DEMO_DEFAULTS)}, any KEY:=VALUE you pass overrides the corresponding default.")
 def demo(args: list[str]) -> None:
-    given = {a.split(":=", 1)[0] for a in args if ":=" in a}
+    given = {_DEMO_ALIASES.get(k, k) for k in (a.split(":=", 1)[0] for a in args if ":=" in a)}
     merged = [d for d in DEMO_DEFAULTS if d.split(":=", 1)[0] not in given]
     _supervisor(*merged, *args)
 
