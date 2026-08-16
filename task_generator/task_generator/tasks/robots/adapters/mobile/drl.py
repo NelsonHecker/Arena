@@ -175,6 +175,7 @@ class DrlAdapter(MobileAdapter):
     ) -> None:
         import asyncio  # noqa: PLC0415
 
+        import rclpy  # noqa: PLC0415
         from arena_planners.bridge.edge_node import PlannerEdgeNode  # noqa: PLC0415
 
         node_name = "edge_node"
@@ -221,6 +222,7 @@ class DrlAdapter(MobileAdapter):
             is_holonomic=is_holonomic,
             simulation_namespace=robot.node.get_namespace(),
             velocity_limits=_limits,
+            parameter_overrides=[rclpy.Parameter("planner_rate_hz", value=float(self._rate))],
         )
         robot.node.executor.add_node(edge_node)
 
