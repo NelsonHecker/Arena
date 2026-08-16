@@ -454,6 +454,15 @@ parameter. `arena runtime` will fail if another `/arena` node is already
 registered (ROS doesn't allow duplicate node names); kill the prior one
 manually or call `arena cleanup` on its envs first.
 
+### Shell completion
+
+`source arena` registers TAB completion for `arena` in bash and zsh (zsh
+registration waits for `compinit` if it has not run yet). Verb names, subverbs,
+flags, supervisor knobs, and package names complete without ROS. Launch-arg
+names and values (`sim:=`, `world:=`, `robot:=`, `tm_*:=`, `human:=`) come from
+a manifest cached under `${XDG_CACHE_HOME:-~/.cache}/arena/`, regenerated in the
+background on the first TAB after a rebuild or on demand with `arena complete --refresh`.
+
 ## Benchmark mode
 
 Benchmark runs are driven by the `arena evaluation benchmark` CLI verb. Requires
