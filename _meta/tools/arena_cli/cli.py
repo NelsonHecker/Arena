@@ -3,6 +3,7 @@
 import os
 import sys
 
+import asset as _asset_mod
 import complete as _complete
 import features as _features
 import human as _human_mod
@@ -33,6 +34,7 @@ SECTIONS = {
     "Simulation": ["runtime", "env", "viz", "cleanup", "launch", "train", "demo", "lockstep"],
     "Attach": ["human", "robot", "cam"],
     "Workspace": ["build", "rebuild", "test", "deps", "update", "preload", "uninstall"],
+    "Data": ["asset"],
     "Features": ["feature", "registry"],
     "Shell": ["deactivate", "resource", "repair"],
 }
@@ -196,6 +198,7 @@ def env_(args: list[str]) -> None:
     _exec("ros2", "launch", "task_generator", "task_generator.launch.py", *args)
 
 
+_register(_asset_mod.VERB)
 _register(_viz_mod.VERB)
 _register(_human_mod.VERB)
 _register(_robot_mod.VERB)
