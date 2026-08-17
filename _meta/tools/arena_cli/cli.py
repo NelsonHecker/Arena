@@ -349,11 +349,11 @@ def lockstep(args: list[str]) -> None:
     )
 
 
-@verb("preload", passthrough=True, complete=Union(Manifest("world"), Flags({"--no-scenarios": "skip scenario assets"})))
+@verb("preload", passthrough=True, complete=Union(Manifest("world"), Flags({"--no-scenarios": "skip scenario assets", "--dry-run": "report what is missing without downloading"})))
 def preload(args: list[str]) -> None:
-    """Preload a world's assets ahead of launch.
+    """Preload a world's assets ahead of launch. `arena launch` does this for you.
 
-    `arena preload <world_name> [--no-scenarios]`.
+    `arena preload <world_name> [--no-scenarios] [--dry-run]`.
     """
     if not args:
         raise CLIError("missing argument WORLD")

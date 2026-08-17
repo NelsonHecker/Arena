@@ -28,7 +28,14 @@ from arena_simulation_setup.shared import (
     Wall,
 )
 from arena_simulation_setup.shared.semantics import parse_semantics
-from arena_simulation_setup.tree import FallbackResolver, Identifier, PathView, SimplePathResolver
+from arena_simulation_setup.tree import (
+    WORLD_PROVIDERS,
+    FallbackResolver,
+    Identifier,
+    NetResolver,
+    PathView,
+    SimplePathResolver,
+)
 from arena_simulation_setup.tree.assets.Material import (
     Material,
     MaterialIdentifier,
@@ -574,6 +581,29 @@ class WorldDescription:
     def get_level(self, level_id: str) -> Level | None:
         return self.levels.get(level_id, None)
 
+    def identifiers(self) -> typing.Iterable[Identifier]:
+        """Every asset this world references, for preloading and publish preflight."""
+        from arena_simulation_setup.tree.Wall import WallIdentifier
+
+        for level in self.all_levels:
+            for zone in level.zones:
+                yield zone.material
+                yield zone.ceiling_material
+                yield zone.wall_material
+                for wall in zone.walls:
+                    if wall.material is not None:
+                        yield wall.material
+                    if wall.kind:
+                        yield WallIdentifier(wall.kind)
+                for door in zone.doors:
+                    yield door.material
+                for elevator in zone.elevators:
+                    yield elevator.material
+                for entity in zone.entities.static:
+                    yield entity.model
+                for entity in zone.entities.dynamic:
+                    yield entity.model
+
     def compact_world(self, origins: dict[str, tuple[float, float]]) -> LevelDescription:
         """Return a single LevelDescription that has all the levels but with shifted origins so that they don't stack with each other."""
         out = LevelDescription()
@@ -974,12 +1004,45 @@ class MultiLevelWorldView(PathView):
                 del kwargs
                 return ScenarioView(path)
 
+        ScenarioIdentifier.use(SimplePathResolver(ScenarioIdentifier, self.path / 'scenarios'))
         ScenarioIdentifier.use(FallbackResolver(ScenarioIdentifier, self.path / 'scenarios'))
         return ScenarioIdentifier
 
     @property
     def world_path(self) -> Path:
         return self.path / 'world.yaml'
+
+    def identifiers(self, scenarios: bool = True, strict: bool = False) -> Iterator[Identifier]:
+        """Every asset this world and its scenarios reference, deduplicated.
+
+        A scenario that will not load is skipped, or raises when *strict*. Callers
+        validating a world before publishing it want strict, so an unreadable
+        scenario cannot pass as having no references.
+        """
+        seen: set[tuple[str, str]] = set()
+
+        def _fresh(identifier: Identifier) -> bool:
+            key = (type(identifier).__name__, identifier.shortname)
+            if key in seen:
+                return False
+            seen.add(key)
+            return True
+
+        yield from filter(_fresh, self.load(validate=False).identifiers())
+
+        if not scenarios:
+            return
+
+        for scenario in self.scenario.listall():
+            view = scenario.resolve_sync()
+            try:
+                entries = list(view.identifiers())
+            except Exception:
+                if strict:
+                    raise
+                logging.warning('skipping scenario %s', view.path, exc_info=True)
+                continue
+            yield from filter(_fresh, entries)
 
     def load(self, validate: bool = True, level_filter: set[str] | None = None) -> WorldDescription:
         """Load the WorldDescription from disk.
@@ -1101,17 +1164,11 @@ class MultiLevelWorldView(PathView):
 
 
 class WorldIdentifier(Identifier[MultiLevelWorldView]):
-    @classmethod
-    def listall(cls, **kwargs: object) -> Iterator[Self]:
-        del kwargs
-        seen: set[str] = set()
-        for root in [*_world_search_roots(), ASS_DIR / 'worlds']:
-            if not root.is_dir():
-                continue
-            for name in os.listdir(root):
-                if (root / name).is_dir() and name not in seen:
-                    seen.add(name)
-                    yield WorldIdentifier(name)
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, WorldIdentifier) and self.name == other.name
 
     def load(self, path: Path, /, **kwargs: object) -> MultiLevelWorldView:
         del kwargs
@@ -1137,4 +1194,6 @@ def _world_search_roots() -> list[Path]:
 
 
 WorldIdentifier.use(*(SimplePathResolver(WorldIdentifier, root) for root in _world_search_roots()))
+WorldIdentifier.use(SimplePathResolver(WorldIdentifier, ASS_DIR / 'worlds'))
+WorldIdentifier.use(*NetResolver.all(WorldIdentifier, providers=WORLD_PROVIDERS, formats=()))
 WorldIdentifier.use(FallbackResolver(WorldIdentifier, ASS_DIR / 'worlds'))

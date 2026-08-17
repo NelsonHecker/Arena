@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import enum
 import itertools
 import logging
 import os
@@ -21,7 +22,15 @@ from arena_simulation_setup import (
 )
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable, Serializable
 
-NETWORK_PROVIDERS: Sequence[str] = os.environ.get('ASSET_BUCKETS', 'default').split(',')
+
+def providers(env: str, default: str) -> Sequence[str]:
+    """Bucket list for one asset family, from *env* or *default*."""
+    return [p for p in os.environ.get(env, default).split(',') if p]
+
+
+NETWORK_PROVIDERS: Sequence[str] = providers('ASSET_BUCKETS', 'default')
+WORLD_PROVIDERS: Sequence[str] = providers('WORLD_BUCKETS', 'arena-worlds-prod-public')
+BENCHMARK_PROVIDERS: Sequence[str] = providers('BENCHMARK_BUCKETS', 'arena-benchmarks-prod-public')
 
 # Utils
 
@@ -63,6 +72,21 @@ class DynamicPaths:
 IdentifierT = typing.TypeVar('IdentifierT', bound='IdentifierProtocol')
 
 
+class Verdict(enum.Enum):
+    HIT = 'hit'
+    MISS = 'miss'
+    SHADOWED = 'shadowed'
+
+
+@attrs.define
+class ResolverVerdict:
+    """One resolver's answer for one identifier, as reported by ``Identifier.probe``."""
+
+    resolver: ResolverBase
+    verdict: Verdict
+    path: Path | None = None
+
+
 class ResolverBase(abc.ABC, typing.Generic[IdentifierT]):
     """
     Base class for resolvers.
@@ -78,8 +102,19 @@ class ResolverBase(abc.ABC, typing.Generic[IdentifierT]):
         self._IdentifierT: type[IdentifierT] = _T
         self._cache = {}
 
-    @abc.abstractmethod
-    async def resolve(self, identifier: IdentifierT) -> Path | None: ...
+    async def resolve(self, identifier: IdentifierT) -> Path | None:
+        """Read path for *identifier*, fetching if this resolver can. None if unavailable here."""
+        del identifier
+        return None
+
+    async def locate(self, identifier: IdentifierT) -> Path | None:
+        """Where *identifier* would resolve, without transferring anything."""
+        return await self.resolve(identifier)
+
+    def destination(self, identifier: IdentifierT) -> Path | None:
+        """Write path for *identifier*. None for resolvers that are not write targets."""
+        del identifier
+        return None
 
     def invalidate(self):
         self._cache.clear()
@@ -181,13 +216,24 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
 
     _TTL_MARKER = '.ttl'
 
-    def __init__(self, _T: type[IdentifierT], /, provider: str, **kwargs: object) -> None:
+    def __init__(
+        self,
+        _T: type[IdentifierT],
+        /,
+        provider: str,
+        *,
+        formats: Iterable[str] | None = None,
+        ttl: int | None = None,
+        **kwargs: object,
+    ) -> None:
         path = ARENA_ASSETS_DIR / provider
         super().__init__(_T, path=path, **kwargs)
         self._provider: str = provider
 
-        self._formats = os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
-        self._ttl = int(os.environ.get('ARENA_MODELS_TTL', '86400'))
+        # formats=() opts out of the model-format filter, which would otherwise drop
+        # every non-model file in a payload (meshes, scenario.json, map images).
+        self._formats = list(formats) if formats is not None else os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
+        self._ttl = ttl if ttl is not None else int(os.environ.get('ARENA_MODELS_TTL', '86400'))
         self._pending: dict[str, list[asyncio.Future[Path | None]]] = {}
         self._flush_scheduled = False
         self._batch_lock = asyncio.Lock()
@@ -287,13 +333,51 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
 
         return self._cache.get(identifier, None)
 
+    def _fresh(self, candidate: Path) -> bool:
+        """A cache entry counts only while its TTL marker is current, as in resolve()."""
+        if not candidate.is_dir():
+            return candidate.exists()
+        try:
+            stamp = int((candidate / self._TTL_MARKER).read_text().strip())
+        except (OSError, ValueError):
+            return False
+        return bool(stamp) and time.time() - stamp < self._ttl
+
+    async def locate(self, identifier: IdentifierT) -> Path | None:
+        candidate = self.path / identifier.relpath()
+        if self._fresh(candidate):
+            return candidate
+        try:
+            output = await self.check_output_async(
+                [
+                    'ros2',
+                    'run',
+                    'arena_models',
+                    'arena_models',
+                    '-s',
+                    'net',
+                    self._provider,
+                    'exists',
+                    '--no-annotation',
+                    str(identifier.relpath()),
+                ]
+            )
+        except (subprocess.CalledProcessError, OSError) as e:
+            # a failed check is not an absent asset, so say so rather than reporting a silent miss
+            logging.warning('%s: could not check %s on %s: %s', type(self).__name__, identifier.relpath(), self._provider, e)
+            return None
+        return candidate if output.decode().strip().splitlines()[-1:] == ['1'] else None
+
     def listall(self, *, network: bool = False, **kwargs: object) -> Iterator[IdentifierT]:
         """
         List all assets available. When *network* is True, also queries the
-        remote provider via ``ros2 run arena_models arena_models … list``.
+        remote provider via ``ros2 run arena_models arena_models net <provider> list``.
         """
         yield from super(SimplePathResolver, self).listall(**kwargs)
         if network:
+            # Annotated model assets are found by sentinel under Domain/Type; everything
+            # else (worlds, benchmark configs) is a flat listing of the bucket's children.
+            sentinel_scan = issubclass(self._IdentifierT, AssetIdentifier)
             try:
                 output = subprocess.check_output(
                     [
@@ -305,6 +389,7 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
                         'net',
                         self._provider,
                         'list',
+                        *(() if sentinel_scan else ('--children',)),
                     ],
                     stderr=subprocess.DEVNULL,
                 )
@@ -316,7 +401,7 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
                         yield self._IdentifierT.from_relpath(Path(line))
                     except Exception:
                         pass
-            except subprocess.CalledProcessError:
+            except (subprocess.CalledProcessError, OSError):
                 import traceback
 
                 logging.warning(traceback.format_exc())
@@ -325,21 +410,21 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         return f"{super().__repr__()}(net={self._provider})"
 
     @classmethod
-    def all(cls, _T: type[IdentifierT], /) -> Iterable[Self]:
-        for provider in NETWORK_PROVIDERS:
-            yield cls(_T, provider=provider)
+    def all(cls, _T: type[IdentifierT], /, providers: Iterable[str] = NETWORK_PROVIDERS, **kwargs: object) -> Iterable[Self]:
+        for provider in providers:
+            yield cls(_T, provider=provider, **kwargs)
 
 
 class FallbackResolver(ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
     """
-    Resolver that always yields a fallback path.
+    Write target. Never answers reads, so it cannot shadow a real source.
     """
 
     def __init__(self, _T: type[IdentifierT], /, path: Path, **kwargs: object) -> None:
         super().__init__(_T, **kwargs)
         self._path = path
 
-    async def resolve(self, identifier: IdentifierT) -> Path | None:
+    def destination(self, identifier: IdentifierT) -> Path | None:
         return self._path / identifier.relpath()
 
     def __repr__(self) -> str:
@@ -351,6 +436,7 @@ class FallbackResolver(ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
 
 T = typing.TypeVar('T')
 T_co = typing.TypeVar('T_co', covariant=True)
+ResultT = typing.TypeVar('ResultT')
 
 
 class IdentifierProtocol(typing.Protocol[T_co]):
@@ -402,28 +488,79 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
             msg += f'\n\t{repr(resolver)}'
         raise FileNotFoundError(msg)
 
+    async def resolve_write_path(self) -> Path:
+        """Where this identifier is written. Never a cache, never the network."""
+        for resolver in self._resolvers:
+            destination = resolver.destination(self)
+            if destination is not None:
+                return destination
+        raise FileNotFoundError(f'no write destination registered for {self}')
+
+    def resolve_write_sync(self) -> T:
+        """Synchronously load the write target for this identifier, creating nothing."""
+        return self._run_sync(self._resolve_write())
+
+    async def _resolve_write(self) -> T:
+        path = await self.resolve_write_path()
+        return await asyncio.to_thread(self.load, path)
+
+    async def resolve_source(self) -> ResolverVerdict:
+        """The resolver that answers for this identifier, stopping at the first hit."""
+        for resolver in self._resolvers:
+            located = await resolver.locate(self)
+            if located is not None:
+                return ResolverVerdict(resolver, Verdict.HIT, located)
+        msg = f'{self} not found among'
+        for resolver in self._resolvers:
+            msg += f'\n\t{repr(resolver)}'
+        raise FileNotFoundError(msg)
+
+    def resolve_source_sync(self) -> ResolverVerdict:
+        return self._run_sync(self.resolve_source())
+
+    async def probe(self) -> list[ResolverVerdict]:
+        """Verdict per resolver, in order, without transferring anything."""
+        verdicts: list[ResolverVerdict] = []
+        found = False
+        for resolver in self._resolvers:
+            located = await resolver.locate(self)
+            if located is None:
+                verdicts.append(ResolverVerdict(resolver, Verdict.MISS))
+                continue
+            verdicts.append(ResolverVerdict(resolver, Verdict.SHADOWED if found else Verdict.HIT, located))
+            found = True
+        return verdicts
+
+    def probe_sync(self) -> list[ResolverVerdict]:
+        return self._run_sync(self.probe())
+
     async def resolve(self, **kwargs: object) -> T:
         path = await self.resolve_path()
         return await asyncio.to_thread(self.load, path, **kwargs)
 
     def resolve_sync(self, **kwargs: object) -> T:
         """Synchronously load the asset referenced by this identifier."""
-        result: T = None  # type: ignore
+        return self._run_sync(self.resolve(**kwargs))
+
+    @staticmethod
+    def _run_sync(coro: typing.Coroutine[typing.Any, typing.Any, ResultT]) -> ResultT:
+        """Drive *coro* on a private loop in its own thread, so sync callers can await."""
+        result: ResultT = None  # type: ignore
         exc: Exception | None = None
 
-        def _run_async_load():
+        def _run():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 nonlocal result
-                result = loop.run_until_complete(self.resolve(**kwargs))
+                result = loop.run_until_complete(coro)
             except Exception as e:
                 nonlocal exc
                 exc = e
             finally:
                 loop.close()
 
-        thread = threading.Thread(target=_run_async_load)
+        thread = threading.Thread(target=_run)
         thread.start()
         thread.join()
 
