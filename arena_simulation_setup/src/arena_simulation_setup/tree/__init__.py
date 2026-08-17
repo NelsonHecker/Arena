@@ -72,6 +72,13 @@ class DynamicPaths:
 IdentifierT = typing.TypeVar('IdentifierT', bound='IdentifierProtocol')
 
 
+@typing.runtime_checkable
+class References(typing.Protocol):
+    """A loaded asset that names further assets, so closures can walk through it."""
+
+    def identifiers(self) -> Iterable[IdentifierProtocol]: ...
+
+
 class Verdict(enum.Enum):
     HIT = 'hit'
     MISS = 'miss'
@@ -224,11 +231,16 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         *,
         formats: Iterable[str] | None = None,
         ttl: int | None = None,
+        annotated: bool = True,
+        list_prefix: str = '',
         **kwargs: object,
     ) -> None:
         path = ARENA_ASSETS_DIR / provider
         super().__init__(_T, path=path, **kwargs)
         self._provider: str = provider
+        # payloads without an annotation.yaml sentinel are enumerated by directory instead
+        self._annotated = annotated
+        self._list_prefix = list_prefix
 
         # formats=() opts out of the model-format filter, which would otherwise drop
         # every non-model file in a payload (meshes, scenario.json, map images).
@@ -368,6 +380,14 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
             return None
         return candidate if output.decode().strip().splitlines()[-1:] == ['1'] else None
 
+    def list_argv(self) -> list[str]:
+        """Remote listing command. Annotated payloads are found by sentinel scan, everything
+        else by listing the children of the prefix its identifiers live under."""
+        argv = ['ros2', 'run', 'arena_models', 'arena_models', '-s', 'net', self._provider, 'list']
+        if self._annotated:
+            return argv
+        return [*argv, '--children', *((self._list_prefix,) if self._list_prefix else ())]
+
     def listall(self, *, network: bool = False, **kwargs: object) -> Iterator[IdentifierT]:
         """
         List all assets available. When *network* is True, also queries the
@@ -375,24 +395,8 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         """
         yield from super(SimplePathResolver, self).listall(**kwargs)
         if network:
-            # Annotated model assets are found by sentinel under Domain/Type; everything
-            # else (worlds, benchmark configs) is a flat listing of the bucket's children.
-            sentinel_scan = issubclass(self._IdentifierT, AssetIdentifier)
             try:
-                output = subprocess.check_output(
-                    [
-                        'ros2',
-                        'run',
-                        'arena_models',
-                        'arena_models',
-                        '-s',
-                        'net',
-                        self._provider,
-                        'list',
-                        *(() if sentinel_scan else ('--children',)),
-                    ],
-                    stderr=subprocess.DEVNULL,
-                )
+                output = subprocess.check_output(self.list_argv(), stderr=subprocess.DEVNULL)
                 for line in output.decode().splitlines():
                     line = line.strip()
                     if not line:
@@ -470,6 +474,10 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
     """Represents an identifier referencing an path."""
 
     name: str
+
+    # True where load() returns a References, so closure walks recurse instead of
+    # fetching every leaf just to find out it names nothing
+    NESTS: typing.ClassVar[bool] = False
 
     @property
     def shortname(self) -> str:

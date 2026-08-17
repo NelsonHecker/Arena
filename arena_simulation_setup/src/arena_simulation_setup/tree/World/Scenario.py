@@ -240,9 +240,10 @@ class ScenarioView(PathView):
             robots=[RobotGoal.parse(robot) for robot in scenario.get("robots", [])],
         )
 
-    def identifiers(self) -> Iterable[Identifier]:
-        """Every asset this scenario references."""
-        scenario = self.load()
+    def identifiers(self, converter: ArenaConverter = converter) -> Iterable[Identifier]:
+        """Every asset this scenario references. Pass the world's zone converter to read a
+        scenario that addresses zones by name."""
+        scenario = self.load(converter=converter)
         for obstacle in itertools.chain(scenario.static, scenario.dynamic):
             yield obstacle.model
 

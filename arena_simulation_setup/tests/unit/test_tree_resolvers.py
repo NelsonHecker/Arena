@@ -235,3 +235,23 @@ def test_every_identifier_has_a_read_resolver():
     assert types, 'no identifier types discovered'
     write_only = [cls.__name__ for cls in types if all(isinstance(r, FallbackResolver) for r in cls._resolvers)]
     assert not write_only, f'unresolvable, only a write target registered: {write_only}'
+
+
+def test_net_list_argv_scans_sentinels_for_annotated_payloads():
+    from arena_simulation_setup.tree import NetResolver
+    from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
+
+    argv = NetResolver(ObjectIdentifier, provider='b').list_argv()
+    assert argv[-3:] == ['net', 'b', 'list']
+    assert '--children' not in argv
+
+
+def test_net_list_argv_uses_children_and_prefix_for_unannotated_payloads():
+    from arena_simulation_setup.tree import NetResolver
+    from arena_simulation_setup.tree.World import WorldIdentifier
+
+    worlds = NetResolver(WorldIdentifier, provider='b', annotated=False).list_argv()
+    assert worlds[-2:] == ['list', '--children']
+
+    prefixed = NetResolver(WorldIdentifier, provider='b', annotated=False, list_prefix='suites').list_argv()
+    assert prefixed[-3:] == ['list', '--children', 'suites']
