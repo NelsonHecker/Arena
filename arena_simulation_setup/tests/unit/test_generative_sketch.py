@@ -269,3 +269,20 @@ def test_the_minted_mixed_weight_line_is_the_one_the_editor_writes():
     generator = build('!legend:\n!  a: {sockets: {NE: heavy, SW: light}}\n a\na ', cell=8.0, heavy=3.0)
     assert generator.diagnostics.components == 1
     assert generator.warnings == []
+
+
+def test_a_blank_sketch_still_makes_a_world():
+    """Every edit path can reach a blank grid, so it draws one full cell at the origin instead of failing."""
+    for sketch in ('', '   ', '!light: 2\n', '  \n  '):
+        generator = WorldGeneratorSketch({'sketch': sketch, 'cell': 8.0}, random.Random(0))
+        level = generator.compute()
+        assert free_space(generator, level).bounds == pytest.approx((0.0, 0.0, 8.0, 8.0))
+        assert generator.frame().rows >= 1 and generator.frame().cols >= 1
+        assert [note.text for note in generator.warnings] == ['sketch is empty, drew one full cell']
+
+
+def test_full_blocks_stay_inside_their_cells():
+    """A full arm fills to the cell edge and no further, so blocks make rectangles, not stars."""
+    assert ink('█').bounds == pytest.approx((0.0, 0.0, 8.0, 8.0))
+    assert ink('██\n██').bounds == pytest.approx((0.0, 0.0, 16.0, 16.0))
+    assert ink('██\n██').area == pytest.approx(16.0 * 16.0)

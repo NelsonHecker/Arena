@@ -259,7 +259,11 @@ void WorldGeneratorPanel::applyAlphabetToSketch()
     // The previous generator's editor is gone by now, so the canvas must never keep pointing at it.
     preview_canvas_->setEditor(edit);
     if (source_toggle_ != nullptr) source_toggle_->setVisible(edit != nullptr);
+    if (clear_button_ != nullptr) clear_button_->setVisible(edit != nullptr);
     if (edit == nullptr) return;
+
+    if (clear_button_ != nullptr)
+        connect(clear_button_, &QPushButton::clicked, edit, &SketchEdit::clearSketch, Qt::UniqueConnection);
 
     connect(edit, &SketchEdit::statusChanged, status_label_, &QLabel::setText, Qt::UniqueConnection);
     connect(edit, &SketchEdit::cursorMoved, preview_canvas_, &SketchCanvas::setCursorCell, Qt::UniqueConnection);
@@ -308,15 +312,11 @@ void WorldGeneratorPanel::requestPreview()
 
     auto leaves = DynamicParamTree::collectParams(param_widgets_, param_types_);
 
-    std::string sketch;
+    // The sketch rides in the config with every other leaf. The request's own sketch field
+    // reads empty as "keep the node parameter", which is the one thing a cleared grid is not.
     QJsonObject config_obj;
     for (const auto& leaf : leaves)
     {
-        if (leaf.name == "sketch")
-        {
-            sketch = leaf.value.string_value;
-            continue;
-        }
         using PT = rcl_interfaces::msg::ParameterType;
         switch (leaf.value.type)
         {
@@ -344,7 +344,6 @@ void WorldGeneratorPanel::requestPreview()
     auto req = std::make_shared<world_generator_msgs::srv::GenerateWorld::Request>();
     req->preview_only     = true;
     req->generator        = algorithm_combobox_->currentText().toStdString();
-    req->sketch           = sketch;
     req->config           = QJsonDocument(config_obj).toJson(QJsonDocument::Compact).toStdString();
 
     generate_world_client_->async_send_request(
@@ -465,9 +464,18 @@ void WorldGeneratorPanel::setupUi()
     preview_diag_label_->setWordWrap(true);
     root->addWidget(preview_diag_label_);
 
-    source_toggle_ = new QCheckBox("Show sketch source");
-    connect(source_toggle_, &QCheckBox::toggled, this, &WorldGeneratorPanel::showSketchSource);
-    root->addWidget(source_toggle_);
+    {
+        auto* row    = new QWidget();
+        auto* layout = new QHBoxLayout(row);
+        layout->setContentsMargins(0, 0, 0, 0);
+        source_toggle_ = new QCheckBox("Show sketch source");
+        connect(source_toggle_, &QCheckBox::toggled, this, &WorldGeneratorPanel::showSketchSource);
+        layout->addWidget(source_toggle_);
+        layout->addStretch();
+        clear_button_ = new QPushButton("Clear sketch");
+        layout->addWidget(clear_button_);
+        root->addWidget(row);
+    }
 
     refresh_button_ = new QPushButton("Refresh preview");
     connect(refresh_button_, &QPushButton::clicked,

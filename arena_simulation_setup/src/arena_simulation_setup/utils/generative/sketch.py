@@ -288,7 +288,12 @@ class WorldGeneratorSketch(WithPedestrians):
         self.warnings = []
         cells = self._cells(directives, rows)
         if not cells:
-            raise ValueError('sketch is empty')
+            # A blank grid is a state every edit path can reach, so it still has to make a
+            # world: one full cell at the origin, where the caret starts.
+            rows = rows or ['']
+            anchor: Key = (len(rows) - 1, 0)
+            cells = {anchor: Cell(row=anchor[0], col=anchor[1], arms=alphabet.VOID, symbol=Symbol(fill=True), declares=False)}
+            self.warnings.append(Note(row=anchor[0], col=anchor[1], text='sketch is empty, drew one full cell'))
         # The drawing sits on the cells it occupies, so moving the caret off it cannot move the
         # world. The frame shifts by the rows and columns left over instead, which keeps cell
         # (rows - 1, 0) on its own origin whatever blank space surrounds the ink.
@@ -298,14 +303,20 @@ class WorldGeneratorSketch(WithPedestrians):
             origin=(-left * self.config.cell, -(len(rows) - drawn) * self.config.cell),
             pitch=self.config.cell,
             rows=len(rows),
-            cols=max(len(row) for row in rows),
+            cols=max(1, *(len(row) for row in rows)),
         )
 
         links = self._links(cells)
         centres = {key: self._centre(cell, drawn, left) for key, cell in cells.items()}
+        # A full arm's box already reaches every corner of its cell, so a diagonal quad or diamond
+        # of that width could only jut past it. Full cells meet diagonally through their neighbours.
         widths = {
-            key: {direction: links[key, direction] for direction in alphabet.DIRECTIONS if (key, direction) in links}
-            for key in cells
+            key: {
+                direction: links[key, direction]
+                for index, direction in enumerate(alphabet.DIRECTIONS)
+                if (key, direction) in links and not (index % 2 == 1 and cell.arms[index] == alphabet.FULL)
+            }
+            for key, cell in cells.items()
         }
         footprints = {key: self._footprint(cells[key], centres[key], widths[key]) for key in cells}
 

@@ -77,6 +77,7 @@ protected:
     QPushButton* generate_button_;
     QPushButton* refresh_button_;
     QCheckBox*   source_toggle_{nullptr};
+    QPushButton* clear_button_{nullptr};
     QLabel*      status_label_;
     SketchCanvas* preview_canvas_{nullptr};
     QLabel*      preview_diag_label_;

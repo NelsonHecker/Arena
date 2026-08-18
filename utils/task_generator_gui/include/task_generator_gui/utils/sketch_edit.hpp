@@ -44,6 +44,10 @@ public:
     // What is drawn right now, for a view that paints it without waiting for a render.
     Ink ink() const;
 
+public Q_SLOTS:
+    // Empty the grid and its legend. Directives stay: they configure, they do not draw.
+    void clearSketch();
+
 Q_SIGNALS:
     void sketchEdited();
     void statusChanged(const QString& text);

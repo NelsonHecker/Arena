@@ -25,6 +25,7 @@ constexpr int kDeltaCol[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 const char* kWeightNames[5] = {"none", "light", "heavy", "double", "full"};
 
 const Arms kVoid{0, 0, 0, 0, 0, 0, 0, 0};
+const Arms kFull{4, 4, 4, 4, 4, 4, 4, 4};
 
 // Grid rows are the lines after the leading '!' directive block.
 int firstGridRow(const QTextDocument* doc)
@@ -279,6 +280,20 @@ void SketchEdit::setSketch(const QString& text)
     whole.insertText(text);
     caret_ = {0, 0};
     readLegend();
+}
+
+void SketchEdit::clearSketch()
+{
+    QTextCursor whole(document());
+    whole.select(QTextCursor::Document);
+    whole.removeSelectedText();
+    legend_.clear();
+    legend_lines_.clear();
+    writeLegend();
+    caret_ = {0, 0};
+    trim();
+    Q_EMIT sketchEdited();
+    reportStatus();
 }
 
 Ink SketchEdit::ink() const
@@ -759,6 +774,13 @@ bool SketchEdit::trim()
     const Cursor at = cell();
     if (bottom < 0)
     {
+        // An inkless grid has no cell to stand on, so the caret's cell becomes the world's one
+        // full cell. Every route to blank ends here: delete, paste, clear.
+        if (const QString* full = glyphFor(kFull); full != nullptr)
+        {
+            writeText(at, *full);
+            return trim();
+        }
         top  = bottom = at.row;
         left = right = at.col;
     }
