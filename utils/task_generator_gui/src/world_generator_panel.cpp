@@ -106,6 +106,18 @@ void WorldGeneratorPanel::load(const rviz_common::Config& config)
     reset_episode_client_ = node->create_client<task_generator_msgs::srv::ResetEpisode>(
         task_generator_node + "/lifecycle/reset_episode");
 
+    resetting_sub_ = node->create_subscription<std_msgs::msg::Bool>(
+        task_generator_node + "/state/resetting",
+        rclcpp::QoS(1).transient_local(),
+        [this](std_msgs::msg::Bool::SharedPtr msg)
+        {
+            QMetaObject::invokeMethod(this, [this, resetting = msg->data]()
+            {
+                resetting_ = resetting;
+                updateButtons();
+            }, Qt::QueuedConnection);
+        });
+
     alphabet_sub_ = node->create_subscription<world_generator_msgs::msg::Alphabet>(
         world_generator_node + "/alphabet",
         rclcpp::QoS(1).transient_local(),
@@ -492,11 +504,11 @@ void WorldGeneratorPanel::setupUi()
                 this, &WorldGeneratorPanel::onSaveClicked);
         layout->addWidget(save_button_);
         generate_button_ = new QPushButton("+Deploy");
-        generate_button_->setToolTip("Save, then stage it into the task generator and reset the episode into it");
         connect(generate_button_, &QPushButton::clicked,
                 this, &WorldGeneratorPanel::onGenerateClicked);
         layout->addWidget(generate_button_);
         root->addWidget(row);
+        updateButtons();
     }
 
     status_label_ = new QLabel();
@@ -528,8 +540,15 @@ void WorldGeneratorPanel::onGenerateClicked()
 void WorldGeneratorPanel::setBusy(bool busy)
 {
     busy_ = busy;
+    updateButtons();
+}
+
+void WorldGeneratorPanel::updateButtons()
+{
     save_button_->setEnabled(!busy_);
-    generate_button_->setEnabled(!busy_);
+    generate_button_->setEnabled(!busy_ && !resetting_);
+    generate_button_->setToolTip(resetting_ ? "Task generator is resetting"
+                                            : "Save, then stage it into the task generator and reset the episode into it");
 }
 
 void WorldGeneratorPanel::generateWorld(bool load)

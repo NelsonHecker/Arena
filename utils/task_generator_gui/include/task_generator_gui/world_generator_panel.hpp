@@ -7,6 +7,7 @@
 #include <rviz_common/panel.hpp>
 #include <rviz_common/ros_integration/ros_node_abstraction_iface.hpp>
 
+#include "std_msgs/msg/bool.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "task_generator_msgs/srv/queue_episode.hpp"
 #include "task_generator_msgs/srv/reset_episode.hpp"
@@ -68,6 +69,7 @@ protected:
     rclcpp::Client<task_generator_msgs::srv::QueueEpisode>::SharedPtr queue_episode_client_;
     rclcpp::Client<task_generator_msgs::srv::ResetEpisode>::SharedPtr reset_episode_client_;
     rclcpp::Subscription<world_generator_msgs::msg::Alphabet>::SharedPtr alphabet_sub_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr resetting_sub_;
     rclcpp::TimerBase::SharedPtr algorithms_timer_;
 
     QComboBox*   algorithm_combobox_;
@@ -75,6 +77,7 @@ protected:
     QSpinBox*    seed_spin_;
     QTreeWidget* param_tree_;
     bool         busy_{false};
+    bool         resetting_{false};
     QPushButton* save_button_;
     QPushButton* generate_button_;
     QPushButton* refresh_button_;
@@ -109,6 +112,8 @@ protected:
     // Save the world from the widgets. With load, also stage it and reset the episode into it.
     void generateWorld(bool load);
     void setBusy(bool busy);
+    // Save waits on our own round trip only. Deploy also waits for the task generator to be idle.
+    void updateButtons();
 
 private Q_SLOTS:
     void onAlgorithmChanged(const QString& text);
