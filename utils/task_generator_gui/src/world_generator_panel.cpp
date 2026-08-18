@@ -482,10 +482,22 @@ void WorldGeneratorPanel::setupUi()
             this, &WorldGeneratorPanel::onRefreshClicked);
     root->addWidget(refresh_button_);
 
-    generate_button_ = new QPushButton("Generate");
-    connect(generate_button_, &QPushButton::clicked,
-            this, &WorldGeneratorPanel::onGenerateClicked);
-    root->addWidget(generate_button_);
+    {
+        auto* row    = new QWidget();
+        auto* layout = new QHBoxLayout(row);
+        layout->setContentsMargins(0, 0, 0, 0);
+        save_button_ = new QPushButton("Save");
+        save_button_->setToolTip("Write the world to disk");
+        connect(save_button_, &QPushButton::clicked,
+                this, &WorldGeneratorPanel::onSaveClicked);
+        layout->addWidget(save_button_);
+        generate_button_ = new QPushButton("+Deploy");
+        generate_button_->setToolTip("Save, then stage it into the task generator and reset the episode into it");
+        connect(generate_button_, &QPushButton::clicked,
+                this, &WorldGeneratorPanel::onGenerateClicked);
+        layout->addWidget(generate_button_);
+        root->addWidget(row);
+    }
 
     status_label_ = new QLabel();
     status_label_->setWordWrap(true);
@@ -503,7 +515,24 @@ void WorldGeneratorPanel::onRefreshClicked()
     requestPreview();
 }
 
+void WorldGeneratorPanel::onSaveClicked()
+{
+    generateWorld(false);
+}
+
 void WorldGeneratorPanel::onGenerateClicked()
+{
+    generateWorld(true);
+}
+
+void WorldGeneratorPanel::setBusy(bool busy)
+{
+    busy_ = busy;
+    save_button_->setEnabled(!busy_);
+    generate_button_->setEnabled(!busy_);
+}
+
+void WorldGeneratorPanel::generateWorld(bool load)
 {
     const std::string algo   = algorithm_combobox_->currentText().toStdString();
     const std::string target = world_name_edit_->text().toStdString();
@@ -514,7 +543,7 @@ void WorldGeneratorPanel::onGenerateClicked()
         return;
     }
 
-    generate_button_->setEnabled(false);
+    setBusy(true);
     status_label_->setText("Setting parameters...");
 
     auto leaves = DynamicParamTree::collectParams(param_widgets_, param_types_);
@@ -532,9 +561,19 @@ void WorldGeneratorPanel::onGenerateClicked()
     params.emplace_back("world",     target);
     params.emplace_back("seed",      static_cast<int64_t>(seed_spin_->value()));
 
+    // Every exit below lands here, on the Qt thread.
+    auto finish = [this](std::string msg)
+    {
+        QMetaObject::invokeMethod(this, [this, msg = std::move(msg)]()
+        {
+            if (!msg.empty()) status_label_->setText(QString::fromStdString(msg));
+            setBusy(false);
+        }, Qt::QueuedConnection);
+    };
+
     params_client_->set_parameters(
         params,
-        [this, target](
+        [this, target, load, finish](
             std::shared_future<std::vector<rcl_interfaces::msg::SetParametersResult>> future)
         {
             auto results = future.get();
@@ -542,12 +581,7 @@ void WorldGeneratorPanel::onGenerateClicked()
             {
                 if (!r.successful)
                 {
-                    const std::string msg = "Set parameter failed: " + r.reason;
-                    QMetaObject::invokeMethod(this, [this, msg]()
-                    {
-                        status_label_->setText(QString::fromStdString(msg));
-                        generate_button_->setEnabled(true);
-                    }, Qt::QueuedConnection);
+                    finish("Set parameter failed: " + r.reason);
                     return;
                 }
             }
@@ -562,25 +596,26 @@ void WorldGeneratorPanel::onGenerateClicked()
             req->world        = target;
             generate_world_client_->async_send_request(
                 req,
-                [this, target](rclcpp::Client<world_generator_msgs::srv::GenerateWorld>::SharedFuture f)
+                [this, target, load, finish](rclcpp::Client<world_generator_msgs::srv::GenerateWorld>::SharedFuture f)
                 {
                     auto resp = f.get();
                     if (!resp || !resp->success)
                     {
-                        const std::string msg = resp ? resp->message : "No response from generate_world.";
-                        QMetaObject::invokeMethod(this, [this, msg]()
-                        {
-                            status_label_->setText(QString::fromStdString(msg));
-                            generate_button_->setEnabled(true);
-                        }, Qt::QueuedConnection);
+                        finish(resp ? resp->message : "No response from generate_world.");
                         return;
                     }
 
-                    const std::string ok_msg  = "World '" + target + "' generated!";
+                    if (!load)
+                    {
+                        finish("World '" + target + "' saved.");
+                        return;
+                    }
+
+                    const std::string ok_msg  = "World '" + target + "' saved, deploying...";
                     const std::string binding = resp->episode_binding;
                     // Everything below touches the panel, so it belongs on the Qt thread with the
                     // rest of the callbacks, not on the executor thread this arrived on.
-                    QMetaObject::invokeMethod(this, [this, target, ok_msg, binding]()
+                    QMetaObject::invokeMethod(this, [this, target, ok_msg, binding, finish]()
                     {
                     status_label_->setText(QString::fromStdString(ok_msg));
 
@@ -594,13 +629,13 @@ void WorldGeneratorPanel::onGenerateClicked()
 
                     queue_episode_client_->async_send_request(
                         qreq,
-                        [this, target](rclcpp::Client<task_generator_msgs::srv::QueueEpisode>::SharedFuture qf)
+                        [this, target, finish](rclcpp::Client<task_generator_msgs::srv::QueueEpisode>::SharedFuture qf)
                         {
                             auto qresp = qf.get();
                             if (!qresp || !qresp->success)
                             {
                                 RCLCPP_WARN(node->get_logger(), "staging generated world into task generator failed");
-                                QMetaObject::invokeMethod(this, [this]() { generate_button_->setEnabled(true); }, Qt::QueuedConnection);
+                                finish("");
                                 return;
                             }
 
@@ -609,13 +644,12 @@ void WorldGeneratorPanel::onGenerateClicked()
                             rreq->world = target;
                             reset_episode_client_->async_send_request(
                                 rreq,
-                                [this](rclcpp::Client<task_generator_msgs::srv::ResetEpisode>::SharedFuture rf)
+                                [this, finish](rclcpp::Client<task_generator_msgs::srv::ResetEpisode>::SharedFuture rf)
                                 {
                                     auto rresp = rf.get();
                                     if (!rresp || !rresp->success)
                                         RCLCPP_WARN(node->get_logger(), "applying generated world (reset_episode) failed");
-
-                                    QMetaObject::invokeMethod(this, [this]() { generate_button_->setEnabled(true); }, Qt::QueuedConnection);
+                                    finish("");
                                 });
                         });
                     }, Qt::QueuedConnection);

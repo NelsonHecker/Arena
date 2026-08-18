@@ -74,6 +74,8 @@ protected:
     QLineEdit*   world_name_edit_;
     QSpinBox*    seed_spin_;
     QTreeWidget* param_tree_;
+    bool         busy_{false};
+    QPushButton* save_button_;
     QPushButton* generate_button_;
     QPushButton* refresh_button_;
     QCheckBox*   source_toggle_{nullptr};
@@ -104,9 +106,13 @@ protected:
     void applyAlphabetToSketch();
     // The canvas is the drawing surface. The source row is for pasting and hand-written legends.
     void showSketchSource(bool shown);
+    // Save the world from the widgets. With load, also stage it and reset the episode into it.
+    void generateWorld(bool load);
+    void setBusy(bool busy);
 
 private Q_SLOTS:
     void onAlgorithmChanged(const QString& text);
+    void onSaveClicked();
     void onGenerateClicked();
     void onRefreshClicked();
 };
