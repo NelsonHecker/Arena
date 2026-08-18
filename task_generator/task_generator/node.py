@@ -39,7 +39,7 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.lifecycle import TransitionCallbackReturn
 from rclpy.parameter import Parameter
-from std_msgs.msg import Int16, String
+from std_msgs.msg import Bool, Int16, String
 from task_generator_msgs.msg import AdapterDisplay, AdapterEntry, AdapterVizManifest
 
 from task_generator.constants import Constants
@@ -233,6 +233,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             self.service_namespace("state", "world"),
             _LATCHED,
         )
+
+        self._pub_state_resetting = self.create_publisher(
+            Bool,
+            self.service_namespace("state", "resetting"),
+            _LATCHED,
+        )
+        self._pub_state_resetting.publish(Bool(data=False))
 
         self._pub_state_episode = self.create_publisher(
             task_generator_msgs.msg.EpisodeRecord,
@@ -1154,6 +1161,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         async with self._reset_lock:
             self._start_time = self.sim_time
             self.get_logger().info("resetting")
+            self._pub_state_resetting.publish(Bool(data=True))
 
             record = self._episodes.current
             await self.hold("reset")
@@ -1163,6 +1171,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 await self._task.reset(world=record.world, seed=record.seed)
             finally:
                 await self.release("reset")
+                self._pub_state_resetting.publish(Bool(data=False))
             record.robots = [m.model_name for m in self._robots_manager.managers.values()]
 
             self._pub_task_reset.publish(Int16(data=record.episode_id - 1))
