@@ -111,7 +111,7 @@ def pull_main(argv: list[str]) -> int:
         print("don't forget to rebuild!")
         print("\033[0m")
 
-        return 1 if skipped else 0
+        return 0
     finally:
         os.chdir(prev_cwd)
 

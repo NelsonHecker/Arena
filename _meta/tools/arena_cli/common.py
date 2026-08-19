@@ -124,10 +124,13 @@ def _reg_remove(name: str) -> None:
 
 
 def _reg_pull(name: str) -> int:
+    import subprocess
+
     repos = os.path.join(_env("ARENA_DIR"), "_meta", "repos", f"{name}.repos")
     if not os.path.isfile(repos):
         return 0
-    rc = _run("vcs", "import", "--input", repos, "--shallow", "--recursive", "--ff", "--add-existing", os.path.join(_env("ARENA_WS_DIR"), "src"))
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    rc = subprocess.run(["vcs", "import", "--input", repos, "--shallow", "--recursive", "--ff", "--add-existing", os.path.join(_env("ARENA_WS_DIR"), "src")], env=env, check=False).returncode
     if rc:
         print(f"failed to pull all {name} repos, ignoring", file=sys.stderr)
     return rc
