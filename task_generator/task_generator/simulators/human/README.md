@@ -133,7 +133,6 @@ with the simulator that will animate the resulting agents.
 | Key | Class | File | Notes |
 | --- | --- | --- | --- |
 | `dummy` | `DummyHumanSimulator` | [`dummy.py`](dummy.py) | no-op stubs; used in test/offline contexts |
-| `isaac` | `IsaacHumanSimulator` | [`isaac.py`](isaac.py) | Isaac Sim pedestrian integration |
 | `arena` | `ArenaHumanSimulator` | [`arena_humansim/arena_humansim.py`](arena_humansim/arena_humansim.py) | integrates with the arena_humansim pedestrian simulator (subsystem mode) |
 
 ## arena_humansim agent types
