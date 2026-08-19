@@ -433,8 +433,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     async def teardown(self) -> None:
         self._heartbeat_timer.cancel()
-        if self._tick_loop_task is not None and not self._tick_loop_task.done():
-            self._tick_loop_task.cancel()
+        for t in (self._tick_loop_task, self._check_status_task, self._episode_task):
+            if t is not None and not t.done():
+                t.cancel()
         if self._task is not None:
             await self._task.teardown()
         if self._robots_manager is not None:
