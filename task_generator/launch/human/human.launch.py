@@ -195,7 +195,6 @@ def generate_launch_description():
             ]),
             launch_arguments={
                 'use_sim_time': 'true',
-                'world_file': '',
                 **namespace.dict
             }.items(),
         )
