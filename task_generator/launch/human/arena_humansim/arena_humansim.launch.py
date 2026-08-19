@@ -7,6 +7,7 @@ from arena_bringup.actions import IsolatedIncludeLaunchDescription
 
 def generate_launch_description():
     namespace = launch.substitutions.LaunchConfiguration('namespace', default='')
+    markers = launch.substitutions.LaunchConfiguration('humansim.markers', default='2')
 
     return launch.LaunchDescription([
         IsolatedIncludeLaunchDescription(
@@ -17,10 +18,8 @@ def generate_launch_description():
             args={
                 'mode': 'subsystem',
                 'use_sim_time': 'true',
-                'markers': '2',
-                # arena's env rviz is the canonical viewer; markers!=0 would
-                # otherwise auto-start a second, unnamespaced rviz instance
                 'rviz': 'false',
+                'markers': markers,
                 'namespace': namespace,
             },
         ),
