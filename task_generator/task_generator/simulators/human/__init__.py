@@ -878,6 +878,15 @@ async def isaacsim(**kwargs: object) -> BaseHumanSimulator:
     return IsaacHumanSimulator(**kwargs)
 
 
+@HumanSimulatorRegistry.register(Constants.HumanSimulator.HUNAV)
+async def lazy_hunavsim(**kwargs: object) -> BaseHumanSimulator:
+    # Imported lazily: hunav_msgs / hunav_sim are optional deps, so registering the
+    # backend must not require them to be installed. Only selecting human:=hunav does.
+    from .hunav.hunav import HunavHumanSimulator
+
+    return await HunavHumanSimulator.create(**kwargs)
+
+
 @HumanSimulatorRegistry.register(Constants.HumanSimulator.ARENA)
 async def arenasim(**kwargs: object) -> BaseHumanSimulator:
     from .arena_humansim.arena_humansim import ArenaHumanSimulator

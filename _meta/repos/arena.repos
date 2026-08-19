@@ -84,6 +84,14 @@ repositories:
     url: https://github.com/SteveMacenski/slam_toolbox.git
     version: jazzy
 
+  deps/hunav/hunav_sim:
+    type: git
+    url: https://github.com/voshch/hunav_sim.git
+    version: jazzy
+  deps/hunav/arena_hunav_sim_bridge:
+    type: git
+    url: https://github.com/ductaingn/arena_hunav_sim_bridge.git
+    version: humble
   # people_msgs is consumed by arena_planners (PeopleCollector)
   deps/people_msgs:
     type: git

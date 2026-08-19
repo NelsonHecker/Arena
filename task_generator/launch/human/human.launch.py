@@ -30,6 +30,20 @@ def generate_launch_description():
     )
 
     launch_human_simulator.add(
+        Constants.HumanSimulator.HUNAV.value,
+        launch.actions.IncludeLaunchDescription(
+            PathJoinSubstitution([
+                FindPackageShare('task_generator'),
+                'launch', 'human', 'hunav', 'hunav.launch.py',
+            ]),
+            launch_arguments={
+                'use_sim_time': 'true',
+                **namespace.dict
+            }.items(),
+        )
+    )
+
+    launch_human_simulator.add(
         Constants.HumanSimulator.ARENA.value,
         launch.actions.IncludeLaunchDescription(
             PathJoinSubstitution([

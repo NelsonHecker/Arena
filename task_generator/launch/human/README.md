@@ -36,9 +36,18 @@ explicitly with `human:=<key>`.
 ```
 launch/human/
 ├── human.launch.py        — dispatcher
+├── hunav/
+│   └── hunav.launch.py             — hunav_sim agent manager
 └── arena_humansim/
     └── arena_humansim.launch.py    — arena_humansim node (subsystem mode)
 ```
+
+`hunav` and `arena` are both registered and selectable; they are alternative
+backends, never concurrent — the node resolves exactly one from
+`HumanSimulatorRegistry` per the `human` arg. `hunav` additionally requires the
+optional `hunav_sim` / `arena_hunav_sim_bridge` deps from `arena.repos`; its
+factory imports lazily, so leaving them uninstalled costs nothing until you
+select `human:=hunav`.
 
 ### arena_humansim/arena_humansim.launch.py
 

@@ -16,6 +16,7 @@ class Constants:
         DUMMY = "dummy"
         NONE = "none"
         ISAAC = "isaac"
+        HUNAV = "hunav"
         ARENA = "arena"
 
     class TaskMode:
