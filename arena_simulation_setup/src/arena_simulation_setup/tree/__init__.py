@@ -6,6 +6,7 @@ import itertools
 import logging
 import os
 import subprocess
+import sys
 import threading
 import time
 import typing
@@ -22,6 +23,14 @@ from arena_simulation_setup import (
 from arena_simulation_setup.utils.cattrs import Idempotent, Parseable, Serializable
 
 NETWORK_PROVIDERS: Sequence[str] = os.environ.get('ASSET_BUCKETS', 'default').split(',')
+
+
+async def _subprocess_output(args: Sequence[str], **kwargs: object) -> bytes:
+    process = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, **kwargs)
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
+    return stdout
 
 # Utils
 
@@ -103,6 +112,8 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
     Resolve asset paths from disk.
     """
 
+    _listall_cache: tuple[Path, list[IdentifierT]] | None = None
+
     @property
     @abc.abstractmethod
     def path(self) -> Path: ...
@@ -115,29 +126,80 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
                 return candidate
         return self._cache.get(identifier, None)
 
+    # os.walk's syscalls each drop the GIL, so on a busy node's event loop the walk stretches
+    # from milliseconds to seconds. The async variant enumerates in a child process instead.
+    _WALK_SCRIPT = """import os, sys
+root = sys.argv[1]
+for path, _, files in os.walk(root):
+    sys.stdout.write('\\0'.join([os.path.relpath(path, root), *files]) + '\\n')
+"""
+
+    def _identify(self, relpath: Path, files: Iterable[str]) -> tuple[IdentifierT | None, list[IdentifierT]]:
+        """The directory itself as an asset, else the assets among the files it holds."""
+        try:
+            return self._IdentifierT.from_relpath(relpath), []
+        except Exception:
+            pass
+
+        found: list[IdentifierT] = []
+        for file in files:
+            if file.lower() == 'readme.md':
+                continue
+            try:
+                found.append(self._IdentifierT.from_relpath(relpath / file))
+            except Exception:
+                pass
+        return None, found
+
     def listall(self, **kwargs: object) -> Iterator[IdentifierT]:
         source = self.path
         if not source.is_dir():
             yield from ()
             return
         for root, dirs, files in os.walk(source):
-            relpath = Path(root).relative_to(source)
-            try:
-                yield self._IdentifierT.from_relpath(relpath)
+            asset, found = self._identify(Path(root).relative_to(source), files)
+            if asset is not None:
+                yield asset
                 # don't recurse
                 dirs.clear()
                 continue
-            except Exception:
-                pass
+            yield from found
 
-            for file in files:
-                if file.lower() == 'readme.md':
-                    continue
-                file_relpath = relpath / file
-                try:
-                    yield self._IdentifierT.from_relpath(file_relpath)
-                except Exception:
-                    pass
+    async def listall_async(self, **kwargs: object) -> list[IdentifierT]:
+        source = self.path
+        if self._listall_cache is not None and self._listall_cache[0] == source:
+            return list(self._listall_cache[1])
+        if not source.is_dir():
+            return []
+
+        try:
+            output = await _subprocess_output([sys.executable, '-c', self._WALK_SCRIPT, str(source)])
+        except (OSError, subprocess.CalledProcessError):
+            import traceback
+
+            logging.warning(traceback.format_exc())
+            return list(self.listall(**kwargs))
+
+        result: list[IdentifierT] = []
+        pruned: set[str] = set()
+        for line in output.decode().splitlines():
+            relpath, *files = line.split('\0')
+            rel = Path(relpath)
+            if any(str(parent) in pruned for parent in rel.parents):
+                continue
+            asset, found = self._identify(rel, files)
+            if asset is not None:
+                result.append(asset)
+                pruned.add(relpath)
+                continue
+            result.extend(found)
+
+        self._listall_cache = (source, result)
+        return list(result)
+
+    def invalidate(self):
+        super().invalidate()
+        self._listall_cache = None
 
     def __repr__(self) -> str:
         return f"{super().__repr__()}(path={self.path})"
@@ -198,11 +260,7 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
 
     @classmethod
     async def check_output_async(cls, args: Iterable[str], **kwargs: object) -> bytes:
-        process = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, **kwargs)
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
-        return stdout
+        return await _subprocess_output(list(args), **kwargs)
 
     async def _batch_request(self, relpath: str) -> Path | None:
         loop = asyncio.get_event_loop()
@@ -372,7 +430,7 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
             yield from self._parse_listing(self._listing())
 
     async def listall_async(self, *, network: bool = False, **kwargs: object) -> list[IdentifierT]:
-        result = list(super(SimplePathResolver, self).listall(**kwargs))
+        result = await super(SimplePathResolver, self).listall_async(**kwargs)
         if network:
             result.extend(self._parse_listing(await self._listing_async()))
         return result
