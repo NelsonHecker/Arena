@@ -85,12 +85,41 @@ class TM_Characterization(TM_Robots):
         self._sync_entities()
 
         now = self._sim_now()
+        char_cfg = (
+            kwargs.get("characterization")
+            or (kwargs.get("CONFIG", {}) if isinstance(kwargs.get("CONFIG"), dict) else {}).get("characterization")
+            or {}
+        )
+        if not isinstance(char_cfg, dict):
+            char_cfg = {}
+
         for manager in self._ctx.robots.values():
             envelope = resolve_envelope(manager.model_name)
-            schedule = build_schedule(vx_max=envelope["vx_max"], wz_max=envelope["wz_max"])
+            schedule = build_schedule(
+                modes=char_cfg.get("modes"),
+                idle_s=float(char_cfg.get("idle_s", 10.0)),
+                linear_dwell_s=float(char_cfg.get("linear_dwell_s", 5.0)),
+                linear_settle_s=float(char_cfg.get("linear_settle_s", 1.0)),
+                lateral_dwell_s=float(char_cfg.get("lateral_dwell_s", 5.0)),
+                angular_dwell_s=float(char_cfg.get("angular_dwell_s", 5.0)),
+                arc_dwell_s=float(char_cfg.get("arc_dwell_s", 5.0)),
+                arc_speeds=char_cfg.get("arc_speeds"),
+                arc_radii_m=char_cfg.get("arc_radii_m"),
+                ramp_horizon_s=float(char_cfg.get("ramp_horizon_s", 1.0)),
+                ramp_settle_s=float(char_cfg.get("ramp_settle_s", 1.0)),
+                brake_dwell_s=float(char_cfg.get("brake_dwell_s", 3.0)),
+                vx_max=float(char_cfg.get("vx_max", envelope["vx_max"])),
+                vy_max=float(char_cfg.get("vy_max", envelope["vy_max"])),
+                wz_max=float(char_cfg.get("wz_max", envelope["wz_max"])),
+                is_holonomic=bool(char_cfg.get("is_holonomic", envelope["is_holonomic"])),
+            )
             self._runs[manager.name] = _Run(schedule=schedule, phase_start=now)
             self._last_odom[manager.name] = now
-            self._logger.info(f"TM_Characterization: {manager.name} (model={manager.model_name}) {len(schedule)} phases, {schedule_duration(schedule):.0f}s (vx up to {envelope['vx_max']:.2f} m/s, wz up to {envelope['wz_max']:.2f} rad/s)")
+            self._logger.info(
+                f"TM_Characterization: {manager.name} (model={manager.model_name}) "
+                f"{len(schedule)} phases, {schedule_duration(schedule):.0f}s "
+                f"(vx<={float(envelope['vx_max']):.2f}, vy<={float(envelope['vy_max']):.2f}, wz<={float(envelope['wz_max']):.2f}, holonomic={envelope['is_holonomic']})"
+            )
 
         if self._runs:
             self._driver = asyncio.create_task(self._drive())
@@ -230,16 +259,28 @@ class TM_Characterization(TM_Robots):
 
     def _target_twist(self, phase: Phase, elapsed_s: float) -> Twist:
         twist = Twist()
-        if phase.kind.value == "angular":
+        kind = phase.kind.value
+        if kind == "angular":
             twist.angular.z = phase.wz_target
+        elif kind == "lateral":
+            twist.linear.y = phase.vy_target
+        elif kind == "arc":
+            twist.linear.x = phase.vx_target
+            twist.angular.z = phase.wz_target
+        elif kind == "brake":
+            twist.linear.x = 0.0
+            twist.linear.y = 0.0
+            twist.angular.z = 0.0
         elif phase.ramp_s > 0.0:
             frac = min(max(elapsed_s / phase.ramp_s, 0.0), 1.0)
-            if phase.kind.value == "ramp_down":
+            if kind == "ramp_down":
                 twist.linear.x = phase.vx_target * (1.0 - frac)
             else:
                 twist.linear.x = phase.vx_target * frac
         else:
             twist.linear.x = phase.vx_target
+            twist.linear.y = phase.vy_target
+            twist.angular.z = phase.wz_target
         return twist
 
     async def set_goal(self, pose: Pose):
