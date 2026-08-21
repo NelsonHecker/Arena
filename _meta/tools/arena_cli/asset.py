@@ -1,50 +1,78 @@
-"""Inspect and move resolvable arena data: objects, humans, materials, walls, worlds."""
+"""Inspect and move resolvable arena data. KINDS below is the list of what is movable."""
 
 from __future__ import annotations
 
+import dataclasses
+import importlib
 import sys
 
 from common import CLIError, make_verb
 from complete import Manifest, Nothing, Static, Sub, Union
 
+_TREE = "arena_simulation_setup.tree"
+_BENCH = "arena_evaluation.benchmark.tree"
+
+
+@dataclasses.dataclass(frozen=True)
+class Kind:
+    """One resolvable data kind: which identifier answers for it, and how it publishes."""
+
+    description: str
+    module: str
+    identifier: str
+    providers: str  # bucket-list symbol on arena_simulation_setup.tree
+    parse: bool = False  # built via .parse() rather than the constructor
+    bundle: bool = False  # resolves to a yaml, so publishing wraps it into a directory
+    closure: str | None = None  # key into _PREFLIGHTS, checked before publishing
+    repo_subdir: str | None = None  # ships in the repo under ASS_DIR/<subdir>
+    complete_key: str | None = None  # shell-completion manifest key
+
+
 KINDS = {
-    "object": "3D object models",
-    "human": "human models",
-    "material": "surface materials",
-    "wall": "wall kinds",
-    "world": "worlds",
+    "object": Kind("3D object models", f"{_TREE}.assets.Object", "ObjectIdentifier", "NETWORK_PROVIDERS", parse=True),
+    "human": Kind("human models", f"{_TREE}.assets.Human", "HumanIdentifier", "NETWORK_PROVIDERS", parse=True),
+    "material": Kind("surface materials", f"{_TREE}.assets.Material", "MaterialIdentifier", "NETWORK_PROVIDERS", parse=True),
+    "wall": Kind("wall kinds", f"{_TREE}.Wall", "WallIdentifier", "NETWORK_PROVIDERS", parse=True),
+    "world": Kind("worlds", f"{_TREE}.World", "WorldIdentifier", "WORLD_PROVIDERS", closure="world", repo_subdir="worlds", complete_key="world"),
+    "suite": Kind("benchmark suites", _BENCH, "SuiteIdentifier", "BENCHMARK_PROVIDERS", bundle=True, closure="suite"),
+    "contest": Kind("benchmark contests", _BENCH, "ContestIdentifier", "BENCHMARK_PROVIDERS", bundle=True),
+    "manifest": Kind("report manifests", _BENCH, "ManifestIdentifier", "BENCHMARK_PROVIDERS", bundle=True),
 }
 
-_VERDICT_LABEL = {"hit": "HIT", "miss": "miss", "shadowed": "shadowed"}
+_VALUED_FLAGS = ("--bucket",)
 
 
-def _identifier(kind: str, name: str):
-    """Resolve a kind name to a constructed identifier. Imports ROS-side packages lazily."""
-    if kind == "world":
-        from arena_simulation_setup.tree.World import WorldIdentifier
+def _positionals(argv: list[str]) -> list[str]:
+    """Bare arguments. Skips flags, and the value a valued flag consumes, so that
+    `--bucket B` ahead of the positionals is not read as the kind."""
+    out: list[str] = []
+    skip = False
+    for arg in argv:
+        if skip:
+            skip = False
+        elif arg in _VALUED_FLAGS:
+            skip = True
+        elif not arg.startswith("-"):
+            out.append(arg)
+    return out
 
-        return WorldIdentifier(name)
-    if kind == "object":
-        from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 
-        return ObjectIdentifier.parse(name)
-    if kind == "human":
-        from arena_simulation_setup.tree.assets.Human import HumanIdentifier
-
-        return HumanIdentifier.parse(name)
-    if kind == "material":
-        from arena_simulation_setup.tree.assets.Material import MaterialIdentifier
-
-        return MaterialIdentifier.parse(name)
-    if kind == "wall":
-        from arena_simulation_setup.tree.Wall import WallIdentifier
-
-        return WallIdentifier.parse(name)
-    raise CLIError(f"unknown kind {kind!r}, expected one of {', '.join(sorted(KINDS))}")
+def _kind(kind: str) -> Kind:
+    try:
+        return KINDS[kind]
+    except KeyError:
+        raise CLIError(f"unknown kind {kind!r}, expected one of {', '.join(sorted(KINDS))}") from None
 
 
 def _identifier_type(kind: str):
-    return type(_identifier(kind, "_"))
+    """The identifier class for one kind. Imports the ROS-side package lazily."""
+    spec = _kind(kind)
+    return getattr(importlib.import_module(spec.module), spec.identifier)
+
+
+def _identifier(kind: str, name: str):
+    identifier_t = _identifier_type(kind)
+    return identifier_t.parse(name) if _kind(kind).parse else identifier_t(name)
 
 
 def find_main(argv: list[str]) -> int:
@@ -53,11 +81,14 @@ def find_main(argv: list[str]) -> int:
     `arena asset find <kind> <name> [--json]`.
     """
     as_json = "--json" in argv
-    args = [a for a in argv if not a.startswith("-")]
+    args = _positionals(argv)
     if len(args) != 2:
         raise CLIError("find takes KIND and NAME")
     kind, name = args
 
+    from arena_simulation_setup.tree import Verdict
+
+    labels = {Verdict.HIT: "HIT", Verdict.MISS: "miss", Verdict.SHADOWED: "shadowed"}
     verdicts = _identifier(kind, name).probe_sync()
 
     if as_json:
@@ -77,10 +108,10 @@ def find_main(argv: list[str]) -> int:
     print(f"{kind} {name}")
     width = len(str(len(verdicts)))
     for n, verdict in enumerate(verdicts, start=1):
-        label = _VERDICT_LABEL[verdict.verdict.value]
+        label = labels[verdict.verdict]
         suffix = f"  {verdict.path}" if verdict.path is not None else ""
         print(f"  {n:>{width}d}  {repr(verdict.resolver):<64s} {label}{suffix}")
-    if not any(v.verdict.value == "hit" for v in verdicts):
+    if not any(v.verdict is Verdict.HIT for v in verdicts):
         return 1
     return 0
 
@@ -92,7 +123,7 @@ def ls_main(argv: list[str]) -> int:
     listed too and names that a local copy shadows are marked.
     """
     network = "--network" in argv
-    args = [a for a in argv if not a.startswith("-")]
+    args = _positionals(argv)
     if len(args) != 1:
         raise CLIError("ls takes KIND")
     kind = args[0]
@@ -126,9 +157,9 @@ def ls_main(argv: list[str]) -> int:
 
 
 def _buckets(kind: str) -> list[str]:
-    from arena_simulation_setup.tree import NETWORK_PROVIDERS, WORLD_PROVIDERS
+    from arena_simulation_setup import tree
 
-    return list(WORLD_PROVIDERS if kind == "world" else NETWORK_PROVIDERS)
+    return list(getattr(tree, _kind(kind).providers))
 
 
 def _bucket_of(argv: list[str], kind: str) -> str:
@@ -158,7 +189,7 @@ def pull_main(argv: list[str]) -> int:
 
     `arena asset pull <kind> <name> [--bucket B]`.
     """
-    args = [a for a in argv if not a.startswith("-")]
+    args = _positionals(argv)
     if len(args) < 2:
         raise CLIError("pull takes KIND and NAME")
     kind, name = args[0], args[1]
@@ -167,60 +198,110 @@ def pull_main(argv: list[str]) -> int:
     return _net(bucket, "fetch", str(identifier.relpath()), "-o", str(_cache_root(bucket)))
 
 
-def _preflight(view, kind: str) -> list[str]:
-    """Reference names that would dangle once published: resolvable only from a local-only source."""
-    from arena_simulation_setup.tree import DynamicPaths, DynamicPathResolver, NetResolver, Verdict
-
-    if kind != "world":
-        return []
+def _world_dangling(view, source) -> list[str]:
+    """World references that would dangle once published: resolvable only from a local-only source."""
+    from arena_simulation_setup.tree import DynamicPaths, DynamicPathResolver, NetResolver
 
     # world-local assets only resolve once WORLD points at the world being published
-    DynamicPaths.WORLD.path = view.path
+    DynamicPaths.WORLD.path = source
 
     dangling: list[str] = []
     for identifier in view.identifiers(strict=True):
-        hit = next((v for v in identifier.probe_sync() if v.verdict is Verdict.HIT), None)
-        if hit is None:
+        # only the winning resolver matters here, and resolve_source stops at it rather
+        # than probing every remaining one over the network
+        try:
+            hit = identifier.resolve_source_sync()
+        except FileNotFoundError:
             dangling.append(f"{identifier.shortname} (unresolvable)")
             continue
         if isinstance(hit.resolver, NetResolver):
             continue
-        if isinstance(hit.resolver, DynamicPathResolver) and hit.path.is_relative_to(view.path):
+        if isinstance(hit.resolver, DynamicPathResolver) and hit.path.is_relative_to(source):
             continue
         dangling.append(f"{identifier.shortname} (only at {hit.path})")
     return dangling
 
 
+def _suite_dangling(suite, source) -> list[str]:
+    """Worlds a suite stages that would not resolve for someone else. One bundled under the
+    suite counts, since the runner exports it via ARENA_WORLD_PATH.
+
+    Task modes are deliberately not checked: they are code rather than data shipped with the
+    suite, so the publisher's registry says nothing about the consumer's, and PROMPT is not
+    registered until a human simulator constructs it.
+    """
+    from arena_simulation_setup.tree.World import WorldIdentifier
+
+    dangling: list[str] = []
+    for world in dict.fromkeys(stage.map for stage in suite.stages):
+        if (source / "worlds" / world).is_dir():
+            continue
+        try:
+            WorldIdentifier(world).resolve_source_sync()
+        except FileNotFoundError:
+            dangling.append(f"world {world} (unresolvable)")
+    return dangling
+
+
+_PREFLIGHTS = {"world": _world_dangling, "suite": _suite_dangling}
+
+
+def _config_source(identifier):
+    """Where a bundled kind lives. It resolves to its yaml, so a directory bundle is
+    reported as the directory holding it and a flat config as the file itself."""
+    resolved = identifier.resolve_source_sync().path
+    if resolved.is_file() and resolved.parent.name == identifier.name:
+        return resolved.parent
+    return resolved
+
+
 def push_main(argv: list[str]) -> int:
     """Publish an asset to its bucket.
 
-    `arena asset push <kind> <name> [--bucket B] [--force] [--yes]`. For worlds, every
-    reference is checked first and publishing is refused if any would not resolve for
-    someone else. Other kinds carry no reference closure and are published as-is.
+    `arena asset push <kind> <name> [--bucket B] [--force] [--yes]`. Kinds carrying a
+    closure are checked first, and publishing is refused if any reference would not resolve
+    for someone else. A flat benchmark config is wrapped into the directory bundle the
+    bucket requires.
     """
     import shutil
     import tempfile
+    from pathlib import Path
 
-    args = [a for a in argv if not a.startswith("-")]
+    args = _positionals(argv)
     if len(args) < 2:
         raise CLIError("push takes KIND and NAME")
     kind, name = args[0], args[1]
+    spec = _kind(kind)
     force = "--force" in argv
     bucket = _bucket_of(argv, kind)
 
     identifier = _identifier(kind, name)
-    view = identifier.resolve_sync()
 
-    if kind == "world" and not force:
+    if spec.repo_subdir is not None and not force:
         from arena_simulation_setup import ASS_DIR
 
-        if (ASS_DIR / "worlds" / name).is_dir():
+        if (ASS_DIR / spec.repo_subdir / name).is_dir():
             print(f"{name} ships in the repo, so a published copy would never be read. Use --force to publish anyway.", file=sys.stderr)
             return 1
 
-    dangling = _preflight(view, kind)
+    loaded = identifier.resolve_sync()
+    source = _config_source(identifier) if spec.bundle else loaded.path
+
+    verdict = "publishing anyway" if force else f"refusing to publish {name}"
+    check = _PREFLIGHTS.get(spec.closure)
+    dangling: list[str] = []
+    if check is not None:
+        try:
+            dangling = check(loaded, source)
+        except Exception as exc:
+            # a strict walk raises on a reference it cannot read, and that must never be
+            # mistaken for an asset that simply has no references
+            reason = str(exc).splitlines()[0] or type(exc).__name__
+            print(f"{verdict}: references could not be enumerated ({reason})", file=sys.stderr)
+            if not force:
+                return 1
     if dangling:
-        print(f"refusing to publish {name}: {len(dangling)} reference(s) would not resolve for anyone else", file=sys.stderr)
+        print(f"{verdict}: {len(dangling)} reference(s) would not resolve for anyone else", file=sys.stderr)
         for entry in dangling:
             print(f"  MISS  {entry}", file=sys.stderr)
         if not force:
@@ -233,10 +314,14 @@ def push_main(argv: list[str]) -> int:
             return 1
 
     with tempfile.TemporaryDirectory() as staging:
-        staged = f"{staging}/{name}"
-        # .ttl is cache bookkeeping; publishing it would ship a stale freshness stamp
-        shutil.copytree(view.path, staged, ignore=shutil.ignore_patterns(".ttl"))
-        return _net(bucket, "author", staged, "-d", str(identifier.relpath()))
+        staged = Path(staging) / name
+        if source.is_dir():
+            # .ttl is cache bookkeeping; publishing it would ship a stale freshness stamp
+            shutil.copytree(source, staged, ignore=shutil.ignore_patterns(".ttl"))
+        else:
+            staged.mkdir(parents=True)
+            shutil.copy(source, staged / f"{kind}.yaml")
+        return _net(bucket, "author", str(staged), "-d", str(identifier.relpath()))
 
 
 _SUB = {
@@ -246,12 +331,12 @@ _SUB = {
     "push": push_main,
 }
 
-_KIND_SPEC = Sub({kind: (Manifest("world") if kind == "world" else Nothing()) for kind in KINDS})
+_KIND_SPEC = Sub({kind: (Manifest(spec.complete_key) if spec.complete_key else Nothing()) for kind, spec in KINDS.items()})
 
 COMPLETE = Sub(
     {
         "find": _KIND_SPEC,
-        "ls": Union(Static(KINDS)),
+        "ls": Union(Static({kind: spec.description for kind, spec in KINDS.items()})),
         "pull": _KIND_SPEC,
         "push": _KIND_SPEC,
     }
