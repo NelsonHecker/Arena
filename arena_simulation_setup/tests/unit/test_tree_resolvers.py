@@ -199,11 +199,12 @@ def test_providers_drops_empty_segments():
         del os.environ[var]
 
 
-def test_providers_blank_env_value_yields_empty_list():
+def test_providers_blank_env_value_falls_back_to_default():
+    """The shell exports the override slot blank, which must not read as 'no buckets'."""
     var = '_ARENA_TEST_PROVIDERS_BLANK'
     os.environ[var] = ''
     try:
-        assert providers(var, 'default') == []
+        assert providers(var, 'default') == ['default']
     finally:
         del os.environ[var]
 

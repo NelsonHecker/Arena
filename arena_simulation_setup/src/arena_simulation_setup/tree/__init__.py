@@ -24,8 +24,9 @@ from arena_simulation_setup.utils.cattrs import Idempotent, Parseable, Serializa
 
 
 def providers(env: str, default: str) -> Sequence[str]:
-    """Bucket list for one asset family, from *env* or *default*."""
-    return [p for p in os.environ.get(env, default).split(',') if p]
+    """Bucket list for one asset family, from *env* or *default*. Empty falls back too,
+    so the shell can export the override slot without restating the bucket name."""
+    return [p for p in (os.environ.get(env) or default).split(',') if p]
 
 
 NETWORK_PROVIDERS: Sequence[str] = providers('ASSET_BUCKETS', 'default')
