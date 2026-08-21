@@ -420,7 +420,8 @@ analysis. The current bundled assets contain precomputed values.
 
 Docker playback uses the host PulseAudio/PipeWire compatibility socket. The
 image installs `libasound2-plugins`, Compose forwards the socket as
-`/tmp/pulse/native`, and the launch selects the `pulse` device. This avoids
+`/tmp/pulse/native`, and `auditory.playback:=auto` prefers the `pulse` device
+(then `pipewire`, `default`, and the PortAudio default). This avoids
 opening raw `hw:0,0`, which is exclusive and unavailable while the host sound
 server owns the analog card. Rebuild/recreate the Arena container after a
 Docker audio configuration change.
