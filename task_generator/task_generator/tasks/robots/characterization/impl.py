@@ -106,6 +106,7 @@ class TM_Characterization(TM_Robots):
                 arc_speeds=char_cfg.get("arc_speeds"),
                 arc_radii_m=char_cfg.get("arc_radii_m"),
                 ramp_horizon_s=float(char_cfg.get("ramp_horizon_s", 1.0)),
+                ramp_horizons=char_cfg.get("ramp_horizons") or char_cfg.get("ramp_horizons_s"),
                 ramp_settle_s=float(char_cfg.get("ramp_settle_s", 1.0)),
                 brake_dwell_s=float(char_cfg.get("brake_dwell_s", 3.0)),
                 vx_max=float(char_cfg.get("vx_max", envelope["vx_max"])),

@@ -161,6 +161,7 @@ def build_schedule(
     arc_speeds: list[float] | None = None,
     arc_radii_m: list[float] | None = None,
     ramp_horizon_s: float = RAMP_HORIZON_S,
+    ramp_horizons: list[float] | None = None,
     ramp_settle_s: float = RAMP_SETTLE_S,
     brake_dwell_s: float = BRAKE_DWELL_S,
     vx_min: float = VX_MIN,
@@ -181,30 +182,34 @@ def build_schedule(
     if "idle" in active_modes:
         phases.append(Phase(PhaseKind.IDLE, "idle_start", duration_s=idle_s))
 
-    # 2. Longitudinal Linear Cruising Sweep
+    # 2. Longitudinal Linear Cruising Sweep (Up to 10m out-and-back)
+    MAX_EXCURSION_M = 10.0  # m, maximum linear excursion from spawn
     if "linear" in active_modes:
         for vx in _steps(vx_step, vx_max, vx_step):
-            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_{vx:.2f}", vx_target=vx, duration_s=linear_dwell_s))
+            dur = max(2.0, min(linear_dwell_s, MAX_EXCURSION_M / max(abs(vx), 0.1)))
+            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_{vx:.2f}", vx_target=vx, duration_s=dur))
             if linear_settle_s > 0:
                 phases.append(Phase(PhaseKind.IDLE, f"linear_settle_{vx:.2f}", duration_s=linear_settle_s))
-            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_-{vx:.2f}", vx_target=-vx, duration_s=linear_dwell_s))
+            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_-{vx:.2f}", vx_target=-vx, duration_s=dur))
             if linear_settle_s > 0:
                 phases.append(Phase(PhaseKind.IDLE, f"linear_settle_-{vx:.2f}", duration_s=linear_settle_s))
 
-    # 3. Lateral Holonomic Cruising Sweep (Omnidirectional / Mecanum)
+    # 3. Lateral Holonomic Cruising Sweep (Omnidirectional / Mecanum, Up to 10m out-and-back)
     if "lateral" in active_modes and is_holonomic and vy_max > 0.0:
         if "idle" in active_modes:
             phases.append(Phase(PhaseKind.IDLE, "idle_lateral_pre", duration_s=max(2.0, idle_s / 2.0)))
         for vy in _steps(vy_step, vy_max, vy_step):
-            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_{vy:.2f}", vy_target=vy, duration_s=lateral_dwell_s))
+            dur = max(2.0, min(lateral_dwell_s, MAX_EXCURSION_M / max(abs(vy), 0.1)))
+            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_{vy:.2f}", vy_target=vy, duration_s=dur))
             if linear_settle_s > 0:
                 phases.append(Phase(PhaseKind.IDLE, f"lateral_settle_{vy:.2f}", duration_s=linear_settle_s))
-            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_-{vy:.2f}", vy_target=-vy, duration_s=lateral_dwell_s))
+            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_-{vy:.2f}", vy_target=-vy, duration_s=dur))
             if linear_settle_s > 0:
                 phases.append(Phase(PhaseKind.IDLE, f"lateral_settle_-{vy:.2f}", duration_s=linear_settle_s))
 
-    # 4. Curvilinear Arc Steering Sweeps
+    # 4. Curvilinear Arc Steering Sweeps (Closed 2pi circular orbits for zero net drift)
     if "arc" in active_modes:
+        import math
         if "idle" in active_modes:
             phases.append(Phase(PhaseKind.IDLE, "idle_arc_pre", duration_s=max(2.0, idle_s / 2.0)))
         speeds = arc_speeds or list(DEFAULT_ARC_SPEEDS)
@@ -218,46 +223,51 @@ def build_schedule(
                 wz = vx / r
                 if wz > wz_max:
                     continue
-                # Left Turn (+wz)
+                # Time for exact 360-degree closed orbit: T = 2*pi*r / vx
+                t_orbit = round(2.0 * math.pi * r / max(vx, 0.1), 2)
+                # Left Turn (+wz, returns to spawn pose)
                 phases.append(
                     Phase(
                         PhaseKind.ARC,
                         f"arc_vx_{vx:.2f}_r_{r:.2f}_left",
                         vx_target=vx,
                         wz_target=wz,
-                        duration_s=arc_dwell_s,
+                        duration_s=t_orbit,
                         radius_m=r,
                     )
                 )
                 if linear_settle_s > 0:
                     phases.append(Phase(PhaseKind.IDLE, f"arc_settle_{vx:.2f}_r_{r:.2f}_left", duration_s=linear_settle_s))
-                # Right Turn (-wz)
+                # Right Turn (-wz, returns to spawn pose)
                 phases.append(
                     Phase(
                         PhaseKind.ARC,
                         f"arc_vx_{vx:.2f}_r_{r:.2f}_right",
                         vx_target=vx,
                         wz_target=-wz,
-                        duration_s=arc_dwell_s,
+                        duration_s=t_orbit,
                         radius_m=r,
                     )
                 )
                 if linear_settle_s > 0:
                     phases.append(Phase(PhaseKind.IDLE, f"arc_settle_{vx:.2f}_r_{r:.2f}_right", duration_s=linear_settle_s))
 
-    # 5. Dynamic Acceleration & Deceleration Ramps
+    # 5. Dynamic Acceleration & Deceleration Ramps (Sweeping multiple acceleration horizons)
     if "ramps" in active_modes:
         if "idle" in active_modes:
             phases.append(Phase(PhaseKind.IDLE, "idle_ramps_pre", duration_s=max(2.0, idle_s / 2.0)))
-        for vx in _steps(vx_step, vx_max, vx_step):
-            phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_{vx:.2f}", vx_target=vx, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
-            if ramp_settle_s > 0:
-                phases.append(Phase(PhaseKind.LINEAR, f"ramp_apex_vx_{vx:.2f}", vx_target=vx, duration_s=ramp_settle_s))
-            phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_{vx:.2f}", vx_target=vx, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
-            phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_-{vx:.2f}", vx_target=-vx, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
-            if ramp_settle_s > 0:
-                phases.append(Phase(PhaseKind.LINEAR, f"ramp_apex_vx_-{vx:.2f}", vx_target=-vx, duration_s=ramp_settle_s))
-            phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_-{vx:.2f}", vx_target=-vx, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
+        horizons = ramp_horizons or [ramp_horizon_s]
+        for h in horizons:
+            suffix = f"_h_{h:.1f}s" if len(horizons) > 1 else ""
+            for vx in _steps(vx_step, vx_max, vx_step):
+                phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_{vx:.2f}{suffix}", vx_target=vx, duration_s=h, ramp_s=h))
+                if ramp_settle_s > 0:
+                    phases.append(Phase(PhaseKind.LINEAR, f"ramp_apex_vx_{vx:.2f}{suffix}", vx_target=vx, duration_s=ramp_settle_s))
+                phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_{vx:.2f}{suffix}", vx_target=vx, duration_s=h, ramp_s=h))
+                phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_-{vx:.2f}{suffix}", vx_target=-vx, duration_s=h, ramp_s=h))
+                if ramp_settle_s > 0:
+                    phases.append(Phase(PhaseKind.LINEAR, f"ramp_apex_vx_-{vx:.2f}{suffix}", vx_target=-vx, duration_s=ramp_settle_s))
+                phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_-{vx:.2f}{suffix}", vx_target=-vx, duration_s=h, ramp_s=h))
 
     # 6. Emergency Braking & Step Deceleration
     if "brake" in active_modes:
