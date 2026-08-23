@@ -255,6 +255,15 @@ def _config_source(identifier):
     return resolved
 
 
+def _drop_listing(kind: str, bucket: str) -> None:
+    """A publish makes the cached bucket listing stale, so the next ls re-fetches it."""
+    from arena_simulation_setup.tree import NetResolver
+
+    for resolver in _identifier_type(kind)._resolvers:
+        if isinstance(resolver, NetResolver) and resolver._provider == bucket:
+            resolver._listing_path.unlink(missing_ok=True)
+
+
 def push_main(argv: list[str]) -> int:
     """Publish an asset to its bucket.
 
@@ -321,7 +330,10 @@ def push_main(argv: list[str]) -> int:
         else:
             staged.mkdir(parents=True)
             shutil.copy(source, staged / f"{kind}.yaml")
-        return _net(bucket, "author", str(staged), "-d", str(identifier.relpath()))
+        result = _net(bucket, "author", str(staged), "-d", str(identifier.relpath()))
+    if result == 0:
+        _drop_listing(kind, bucket)
+    return result
 
 
 _SUB = {
