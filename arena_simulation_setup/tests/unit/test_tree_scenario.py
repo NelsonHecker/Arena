@@ -17,6 +17,7 @@ from arena_simulation_setup.tree.World.Scenario import (
     ScenarioView,
     TimelineEntry,
 )
+from arena_simulation_setup.tree.World.World import LevelDescription
 from arena_simulation_setup.utils.cattrs import converter
 from arena_simulation_setup.utils.geometry import Pose
 
@@ -525,7 +526,56 @@ def test_fire_alarm_reference_scenario_parses():
     if not _FIRE_ALARM_SCENARIO.exists():
         pytest.skip(f"reference scenario not found: {_FIRE_ALARM_SCENARIO}")
     scenario = ScenarioView(_FIRE_ALARM_SCENARIO.parent).load()
-    assert len(scenario.timeline) == 1
-    entry = scenario.timeline[0]
-    assert entry.at == pytest.approx(12.0)
-    assert entry.set == [{"entity": "fire_alarm", "field": "active", "value": "true"}]
+    assert len(scenario.timeline) == 2
+    lock, alarm = scenario.timeline
+    assert lock.at == pytest.approx(0.0)
+    assert lock.set == [{"entity": "door_edge_1_1", "field": "locked", "value": "true"}]
+    assert alarm.at == pytest.approx(12.0)
+    assert alarm.set == [{"entity": "fire_alarm", "field": "active", "value": "true"}]
+
+
+_FIRE_ALARM_WORLD = (
+    Path(__file__).resolve().parents[2]
+    / "worlds"
+    / "three_storied_residential"
+    / "1"
+    / "world.yaml"
+)
+
+
+def test_fire_alarm_reference_regime_wired():
+    """The timeline above only does something if a world actually declares the
+    fire_alarm schedule and wires its `alarm` regime to a gate and a plate.
+    The world is shared by every scenario, so the wiring must be inert without
+    the regime: the gate spawns unlocked (the scenario timeline locks it) and
+    the plate has no contact radius. recall_on is deliberately absent from
+    every elevator: recall is upstream and dormant.
+    """
+    if not _FIRE_ALARM_WORLD.exists():
+        pytest.skip(f"reference world not found: {_FIRE_ALARM_WORLD}")
+    with open(_FIRE_ALARM_WORLD, encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+    level = converter.structure(raw, LevelDescription)
+
+    schedules = {schedule.name: schedule for schedule in level.all_schedules}
+    assert "fire_alarm" in schedules
+    active = next(cfg for cfg in schedules["fire_alarm"].semantics if cfg.name == "active")
+    assert active.params["regime"] == "alarm"
+    assert active.params["windows"] == [], "a non-empty window would assert the regime without the timeline"
+
+    gates = [(door, cfg) for door in level.all_doors for cfg in door.semantics if cfg.params.get("unlock_on") == "alarm"]
+    assert gates, "no gate wired to unlock on the fire_alarm regime"
+    for door, cfg in gates:
+        assert cfg.name == "locked"
+        assert cfg.value is False, f"gate on shared door {door.name!r} must spawn unlocked"
+
+    plates = [(door, cfg) for door in level.all_doors for cfg in door.semantics if cfg.params.get("press_on") == "alarm"]
+    assert plates, "no pressure plate wired to press on the fire_alarm regime"
+    for door, cfg in plates:
+        assert float(cfg.params.get("radius", 0.0)) == 0.0, f"a contact radius on {door.name!r} would bypass the gate"
+        assert cfg.params["drives"] == door.name
+        px, py = (float(v) for v in cfg.params["position"])
+        assert px == pytest.approx((door.start.x + door.end.x) / 2.0)
+        assert py == pytest.approx((door.start.y + door.end.y) / 2.0)
+
+    assert all(elevator.recall_on is None for elevator in level.all_elevators)

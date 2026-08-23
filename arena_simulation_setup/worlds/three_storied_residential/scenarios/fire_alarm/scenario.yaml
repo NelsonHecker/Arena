@@ -1,8 +1,14 @@
-# Timeline reference: flips the fire_alarm schedule's `active` at t=12s, see AUTHORING.md
+# Timeline reference: locks the gate at t=0s (the shared world spawns it unlocked),
+# then flips the fire_alarm schedule's `active` at t=12s, see AUTHORING.md
 static: []
 dynamic: []
 robots: []
 timeline:
+- at: 0.0
+  set:
+  - entity: door_edge_1_1
+    field: locked
+    value: "true"
 - at: 12.0
   set:
   - entity: fire_alarm
