@@ -115,7 +115,7 @@ def generate_launch_description():
     )
     # human/mobile defaults derive from arena's authoritative `sim` (the RegisterEnv
     # response, or the sim arg arena passes for managed envs). Empty here means
-    # "use arena_sim". User can still override by passing e.g. human:=hunav explicitly.
+    # "use arena_sim". User can still override by passing e.g. human:=dummy explicitly.
     human = LaunchArgument(
         name="human",
         default_value="",
@@ -135,7 +135,7 @@ def generate_launch_description():
     auditory_playback = LaunchArgument(
         name="auditory.playback",
         default_value="auto",
-        description="PortAudio output device for workstation playback; auto = system default, none = no playback nodes.",
+        description="PortAudio output device for workstation playback; auto = pulse, pipewire, default, then the PortAudio default, none = no playback nodes.",
     )
     auditory_block_size = LaunchArgument(
         name="auditory.block_size",

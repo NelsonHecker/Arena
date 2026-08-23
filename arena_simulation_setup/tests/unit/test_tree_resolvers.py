@@ -238,21 +238,21 @@ def test_every_identifier_has_a_read_resolver():
     assert not write_only, f'unresolvable, only a write target registered: {write_only}'
 
 
-def test_net_list_argv_scans_sentinels_for_annotated_payloads():
+def test_net_listing_args_scans_sentinels_for_annotated_payloads():
     from arena_simulation_setup.tree import NetResolver
     from arena_simulation_setup.tree.assets.Object import ObjectIdentifier
 
-    argv = NetResolver(ObjectIdentifier, provider='b').list_argv()
+    argv = NetResolver(ObjectIdentifier, provider='b')._listing_args()
     assert argv[-3:] == ['net', 'b', 'list']
     assert '--children' not in argv
 
 
-def test_net_list_argv_uses_children_and_prefix_for_unannotated_payloads():
+def test_net_listing_args_uses_children_and_prefix_for_unannotated_payloads():
     from arena_simulation_setup.tree import NetResolver
     from arena_simulation_setup.tree.World import WorldIdentifier
 
-    worlds = NetResolver(WorldIdentifier, provider='b', annotated=False).list_argv()
+    worlds = NetResolver(WorldIdentifier, provider='b', annotated=False)._listing_args()
     assert worlds[-2:] == ['list', '--children']
 
-    prefixed = NetResolver(WorldIdentifier, provider='b', annotated=False, list_prefix='suites').list_argv()
+    prefixed = NetResolver(WorldIdentifier, provider='b', annotated=False, list_prefix='suites')._listing_args()
     assert prefixed[-3:] == ['list', '--children', 'suites']

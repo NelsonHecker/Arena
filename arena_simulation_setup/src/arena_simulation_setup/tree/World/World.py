@@ -1001,6 +1001,10 @@ class MultiLevelWorldView(PathView):
                     return
                 yield from (cls(entry.name) for entry in os.scandir(scenarios_dir) if entry.is_dir())
 
+            @classmethod
+            async def listall_async(cls, **kwargs: object) -> list[Self]:
+                return list(cls.listall(**kwargs))
+
             def load(self, path: Path, /, **kwargs: object) -> ScenarioView:
                 del kwargs
                 return ScenarioView(path)

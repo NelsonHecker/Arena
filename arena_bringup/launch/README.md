@@ -27,7 +27,7 @@ Old flat names (`tm_robots`, `mobile`, `env_n`, ...) still work with a warning, 
 | `sim` | string | `gazebo` | Physics simulator: `dummy`, `gazebo`, or `isaac`. `dummy` must be explicit. Standalone `arena env` may omit it (adopts the runtime's sim); if given explicitly it must match the running runtime. |
 | `headless` | bool string | `False` | `true` = hide sim GUI (server-only). `arena launch` also suppresses rviz unless `rviz:=true` is explicit. |
 | `viz` | bool string | `true` | `arena launch` only: run `arena viz --all` after envs are up. Forced `false` when `headless:=true` unless overridden. |
-| `human` | string | `dummy` for `dummy` sim, `arena` for `gazebo`/`isaac` | Human-simulator backend (`none` suppresses it) |
+| `human` | string | `dummy` for `dummy` sim, `arena` (arena_humansim) for `gazebo`/`isaac` | Human-simulator backend |
 | `complexity` | string | `1` | `1` map+position known; `2` map known AMCL; `3` SLAM |
 | `record.dir` | string | `` (empty) | Directory for data recording; empty disables |
 | `record.auto` | bool string | `true` | `false` = do not auto-start the recorder even when `record.dir` is set (the benchmark runner starts its own) |
@@ -41,7 +41,7 @@ Old flat names (`tm_robots`, `mobile`, `env_n`, ...) still work with a warning, 
 | `task.fail_on_collision` | bool string | `false` | Abort the episode as FAILED on robot footprint contact |
 | `world` | string | `map_empty` | World name; resolved under `arena_simulation_setup/worlds/` |
 | `auditory` | `none` \| `arena` | `none` | Auditory pipeline: sound propagation, robot hearing, robot and human sound emission. Sub-keys below take effect only when not `none`; see [auditory/README.md](../../task_generator/launch/human/auditory/README.md). |
-| `auditory.playback` | string | `auto` | PortAudio output device for workstation playback; `auto` = system default, `none` starts no playback nodes. |
+| `auditory.playback` | string | `auto` | PortAudio output device for workstation playback; `auto` tries `pulse`, `pipewire`, `default`, then the PortAudio default, `none` starts no playback nodes. |
 | `auditory.viz` | bool string | `false` | Publish propagation markers. |
 | `auditory.static_devices` | YAML string | `[]` | World-independent environment audio systems (radios, alarms); non-empty adds `audio_systems` to `task.modules`. |
 | `auditory.motor` | `off` \| `wav` \| `procedural` | `procedural` | Robot motor audio source. |
