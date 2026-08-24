@@ -194,6 +194,14 @@ def test_parse_semantics_occupancy_cap_preset_expands():
     ]
 
 
+def test_parse_semantics_sound_preset_expands():
+    cfgs = parse_semantics([{'preset': 'sound'}])
+    assert [(c.role, c.name) for c in cfgs] == [
+        ('predicate', 'sounding'),
+        ('state', 'volume_db'),
+    ]
+
+
 def test_parse_semantics_elevator_full_preset_removed():
     with pytest.raises(ValueError):
         parse_semantics([{'preset': 'elevator_full'}])

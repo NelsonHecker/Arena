@@ -749,7 +749,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         response: task_generator_msgs.srv.SetSemantic.Response,
     ) -> task_generator_msgs.srv.SetSemantic.Response:
         """External untrusted write: full validation, structured error_msg, no bare-name resolution."""
-        reason = self._apply_semantic_checked(request.entity, request.field, request.value)
+
+        async def _apply() -> str:
+            return self._apply_semantic_checked(request.entity, request.field, request.value)
+
+        reason = self.wait_for(_apply())
         response.success = not reason
         response.error_msg = reason
         return response

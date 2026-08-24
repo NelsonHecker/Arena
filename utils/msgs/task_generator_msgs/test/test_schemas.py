@@ -185,43 +185,10 @@ def test_get_task_modes_srv():
     assert res.tm_modules == ["benchmark"]
 
 
-def test_audio_system_state_msg():
-    from task_generator_msgs.msg import AudioSystemState
+def test_spawn_sound_srv():
+    from task_generator_msgs.srv import SpawnSound
 
-    msg = AudioSystemState()
-    msg.system_id = "building_alarm"
-    msg.sound_type = "alarm"
-    msg.asset_id = "alarm_loop"
-    msg.loop = True
-    msg.active = True
-    msg.program_start_time.sec = 12
-    msg.emitter_ids = ["environment:building_alarm:east"]
-
-    assert msg.system_id == "building_alarm"
-    assert msg.active is True
-    assert msg.program_start_time.sec == 12
-    assert msg.emitter_ids == ["environment:building_alarm:east"]
-
-
-def test_set_audio_system_srv():
-    from task_generator_msgs.srv import SetAudioSystem
-
-    req = SetAudioSystem.Request()
-    req.system_id = "building_alarm"
-    req.active = True
-    assert req.system_id == "building_alarm"
-    assert req.active is True
-
-    res = SetAudioSystem.Response()
-    res.success = True
-    res.error_msg = ""
-    assert res.success is True
-
-
-def test_spawn_audio_source_srv():
-    from task_generator_msgs.srv import SpawnAudioSource
-
-    req = SpawnAudioSource.Request()
+    req = SpawnSound.Request()
     req.pose.header.frame_id = "map"
     req.mode = "music"
     req.customize_playback = True
@@ -234,10 +201,10 @@ def test_spawn_audio_source_srv():
     assert req.asset_id == "custom_radio"
     assert req.initially_active is False
 
-    res = SpawnAudioSource.Response()
-    res.system_id = "runtime_music_1"
+    res = SpawnSound.Response()
+    res.entity = "runtime_music_1"
     res.success = True
-    assert res.system_id == "runtime_music_1"
+    assert res.entity == "runtime_music_1"
     assert res.success is True
 
 
@@ -313,15 +280,15 @@ def test_spawn_microphone_srv():
     assert res.success is True
 
 
-def test_remove_audio_system_srv():
-    from task_generator_msgs.srv import RemoveAudioSystem
+def test_remove_sound_srv():
+    from task_generator_msgs.srv import RemoveSound
 
-    req = RemoveAudioSystem.Request()
-    req.system_id = "runtime_music_1"
-    res = RemoveAudioSystem.Response()
+    req = RemoveSound.Request()
+    req.entity = "runtime_music_1"
+    res = RemoveSound.Response()
     res.success = True
 
-    assert req.system_id == "runtime_music_1"
+    assert req.entity == "runtime_music_1"
     assert res.success is True
 
 

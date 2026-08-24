@@ -253,6 +253,12 @@ zones:
       params:
         windows: []
         regime: alarm
+  sounds:
+  - name: hall_siren
+    asset_id: alarm_loop
+    position: [4.0, 2.3]
+    semantics:
+    - {preset: sound, params: {sound_on: alarm}}
   entities:
     static:
     - name: Toilet_0

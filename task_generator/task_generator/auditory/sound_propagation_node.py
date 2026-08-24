@@ -1271,7 +1271,7 @@ class SoundPropagationNode(Node):
             output.source_model = state.source_model
             output.sound_type = state.sound_type
             output.source_backend = state.source_backend
-            output.system_id = state.system_id
+            output.group_id = state.group_id
             output.asset_id = state.asset_id
             output.label = state.label
             output.loop = state.loop

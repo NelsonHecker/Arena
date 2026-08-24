@@ -6,6 +6,6 @@ float32 source_volume_db
 bool loop
 bool initially_active
 ---
-string system_id
+string entity                # realized entity name, the removal handle for RemoveSound
 bool success
 string error_msg

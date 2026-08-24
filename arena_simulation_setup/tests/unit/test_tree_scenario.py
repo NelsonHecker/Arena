@@ -3,7 +3,6 @@ from __future__ import annotations
 import warnings
 from pathlib import Path
 
-import cattrs
 import pytest
 import yaml
 
@@ -53,6 +52,26 @@ def test_robot_goal_parse_empty_parse_fallback():
 # ---------------------------------------------------------------------------
 # Scenario
 # ---------------------------------------------------------------------------
+
+
+def test_scenario_parses_episode_sounds():
+    s = converter.structure(
+        {
+            "sounds": [
+                {
+                    "name": "bedroom_radio",
+                    "asset_id": "radio_loop",
+                    "position": [2.0, 1.0],
+                    "level": "1",
+                    "semantics": [{"preset": "sound"}, {"state": "volume_db", "value": 62.0}],
+                },
+            ],
+        },
+        Scenario,
+    )
+    assert [snd.name for snd in s.sounds] == ["bedroom_radio"]
+    assert s.sounds[0].level == "1"
+    assert [(c.name, c.value) for c in s.sounds[0].semantics] == [("sounding", None), ("volume_db", None), ("volume_db", 62.0)]
 
 
 def test_scenario_with_robots():
@@ -145,78 +164,6 @@ def test_scenario_view_included_from_propagated(tmp_path):
     scenario = view.load()
     assert len(scenario.static) >= 1
     assert scenario.static[0].included_from == scenario_dir
-
-
-def test_scenario_view_load_audio_systems(tmp_path):
-    scenario_dir = tmp_path / "sc_audio"
-    scenario_dir.mkdir()
-    data = {
-        "audio": {
-            "systems": [
-                {
-                    "name": "radio",
-                    "sound_type": "music",
-                    "asset_id": "radio_loop",
-                    "loop": True,
-                    "initially_active": True,
-                    "emitters": [
-                        {
-                            "name": "lobby",
-                            "entity_ref": "lobby_radio",
-                            "offset": [0.0, 0.0, 0.8],
-                            "source_volume_db": 62.0,
-                        }
-                    ],
-                },
-                {
-                    "name": "alarm",
-                    "sound_type": "alarm",
-                    "asset_id": "alarm_loop",
-                    "emitters": [
-                        {
-                            "name": "floor_1",
-                            "position": [2.0, 3.0, 2.6],
-                            "level": "level_1",
-                            "source_volume_db": 88.0,
-                        },
-                        {
-                            "name": "floor_2",
-                            "position": [4.0, 5.0, 2.6],
-                            "level": "level_2",
-                        },
-                    ],
-                },
-            ]
-        }
-    }
-    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
-
-    audio = ScenarioView(scenario_dir).load_audio()
-
-    assert [system.name for system in audio.systems] == ["radio", "alarm"]
-    assert audio.systems[0].initially_active is True
-    assert audio.systems[0].emitters[0].entity_ref == "lobby_radio"
-    assert audio.systems[0].emitters[0].offset.z == pytest.approx(0.8)
-    assert len(audio.systems[1].emitters) == 2
-    assert audio.systems[1].emitters[0].level == "level_1"
-    assert audio.systems[1].emitters[0].position.x == pytest.approx(2.0)
-
-
-def test_scenario_view_rejects_duplicate_audio_system_names(tmp_path):
-    scenario_dir = tmp_path / "sc_duplicate_audio"
-    scenario_dir.mkdir()
-    system = {
-        "name": "alarm",
-        "sound_type": "alarm",
-        "asset_id": "alarm_loop",
-        "emitters": [{"name": "speaker", "position": [1.0, 2.0]}],
-    }
-    data = {"audio": {"systems": [system, system]}}
-    (scenario_dir / "scenario.yaml").write_text(yaml.dump(data))
-
-    with pytest.raises(cattrs.errors.ClassValidationError) as excinfo:
-        ScenarioView(scenario_dir).load_audio()
-    assert excinfo.group_contains(ValueError, match="duplicate audio system names")
 
 
 # ---------------------------------------------------------------------------
@@ -529,9 +476,19 @@ def test_fire_alarm_reference_scenario_parses():
     assert len(scenario.timeline) == 2
     lock, alarm = scenario.timeline
     assert lock.at == pytest.approx(0.0)
-    assert lock.set == [{"entity": "door_edge_1_1", "field": "locked", "value": "true"}]
+    assert lock.set == [
+        {"entity": "door_edge_1_1", "field": "locked", "value": "true"},
+        {"entity": "bedroom_radio", "field": "sounding", "value": "true"},
+    ]
     assert alarm.at == pytest.approx(12.0)
-    assert alarm.set == [{"entity": "fire_alarm", "field": "active", "value": "true"}]
+    assert alarm.set == [
+        {"entity": "fire_alarm", "field": "active", "value": "true"},
+        {"entity": "bedroom_radio", "field": "sounding", "value": "false"},
+    ]
+    (radio,) = scenario.sounds
+    assert radio.name == "bedroom_radio"
+    assert radio.level == "1"
+    assert [(c.name, c.value) for c in radio.semantics] == [("sounding", None), ("volume_db", None), ("volume_db", 62.0)]
 
 
 _FIRE_ALARM_WORLD = (
@@ -544,13 +501,6 @@ _FIRE_ALARM_WORLD = (
 
 
 def test_fire_alarm_reference_regime_wired():
-    """The timeline above only does something if a world actually declares the
-    fire_alarm schedule and wires its `alarm` regime to a gate and a plate.
-    The world is shared by every scenario, so the wiring must be inert without
-    the regime: the gate spawns unlocked (the scenario timeline locks it) and
-    the plate has no contact radius. recall_on is deliberately absent from
-    every elevator: recall is upstream and dormant.
-    """
     if not _FIRE_ALARM_WORLD.exists():
         pytest.skip(f"reference world not found: {_FIRE_ALARM_WORLD}")
     with open(_FIRE_ALARM_WORLD, encoding="utf-8") as f:
@@ -578,4 +528,15 @@ def test_fire_alarm_reference_regime_wired():
         assert px == pytest.approx((door.start.x + door.end.x) / 2.0)
         assert py == pytest.approx((door.start.y + door.end.y) / 2.0)
 
-    assert all(elevator.recall_on is None for elevator in level.all_elevators)
+    assert all(elevator.recall_on is None for elevator in level.all_elevators), "recall is upstream and dormant, keep it out of the reference"
+
+    sounds = {sound.name: sound for sound in level.all_sounds}
+    assert "hall_siren" in sounds
+    siren = sounds["hall_siren"]
+    assert siren.asset_id == "alarm_loop"
+    sounding_cfg = next(cfg for cfg in siren.semantics if cfg.name == "sounding")
+    assert sounding_cfg.params["sound_on"] == "alarm"
+    assert "regime" not in sounding_cfg.params, "hall_siren must not self-assert"
+    assert sounding_cfg.value is None, "hall_siren must be inert until the alarm regime holds"
+    volume_cfg = next(cfg for cfg in siren.semantics if cfg.name == "volume_db")
+    assert not volume_cfg.value, "volume_db must not carry a truthy value from preset broadcast"

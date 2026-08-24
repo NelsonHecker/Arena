@@ -139,7 +139,7 @@ class EnvironmentSoundPlaybackNode(SoundPlaybackNode):
             selected = self._catalog.select(
                 asset_id,
                 episode_seed=self._episode_seed,
-                agent_id=self._system_numeric_id(msg.system_id),
+                agent_id=self._group_numeric_id(msg.group_id),
                 occurrence=0,
             )
             if selected is None:
@@ -273,8 +273,8 @@ class EnvironmentSoundPlaybackNode(SoundPlaybackNode):
         )
 
     @staticmethod
-    def _system_numeric_id(system_id: str) -> int:
-        digest = hashlib.blake2b(system_id.encode(), digest_size=4).digest()
+    def _group_numeric_id(group_id: str) -> int:
+        digest = hashlib.blake2b(group_id.encode(), digest_size=4).digest()
         return int.from_bytes(digest, "little") & 0x7FFFFFFF
 
 

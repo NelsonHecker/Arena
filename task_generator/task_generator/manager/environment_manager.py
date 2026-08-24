@@ -33,20 +33,23 @@ def _kind_vocab(kind_cls: type) -> frozenset[str]:
     return frozenset((*kind_cls.DISCRETE, *kind_cls.CONTINUOUS, *kind_cls.PREDICATES))
 
 
+_ATTACHABLE_TO_HOST = frozenset({'gate', 'pressure_plate'})
+
+
 def _route_semantics(cfgs: Sequence[SemanticCfg], host_kind: str) -> dict[str, list[SemanticCfg]]:
     """Route a mechanism entry's cfgs to their owning scripted kind, raising on
-    host-vocabulary or unknown names (mechanism state publishes intrinsically)."""
+    host-vocabulary or unattachable names (mechanism state publishes intrinsically)."""
     host_vocab = _kind_vocab(_SEMANTIC_KINDS[host_kind])
     extras: dict[str, list[SemanticCfg]] = {}
     for cfg in cfgs:
         if cfg.name in host_vocab:
             raise ValueError(f"semantics: every {host_kind} publishes {cfg.name!r} intrinsically, remove the annotation")
-        for kname, kcls in _SEMANTIC_KINDS.items():
-            if kname != host_kind and cfg.name in _kind_vocab(kcls):
+        for kname in _ATTACHABLE_TO_HOST:
+            if cfg.name in _kind_vocab(_SEMANTIC_KINDS[kname]):
                 extras.setdefault(kname, []).append(cfg)
                 break
         else:
-            raise ValueError(f"semantics: {cfg.name!r} matches no scripted kind's vocabulary")
+            raise ValueError(f"semantics: {cfg.name!r} is not attachable to a {host_kind} host")
     return extras
 
 
@@ -218,6 +221,11 @@ class EnvironmentManager(NodeInterface):
                 self.node._register_semantic_entity(sig.name, realized_sig.name)
                 if realized_sig.semantics:
                     pending.append(("signal", realized_sig.name, list(realized_sig.semantics), None))
+            for snd in level.all_sounds:
+                realized_snd = self._realizer.realize(snd, fid)
+                self.node._register_semantic_entity(snd.name, realized_snd.name)
+                if realized_snd.semantics:
+                    pending.append(("sound", realized_snd.name, list(realized_snd.semantics), None))
             for zone in level.zones:
                 if not zone.semantics:
                     continue

@@ -440,7 +440,7 @@ class SoundPropagationVisualizer(Node):
         label.scale.z = 0.22
         label.color = color
         state = "ACTIVE" if msg.active else "OFF"
-        label.text = f"{msg.label or msg.system_id} / {msg.source_agent_name} [{state}]"
+        label.text = f"{msg.label or msg.group_id} / {msg.source_agent_name} [{state}]"
         self._environment_source_publisher.publish(
             MarkerArray(markers=[source, label])
         )

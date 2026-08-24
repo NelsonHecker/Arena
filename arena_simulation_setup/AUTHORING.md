@@ -143,9 +143,13 @@ serialize when empty):
 | `gate` | a `doors:` entry | `locked`, `blocked` | `authorized` (sim_paths/robot names), `unlock_on` |
 | `pressure_plate` | a `doors:`/`elevators:` entry (own `position`) | `pressed` | `position` (`[x, y]`), `radius`, `drives`, `latch`, `press_on`, `regime` |
 | `occupancy_cap` | a `zones:` entry | `occupancy`, `cap`, `over_cap` | `cap` |
+| `sound` | a standalone `sounds:` entry (zone- or scenario-level) | `sounding`, `volume_db` | `sound_on`, `regime` |
 
-`signal` and `schedule` have no geometry of their own, so a zone carries them
-as sibling lists to `doors:`/`elevators:`:
+`signal`, `schedule`, and `sound` have no wall/door geometry of their own, so
+a zone carries them as sibling lists to `doors:`/`elevators:`. A `sound`
+still needs a placement: exactly one of `position` (`[x, y]`) or `entity_ref`
+(name of a static entity in the same world, whose yaw frame `offset` is
+applied in).
 
 ```yaml
 zones:
@@ -159,26 +163,51 @@ zones:
   - name: crosswalk_light
     semantics:
     - {preset: signal, params: {phases: [{name: go, duration: 20.0}, {name: stop, duration: 10.0}]}}
+  sounds:
+  - name: hall_siren
+    asset_id: alarm_loop
+    position: [4.0, 2.3]
+    semantics:
+    - {preset: sound, params: {sound_on: alarm}}
+    - {state: volume_db, value: 88.0}
 ```
+
+A sound's initial volume is authored as a separate `{state: volume_db, value:
+N}` entry, never via a `value:` on the `preset: sound` item itself: preset
+expansion broadcasts a top-level `value:` onto every primitive it expands to,
+which would corrupt the `sounding` predicate into a self-asserting value.
+
+A scenario may carry its own `sounds:` list with the same schema. Those are
+episode-scoped: attached at reset, gone at the next one, and their
+`entity_ref` may also name one of the scenario's own `static:` obstacles.
 
 `gate` and `pressure_plate` reuse an existing `doors:`/`elevators:` entry as
 their attachment point, `occupancy_cap` reuses a `zones:` entry, all via the
-same `semantics:` list:
+same `semantics:` list. A `gate` should spawn unlocked (`value: false` on its
+`locked` predicate): the world is shared by every scenario, so a gate that
+defaulted to locked would block scenarios that never touch its regime. A
+scenario that wants the door locked at episode start says so explicitly in
+its `timeline:` (see below), leaving the world itself inert. Because a
+`value:` set on a `preset:` item broadcasts to every primitive the preset
+expands to, giving `locked` its own `value: false` means writing the gate's
+primitives out individually rather than through `{preset: gate, ...}`:
 
 ```yaml
 doors:
-- name: north_fire_door
+- name: door_edge_1_1
   start: {x: 4.0, y: 1.55, z: 0.0}
   end:   {x: 4.0, y: 2.45, z: 0.0}
   semantics:
-  - {preset: gate, params: {authorized: [], unlock_on: alarm}}
-  - {preset: pressure_plate, params: {position: [4.0, 2.0], press_on: alarm, drives: north_fire_door}}
+  - {predicate: locked, value: false, params: {authorized: [], unlock_on: alarm}}
+  - {predicate: blocked}
+  - {preset: pressure_plate, params: {position: [4.0, 2.0], press_on: alarm, drives: door_edge_1_1}}
 ```
 
 A `regime` (or its per-kind alias `unlock_on`/`press_on`) names a boolean
 asserted by a scripted kind's driving predicate. Other kinds (gate,
 pressure_plate) consult that name without a direct wire between the two
-entities. An elevator's `recall_on` field is the same regime-consult
+entities. A `sound` consumes a regime the same way, via its `sound_on` alias.
+An elevator's `recall_on` field is the same regime-consult
 mechanism, just wired as a first-class `Elevator` field instead of a
 `semantics:` alias, since recall is mechanism configuration rather than
 published state. See the fire-alarm worked example below.
@@ -196,12 +225,16 @@ action list of `{entity, field, value}` writes against exactly one trigger:
 
 ```yaml
 timeline:
+- at: 0.0
+  set:
+  - {entity: door_edge_1_1, field: locked, value: "true"}
 - at: 12.0
   set:
   - {entity: fire_alarm, field: active, value: "true"}
 ```
 
-At `t=12s` the `fire_alarm` schedule's `active` predicate goes true and
+The world's `door_edge_1_1` spawns unlocked, and this scenario locks it at
+`t=0` so the corridor starts sealed. At `t=12s` the `fire_alarm` schedule's `active` predicate goes true and
 asserts regime `alarm`: a gate with `unlock_on: alarm` reports `locked=false`,
 a pressure plate with `press_on: alarm` reports `pressed=true` and holds its
 `drives` door open, and an elevator with `recall_on: alarm` refuses calls and
