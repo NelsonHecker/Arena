@@ -28,7 +28,7 @@ from .prompt_utils import (
     SYSTEM_INSTRUCTION,
 )
 
-DEBUG: bool = bool(os.environ.get("ARENA_DEBUG", True))  # TODO change to false
+DEBUG: bool = os.environ.get("ARENA_DEBUG", "0").lower() in ("1", "true")
 
 _BUILTIN_AGENT_TYPES = ("adult", "elder")
 
