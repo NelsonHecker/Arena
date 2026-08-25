@@ -7,7 +7,7 @@ import importlib
 import sys
 
 from common import CLIError, make_verb
-from complete import Manifest, Nothing, Static, Sub, Union
+from complete import Flags, Manifest, Static, Sub, Union
 
 _TREE = "arena_simulation_setup.tree"
 _BENCH = "arena_evaluation.benchmark.tree"
@@ -25,7 +25,6 @@ class Kind:
     bundle: bool = False  # resolves to a yaml, so publishing wraps it into a directory
     closure: str | None = None  # key into _PREFLIGHTS, checked before publishing
     repo_subdir: str | None = None  # ships in the repo under ASS_DIR/<subdir>
-    complete_key: str | None = None  # shell-completion manifest key
 
 
 KINDS = {
@@ -33,28 +32,38 @@ KINDS = {
     "human": Kind("human models", f"{_TREE}.assets.Human", "HumanIdentifier", "NETWORK_PROVIDERS", parse=True),
     "material": Kind("surface materials", f"{_TREE}.assets.Material", "MaterialIdentifier", "NETWORK_PROVIDERS", parse=True),
     "wall": Kind("wall kinds", f"{_TREE}.Wall", "WallIdentifier", "NETWORK_PROVIDERS", parse=True),
-    "world": Kind("worlds", f"{_TREE}.World", "WorldIdentifier", "WORLD_PROVIDERS", closure="world", repo_subdir="worlds", complete_key="world"),
+    "world": Kind("worlds", f"{_TREE}.World", "WorldIdentifier", "WORLD_PROVIDERS", closure="world", repo_subdir="worlds"),
     "suite": Kind("benchmark suites", _BENCH, "SuiteIdentifier", "BENCHMARK_PROVIDERS", bundle=True, closure="suite"),
     "contest": Kind("benchmark contests", _BENCH, "ContestIdentifier", "BENCHMARK_PROVIDERS", bundle=True),
     "manifest": Kind("report manifests", _BENCH, "ManifestIdentifier", "BENCHMARK_PROVIDERS", bundle=True),
 }
 
-_VALUED_FLAGS = ("--bucket",)
+DESCRIPTION = """Inspect and move resolvable arena data.
+
+`ls` alone lists the kinds. Reading is anonymous, pushing needs GCS_ACCESS_TOKEN in the
+environment."""
 
 
-def _positionals(argv: list[str]) -> list[str]:
-    """Bare arguments. Skips flags, and the value a valued flag consumes, so that
-    `--bucket B` ahead of the positionals is not read as the kind."""
-    out: list[str] = []
-    skip = False
-    for arg in argv:
-        if skip:
-            skip = False
-        elif arg in _VALUED_FLAGS:
-            skip = True
-        elif not arg.startswith("-"):
-            out.append(arg)
-    return out
+def _parse(argv: list[str], positionals: tuple[str, ...], flags: tuple[str, ...] = (), valued: tuple[str, ...] = (), optional: int = 0) -> tuple[list[str], dict[str, str | bool]]:
+    """Split argv into the declared positionals (the last `optional` may be absent) and options."""
+    pos: list[str] = []
+    opts: dict[str, str | bool] = {}
+    it = iter(argv)
+    for arg in it:
+        if arg in valued:
+            value = next(it, None)
+            if value is None:
+                raise CLIError(f"{arg} needs a value")
+            opts[arg] = value
+        elif arg in flags:
+            opts[arg] = True
+        elif arg.startswith("-"):
+            raise CLIError(f"No such option '{arg}'. Options: {', '.join((*flags, *valued))}")
+        else:
+            pos.append(arg)
+    if not len(positionals) - optional <= len(pos) <= len(positionals):
+        raise CLIError(f"expected {' '.join(positionals)}, got {' '.join(pos) or 'nothing'}")
+    return pos, opts
 
 
 def _kind(kind: str) -> Kind:
@@ -75,16 +84,13 @@ def _identifier(kind: str, name: str):
     return identifier_t.parse(name) if _kind(kind).parse else identifier_t(name)
 
 
-def find_main(argv: list[str]) -> int:
+def find(argv: list[str]) -> int:
     """Show every resolver's verdict for one asset, without downloading it.
 
-    `arena asset find <kind> <name> [--json]`.
+    `arena asset find KIND NAME [--json]`. Marks which source won and which were shadowed.
     """
-    as_json = "--json" in argv
-    args = _positionals(argv)
-    if len(args) != 2:
-        raise CLIError("find takes KIND and NAME")
-    kind, name = args
+    (kind, name), opts = _parse(argv, ("KIND", "NAME"), flags=("--json",))
+    as_json = "--json" in opts
 
     from arena_simulation_setup.tree import Verdict
 
@@ -116,25 +122,34 @@ def find_main(argv: list[str]) -> int:
     return 0
 
 
-def ls_main(argv: list[str]) -> int:
-    """List every available asset of one kind.
+def ls(argv: list[str]) -> int:
+    """List the kinds, or every available asset of one kind.
 
-    `arena asset ls <kind> [--network]`. With --network, bucket-only entries are
+    `arena asset ls [KIND] [--network] [--json]`. With --network, bucket-only entries are
     listed too and names that a local copy shadows are marked.
     """
-    network = "--network" in argv
-    args = _positionals(argv)
-    if len(args) != 1:
-        raise CLIError("ls takes KIND")
-    kind = args[0]
+    pos, opts = _parse(argv, ("KIND",), flags=("--network", "--json"), optional=1)
+    as_json = "--json" in opts
+    if not pos:
+        if as_json:
+            import json
+
+            print(json.dumps({kind: spec.description for kind, spec in KINDS.items()}, indent=2))
+        else:
+            width = max(len(kind) for kind in KINDS)
+            for kind, spec in KINDS.items():
+                print(f"{kind.ljust(width)}  {spec.description}")
+        return 0
+    kind = pos[0]
+    network = "--network" in opts
 
     from arena_simulation_setup.tree import NetResolver
 
     identifier_t = _identifier_type(kind)
 
     if not network:
-        for name in sorted({identifier.shortname for identifier in identifier_t.listall()}):
-            print(name)
+        names = sorted({identifier.shortname for identifier in identifier_t.listall()})
+        _emit(names, as_json)
         return 0
 
     # a NetResolver's own cache is not a competing source, so it must not count as local
@@ -150,10 +165,19 @@ def ls_main(argv: list[str]) -> int:
         if isinstance(resolver, NetResolver)
         for identifier in resolver.listall(network=True)
     }
-    for name in sorted(local | remote):
-        marker = "  shadowed" if name in local and name in remote else ""
-        print(f"{name}{marker}")
+    _emit(sorted(local | remote), as_json, shadowed=local & remote)
     return 0
+
+
+def _emit(names: list[str], as_json: bool, shadowed: set[str] | None = None) -> None:
+    if as_json:
+        import json
+
+        print(json.dumps(names if shadowed is None else [{"name": n, "shadowed": n in shadowed} for n in names], indent=2))
+        return
+    shadowed = shadowed or set()
+    for name in names:
+        print(f"{name}  shadowed" if name in shadowed else name)
 
 
 def _buckets(kind: str) -> list[str]:
@@ -162,20 +186,23 @@ def _buckets(kind: str) -> list[str]:
     return list(getattr(tree, _kind(kind).providers))
 
 
-def _bucket_of(argv: list[str], kind: str) -> str:
-    for i, arg in enumerate(argv):
-        if arg == "--bucket" and i + 1 < len(argv):
-            return argv[i + 1]
+def _bucket_of(opts: dict[str, str | bool], kind: str) -> str:
+    if "--bucket" in opts:
+        return str(opts["--bucket"])
     candidates = _buckets(kind)
     if not candidates:
         raise CLIError(f"no bucket configured for {kind}, pass --bucket")
     return candidates[0]
 
 
-def _cache_root(bucket: str):
-    from arena_simulation_setup import ARENA_ASSETS_DIR
+def _net_resolver(kind: str, bucket: str):
+    """The kind's resolver for one bucket, which owns that bucket's cache and freshness stamps."""
+    from arena_simulation_setup.tree import NetResolver
 
-    return ARENA_ASSETS_DIR / bucket
+    for resolver in _identifier_type(kind)._resolvers:
+        if isinstance(resolver, NetResolver) and resolver._provider == bucket:
+            return resolver
+    raise CLIError(f"{bucket} is not a configured bucket for {kind}, expected one of {', '.join(_buckets(kind))}")
 
 
 def _net(bucket: str, *args: str) -> int:
@@ -184,18 +211,21 @@ def _net(bucket: str, *args: str) -> int:
     return subprocess.call(["ros2", "run", "arena_models", "arena_models", "-s", "net", bucket, *args])
 
 
-def pull_main(argv: list[str]) -> int:
+def pull(argv: list[str]) -> int:
     """Download an asset from its bucket into the local cache.
 
-    `arena asset pull <kind> <name> [--bucket B]`.
+    `arena asset pull KIND NAME [--bucket B]`. Prints the cache path.
     """
-    args = _positionals(argv)
-    if len(args) < 2:
-        raise CLIError("pull takes KIND and NAME")
-    kind, name = args[0], args[1]
-    bucket = _bucket_of(argv, kind)
+    (kind, name), opts = _parse(argv, ("KIND", "NAME"), valued=("--bucket",))
+    bucket = _bucket_of(opts, kind)
     identifier = _identifier(kind, name)
-    return _net(bucket, "fetch", str(identifier.relpath()), "-o", str(_cache_root(bucket)))
+    resolver = _net_resolver(kind, bucket)
+    path = identifier._run_sync(resolver.resolve(identifier))
+    if path is None:
+        print(f"{kind} {name} is not in {bucket}", file=sys.stderr)
+        return 1
+    print(path)
+    return 0
 
 
 def _world_dangling(view, source) -> list[str]:
@@ -264,25 +294,22 @@ def _drop_listing(kind: str, bucket: str) -> None:
             resolver._listing_path.unlink(missing_ok=True)
 
 
-def push_main(argv: list[str]) -> int:
+def push(argv: list[str]) -> int:
     """Publish an asset to its bucket.
 
-    `arena asset push <kind> <name> [--bucket B] [--force] [--yes]`. Kinds carrying a
-    closure are checked first, and publishing is refused if any reference would not resolve
-    for someone else. A flat benchmark config is wrapped into the directory bundle the
-    bucket requires.
+    `arena asset push KIND NAME [--bucket B] [--force] [--yes]`. Kinds carrying a closure
+    are checked first, and publishing is refused if any reference would not resolve for
+    someone else. A flat benchmark config is wrapped into the directory bundle the bucket
+    requires.
     """
     import shutil
     import tempfile
     from pathlib import Path
 
-    args = _positionals(argv)
-    if len(args) < 2:
-        raise CLIError("push takes KIND and NAME")
-    kind, name = args[0], args[1]
+    (kind, name), opts = _parse(argv, ("KIND", "NAME"), flags=("--force", "--yes"), valued=("--bucket",))
     spec = _kind(kind)
-    force = "--force" in argv
-    bucket = _bucket_of(argv, kind)
+    force = "--force" in opts
+    bucket = _bucket_of(opts, kind)
 
     identifier = _identifier(kind, name)
 
@@ -316,8 +343,11 @@ def push_main(argv: list[str]) -> int:
             print("bundle them under the asset directory, or pass --force", file=sys.stderr)
             return 1
 
-    if "--yes" not in argv:
-        print(f"publish {kind} {name} to gs://{bucket}/{identifier.relpath()} ? [y/N] ", end="", flush=True)
+    target = f"{bucket}:{identifier.relpath()}"
+    if "--yes" not in opts:
+        if not sys.stdin.isatty():
+            raise CLIError(f"publishing {target} needs confirmation, pass --yes")
+        print(f"publish {kind} {name} to {target} ? [y/N] ", end="", flush=True)
         if input().strip().lower() not in ("y", "yes"):
             return 1
 
@@ -329,44 +359,24 @@ def push_main(argv: list[str]) -> int:
         else:
             staged.mkdir(parents=True)
             shutil.copy(source, staged / f"{kind}.yaml")
+        files = [f for f in staged.rglob("*") if f.is_file()]
+        size = sum(f.stat().st_size for f in files)
         result = _net(bucket, "author", str(staged), "-d", str(identifier.relpath()))
     if result == 0:
         _drop_listing(kind, bucket)
+        print(f"published {kind} {name} to {target}: {len(files)} file(s), {size / 1e6:.1f} MB")
     return result
 
 
-_SUB = {
-    "find": find_main,
-    "ls": ls_main,
-    "pull": pull_main,
-    "push": push_main,
+_KIND = Sub({kind: Manifest(f"asset.{kind}") for kind in KINDS})
+_KINDS = Static({kind: spec.description for kind, spec in KINDS.items()})
+
+COMMANDS = {
+    v.name: v
+    for v in (
+        make_verb("find", find, complete=Sub(_KIND.subs, extra=Flags({"--json": "machine-readable verdicts"}))),
+        make_verb("ls", ls, complete=Union(_KINDS, Flags({"--network": "include bucket-only entries", "--json": "machine-readable"}))),
+        make_verb("pull", pull, complete=_KIND),
+        make_verb("push", push, complete=Sub(_KIND.subs, extra=Flags({"--force": "publish despite a failed preflight", "--yes": "skip the confirmation"}))),
+    )
 }
-
-_KIND_SPEC = Sub({kind: (Manifest(spec.complete_key) if spec.complete_key else Nothing()) for kind, spec in KINDS.items()})
-
-COMPLETE = Sub(
-    {
-        "find": _KIND_SPEC,
-        "ls": Union(Static({kind: spec.description for kind, spec in KINDS.items()})),
-        "pull": _KIND_SPEC,
-        "push": _KIND_SPEC,
-    }
-)
-
-
-def asset_main(argv: list[str]) -> int:
-    """Inspect and move resolvable arena data.
-
-    `arena asset find <kind> <name>` shows every resolver's verdict, marking which
-    source won and which were shadowed. `arena asset ls <kind>` lists what is available.
-    """
-    if not argv or argv[0] not in _SUB:
-        raise CLIError(f"asset takes one of: {', '.join(_SUB)}")
-    return _SUB[argv[0]](argv[1:]) or 0
-
-
-VERB = make_verb("asset", asset_main, passthrough=True, complete=COMPLETE)
-
-
-if __name__ == "__main__":
-    sys.exit(asset_main(sys.argv[1:]))

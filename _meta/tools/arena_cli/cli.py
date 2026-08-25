@@ -201,7 +201,15 @@ def env_(args: list[str]) -> None:
     _exec("ros2", "launch", "task_generator", "task_generator.launch.py", *args)
 
 
-_register(_asset_mod.VERB)
+_register(
+    make_verb(
+        "asset",
+        lambda args: _group_cmd("arena asset", _asset_mod.DESCRIPTION, _asset_mod.COMMANDS, args),
+        passthrough=True,
+        help_text=f"{_asset_mod.DESCRIPTION}\n\nCommands:\n{_listing([(v.name, v.short) for v in _asset_mod.COMMANDS.values()])}",
+        complete=Sub(_asset_mod.COMMANDS),
+    )
+)
 _register(_viz_mod.VERB)
 _register(_human_mod.VERB)
 _register(_robot_mod.VERB)
@@ -499,12 +507,26 @@ def _feature_group_help() -> str:
     return "\n".join(out)
 
 
-def _feature_module_help(name: str, mod) -> str:
-    out = [f"Usage: arena feature {name} COMMAND [ARGS]...", "", _indent(_feature_desc(mod))]
-    rows = [(v.name, v.short) for v in mod.COMMANDS.values() if not v.hidden]
+def _group_help(prefix: str, description: str, commands: dict[str, Verb]) -> str:
+    out = [f"Usage: {prefix} COMMAND [ARGS]...", "", _indent(description)]
+    rows = [(v.name, v.short) for v in commands.values() if not v.hidden]
     if rows:
         out += ["", "Commands:", _listing(rows)]
     return "\n".join(out)
+
+
+def _group_cmd(prefix: str, description: str, commands: dict[str, Verb], args: list[str]) -> int:
+    """Dispatch into a COMMANDS table the way `arena feature <name>` does."""
+    if not args or args[0] in ("-h", "--help"):
+        print(_group_help(prefix, description, commands))
+        return 0
+    v = commands.get(args[0])
+    if v is None:
+        raise CLIError(f"No such command '{args[0]}'. Commands: {', '.join(n for n, c in commands.items() if not c.hidden)}")
+    if _wants_help(args[1:], v.passthrough):
+        print(_verb_help(v, prefix))
+        return 0
+    return v.run(args[1:]) or 0
 
 
 def _feature_cmd(args: list[str]) -> int:
@@ -515,16 +537,7 @@ def _feature_cmd(args: list[str]) -> int:
     mod = _features.load(name)
     if mod is None:
         raise CLIError(f"No such feature '{name}'.")
-    if not sub or sub[0] in ("-h", "--help"):
-        print(_feature_module_help(name, mod))
-        return 0
-    v = mod.COMMANDS.get(sub[0])
-    if v is None:
-        raise CLIError(f"No such command '{sub[0]}' for feature '{name}'.")
-    if _wants_help(sub[1:], v.passthrough):
-        print(_verb_help(v, f"arena feature {name}"))
-        return 0
-    return v.run(sub[1:]) or 0
+    return _group_cmd(f"arena feature {name}", _feature_desc(mod), mod.COMMANDS, sub)
 
 
 def _feature_subs() -> dict[str, Sub]:

@@ -34,7 +34,7 @@ repositories:
   deps/arena_models:
     type: git
     url: https://github.com/voshch/arena-models
-    version: master@7cc53c4
+    version: master@5fdaf1d
 
   # AAAAAAAA WHY IS #118 NOT VENDORED
   deps/topic_based_hardware_interfaces:
