@@ -257,8 +257,8 @@ class TestStaticFootprints:
     RES = 0.05
 
     @staticmethod
-    def make_obstacle(x: float, y: float, level_id: str | None = None) -> Obstacle:
-        return Obstacle(name="thing", model="box", pose=Pose(position=GeoPosition(x, y)), level_id=level_id)
+    def make_obstacle(x: float, y: float) -> Obstacle:
+        return Obstacle(name="thing", model="box", pose=Pose(position=GeoPosition(x, y)))
 
     def make_wm(self, h: int = 100, w: int = 100, level_origins: dict | None = None) -> WorldManager:
         wm = WorldManager.__new__(WorldManager)
@@ -268,9 +268,9 @@ class TestStaticFootprints:
         return wm
 
     @staticmethod
-    def world_with(*obstacles: Obstacle) -> WorldDescription:
+    def world_with(*obstacles: Obstacle, level_id: str = "0") -> WorldDescription:
         zone = LevelDescription.Zone(name="z", corners=[], entities=LevelDescription.Zone.WorldEntities(static=list(obstacles)))
-        return WorldDescription(levels={"": Level(zones=[zone])})
+        return WorldDescription(levels={level_id: Level(zones=[zone])})
 
     @staticmethod
     def occupied_bbox(grid: np.ndarray) -> tuple[int, int, int, int]:
@@ -339,8 +339,14 @@ class TestStaticFootprints:
         level_map = make_map(empty_grid(100, 100), resolution=self.RES)
         wm._multi_map = MultiLevelMap({"1": level_map})
         poly = shapely.box(0.5, 0.5, 1.0, 1.0)
-        wm.update_world(wm._map, self.world_with(self.make_obstacle(0.75, 0.75, level_id="1")), multi_level_map=wm._multi_map, static_footprints=[poly])
+        wm.update_world(wm._map, self.world_with(self.make_obstacle(0.75, 0.75), level_id="1"), multi_level_map=wm._multi_map, static_footprints=[poly])
         _, _, c0, c1 = self.occupied_bbox(wm._map.occupancy.grid)
         assert (c0, c1) == (50, 60)
         _, _, lc0, lc1 = self.occupied_bbox(level_map.occupancy.grid)
         assert (lc0, lc1) == (10, 20)
+
+    def test_single_frame_map_has_no_level_offset(self):
+        wm = self.make_wm()
+        wm.update_world(wm._map, self.world_with(self.make_obstacle(0.75, 0.75)), static_footprints=[shapely.box(0.5, 0.5, 1.0, 1.0)])
+        _, _, c0, c1 = self.occupied_bbox(wm._map.occupancy.grid)
+        assert (c0, c1) == (10, 20)

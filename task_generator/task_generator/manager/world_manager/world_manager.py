@@ -216,13 +216,13 @@ class WorldManager(NodeInterface):
         self._world = world_description
 
         footprints = itertools.repeat(None) if static_footprints is None else static_footprints
-        for obstacle, footprint in zip(self.world.all_static_entities, footprints, strict=static_footprints is not None):
+        placed = ((level_id, obstacle) for level_id, level in self.world.levels.items() for obstacle in level.all_static_entities)
+        for (level_id, obstacle), footprint in zip(placed, footprints, strict=static_footprints is not None):
             if footprint is None:
                 r = _UNKNOWN_FOOTPRINT_RADIUS
                 x, y = obstacle.pose.position.x, obstacle.pose.position.y
                 footprint = shapely.box(x - r, y - r, x + r, y + r)
-            level_id = obstacle.level_id
-            level_origin = self.map.level_origins[level_id] if level_id is not None else (0, 0)
+            level_origin = self.map.level_origins.get(level_id, (0.0, 0.0))
             self.map.occupancy.obstacle_occupy(
                 self.map.tf_poly2mask(shapely.affinity.translate(footprint, xoff=level_origin[0], yoff=level_origin[1]))
             )
