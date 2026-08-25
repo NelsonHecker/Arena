@@ -277,11 +277,21 @@ class TestStaticFootprints:
         rows, cols = np.nonzero(~WorldOccupancy.not_full(grid))
         return int(rows.min()), int(rows.max()) + 1, int(cols.min()), int(cols.max()) + 1
 
-    def test_poly2rect_maps_bounds(self):
+    def test_poly2mask_matches_rect_cells(self):
         wm = self.make_wm()
-        lo, hi = wm._map.tf_poly2rect(shapely.box(1.0, 1.0, 2.0, 1.5))
-        assert tuple(int(v) for v in lo) == (100 - 20, 20)
-        assert tuple(int(v) for v in hi) == (100 - 30, 40)
+        mask = wm._map.tf_poly2mask(shapely.box(1.0, 1.0, 2.0, 1.5))
+        rows, cols = np.nonzero(mask)
+        assert (int(rows.min()), int(rows.max()) + 1) == (100 - 30, 100 - 20)
+        assert (int(cols.min()), int(cols.max()) + 1) == (20, 40)
+        assert int(mask.sum()) == 10 * 20
+
+    def test_diagonal_footprint_is_not_its_envelope(self):
+        wm = self.make_wm()
+        poly = shapely.affinity.rotate(shapely.box(1.5, 2.25, 3.5, 2.75), 45)
+        wm.update_world(wm._map, self.world_with(self.make_obstacle(2.5, 2.5)), static_footprints=[poly])
+        occupied = int((~WorldOccupancy.not_full(wm._map.occupancy.grid)).sum())
+        area_cells = 1.0 / (self.RES**2)
+        assert 0.85 * area_cells <= occupied <= 1.2 * area_cells
 
     def test_unannotated_keeps_unit_radius_square(self):
         wm = self.make_wm()

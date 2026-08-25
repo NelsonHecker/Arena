@@ -224,11 +224,11 @@ class WorldManager(NodeInterface):
             level_id = obstacle.level_id
             level_origin = self.map.level_origins[level_id] if level_id is not None else (0, 0)
             self.map.occupancy.obstacle_occupy(
-                *self.map.tf_poly2rect(shapely.affinity.translate(footprint, xoff=level_origin[0], yoff=level_origin[1]))
+                self.map.tf_poly2mask(shapely.affinity.translate(footprint, xoff=level_origin[0], yoff=level_origin[1]))
             )
             level_map = self.level_maps.get_map(level_id)
             if level_map is not None:
-                level_map.occupancy.obstacle_occupy(*level_map.tf_poly2rect(footprint))
+                level_map.occupancy.obstacle_occupy(level_map.tf_poly2mask(footprint))
 
     def forbid(self, forbidden_zones: list[PositionRadius], level_id: str = ""):
         world_map = self.map_for_floor(level_id)
