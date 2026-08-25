@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import attrs
 import numpy as np
-import sounddevice as sd
 
 from task_generator.auditory.asset_lib import CachedSample
+
+if TYPE_CHECKING:
+    import sounddevice as sd
 
 
 class RenderSource(Protocol):
@@ -62,6 +64,8 @@ def auto_output_candidates(devices: Sequence[Mapping[str, Any]], default_index: 
 
 
 def _available_outputs() -> list[str]:
+    import sounddevice as sd
+
     outputs = [
         f"{index}: {description['name']}"
         for index, description in enumerate(sd.query_devices())
@@ -71,6 +75,8 @@ def _available_outputs() -> list[str]:
 
 
 def _open_stream(device: str | int, **kwargs: Any) -> sd.OutputStream:
+    import sounddevice as sd
+
     sd.query_devices(device, "output")
     stream = sd.OutputStream(dtype="float32", device=device, **kwargs)
     try:
@@ -100,6 +106,8 @@ class AudioMixer:
 
     @classmethod
     def open(cls, *, sample_rate: int = 44100, channels: int = 2, block_size: int = 2048, device: str | int | None = None, master_gain_db: float = 0.0) -> AudioMixer:
+        import sounddevice as sd
+
         mixer = cls(channels=channels, master_gain_db=master_gain_db)
         kwargs = {"samplerate": sample_rate, "channels": channels, "blocksize": block_size, "callback": mixer._callback}
         if device is not None:
@@ -139,7 +147,11 @@ class AudioMixer:
 
     @property
     def device_name(self) -> str | None:
-        return None if self._stream is None else str(sd.query_devices(self._stream.device)["name"])
+        if self._stream is None:
+            return None
+        import sounddevice as sd
+
+        return str(sd.query_devices(self._stream.device)["name"])
 
     @property
     def voice_count(self) -> int:

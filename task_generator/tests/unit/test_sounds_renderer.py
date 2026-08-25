@@ -7,22 +7,18 @@ import pytest
 
 pytest.importorskip("rclpy")
 
-try:
-    from task_generator.tasks.modules.sounds.impl import (
-        _CatalogEntry,
-        _catalog_default,
-        _catalog_lookup,
-        _index_static_entities,
-        _merge_params,
-        _parse_catalog,
-        _resolve_sound_placement,
-        _sound_group_id,
-    )
-except ImportError as exc:
-    pytest.skip(f"sounds renderer unavailable: {exc}", allow_module_level=True)
-
 from arena_simulation_setup.shared import Position, Sound
 from arena_simulation_setup.shared.semantics import parse_semantics
+from task_generator.tasks.modules.sounds.impl import (
+    _CatalogEntry,
+    _catalog_default,
+    _catalog_lookup,
+    _index_static_entities,
+    _merge_params,
+    _parse_catalog,
+    _resolve_sound_placement,
+    _sound_group_id,
+)
 
 
 def _entity(name: str, x: float, y: float, z: float, yaw: float) -> SimpleNamespace:

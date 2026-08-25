@@ -820,6 +820,7 @@ def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
             ),
             Parameter("only_when_moving", Parameter.Type.BOOL, True),
             Parameter("publish_period_sec", Parameter.Type.DOUBLE, 10.0),
+            Parameter("audio_device", Parameter.Type.STRING, "none"),
         ]
     )
     consumer = rclpy.create_node(f"motor_marker_consumer_{suffix}")
