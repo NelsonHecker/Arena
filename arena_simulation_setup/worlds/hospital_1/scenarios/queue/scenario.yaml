@@ -51,7 +51,7 @@ dynamic:
 
 static:
   - name: reception_desk
-    model: desk
+    model: Hospital/Reception_Counter
     pose: reception
     type: desk
     capacity: 3
@@ -62,7 +62,7 @@ static:
   
   - name: gathering_area
     type: gathering_area
-    model: chair
+    model: Hospital/Waiting_Room_Bench
     pose: [15.0, 6.0, 0.0]
     capacity: 0
     formation:
@@ -72,7 +72,7 @@ static:
   
   - name: fountain
     type: fountain
-    model: chair
+    model: Hospital/SM_WaterDispenser_01a
     pose: [11.0, 10.0, 1.57]
     capacity: 1
     satisfies: {thirst: 100.0}
@@ -81,14 +81,14 @@ static:
       params: {base_step: 1.0, front_offset: 0.8}
 
   - name: exam_chair_1
-    model: chair
+    model: Hospital/Patient_Armchair
     pose: exam_room_1
     type: chair
     capacity: 1
     interaction_radius: 0.8
 
   - name: patient_bed_1
-    model: patient_bed
+    model: Hospital/Isolation_Bed
     pose: patient_ward
     type: patient_bed
     capacity: 1
