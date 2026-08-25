@@ -408,6 +408,10 @@ def generate_launch_description():
             if param_key not in dotted_overrides:
                 dotted_overrides[param_key] = sel_val
 
+        scenario_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(scenario_file.substitution)).strip()
+        if scenario_val:
+            dotted_overrides["task.scenario.file"] = scenario_val
+
         dotted_overrides.update(expand_flag_namespace(context, "optim", launch_str_to_value))
         debug_flags = expand_flag_namespace(context, "debug", launch_str_to_value)
         dotted_overrides.update(debug_flags)
@@ -452,10 +456,7 @@ def generate_launch_description():
                     "prefix": prefix_val,
                 },
                 parameter_file.substitution,
-                {
-                    "episodes": episodes.param_value(int),
-                    'task.scenario.file': scenario_file.substitution,
-                },
+                {"episodes": episodes.param_value(int)},
                 *overrides_files,
             ],
         )
