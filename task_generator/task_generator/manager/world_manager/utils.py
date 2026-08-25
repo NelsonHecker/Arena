@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Iterable, TypeVar
 import attrs
 import numpy as np
 import scipy.interpolate
+import shapely
 import yaml
 from arena_rclpy_mixins.Time import Time
 from PIL import Image
@@ -274,6 +275,10 @@ class WorldMap:
             )
         )
         return (lo, hi)
+
+    def tf_poly2rect(self, poly: shapely.Polygon) -> tuple[tuple[int, int], tuple[int, int]]:
+        min_x, min_y, max_x, max_y = poly.bounds
+        return (self.tf_pos2grid(Position(x=min_x, y=min_y)), self.tf_pos2grid(Position(x=max_x, y=max_y)))
 
     def detect_walls(self) -> WorldWalls:
         return self.occupancy.detect_walls(self.tf_grid2pos)

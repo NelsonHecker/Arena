@@ -251,7 +251,8 @@ class WorldManagerROS(MapServerHandler, WorldManager):
                 compacted_description = world.compact_world(origins={fid: (0.0, 0.0) for fid in world.level_ids})
             world_map = WorldMap.from_world_description(compacted_description, resolution=_DEFAULT_RESOLUTION, time=self.node.sim_time, _level_origins=level_origins)
         DynamicPaths.WORLD.path = world_view.path
-        self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_level_map)
+        static_footprints = await asyncio.gather(*(o.footprint() for o in world.all_static_entities))
+        self.update_world(world_map=world_map, world_description=world, multi_level_map=multi_level_map, static_footprints=static_footprints)
 
         self._world_name = world_name
         self._world_mtime = mtime

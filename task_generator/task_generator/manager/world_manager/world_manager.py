@@ -1,16 +1,20 @@
 import collections
 import itertools
 import math
+from collections.abc import Sequence
 
 import arena_simulation_setup.tree.World as World
 import numpy as np
 import scipy.signal
 import shapely
+import shapely.affinity
 from arena_runtime._node import NodeInterface
 
 from task_generator.shared import Position, PositionRadius
 
 from .utils import MultiLevelMap, WorldMap, WorldOccupancy
+
+_UNKNOWN_FOOTPRINT_RADIUS = 1.0
 
 
 def _disc_kernel(safe_dist_cells: float) -> np.ndarray:
@@ -198,6 +202,7 @@ class WorldManager(NodeInterface):
         world_map: WorldMap,
         world_description: World.WorldDescription,
         multi_level_map: MultiLevelMap | None = None,
+        static_footprints: Sequence[shapely.Polygon | None] | None = None,
     ):
         self._map = world_map
         self._multi_map = multi_level_map
@@ -210,29 +215,20 @@ class WorldManager(NodeInterface):
 
         self._world = world_description
 
-        for obstacle in self.world.all_static_entities:
+        footprints = itertools.repeat(None) if static_footprints is None else static_footprints
+        for obstacle, footprint in zip(self.world.all_static_entities, footprints, strict=static_footprints is not None):
+            if footprint is None:
+                r = _UNKNOWN_FOOTPRINT_RADIUS
+                x, y = obstacle.pose.position.x, obstacle.pose.position.y
+                footprint = shapely.box(x - r, y - r, x + r, y + r)
             level_id = obstacle.level_id
             level_origin = self.map.level_origins[level_id] if level_id is not None else (0, 0)
             self.map.occupancy.obstacle_occupy(
-                *self.map.tf_posr2rect(
-                    PositionRadius(
-                        x=obstacle.pose.position.x + level_origin[0],
-                        y=obstacle.pose.position.y + level_origin[1],
-                        radius=1,  # TODO actual radius
-                    )
-                )
+                *self.map.tf_poly2rect(shapely.affinity.translate(footprint, xoff=level_origin[0], yoff=level_origin[1]))
             )
             level_map = self.level_maps.get_map(level_id)
             if level_map is not None:
-                level_map.occupancy.obstacle_occupy(
-                    *level_map.tf_posr2rect(
-                        PositionRadius(
-                            x=obstacle.pose.position.x,
-                            y=obstacle.pose.position.y,
-                            radius=1,  # TODO actual radius
-                        )
-                    )
-                )
+                level_map.occupancy.obstacle_occupy(*level_map.tf_poly2rect(footprint))
 
     def forbid(self, forbidden_zones: list[PositionRadius], level_id: str = ""):
         world_map = self.map_for_floor(level_id)
