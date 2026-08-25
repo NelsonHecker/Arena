@@ -794,6 +794,52 @@ def test_auditory_round_trip_greeting_reaches_robot_marker(rclpy_context):
         propagation.destroy_node()
 
 
+def test_continuous_source_on_moving_frame_relocalizes_per_update(rclpy_context):
+    from geometry_msgs.msg import Point, TransformStamped
+    from nav_msgs.msg import OccupancyGrid
+    from task_generator.auditory.sound_propagation_node import SoundPropagationNode
+    from task_generator_msgs.msg import ContinuousAudioSourceState
+
+    suffix = f"t_{uuid.uuid4().hex[:8]}"
+    propagation = SoundPropagationNode(namespace=f"/test/{suffix}")
+    propagation._map = OccupancyGrid()
+    propagation._map.header.frame_id = "map"
+    propagation._map.info.resolution = 1.0
+    propagation._map.info.width = 40
+    propagation._map.info.height = 40
+    propagation._map.info.origin.orientation.w = 1.0
+    propagation._robots = {"robot:listener": (Point(), "map")}
+
+    def _place_rider(x: float) -> None:
+        transform = TransformStamped()
+        transform.header.frame_id = "map"
+        transform.child_frame_id = "rider/base_link"
+        transform.transform.translation.x = x
+        transform.transform.rotation.w = 1.0
+        propagation._tf_buffer.set_transform_static(transform, "test")
+
+    state = ContinuousAudioSourceState()
+    state.header.frame_id = "rider/base_link"
+    state.source_id = "environment:horn"
+    state.sound_type = "alarm"
+    state.source_backend = "wav_loop"
+    state.source_position = Point(x=1.0, y=0.0, z=0.5)
+    state.source_volume_db = 80.0
+    state.active = True
+    key = (state.source_id, "robot:listener")
+
+    try:
+        _place_rider(10.0)
+        propagation._cb_continuous_source(state)
+        assert propagation._last_continuous_outputs[key].source_position.x == pytest.approx(11.0)
+
+        _place_rider(20.0)
+        propagation._cb_continuous_source(state)
+        assert propagation._last_continuous_outputs[key].source_position.x == pytest.approx(21.0)
+    finally:
+        propagation.destroy_node()
+
+
 def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
     import rclpy
     from nav_msgs.msg import Odometry

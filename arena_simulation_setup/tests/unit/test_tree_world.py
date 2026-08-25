@@ -229,11 +229,30 @@ def test_sound_round_trip():
         {'name': 'siren', 'asset_id': 'alarm_loop', 'position': [0.0, 0.0], 'entity_ref': 'cabinet'},
         {'name': 'siren', 'asset_id': 'alarm_loop', 'entity_ref': 'cabinet', 'level': '1'},
         {'name': 'siren', 'asset_id': 'alarm_loop', 'position': [0.0, 0.0], 'reference_distance_m': 0.0},
+        {'name': 'siren', 'asset_id': 'alarm_loop', 'frame': 'jackal/base_link', 'position': [0.0, 0.0]},
+        {'name': 'siren', 'asset_id': 'alarm_loop', 'frame': 'jackal/base_link', 'entity_ref': 'cabinet'},
+        {'name': 'siren', 'asset_id': 'alarm_loop', 'frame': 'jackal/base_link', 'level': '1'},
     ],
 )
 def test_sound_rejects_invalid(raw):
     with pytest.raises(Exception):
         converter.structure(raw, Sound)
+
+
+def test_sound_frame_round_trip():
+    raw = {
+        'name': 'horn',
+        'asset_id': 'alarm_loop',
+        'frame': '/jackal/base_link',
+        'offset': [0.3, 0.0, 0.8],
+        'semantics': [{'preset': 'sound'}],
+    }
+    sound = converter.structure(raw, Sound)
+    assert sound.frame == 'jackal/base_link'
+    assert sound.position is None
+    assert sound.offset.z == pytest.approx(0.8)
+    reparsed = converter.structure(converter.unstructure(sound), Sound)
+    assert reparsed.frame == sound.frame
 
 
 def test_sound_rejects_unknown_semantics_key():

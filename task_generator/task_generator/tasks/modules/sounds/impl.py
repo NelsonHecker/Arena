@@ -95,6 +95,14 @@ class _CatalogEntry:
     reference_level_db: float
 
 
+def _realize_frame(env_frame: str, frame: str) -> str:
+    """Env-prefixed TF frame, left alone when the author already wrote the prefix."""
+    env_frame = env_frame.strip("/")
+    if not env_frame or frame == env_frame or frame.startswith(f"{env_frame}/"):
+        return frame
+    return f"{env_frame}/{frame}"
+
+
 def _parse_catalog(raw: dict) -> dict[str, _CatalogEntry]:
     """asset_id -> catalog entry from a parsed acoustic_assets.yaml document."""
     return {
@@ -134,6 +142,7 @@ class _ResolvedSound:
     tags: tuple[str, ...]
     loop: bool
     reference_distance_m: float
+    frame_id: str
     position: Point
     yaw: float
 
@@ -226,11 +235,14 @@ class Mod_Sounds(TM_Module):
         context_level_id: str | None,
         realized_name: str,
     ) -> _ResolvedSound:
+        if snd.frame:
+            frame_id = _realize_frame(self.node._realizer.realize(), snd.frame)
+            return self._build_resolved(snd, realized_name, snd.offset.to_msg(), 0.0, frame_id)
         position, yaw, level_id = _resolve_sound_placement(snd, world, indexed_entities, context_level_id)
         map_position = self.node._realizer.realize(position, level_id)
-        return self._build_resolved(snd, realized_name, map_position.to_msg(), yaw)
+        return self._build_resolved(snd, realized_name, map_position.to_msg(), yaw, "map")
 
-    def _build_resolved(self, snd: Sound, realized_name: str, position: Point, yaw: float) -> _ResolvedSound:
+    def _build_resolved(self, snd: Sound, realized_name: str, position: Point, yaw: float, frame_id: str) -> _ResolvedSound:
         sound_type, catalog_tags, found = _catalog_lookup(self._catalog, snd.asset_id)
         if not found:
             self._logger.warning(f"sound {snd.name!r}: asset_id {snd.asset_id!r} is not in the acoustic catalog")
@@ -242,6 +254,7 @@ class Mod_Sounds(TM_Module):
             tags=("environment", "static", sound_type, *catalog_tags),
             loop=snd.loop,
             reference_distance_m=snd.reference_distance_m,
+            frame_id=frame_id,
             position=position,
             yaw=yaw,
         )
@@ -326,6 +339,7 @@ class Mod_Sounds(TM_Module):
             response.error_msg = "sound orientation must be valid"
             return response
 
+        attach_to_frame = bool(request.attach_to_frame)
         map_position = Point(
             x=float(position.x),
             y=float(position.y),
@@ -337,7 +351,7 @@ class Mod_Sounds(TM_Module):
             float(orientation.z) / orientation_norm,
             float(orientation.w) / orientation_norm,
         )
-        if frame_id != "map":
+        if frame_id != "map" and not attach_to_frame:
             try:
                 transform = self.node.tf_buffer.lookup_transform(
                     "map",
@@ -370,7 +384,7 @@ class Mod_Sounds(TM_Module):
                 map_orientation,
             )
 
-        if map_position.z < 0.0:
+        if map_position.z < 0.0 and not attach_to_frame:
             response.error_msg = "sound height cannot be below the floor"
             return response
 
@@ -388,14 +402,13 @@ class Mod_Sounds(TM_Module):
                 index += 1
                 entity_name = f"runtime_{mode}_{index}"
                 realized_name = self.node._realizer.prefix(entity_name)
+            local = Position(float(map_position.x), float(map_position.y), float(map_position.z))
             sound = Sound(
                 name=entity_name,
                 asset_id=asset_id,
-                position=Position(
-                    float(map_position.x),
-                    float(map_position.y),
-                    float(map_position.z),
-                ),
+                frame=frame_id if attach_to_frame else "",
+                offset=local if attach_to_frame else Position(0.0, 0.0, 0.0),
+                position=None if attach_to_frame else local,
                 loop=loop,
                 semantics=[
                     SemanticCfg(role="predicate", name="sounding"),
@@ -408,7 +421,8 @@ class Mod_Sounds(TM_Module):
                 self.node._simulator.set_semantic_value(realized_name, "sounding", "true")
             self._attached.add(realized_name)
             self._runtime.add(realized_name)
-            self._sounds[realized_name] = self._build_resolved(sound, realized_name, map_position, float(yaw))
+            wire_frame = _realize_frame(self.node._realizer.realize(), frame_id) if attach_to_frame else "map"
+            self._sounds[realized_name] = self._build_resolved(sound, realized_name, map_position, float(yaw), wire_frame)
             return realized_name
 
         realized_name = self.node.wait_for(_spawn())
@@ -521,7 +535,7 @@ class Mod_Sounds(TM_Module):
 
             msg = ContinuousAudioSourceState()
             msg.header.stamp = stamp
-            msg.header.frame_id = "map"
+            msg.header.frame_id = resolved.frame_id
             msg.source_id = f"environment:{snap.entity}"
             msg.source_agent_id = self._numeric_id(snap.entity)
             msg.source_agent_name = resolved.name

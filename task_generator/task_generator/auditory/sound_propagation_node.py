@@ -1206,7 +1206,7 @@ class SoundPropagationNode(Node):
             return
 
         event = SoundEvent()
-        event.header = state.header
+        event.header = copy.deepcopy(state.header)
         event.event_id = state.source_id
         event.source_agent_id = state.source_agent_id
         event.source_agent_name = state.source_agent_name

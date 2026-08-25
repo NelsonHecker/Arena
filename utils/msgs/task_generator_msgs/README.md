@@ -17,7 +17,7 @@ Runtime types (env registry, holds, world confirm, cleanup, purge) live in [`are
 | `SpawnMicrophone.srv` | Place an episode-local acoustic listener at a stamped point. The auditory runtime derives and validates its authored world zone and returns its stable listener ID. |
 | `DespawnRobot.srv` | Single fleet-removal surface: stages a live robot for teardown on the next reset, un-stages a queued despawn, or cancels a queued spawn (toggles `state/robots/pending`). |
 | `SetSemantic.srv` | Write one semantic field value on an entity via `semantics/set`; one of three writer paths into semantics state (timeline, modules, external). |
-| `SpawnSound.srv` | Place a runtime `sound` source at a stamped pose (music or alarm mode, optional custom playback fields). Returns its generated `entity`. |
+| `SpawnSound.srv` | Place a runtime `sound` source at a stamped pose (music or alarm mode, optional custom playback fields, `attach_to_frame` to ride the pose's frame). Returns its generated `entity`. |
 | `RemoveSound.srv` | Remove a runtime-spawned `sound` source by `entity`. World- and launch-declared sounds cannot be removed this way. |
 
 ## Messages (`msg/`)

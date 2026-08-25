@@ -16,6 +16,7 @@ from task_generator.tasks.modules.sounds.impl import (
     _index_static_entities,
     _merge_params,
     _parse_catalog,
+    _realize_frame,
     _resolve_sound_placement,
     _sound_group_id,
 )
@@ -142,6 +143,26 @@ def test_resolve_sound_placement_position_honors_sound_level_without_context() -
     _, _, level_id = _resolve_sound_placement(sound, world, {}, None)
 
     assert level_id == "b"
+
+
+# ---------------------------------------------------------------------------
+# frame realization
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("env", "frame", "expected"),
+    [
+        ("env_0", "jackal/base_link", "env_0/jackal/base_link"),
+        ("env_0", "env_0/jackal/base_link", "env_0/jackal/base_link"),
+        ("env_0", "env_0", "env_0"),
+        ("/env_0/", "jackal/base_link", "env_0/jackal/base_link"),
+        ("", "jackal/base_link", "jackal/base_link"),
+        ("env_0", "env_01/jackal/base_link", "env_0/env_01/jackal/base_link"),
+    ],
+)
+def test_realize_frame_prefixes_once(env: str, frame: str, expected: str) -> None:
+    assert _realize_frame(env, frame) == expected
 
 
 # ---------------------------------------------------------------------------

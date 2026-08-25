@@ -147,9 +147,10 @@ serialize when empty):
 
 `signal`, `schedule`, and `sound` have no wall/door geometry of their own, so
 a zone carries them as sibling lists to `doors:`/`elevators:`. A `sound`
-still needs a placement: exactly one of `position` (`[x, y]`) or `entity_ref`
+still needs a placement: exactly one of `position` (`[x, y]`), `entity_ref`
 (name of a static entity in the same world, whose yaw frame `offset` is
-applied in).
+applied in) or `frame` (a TF frame the sound rides, `offset` local to it, so
+`frame: jackal/base_link` is a speaker bolted to that robot).
 
 ```yaml
 zones:

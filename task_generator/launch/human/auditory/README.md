@@ -113,11 +113,17 @@ A `sound` entry takes:
 
 - `name`: unique among all world-, scenario- and launch-defined sounds.
 - `asset_id`: a catalog entry from `acoustic_assets.yaml`.
-- `position` or `entity_ref`, exactly one. `entity_ref` must name one unique
-  static world entity, and `offset` then rotates with that entity's yaw. A
-  direct `position` is level-local. `level` is required for it in a
-  multi-level world and forbidden together with `entity_ref` (the level is
-  derived from the referenced entity).
+- `position`, `entity_ref` or `frame`, exactly one. `entity_ref` must name
+  one unique static world entity, and `offset` then rotates with that
+  entity's yaw. A direct `position` is level-local. `level` is required for
+  it in a multi-level world and only allowed with it. `frame` names a TF
+  frame (env prefix optional, added when missing) and `offset` is local to
+  that frame: the renderer publishes the frame, not a map point, and
+  propagation re-localizes the source on every update, so a sound on
+  `jackal/base_link` moves with the robot. While the frame is not yet in TF
+  the source is skipped with a warning, never placed at the origin.
+  Pedestrians publish no per-agent TF frame, so `frame` targets robots and
+  static frames.
 - `loop` (default `true`).
 - `reference_distance_m` (default `1.0`), must be positive.
 - `semantics`: a `semantics:` list carrying the `sound` preset, which expands
@@ -225,6 +231,9 @@ assets:
         tags: [music]
         octave_band_levels_db: auto
 ```
+
+Runtime spawns follow the same rule: `SpawnSound.attach_to_frame` keeps the
+request pose in its own frame instead of transforming it to `map` once.
 
 A scenario carries episode-scoped sounds in its own `sounds:` list, same
 schema, attached at reset and gone at the next one. Positions may be zone
