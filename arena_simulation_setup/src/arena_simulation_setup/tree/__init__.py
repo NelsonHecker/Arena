@@ -313,6 +313,7 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         # every non-model file in a payload (meshes, scenario.json, map images).
         self._formats = list(formats) if formats is not None else os.environ.get('ARENA_MODELS_FORMATS', '').split(',')
         self._ttl = ttl if ttl is not None else int(os.environ.get('ARENA_MODELS_TTL', '86400'))
+        self._listing_ttl = int(os.environ.get('ARENA_MODELS_TTL', '86400'))
         self._pending: dict[str, list[asyncio.Future[Path | None]]] = {}
         self._flush_scheduled = False
         self._batch_lock = asyncio.Lock()
@@ -461,12 +462,12 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         return [*argv, '--children', *((self._list_prefix,) if self._list_prefix else ())]
 
     def _cached_listing(self) -> list[str] | None:
-        """Bucket listing from disk if younger than the TTL, else None."""
+        """Bucket listing from disk if younger than the listing TTL, else None."""
         try:
             stat = self._listing_path.stat()
         except OSError:
             return None
-        if time.time() - stat.st_mtime >= self._ttl:
+        if time.time() - stat.st_mtime >= self._listing_ttl:
             return None
         return self._listing_path.read_text().splitlines()
 

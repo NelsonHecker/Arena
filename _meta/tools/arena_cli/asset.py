@@ -172,10 +172,14 @@ def _bucket_of(argv: list[str], kind: str) -> str:
     return candidates[0]
 
 
-def _cache_root(bucket: str):
-    from arena_simulation_setup import ARENA_ASSETS_DIR
+def _net_resolver(kind: str, bucket: str):
+    """The kind's resolver for one bucket, which owns that bucket's cache and freshness stamps."""
+    from arena_simulation_setup.tree import NetResolver
 
-    return ARENA_ASSETS_DIR / bucket
+    for resolver in _identifier_type(kind)._resolvers:
+        if isinstance(resolver, NetResolver) and resolver._provider == bucket:
+            return resolver
+    raise CLIError(f"{bucket} is not a configured bucket for {kind}, expected one of {', '.join(_buckets(kind))}")
 
 
 def _net(bucket: str, *args: str) -> int:
@@ -195,7 +199,13 @@ def pull_main(argv: list[str]) -> int:
     kind, name = args[0], args[1]
     bucket = _bucket_of(argv, kind)
     identifier = _identifier(kind, name)
-    return _net(bucket, "fetch", str(identifier.relpath()), "-o", str(_cache_root(bucket)))
+    resolver = _net_resolver(kind, bucket)
+    path = identifier._run_sync(resolver.resolve(identifier))
+    if path is None:
+        print(f"{kind} {name} is not in {bucket}", file=sys.stderr)
+        return 1
+    print(path)
+    return 0
 
 
 def _world_dangling(view, source) -> list[str]:
@@ -257,11 +267,7 @@ def _config_source(identifier):
 
 def _drop_listing(kind: str, bucket: str) -> None:
     """A publish makes the cached bucket listing stale, so the next ls re-fetches it."""
-    from arena_simulation_setup.tree import NetResolver
-
-    for resolver in _identifier_type(kind)._resolvers:
-        if isinstance(resolver, NetResolver) and resolver._provider == bucket:
-            resolver._listing_path.unlink(missing_ok=True)
+    _net_resolver(kind, bucket)._listing_path.unlink(missing_ok=True)
 
 
 def push_main(argv: list[str]) -> int:
