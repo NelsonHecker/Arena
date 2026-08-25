@@ -63,7 +63,7 @@ def test_scenario_parses_episode_sounds():
                     "asset_id": "radio_loop",
                     "position": [2.0, 1.0],
                     "level": "1",
-                    "semantics": [{"preset": "sound"}, {"state": "volume_db", "value": 62.0}],
+                    "semantics": [{"preset": "sound", "params": {"sounding": True, "volume_db": 62.0}}],
                 },
             ],
         },
@@ -71,7 +71,7 @@ def test_scenario_parses_episode_sounds():
     )
     assert [snd.name for snd in s.sounds] == ["bedroom_radio"]
     assert s.sounds[0].level == "1"
-    assert [(c.name, c.value) for c in s.sounds[0].semantics] == [("sounding", None), ("volume_db", None), ("volume_db", 62.0)]
+    assert {c.name: c.value for c in s.sounds[0].semantics} == {"sounding": True, "volume_db": 62.0}
 
 
 def test_scenario_with_robots():
@@ -476,10 +476,7 @@ def test_fire_alarm_reference_scenario_parses():
     assert len(scenario.timeline) == 2
     lock, alarm = scenario.timeline
     assert lock.at == pytest.approx(0.0)
-    assert lock.set == [
-        {"entity": "door_edge_1_1", "field": "locked", "value": "true"},
-        {"entity": "bedroom_radio", "field": "sounding", "value": "true"},
-    ]
+    assert lock.set == [{"entity": "door_edge_1_1", "field": "locked", "value": "true"}]
     assert alarm.at == pytest.approx(12.0)
     assert alarm.set == [
         {"entity": "fire_alarm", "field": "active", "value": "true"},
@@ -488,7 +485,7 @@ def test_fire_alarm_reference_scenario_parses():
     (radio,) = scenario.sounds
     assert radio.name == "bedroom_radio"
     assert radio.level == "1"
-    assert [(c.name, c.value) for c in radio.semantics] == [("sounding", None), ("volume_db", None), ("volume_db", 62.0)]
+    assert {c.name: c.value for c in radio.semantics} == {"sounding": True, "volume_db": 62.0}
 
 
 _FIRE_ALARM_WORLD = (

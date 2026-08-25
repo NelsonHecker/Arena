@@ -104,11 +104,18 @@ def parse_semantics(value: list) -> list[SemanticCfg]:
             preset_name = item.pop('preset')
             if preset_name not in _PRESETS:
                 raise ValueError(f'unknown semantics preset: {preset_name}')
-            item_params = item.pop('params', {})
-            for primitive in _PRESETS[preset_name]:
+            item_params = dict(item.pop('params', {}))
+            primitives = _PRESETS[preset_name]
+            if 'value' in item and len(primitives) > 1:
+                raise ValueError(f'preset {preset_name} expands to several primitives, set value via params.<name>')
+            names = [p.get('state') or p.get('predicate') for p in primitives]
+            values = {name: item_params.pop(name) for name in names if name in item_params}
+            for primitive, name in zip(primitives, names, strict=True):
                 primitive = dict(primitive)
                 primitive_params = primitive.pop('params', {})
                 merged = {**primitive, **item}
+                if name in values:
+                    merged['value'] = values[name]
                 merged_params = {**primitive_params, **item_params}
                 if merged_params:
                     merged['params'] = merged_params

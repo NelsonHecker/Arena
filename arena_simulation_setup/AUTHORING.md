@@ -140,10 +140,10 @@ serialize when empty):
 | --- | --- | --- | --- |
 | `signal` | a standalone `signals:` entry (zone-level) | `state`, `phase_remaining`, `stop` | `phases` (list of `{name, duration}`), `stop_phases`, `regime` |
 | `schedule` | a standalone `schedules:` entry (zone-level) | `state`, `active`, `window_remaining` | `windows` (list of `{start, end, value}`), `default`, `regime` |
-| `gate` | a `doors:` entry | `locked`, `blocked` | `authorized` (sim_paths/robot names), `unlock_on` |
+| `gate` | a `doors:` entry | `locked`, `blocked` | `authorized` (sim_paths/robot names), `unlock_on`, `locked` (initial value) |
 | `pressure_plate` | a `doors:`/`elevators:` entry (own `position`) | `pressed` | `position` (`[x, y]`), `radius`, `drives`, `latch`, `press_on`, `regime` |
 | `occupancy_cap` | a `zones:` entry | `occupancy`, `cap`, `over_cap` | `cap` |
-| `sound` | a standalone `sounds:` entry (zone- or scenario-level) | `sounding`, `volume_db` | `sound_on`, `regime` |
+| `sound` | a standalone `sounds:` entry (zone- or scenario-level) | `sounding`, `volume_db` | `sound_on`, `regime`, `sounding`/`volume_db` (initial values) |
 
 `signal`, `schedule`, and `sound` have no wall/door geometry of their own, so
 a zone carries them as sibling lists to `doors:`/`elevators:`. A `sound`
@@ -168,14 +168,15 @@ zones:
     asset_id: alarm_loop
     position: [4.0, 2.3]
     semantics:
-    - {preset: sound, params: {sound_on: alarm}}
-    - {state: volume_db, value: 88.0}
+    - {preset: sound, params: {sound_on: alarm, volume_db: 88.0}}
 ```
 
-A sound's initial volume is authored as a separate `{state: volume_db, value:
-N}` entry, never via a `value:` on the `preset: sound` item itself: preset
-expansion broadcasts a top-level `value:` onto every primitive it expands to,
-which would corrupt the `sounding` predicate into a self-asserting value.
+A preset `params:` key that names one of the preset's own primitives
+(`volume_db`, `sounding`, `locked`, ...) becomes that primitive's initial
+`value` instead of a shared param, so `{preset: sound, params: {sounding:
+true, volume_db: 62.0}}` is a radio that plays from the start at 62 dB. A
+top-level `value:` on a preset item that expands to more than one primitive
+is rejected at load: there is no single primitive it could mean.
 
 A scenario may carry its own `sounds:` list with the same schema. Those are
 episode-scoped: attached at reset, gone at the next one, and their
@@ -183,14 +184,11 @@ episode-scoped: attached at reset, gone at the next one, and their
 
 `gate` and `pressure_plate` reuse an existing `doors:`/`elevators:` entry as
 their attachment point, `occupancy_cap` reuses a `zones:` entry, all via the
-same `semantics:` list. A `gate` should spawn unlocked (`value: false` on its
-`locked` predicate): the world is shared by every scenario, so a gate that
-defaulted to locked would block scenarios that never touch its regime. A
-scenario that wants the door locked at episode start says so explicitly in
-its `timeline:` (see below), leaving the world itself inert. Because a
-`value:` set on a `preset:` item broadcasts to every primitive the preset
-expands to, giving `locked` its own `value: false` means writing the gate's
-primitives out individually rather than through `{preset: gate, ...}`:
+same `semantics:` list. A `gate` should spawn unlocked (`locked: false` in its
+params): the world is shared by every scenario, so a gate that defaulted to
+locked would block scenarios that never touch its regime. A scenario that
+wants the door locked at episode start says so explicitly in its `timeline:`
+(see below), leaving the world itself inert:
 
 ```yaml
 doors:
@@ -198,8 +196,7 @@ doors:
   start: {x: 4.0, y: 1.55, z: 0.0}
   end:   {x: 4.0, y: 2.45, z: 0.0}
   semantics:
-  - {predicate: locked, value: false, params: {authorized: [], unlock_on: alarm}}
-  - {predicate: blocked}
+  - {preset: gate, params: {authorized: [], unlock_on: alarm, locked: false}}
   - {preset: pressure_plate, params: {position: [4.0, 2.0], press_on: alarm, drives: door_edge_1_1}}
 ```
 

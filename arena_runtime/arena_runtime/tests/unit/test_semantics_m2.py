@@ -516,6 +516,27 @@ def test_sound_attach_defaults_silent_and_volume_80():
     assert snap.continuous["volume_db"] == pytest.approx(80.0)
 
 
+def test_sound_initial_sounding_value_plays_and_survives_reset():
+    mech = _Mech()
+    _manager(mech)
+    cfgs = [_MCfg("predicate", "sounding", value=True), _MCfg("state", "volume_db", value=62.0)]
+    inst = _attach_sound(mech, cfgs)
+    assert inst.snapshot().predicates["sounding"] is True
+    inst.set_value("sounding", "false")
+    assert inst.snapshot().predicates["sounding"] is False
+    inst.reset()
+    assert inst.snapshot().predicates["sounding"] is True
+    assert inst.snapshot().continuous["volume_db"] == pytest.approx(62.0)
+
+
+def test_sound_initial_sounding_with_sound_on_raises():
+    mech = _Mech()
+    _manager(mech)
+    cfgs = [_MCfg("predicate", "sounding", value=True, params={"sound_on": "alarm"}), _MCfg("state", "volume_db")]
+    with pytest.raises(ValueError):
+        _attach_sound(mech, cfgs)
+
+
 def test_sound_regime_consult_live_before_any_step():
     """The engine consults sound_on's regime purely from snapshot(), no step() anywhere in this test."""
     mech = _Mech()

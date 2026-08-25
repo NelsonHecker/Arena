@@ -716,6 +716,7 @@ class SoundSemantics(SemanticKind):
         entity: str,
         sound_on: str | None,
         regime: str | None,
+        initial_sounding: bool,
         initial_volume: float,
         discrete: tuple[str, ...],
         continuous: tuple[str, ...],
@@ -725,6 +726,7 @@ class SoundSemantics(SemanticKind):
         self._mech = mech
         self._sound_on = sound_on
         self._regime = regime
+        self._initial_sounding = initial_sounding
         self._initial_volume = initial_volume
         self._volume = initial_volume
         self._override_sounding: bool | None = None
@@ -738,14 +740,21 @@ class SoundSemantics(SemanticKind):
         regime = params.get('regime')
         if sound_on is not None and sound_on == regime:
             raise ValueError(f"sound {entity!r}: sound_on cannot equal regime (self-latch)")
+        initial_sounding = False
         initial_volume = 80.0
         for cfg in cfgs:
-            if cfg.name == 'volume_db' and cfg.value is not None:
+            if cfg.value is None:
+                continue
+            if cfg.name == 'volume_db':
                 initial_volume = float(cfg.value)
-        return cls(mech, entity, sound_on, regime, initial_volume, discrete, continuous, predicates)
+            elif cfg.name == 'sounding':
+                if sound_on is not None:
+                    raise ValueError(f"sound {entity!r}: sounding value and sound_on are exclusive")
+                initial_sounding = bool(cfg.value)
+        return cls(mech, entity, sound_on, regime, initial_sounding, initial_volume, discrete, continuous, predicates)
 
     def _natural(self) -> bool:
-        return self._mech._semantics.regime(self._sound_on) if self._sound_on is not None else False
+        return self._mech._semantics.regime(self._sound_on) if self._sound_on is not None else self._initial_sounding
 
     def _live_sounding(self) -> bool:
         return self._override_sounding if self._override_sounding is not None else self._natural()

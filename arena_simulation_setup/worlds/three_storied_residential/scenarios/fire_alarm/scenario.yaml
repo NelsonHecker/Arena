@@ -8,17 +8,13 @@ sounds:
   position: [2.0, 1.0]
   level: "1"
   semantics:
-  - {preset: sound}
-  - {state: volume_db, value: 62.0}
+  - {preset: sound, params: {sounding: true, volume_db: 62.0}}
 robots: []
 timeline:
 - at: 0.0
   set:
   - entity: door_edge_1_1
     field: locked
-    value: "true"
-  - entity: bedroom_radio
-    field: sounding
     value: "true"
 - at: 12.0
   set:

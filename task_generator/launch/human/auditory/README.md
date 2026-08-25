@@ -152,10 +152,11 @@ path per sound and playback uses one independent RIR convolver each. A wall,
 doorway, or extra distance can therefore delay and attenuate each speaker
 differently.
 
-A sound with no `sound_on` never plays on its own: its `sounding` predicate
-starts, and stays, `false` until something writes an override. That is how an
-always-on device like a radio is authored: declare the sound, then flip it on
-once, either from a scenario timeline entry:
+A sound with no `sound_on` plays only when told to. An always-on device like
+a radio is authored with an initial value in its preset params,
+`{preset: sound, params: {sounding: true, volume_db: 62.0}}` (`sounding:` and
+`sound_on:` are exclusive). Anything can be toggled later, either from a
+scenario timeline entry:
 
 ```yaml
 timeline:
