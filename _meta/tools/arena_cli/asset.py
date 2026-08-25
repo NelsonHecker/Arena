@@ -293,15 +293,14 @@ def push_main(argv: list[str]) -> int:
             print(f"{name} ships in the repo, so a published copy would never be read. Use --force to publish anyway.", file=sys.stderr)
             return 1
 
-    loaded = identifier.resolve_sync()
-    source = _config_source(identifier) if spec.bundle else loaded.path
+    source = _config_source(identifier) if spec.bundle else identifier.resolve_source_sync().path
 
     verdict = "publishing anyway" if force else f"refusing to publish {name}"
     check = _PREFLIGHTS.get(spec.closure)
     dangling: list[str] = []
     if check is not None:
         try:
-            dangling = check(loaded, source)
+            dangling = check(identifier.resolve_sync(), source)
         except Exception as exc:
             # a strict walk raises on a reference it cannot read, and that must never be
             # mistaken for an asset that simply has no references
