@@ -439,11 +439,6 @@ class RobotsManager(NodeInterface):
             futures.append(self.managers.pop(robot_name).destroy())
         self._diff.to_remove.clear()
 
-        for robot_name in self._diff.to_update:
-            futures.append(self.managers[robot_name].update())
-            # TODO
-        self._diff.to_update.clear()
-
         # Re-seed staging poses from the latest prespawn anchor; placement may
         # have changed since the previous reset.
         prespawn_x, prespawn_y = self.node._prespawn_offset

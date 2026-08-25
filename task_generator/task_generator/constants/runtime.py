@@ -87,12 +87,6 @@ def Configuration(server: ROSParamServer) -> type:
                 parse=_positive_or_inf,
             )
 
-            RECORD_DATA_DIR = server.ROSParam[str | None](
-                'record_data_dir',
-                '',
-                parse=lambda x: x if bool(x) else None,
-            )
-
             MOBILE_ADAPTER = server.ROSParam[str](
                 'robot.mobile_adapter',
                 'nav2',

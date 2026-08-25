@@ -445,7 +445,6 @@ def generate_launch_description():
                     "tm_modules": tm_modules_val,
                     **world.str_param,
                     "static_audio_devices": auditory_static_devices.param_value(str),
-                    "record_data_dir": record_dir.param_value(str),
                     "auto_reset": auto_reset.param_value(bool),
                     "fail_on_collision": fail_on_collision.param_value(bool),
                     "train_mode": train_mode.param_value(bool),

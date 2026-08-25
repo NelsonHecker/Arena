@@ -424,9 +424,6 @@ class RobotManager(NodeInterface):
         if isinstance(adapter, MobileAdapter):
             self._publish_goal_task = asyncio.create_task(adapter.publish_goal_loop())
 
-        if self._robot.record_data_dir:
-            self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("goal"), [self.goal_pos.position.x, self.goal_pos.position.y, self.goal_pos.orientation.to_yaw()])
-
     async def reset(self, ctx: ResetContext) -> dict[str, BaseException | None]:
         """Fan out adapter on_reset hooks concurrently, return per-kind outcomes."""
         results = await asyncio.gather(
@@ -458,10 +455,6 @@ class RobotManager(NodeInterface):
         self._start_pos = pose
         await self._apply_pose(pose)
 
-        if self._robot.record_data_dir:
-            realized = self._environment_manager.realize(self._start_pos)
-            self.node.rosparam[list[float]].set(self.namespace.robot_ns.ParamNamespace()("start"), [realized.position.x, realized.position.y, realized.orientation.to_yaw()])
-
     async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot's navstack via the bound adapters."""
         if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
@@ -479,13 +472,6 @@ class RobotManager(NodeInterface):
                 'frame': self._robot.frame.tf(),
                 'use_sim_time': 'True',
             }
-
-            if self._robot.record_data_dir:
-                launch_arguments.update(
-                    {
-                        'record_data_dir': self._robot.record_data_dir,
-                    }
-                )
 
             launch_description.add_action(
                 launch.actions.IncludeLaunchDescription(
@@ -593,10 +579,6 @@ class RobotManager(NodeInterface):
                     return
             await asyncio.sleep(_CONTROLLER_POLL)
         self._logger.warning(f"controllers not active within budget, proceeding: {sorted(expected - active)}")
-
-    async def update(self):
-        # TODO implement record data dir
-        pass
 
     async def destroy(self):
         results = await asyncio.gather(
