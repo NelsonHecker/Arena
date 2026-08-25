@@ -50,6 +50,7 @@ from arena_humansim_msgs.srv import (
     AddWorldObjects,
     Feedback,
     GetProfile,
+    NotifyStimulus,
     RemoveAgents,
     RemoveObstacles,
     RemoveSink,
@@ -125,6 +126,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     SERVICE_RESET = "reset"
     SERVICE_GET_PROFILE = "get_profile"
     SERVICE_FEEDBACK = "feedback"
+    SERVICE_NOTIFY_STIMULUS = "notify_stimulus"
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
@@ -200,6 +202,10 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._feedback_client: ClientWrapper = self.node.create_client_wrapper(
             Feedback,
             self.node.service_namespace(self.SERVICE_FEEDBACK),
+        )
+        self._notify_stimulus_client: ClientWrapper = self.node.create_client_wrapper(
+            NotifyStimulus,
+            self.node.service_namespace(self.SERVICE_NOTIFY_STIMULUS),
         )
         self._set_parameters_client: ClientWrapper = self.node.create_client_wrapper(
             SetParameters,
@@ -400,6 +406,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     self._reset_client,
                     self._get_profile_client,
                     self._feedback_client,
+                    self._notify_stimulus_client,
                     self._set_parameters_client,
                 )
             )
@@ -920,6 +927,19 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except Exception as e:
             self._logger.error(f"SpawnAgents call failed: {e}")
             return [None] * len(obstacles)
+
+    async def notify_stimulus(self, agent_id: int, stimulus: str, intensity: float) -> None:
+        request = NotifyStimulus.Request()
+        request.agent_id = agent_id
+        request.stimulus = stimulus
+        request.intensity = intensity
+        try:
+            response = await self._notify_stimulus_client.call_timeout(request)
+        except Exception as e:
+            self._logger.error(f"NotifyStimulus call failed: {e}")
+            return
+        if response is not None and not response.success:
+            self._logger.error(f"NotifyStimulus failed: {response.message}")
 
     async def _remove_obstacles_impl(self, names: Sequence[str]) -> bool:
         """Remove static obstacles (and their matching world objects) from arena_humansim."""

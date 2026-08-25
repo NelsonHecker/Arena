@@ -537,3 +537,64 @@ def test_fire_alarm_reference_regime_wired():
     assert sounding_cfg.value is None, "hall_siren must be inert until the alarm regime holds"
     volume_cfg = next(cfg for cfg in siren.semantics if cfg.name == "volume_db")
     assert not volume_cfg.value, "volume_db must not carry a truthy value from preset broadcast"
+
+
+# ---------------------------------------------------------------------------
+# Fire-alarm evacuation reference scenario (pedestrian stimulus reference)
+# ---------------------------------------------------------------------------
+
+_EVACUATION_SCENARIO = (
+    Path(__file__).resolve().parents[2]
+    / "worlds"
+    / "hospital_1"
+    / "scenarios"
+    / "fire_alarm_evacuation"
+    / "scenario.yaml"
+)
+
+_EVACUATION_WORLD = Path(__file__).resolve().parents[2] / "worlds" / "hospital_1" / "0" / "world.yaml"
+
+
+def test_evacuation_reference_world_wired():
+    if not _EVACUATION_WORLD.exists():
+        pytest.skip(f"reference world not found: {_EVACUATION_WORLD}")
+    with open(_EVACUATION_WORLD, encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+    level = converter.structure(raw, LevelDescription)
+
+    schedules = {schedule.name: schedule for schedule in level.all_schedules}
+    assert "fire_alarm" in schedules
+    active = next(cfg for cfg in schedules["fire_alarm"].semantics if cfg.name == "active")
+    assert active.params["regime"] == "alarm"
+    assert active.params["windows"] == []
+
+    sounds = {sound.name: sound for sound in level.all_sounds}
+    assert "hall_siren" in sounds
+    siren = sounds["hall_siren"]
+    assert siren.asset_id == "alarm_loop"
+    sounding_cfg = next(cfg for cfg in siren.semantics if cfg.name == "sounding")
+    assert sounding_cfg.params["sound_on"] == "alarm"
+    assert sounding_cfg.value is None, "hall_siren must be inert until the alarm regime holds"
+    hallway = next(zone for zone in level.zones if zone.name == "central_hallway")
+    assert siren in hallway.sounds
+
+
+def test_evacuation_reference_scenario_parses():
+    if not _EVACUATION_SCENARIO.exists():
+        pytest.skip(f"reference scenario not found: {_EVACUATION_SCENARIO}")
+    scenario = ScenarioView(_EVACUATION_SCENARIO.parent).load()
+
+    assert len(scenario.dynamic) == 4
+    for ped in scenario.dynamic:
+        assert ped.extra["agent"]["agent_type"] == "./agent_types/evacuee.yaml"
+        assert Path(ped.included_from) == _EVACUATION_SCENARIO.parent
+    assert (_EVACUATION_SCENARIO.parent / "agent_types" / "evacuee.yaml").is_file()
+
+    (exit_obj,) = scenario.static
+    assert exit_obj.name == "exit"
+    assert exit_obj.extra["type"] == "exit"
+
+    assert len(scenario.robots) == 1
+    (alarm,) = scenario.timeline
+    assert alarm.at == pytest.approx(12.0)
+    assert alarm.set == [{"entity": "fire_alarm", "field": "active", "value": "true"}]

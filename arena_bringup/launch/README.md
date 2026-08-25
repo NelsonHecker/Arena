@@ -43,6 +43,7 @@ Old flat names (`tm_robots`, `mobile`, `env_n`, ...) still work with a warning, 
 | `auditory` | `none` \| `arena` | `none` | Auditory pipeline: sound propagation, robot hearing, robot and human sound emission. Sub-keys below take effect only when not `none`; see [auditory/README.md](../../task_generator/launch/human/auditory/README.md). |
 | `auditory.playback` | string | `auto` | PortAudio output device for workstation playback; `auto` tries `pulse`, `pipewire`, `default`, then the PortAudio default, `none` starts no playback nodes. |
 | `auditory.viz` | bool string | `false` | Publish propagation markers. |
+| `auditory.ped_hearing` | bool string | `true` | Pedestrians are propagation listeners and receive sound stimuli through the human simulator. |
 | `auditory.static_sounds` | YAML string | `[]` | World-independent `sound` entities (radios, alarms), as a flat list of the same `Sound` schema used in `world.yaml`. Non-empty adds `sounds` to `task.modules` (already on whenever `auditory` is not `none`). |
 | `auditory.motor` | `off` \| `wav` \| `procedural` | `procedural` | Robot motor audio source. |
 | `auditory.environment_playback` | bool string | `true` | Play propagated environment audio locally without disabling simulated emission. |

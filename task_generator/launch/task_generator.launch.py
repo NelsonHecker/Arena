@@ -174,6 +174,11 @@ def generate_launch_description():
         default_value="true",
         description="Compute RIR metadata in the propagation node instead of deferring to playback.",
     )
+    auditory_ped_hearing = LaunchArgument(
+        name="auditory.ped_hearing",
+        default_value="true",
+        description="Pedestrians are propagation listeners and receive sound stimuli through the human simulator.",
+    )
     auditory_robot_sound = LaunchArgument(
         name="auditory.robot_sound",
         default_value="true",
@@ -374,6 +379,7 @@ def generate_launch_description():
                 **auditory_propagation.dict,
                 **auditory_multi_portal.dict,
                 **auditory_rir_in_propagation.dict,
+                **auditory_ped_hearing.dict,
                 **auditory_robot_sound.dict,
                 **auditory_motor.dict,
                 **auditory_motor_playback.dict,

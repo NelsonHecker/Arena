@@ -148,7 +148,7 @@ class SoundPropagationNode(Node):
         self.declare_parameter("zone_coverage_tolerance_m", 0.10)
         self.declare_parameter("buffer_events_until_scene_loaded", True)
         self.declare_parameter("scene_event_buffer_size", 128)
-        self.declare_parameter("pyroom_robot_listeners_only", True)
+        self.declare_parameter("ped_hearing", False)
         self.declare_parameter("compute_rir_in_propagation", True)
         self._scene: AcousticScene | None = None
         self._authored_scene: AcousticScene | None = None
@@ -1315,9 +1315,7 @@ class SoundPropagationNode(Node):
         """Snapshot listeners according to the configured hearing policy."""
         listeners: dict[str, Point] = {}
 
-        if not bool(
-            self.get_parameter("pyroom_robot_listeners_only").value
-        ):
+        if bool(self.get_parameter("ped_hearing").value):
             for agent_id, ped in self._peds.items():
                 if agent_id == event.source_agent_id:
                     continue

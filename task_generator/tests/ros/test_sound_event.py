@@ -133,11 +133,7 @@ def test_sound_event_round_trips_to_heard_sound_event(rclpy_context):
             Parameter("map_topic", Parameter.Type.STRING, map_topic),
             Parameter("robot_fleet_topic", Parameter.Type.STRING, robot_fleet_topic),
             Parameter("world_topic", Parameter.Type.STRING, world_topic),
-            Parameter(
-                "pyroom_robot_listeners_only",
-                Parameter.Type.BOOL,
-                False,
-            ),
+            Parameter("ped_hearing", Parameter.Type.BOOL, True),
         ],
     )
     assert (
@@ -237,11 +233,7 @@ def test_robot_only_policy_excludes_pedestrian_listeners(rclpy_context):
 
     propagation = SoundPropagationNode(
         parameter_overrides=[
-            Parameter(
-                "pyroom_robot_listeners_only",
-                Parameter.Type.BOOL,
-                True,
-            ),
+            Parameter("ped_hearing", Parameter.Type.BOOL, False),
         ]
     )
     propagation._peds = {
@@ -266,11 +258,7 @@ def test_robot_only_policy_excludes_pedestrian_listeners(rclpy_context):
         }
 
         propagation.set_parameters([
-            Parameter(
-                "pyroom_robot_listeners_only",
-                Parameter.Type.BOOL,
-                False,
-            )
+            Parameter("ped_hearing", Parameter.Type.BOOL, True)
         ])
         assert set(propagation._listeners_for_event(event)) == {
             "agent:2",

@@ -183,6 +183,19 @@ A scenario may carry its own `sounds:` list with the same schema. Those are
 episode-scoped: attached at reset, gone at the next one, and their
 `entity_ref` may also name one of the scenario's own `static:` obstacles.
 
+#### Pedestrian stimuli
+
+A sound that propagation marks audible for a pedestrian reaches humansim as a
+stimulus named after the catalog `category` of its `asset_id` (`alarm_loop`
+has `category: alarm`, so its stimulus is `alarm`). An agent type opts in by
+declaring a need of that name and a `transitions:` entry on it, and humansim
+sets that need to 100 once the agent's sampled `reaction_time` has elapsed,
+so the transition fires. Agent types without such a need ignore the sound.
+See
+[worlds/hospital_1/scenarios/fire_alarm_evacuation](worlds/hospital_1/scenarios/fire_alarm_evacuation/scenario.yaml)
+for the reference: the `evacuee` agent type idles until `alarm` rises, then
+walks to the static `exit` object.
+
 `gate` and `pressure_plate` reuse an existing `doors:`/`elevators:` entry as
 their attachment point, `occupancy_cap` reuses a `zones:` entry, all via the
 same `semantics:` list. A `gate` should spawn unlocked (`locked: false` in its
@@ -290,6 +303,10 @@ robots:
 
 An empty scenario (robot start/goal only) is valid. Add static obstacles by
 listing `Obstacle` entries under `static:`, dynamic pedestrians under `dynamic:`.
+A static entry's flat top-level keys `type`, `capacity`, `satisfies`,
+`interaction_radius` and `formation` are forwarded to humansim as its
+WorldObject, so a `go_to` step or an interaction `target:` can name the
+entry by `type`.
 
 For HumanSim (arena_humansim) pedestrians include an `agent:` block. The
 `agent_type` is either a built-in type (`adult`, `elder`) or a path-relative

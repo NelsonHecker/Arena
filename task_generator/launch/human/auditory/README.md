@@ -419,13 +419,14 @@ rooms, then portal-to-listener in the listener room. Routes with no connected
 portal path use the explicit Level-3/dry fallback. Room and portal-route RIRs
 are quantized and cached.
 
-With `pyroom_robot_listeners_only=true` (the default), propagation creates
-`HeardSoundEvent` messages only for robot listeners and configured TF
-microphones. Pedestrians are not listeners, so pedestrian-to-pedestrian
-propagation is not calculated or published and the RViz propagation visualizer
-has no corresponding blue paths to draw. Set it to `false` to add every
-non-source pedestrian as an `agent:<id>` listener. Robot and microphone
-listener events receive the complete route metadata. Human events are rendered
+With `ped_hearing=true` (the launch default via `auditory.ped_hearing`),
+every non-source pedestrian is an `agent:<id>` listener whose
+`continuous_heard_sounds` states feed `BaseHumanSimulator.notify_stimulus`,
+edge-triggered on the `audible` bit with the catalog `sound_type` as the
+stimulus name. With `false`, pedestrian-to-pedestrian propagation is not
+calculated or published and the RViz propagation visualizer has no
+corresponding blue paths to draw. Robot and microphone listener events
+receive the complete route metadata. Human events are rendered
 by `human_sound_playback`, and robot events are rendered by
 `robot_sound_node`. The launch default sets
 `auditory.rir_in_propagation:=true`, so the propagation node
@@ -534,7 +535,7 @@ Main routing controls are:
 - `route_distance_loss_db_per_m` (default `0.05`)
 - `portal_source_early_window_sec` (default `0.08`)
 - `portal_max_rir_duration_sec` (default `2.0`)
-- `pyroom_robot_listeners_only` (default `true`)
+- `ped_hearing` (default `false`, launch sets `true`)
 - `compute_rir_in_propagation` (default `true`)
 - `pyroom_cache_position_quantization_m` (default `0.25`)
 
