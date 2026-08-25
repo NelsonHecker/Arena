@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 import arena_simulation_setup.tree.World as World
 import numpy as np
-import scipy.signal
+import scipy.ndimage
 import shapely
 import shapely.affinity
 from arena_runtime._node import NodeInterface
@@ -17,22 +17,19 @@ from .utils import MultiLevelMap, WorldMap, WorldOccupancy
 _UNKNOWN_FOOTPRINT_RADIUS = 1.0
 
 
-def _disc_kernel(safe_dist_cells: float) -> np.ndarray:
-    """L2 disc of radius safe_dist_cells, normalised so sum == 1."""
-    r = max(1, int(math.ceil(safe_dist_cells)))
-    yy, xx = np.ogrid[-r : r + 1, -r : r + 1]
-    mask = (xx * xx + yy * yy) <= (safe_dist_cells * safe_dist_cells)
-    kernel = mask.astype(np.float32)
-    return kernel / kernel.sum()
-
-
 def _occupancy_to_available(occupancy: np.ndarray, safe_dist_cells: float) -> np.ndarray:
     """Return (row, col) cells whose Euclidean safe_dist_cells neighbourhood is fully not-full. Off-map counts as full."""
-    kernel = _disc_kernel(safe_dist_cells)
-    free = WorldOccupancy.not_full(occupancy).astype(np.float32)
-    spread = scipy.signal.convolve2d(free, kernel, mode="same", boundary="fill", fillvalue=0.0)
-    available = np.isclose(spread, 1.0)
-    return np.transpose(np.where(available))
+    free = np.pad(WorldOccupancy.not_full(occupancy), 1, constant_values=False)
+    clearance = scipy.ndimage.distance_transform_edt(free)[1:-1, 1:-1]
+    return np.transpose(np.where(clearance > safe_dist_cells))
+
+
+def _zone_mask(world_map: WorldMap, polygons: Sequence[shapely.Polygon]) -> np.ndarray:
+    """Cells whose tf_grid2pos point lies inside any polygon."""
+    mask = np.zeros(world_map.shape[:2], dtype=bool)
+    for poly in polygons:
+        mask |= world_map.tf_poly2mask(poly, offset=0.0)
+    return mask
 
 
 def _sample_from_candidates(
@@ -96,10 +93,12 @@ class WorldManager(NodeInterface):
     _world: World.WorldDescription
     _map: WorldMap  # main map used that has all of the levels
     _multi_map: MultiLevelMap | None  # utility reference maps for level-specific get position operations; actual occupancy is managed by _map
+    _zone_masks: dict[str, np.ndarray]  # per level, cells inside that level's zones on map_for_floor(level)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._multi_map = None
+        self._zone_masks = {}
 
     @property
     def world(self) -> World.WorldDescription:
@@ -215,6 +214,12 @@ class WorldManager(NodeInterface):
 
         self._world = world_description
 
+        self._zone_masks = {}
+        for level_id, level in self.world.levels.items():
+            polygons = [shapely.Polygon([(corner.x, corner.y) for corner in zone.corners]) for zone in level.zones if len(zone.corners) >= 3]
+            if polygons:
+                self._zone_masks[level_id] = _zone_mask(self.map_for_floor(level_id), polygons)
+
         footprints = itertools.repeat(None) if static_footprints is None else static_footprints
         placed = ((level_id, obstacle) for level_id, level in self.world.levels.items() for obstacle in level.all_static_entities)
         for (level_id, obstacle), footprint in zip(placed, footprints, strict=static_footprints is not None):
@@ -259,16 +264,9 @@ class WorldManager(NodeInterface):
         if forbidden_zones is None:
             forbidden_zones = []
 
-        level_polygons: list[shapely.Polygon] | None = None
-
         # For level-specific queries, default to sampling inside that level's zones
         # (map rasters include padding around geometry, which is otherwise spawnable).
-        if polygon is None and level_id:
-            level = self._world.get_level(level_id)
-            if level is not None:
-                level_polygons = [shapely.Polygon([(corner.x, corner.y) for corner in zone.corners]) for zone in level.zones if len(zone.corners) >= 3]
-                if not level_polygons:
-                    level_polygons = None
+        zone_mask = self._zone_masks.get(level_id) if polygon is None and level_id else None
 
         select_from_whole_map = level_id == ""
         level_map = self.map if select_from_whole_map or self._multi_map is None else self._multi_map.select_map(level_id)
@@ -282,17 +280,10 @@ class WorldManager(NodeInterface):
         rng = self.node.conf.General.RNG.stream("world", "positions")
         available = _occupancy_to_available(fork.grid, safe_dist_cells)
 
-        if len(available) and (polygon is not None or level_polygons is not None):
-            world_xy = np.array(
-                [(p.x, p.y) for p in (level_map.tf_grid2pos((int(r), int(c))) for r, c in available)],
-            )
-            if polygon is not None:
-                available = available[shapely.contains_xy(polygon, world_xy[:, 0], world_xy[:, 1])]
-            elif level_polygons is not None:
-                mask = np.zeros(len(available), dtype=bool)
-                for level_polygon in level_polygons:
-                    mask |= shapely.contains_xy(level_polygon, world_xy[:, 0], world_xy[:, 1])
-                available = available[mask]
+        if len(available) and polygon is not None:
+            available = available[shapely.contains_xy(polygon, *level_map.tf_grid2xy(available[:, 0], available[:, 1]))]
+        elif len(available) and zone_mask is not None:
+            available = available[zone_mask[available[:, 0], available[:, 1]]]
 
         cells = _sample_from_candidates(available, n, safe_dist_cells, rng)
 

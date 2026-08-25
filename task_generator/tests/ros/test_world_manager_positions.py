@@ -18,9 +18,9 @@ try:
     from task_generator.manager.world_manager.utils import MultiLevelMap, WorldLayers, WorldMap, WorldOccupancy
     from task_generator.manager.world_manager.world_manager import (
         WorldManager,
-        _disc_kernel,
         _occupancy_to_available,
         _sample_grid_positions,
+        _zone_mask,
     )
     from task_generator.constants.rng import EpisodeRng
     from task_generator.shared import Position, PositionRadius
@@ -46,25 +46,6 @@ def grid_distance_to_occupied(occupancy: np.ndarray, row: int, col: int) -> floa
     if len(occ) == 0:
         return float("inf")
     return float(np.min(np.linalg.norm(occ - np.array([row, col]), axis=1)))
-
-
-class TestDiscKernel:
-    def test_normalised_to_unit_sum(self):
-        for r in (1.0, 2.5, 4.0, 10.0):
-            k = _disc_kernel(r)
-            assert k.shape[0] == k.shape[1]
-            assert k.sum() == pytest.approx(1.0, abs=1e-6)
-
-    def test_disc_geometry(self):
-        k = _disc_kernel(3.0)
-        # Kernel size = 2*ceil(3)+1 = 7
-        assert k.shape == (7, 7)
-        # Corner (-3,-3) is at L2 distance sqrt(18) > 3 -> outside disc, zero.
-        assert k[0, 0] == 0.0
-        # Centre is inside.
-        assert k[3, 3] > 0.0
-        # Axial cell (-3, 0) at L2 = 3 -> inside disc.
-        assert k[0, 3] > 0.0
 
 
 class TestOccupancyToAvailable:
@@ -229,12 +210,27 @@ class TestCoordinateTransforms:
         assert tuple(int(v) for v in wm.tf_pos2grid(Position(x=ox, y=oy))) == (h, 0)
 
 
+class TestZoneMask:
+    def test_matches_pointwise_contains(self):
+        wmap = make_map(empty_grid(60, 80), resolution=0.1, origin=(-1.0, 0.5))
+        polys = [shapely.Polygon([(0.0, 1.0), (3.0, 1.0), (3.0, 2.5), (0.0, 2.5)]), shapely.Polygon([(4.0, 3.0), (6.0, 3.0), (5.0, 5.0)])]
+        mask = _zone_mask(wmap, polys)
+        rows, cols = np.mgrid[0:60, 0:80]
+        expected = np.zeros((60, 80), dtype=bool)
+        for r, c in zip(rows.ravel(), cols.ravel(), strict=True):
+            p = wmap.tf_grid2pos((int(r), int(c)))
+            expected[r, c] = any(poly.contains(shapely.Point(p.x, p.y)) for poly in polys)
+        assert np.array_equal(mask, expected)
+        assert mask.sum() > 0
+
+
 class TestRenderedSampling:
     @staticmethod
     def make_wm_from_level(level: LevelDescription, seed: int = 0) -> WorldManager:
         wm = WorldManager.__new__(WorldManager)
         wm._map = WorldMap.from_world_description(level, resolution=0.05, time=Time())
         wm._multi_map = None
+        wm._zone_masks = {}
         episode_rng = EpisodeRng()
         episode_rng.reseed(seed)
         wm._NodeInterface__node = SimpleNamespace(conf=SimpleNamespace(General=SimpleNamespace(RNG=episode_rng)))
