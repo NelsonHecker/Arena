@@ -223,7 +223,11 @@ def generate_launch_description():
     )
     robot = LaunchArgument(name="robot", default_value="auto")
     tm_robots = LaunchArgument(name="task.robots", default_value="explore")
-    LaunchArgument(name="task.config", default_value="")
+    tm_config = LaunchArgument(
+        name="task.config",
+        default_value="",
+        description="Task config file (task_modes list). Overrides task.robots. Bare names resolve under arena_bringup/configs/tasks.",
+    )
     episodes = LaunchArgument(
         name='task.episodes',
         default_value='-1',
@@ -421,6 +425,17 @@ def generate_launch_description():
         if scenario_val:
             dotted_overrides["task.scenario.file"] = scenario_val
 
+        tm_config_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(tm_config.substitution)).strip()
+        if tm_config_val:
+            if os.sep in tm_config_val:
+                tm_config_val = os.path.abspath(tm_config_val)
+            else:
+                if not tm_config_val.endswith((".yaml", ".yml")):
+                    tm_config_val += ".yaml"
+                tm_config_val = os.path.join(bringup_dir, "configs", "tasks", tm_config_val)
+            if not os.path.isfile(tm_config_val):
+                raise FileNotFoundError(f"task.config: {tm_config_val} does not exist")
+
         dotted_overrides.update(expand_flag_namespace(context, "optim", launch_str_to_value))
         debug_flags = expand_flag_namespace(context, "debug", launch_str_to_value)
         dotted_overrides.update(debug_flags)
@@ -455,6 +470,7 @@ def generate_launch_description():
                     **robot.str_param,
                     "tm_robots": tm_robots.param_value(str),
                     "tm_obstacles": tm_obstacles.param_value(str),
+                    "tm_config": tm_config_val,
                     "tm_modules": tm_modules_val,
                     **world.str_param,
                     "static_sounds": auditory_static_sounds.param_value(str),

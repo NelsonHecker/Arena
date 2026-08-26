@@ -110,6 +110,8 @@ def Configuration(server: ROSParamServer) -> type:
                 parse=Constants.TaskMode.TM_Obstacles,
             )
 
+            TM_CONFIG = server.ROSParam[str]('tm_config', '')
+
             TM_MODULES = server.ROSParam[set[Constants.TaskMode.TM_Module]]('tm_modules', ','.join([m.value for m in Constants.TaskMode.TM_Module.default()]), parse=lambda x: {Constants.TaskMode.TM_Module(m) for m in x.split(',') if m != ''})
 
     return Config
