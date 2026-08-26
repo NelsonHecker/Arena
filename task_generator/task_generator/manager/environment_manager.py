@@ -4,7 +4,6 @@ from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
 import shapely
-import shapely.affinity
 from arena_runtime._node import NodeInterface
 from arena_runtime.sim import BaseSim
 from arena_runtime.sim._semantics import _SEMANTIC_KINDS
@@ -109,20 +108,8 @@ class EnvironmentManager(NodeInterface):
         read those from the `arena_peds` topic."""
         return self._static_polygons
 
-    async def _resolve_polygon(self, obstacle: Obstacle) -> shapely.Polygon | None:
-        try:
-            view = await obstacle.model.resolve()
-        except FileNotFoundError:
-            return None
-        bounds = view.bounds
-        if bounds is None:
-            return None
-        poly = shapely.Polygon(bounds)
-        poly = shapely.affinity.rotate(poly, obstacle.pose.orientation.to_yaw(), origin=(0, 0), use_radians=True)
-        return shapely.affinity.translate(poly, xoff=obstacle.pose.position.x, yoff=obstacle.pose.position.y)
-
     async def _cache_polygons(self, obstacles: Sequence[Obstacle]) -> None:
-        polys = await asyncio.gather(*(self._resolve_polygon(o) for o in obstacles))
+        polys = await asyncio.gather(*(o.footprint() for o in obstacles))
         for obstacle, poly in zip(obstacles, polys, strict=True):
             if poly is not None:
                 self._static_polygons[obstacle.name] = poly

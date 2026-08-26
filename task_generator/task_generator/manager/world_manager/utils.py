@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Iterable, TypeVar
 import attrs
 import numpy as np
 import scipy.interpolate
+import shapely
 import yaml
 from arena_rclpy_mixins.Time import Time
 from PIL import Image
@@ -96,6 +97,9 @@ class WorldOccupancy:
         cols = np.clip(np.array([lo[1], hi[1]]), 0, self._grid.shape[1] - 1)
         self._grid[int(rows.min()) : int(rows.max()), int(cols.min()) : int(cols.max())] = WorldOccupancy.FULL
 
+    def occupy_mask(self, mask: np.ndarray):
+        self._grid[mask] = WorldOccupancy.FULL
+
 
 class WorldLayers:
     _walls: WorldOccupancy  # walls
@@ -136,9 +140,9 @@ class WorldLayers:
         return occupancy_to_walls(self._walls.grid, transform)
 
     # obstacle interface
-    def obstacle_occupy(self, lo: tuple[int, int], hi: tuple[int, int]):
-        self._obstacle.occupy(lo, hi)
-        self._combined.occupy(lo, hi)
+    def obstacle_occupy(self, mask: np.ndarray):
+        self._obstacle.occupy_mask(mask)
+        self._combined.occupy_mask(mask)
 
     def obstacle_clear(self):
         self._obstacle.clear()
@@ -260,6 +264,10 @@ class WorldMap:
     def tf_grid2pos(self, grid_pos: tuple[float, float]) -> Position:
         return Position(x=grid_pos[1] * self.resolution + self.origin.x, y=(self.shape[0] - grid_pos[0]) * self.resolution + self.origin.y)
 
+    def tf_grid2xy(self, rows: np.ndarray, cols: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Vectorized tf_grid2pos."""
+        return cols * self.resolution + self.origin.x, (self.shape[0] - rows) * self.resolution + self.origin.y
+
     def tf_posr2rect(self, posr: PositionRadius) -> tuple[tuple[int, int], tuple[int, int]]:
         lo = self.tf_pos2grid(
             Position(
@@ -274,6 +282,20 @@ class WorldMap:
             )
         )
         return (lo, hi)
+
+    def tf_poly2mask(self, poly: shapely.Polygon, offset: float = 0.5) -> np.ndarray:
+        """Cells whose sample point (row + offset, col + offset) lies inside poly, default cell centers."""
+        mask = np.zeros(self.shape[:2], dtype=bool)
+        min_x, min_y, max_x, max_y = poly.bounds
+        r_lo, c_lo = self.tf_pos2grid(Position(x=min_x, y=max_y))
+        r_hi, c_hi = self.tf_pos2grid(Position(x=max_x, y=min_y))
+        r0, r1 = max(int(r_lo) - 1, 0), min(int(r_hi) + 2, self.shape[0])
+        c0, c1 = max(int(c_lo) - 1, 0), min(int(c_hi) + 2, self.shape[1])
+        if r0 >= r1 or c0 >= c1:
+            return mask
+        rows, cols = np.mgrid[r0:r1, c0:c1]
+        mask[r0:r1, c0:c1] = shapely.contains_xy(poly, *self.tf_grid2xy(rows + offset, cols + offset))
+        return mask
 
     def detect_walls(self) -> WorldWalls:
         return self.occupancy.detect_walls(self.tf_grid2pos)
