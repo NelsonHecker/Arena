@@ -730,7 +730,7 @@ class SoundSemantics(SemanticKind):
         self._initial_volume = initial_volume
         self._volume = initial_volume
         self._override_sounding: bool | None = None
-        self._last_natural_sounding = False
+        self._last_natural_sounding = self._natural()
 
     @classmethod
     def attach(cls, mech: MechanismITF, entity: str, cfgs: Sequence[SemanticCfg], *, polygon: Sequence[tuple[float, float]] | None = None) -> SemanticKind:
@@ -767,7 +767,7 @@ class SoundSemantics(SemanticKind):
 
     def reset(self) -> None:
         self._override_sounding = None
-        self._last_natural_sounding = False
+        self._last_natural_sounding = self._natural()
         self._volume = self._initial_volume
 
     def set_value(self, field: str, value: str) -> None:
