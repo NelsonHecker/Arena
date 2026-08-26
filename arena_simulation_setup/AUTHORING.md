@@ -84,6 +84,10 @@ Key points:
   wall entry drops that wall, and `wall_material: ''` on every zone of a
   level suppresses the occupancy-detected collision walls. The short keys
   `mat`, `ceiling_mat`, `wall_mat` are accepted as aliases.
+- `entities: {static: [...], dynamic: [...]}` on a zone places obstacles and
+  pedestrians that exist in every scenario run against this world. Same
+  `Obstacle`/`DynamicObstacle` schema as a scenario's `static:`/`dynamic:`
+  lists, see [4. Add a scenario](#4-add-a-scenario).
 
 ### Ceilings
 
@@ -105,6 +109,30 @@ With `ceiling_height` absent, the height is the tallest wall top in the zone
 Ceilings are opaque from below and transparent from above. They are visual-only
 (no collision). With `ceiling_cast_shadows` false the ceiling does not occlude
 the sun, so interiors stay lit without global illumination.
+
+### Doors and elevators
+
+A `doors:` entry configures its geometry, kind, timing, and material. Full
+field reference: [Door fields](worlds/README.md#door-fields).
+
+An `elevators:` entry configures its cabin, destinations, and call
+behavior. Full field reference:
+[Elevator fields](worlds/README.md#elevator-fields).
+
+A world with more than one storey follows the layout in
+[worlds/README.md, Directory layout](worlds/README.md#directory-layout).
+
+An elevator's `destination` names its counterpart as `<level_id>.<name>`,
+e.g. `destination: "2.2_elevator"` targets the elevator named `2_elevator`
+on level `2`. Several destinations are comma-separated. Elevator names must
+be unique across every level, loading raises if two levels declare the same
+name or a destination points at a level/elevator that does not exist.
+
+### Microphones
+
+A level's optional `microphones:` list places audio listeners for the
+acoustics pipeline. Full field reference:
+[microphones](worlds/README.md#microphones).
 
 ### Semantic annotations
 
@@ -158,7 +186,11 @@ a zone carries them as sibling lists to `doors:`/`elevators:`. A `sound`
 still needs a placement: exactly one of `position` (`[x, y]`), `entity_ref`
 (name of a static entity in the same world, whose yaw frame `offset` is
 applied in) or `frame` (a TF frame the sound rides, `offset` local to it, so
-`frame: jackal/base_link` is a speaker bolted to that robot).
+`frame: jackal/base_link` is a speaker bolted to that robot). Other `Sound`
+fields: `asset_id` (required, the audio catalog entry), `loop` (default
+`true`), `reference_distance_m` (default `1.0`, must be positive, sets the
+falloff reference distance), and `level` (the level id a bare `position`
+belongs to, required in a multi-level world).
 
 ```yaml
 zones:
@@ -306,10 +338,12 @@ static: []
 dynamic: []
 robots:
   - start: [1.0, 1.0, 0.0]
-    goal:  [8.0, 8.0, 0.0]
+    phases:
+      - {goto: [8.0, 8.0, 0.0]}
 ```
 
-An empty scenario (robot start/goal only) is valid. Add static obstacles by
+An empty scenario (robot start and phases only) is valid. Each phase is
+`{goto: <pose>}` or `{gesture: <name>}`, run in order. `goal:` is deprecated. Add static obstacles by
 listing `Obstacle` entries under `static:`, dynamic pedestrians under `dynamic:`.
 A static entry's flat top-level keys `type`, `capacity`, `satisfies`,
 `interaction_radius` and `formation` are forwarded to humansim as its
@@ -332,22 +366,36 @@ dynamic:
   - [8.0, 5.0, 0.0]
 ```
 
-See [worlds/README.md](worlds/README.md) for the full
-scenario schema.
+A scenario can also carry `regions:` (named pedestrian source/sink spawners
+for arena_humansim) and `conditions:` (episode success/failure clauses). Its
+`sounds:` and `timeline:` keys are the ones covered above. See
+[worlds/README.md](worlds/README.md) for the full key list of every
+top-level key.
 
 ## 5. Add world-local assets (optional)
 
-Assets placed in `worlds/$WORLD/assets/` are resolved before network-fetched
-assets. To ship a custom wall style:
+Assets placed under `worlds/$WORLD/assets/<domain>/<Type>/<name>/` are
+resolved before shared-local (`$ARENA_ASSETS_DIR_LOCAL`) and network-fetched
+assets. `<domain>` defaults to `Common` if you have no reason to scope the
+asset further. Four asset kinds can be shipped this way:
+
+| Type | Directory contents | Referenced as |
+|---|---|---|
+| `Object` | 3D model files (SDF and/or USD), optional `annotation.yaml` with a `bounding_box` | `model:` on a static obstacle entry |
+| `Human` | 3D model files (SDF) | `model:` on a HumanSim pedestrian entry |
+| `Material` | `<name>.mdl` plus its texture files | `material:` on a zone or wall entry |
+| `Wall` | `<name>.yaml`, a `WallDescription` (see [configs/walls/README.md](configs/walls/README.md)) | `kind:` on a `walls:` entry |
+
+To ship a custom wall style:
 
 ```bash
 mkdir -p worlds/$WORLD/assets/Common/Wall/my_style
 # create worlds/$WORLD/assets/Common/Wall/my_style/my_style.yaml
 ```
 
-Then reference it in `world.yaml` walls as `kind: my_style`.
-
-Wall preset YAML schema: [configs/walls/README.md](configs/walls/README.md).
+Then reference it in `world.yaml` walls as `kind: my_style`. The other three
+kinds follow the same `assets/<domain>/<Type>/<name>/` layout, just with
+model/material files instead of a preset YAML.
 
 ## 6. Generate with the AI pipeline (alternative)
 

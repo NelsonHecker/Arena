@@ -157,16 +157,24 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
 
     _listall_cache: tuple[Path, list[IdentifierT]] | None = None
 
+    # file suffixes probed in order for a relpath that carries none of them
+    suffixes: typing.ClassVar[tuple[str, ...]] = ()
+
     @property
     @abc.abstractmethod
     def path(self) -> Path: ...
 
+    def _candidates(self, relpath: Path) -> list[Path]:
+        if not self.suffixes or relpath.name.endswith(self.suffixes):
+            return [relpath]
+        return [relpath.with_name(relpath.name + suffix) for suffix in self.suffixes]
+
     async def resolve(self, identifier: IdentifierT) -> Path | None:
         if identifier not in self._cache:
-            candidate = self.path / identifier.relpath()
-            if candidate.exists():
-                self._cache[identifier] = candidate
-                return candidate
+            for candidate in self._candidates(identifier.relpath()):
+                if (self.path / candidate).exists():
+                    self._cache[identifier] = self.path / candidate
+                    break
         return self._cache.get(identifier, None)
 
     # os.walk's syscalls each drop the GIL, so on a busy node's event loop the walk stretches

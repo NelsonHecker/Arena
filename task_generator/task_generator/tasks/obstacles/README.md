@@ -87,7 +87,7 @@ Declared under `task.environment.*`:
 
 | Param | Default | Description |
 | --- | --- | --- |
-| `environment.file` | `'default.json'` | `EnvironmentIdentifier` name to resolve |
+| `environment.file` | `'default'` | `EnvironmentIdentifier` name to resolve |
 
 Groups from the environment config are placed into rooms. Rooms are either
 taken from `world_manager.world.zones` (explicit zone declarations) or
@@ -96,8 +96,8 @@ detected from wall geometry via `_create_rooms_from_walls`.
 ## Zone references
 
 `TM_Scenario` delegates zone-ref resolution to the `Scenario` loader in
-`arena_simulation_setup`. `pose_ref` and `waypoint_refs` declared in a
-scenario file are resolved against named zones at load time using a seeded
+`arena_simulation_setup`. A `pose:` or `waypoints:` entry given as a bare
+zone name in a scenario file is resolved to a point in that zone at load time using a seeded
 RNG (the seed comes from `node.conf.General.RNG`), so replaying with the same
 seed produces identical placements.
 
