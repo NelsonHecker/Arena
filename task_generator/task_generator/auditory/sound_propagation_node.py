@@ -148,7 +148,7 @@ class SoundPropagationNode(Node):
         self.declare_parameter("zone_coverage_tolerance_m", 0.10)
         self.declare_parameter("buffer_events_until_scene_loaded", True)
         self.declare_parameter("scene_event_buffer_size", 128)
-        self.declare_parameter("pyroom_robot_listeners_only", True)
+        self.declare_parameter("ped_hearing", False)
         self.declare_parameter("compute_rir_in_propagation", True)
         self._scene: AcousticScene | None = None
         self._authored_scene: AcousticScene | None = None
@@ -1206,7 +1206,7 @@ class SoundPropagationNode(Node):
             return
 
         event = SoundEvent()
-        event.header = state.header
+        event.header = copy.deepcopy(state.header)
         event.event_id = state.source_id
         event.source_agent_id = state.source_agent_id
         event.source_agent_name = state.source_agent_name
@@ -1271,7 +1271,7 @@ class SoundPropagationNode(Node):
             output.source_model = state.source_model
             output.sound_type = state.sound_type
             output.source_backend = state.source_backend
-            output.system_id = state.system_id
+            output.group_id = state.group_id
             output.asset_id = state.asset_id
             output.label = state.label
             output.loop = state.loop
@@ -1315,9 +1315,7 @@ class SoundPropagationNode(Node):
         """Snapshot listeners according to the configured hearing policy."""
         listeners: dict[str, Point] = {}
 
-        if not bool(
-            self.get_parameter("pyroom_robot_listeners_only").value
-        ):
+        if bool(self.get_parameter("ped_hearing").value):
             for agent_id, ped in self._peds.items():
                 if agent_id == event.source_agent_id:
                     continue

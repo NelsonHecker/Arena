@@ -148,12 +148,17 @@ serialize when empty):
 | --- | --- | --- | --- |
 | `signal` | a standalone `signals:` entry (zone-level) | `state`, `phase_remaining`, `stop` | `phases` (list of `{name, duration}`), `stop_phases`, `regime` |
 | `schedule` | a standalone `schedules:` entry (zone-level) | `state`, `active`, `window_remaining` | `windows` (list of `{start, end, value}`), `default`, `regime` |
-| `gate` | a `doors:` entry | `locked`, `blocked` | `authorized` (sim_paths/robot names), `unlock_on` |
+| `gate` | a `doors:` entry | `locked`, `blocked` | `authorized` (sim_paths/robot names), `unlock_on`, `locked` (initial value) |
 | `pressure_plate` | a `doors:`/`elevators:` entry (own `position`) | `pressed` | `position` (`[x, y]`), `radius`, `drives`, `latch`, `press_on`, `regime` |
 | `occupancy_cap` | a `zones:` entry | `occupancy`, `cap`, `over_cap` | `cap` |
+| `sound` | a standalone `sounds:` entry (zone- or scenario-level) | `sounding`, `volume_db` | `sound_on`, `regime`, `sounding`/`volume_db` (initial values) |
 
-`signal` and `schedule` have no geometry of their own, so a zone carries them
-as sibling lists to `doors:`/`elevators:`:
+`signal`, `schedule`, and `sound` have no wall/door geometry of their own, so
+a zone carries them as sibling lists to `doors:`/`elevators:`. A `sound`
+still needs a placement: exactly one of `position` (`[x, y]`), `entity_ref`
+(name of a static entity in the same world, whose yaw frame `offset` is
+applied in) or `frame` (a TF frame the sound rides, `offset` local to it, so
+`frame: jackal/base_link` is a speaker bolted to that robot).
 
 ```yaml
 zones:
@@ -167,26 +172,61 @@ zones:
   - name: crosswalk_light
     semantics:
     - {preset: signal, params: {phases: [{name: go, duration: 20.0}, {name: stop, duration: 10.0}]}}
+  sounds:
+  - name: hall_siren
+    asset_id: alarm_loop
+    position: [4.0, 2.3]
+    semantics:
+    - {preset: sound, params: {sound_on: alarm, volume_db: 88.0}}
 ```
+
+A preset `params:` key that names one of the preset's own primitives
+(`volume_db`, `sounding`, `locked`, ...) becomes that primitive's initial
+`value` instead of a shared param, so `{preset: sound, params: {sounding:
+true, volume_db: 62.0}}` is a radio that plays from the start at 62 dB. A
+top-level `value:` on a preset item that expands to more than one primitive
+is rejected at load: there is no single primitive it could mean.
+
+A scenario may carry its own `sounds:` list with the same schema. Those are
+episode-scoped: attached at reset, gone at the next one, and their
+`entity_ref` may also name one of the scenario's own `static:` obstacles.
+
+#### Pedestrian stimuli
+
+A sound that propagation marks audible for a pedestrian reaches humansim as a
+stimulus named after the catalog `category` of its `asset_id` (`alarm_loop`
+has `category: alarm`, so its stimulus is `alarm`). An agent type opts in by
+declaring a need of that name and a `transitions:` entry on it, and humansim
+sets that need to 100 once the agent's sampled `reaction_time` has elapsed,
+so the transition fires. Agent types without such a need ignore the sound.
+See
+[worlds/hospital_1/scenarios/fire_alarm_evacuation](worlds/hospital_1/scenarios/fire_alarm_evacuation/scenario.yaml)
+for the reference: the `evacuee` agent type idles until `alarm` rises, then
+walks to the static `exit` object.
 
 `gate` and `pressure_plate` reuse an existing `doors:`/`elevators:` entry as
 their attachment point, `occupancy_cap` reuses a `zones:` entry, all via the
-same `semantics:` list:
+same `semantics:` list. A `gate` should spawn unlocked (`locked: false` in its
+params): the world is shared by every scenario, so a gate that defaulted to
+locked would block scenarios that never touch its regime. A scenario that
+wants the door locked at episode start says so explicitly in its `timeline:`
+(see below), leaving the world itself inert:
 
 ```yaml
 doors:
-- name: north_fire_door
+- name: door_edge_1_1
   start: {x: 4.0, y: 1.55, z: 0.0}
   end:   {x: 4.0, y: 2.45, z: 0.0}
   semantics:
-  - {preset: gate, params: {authorized: [], unlock_on: alarm}}
-  - {preset: pressure_plate, params: {position: [4.0, 2.0], press_on: alarm, drives: north_fire_door}}
+  - {preset: gate, params: {authorized: [], unlock_on: alarm, locked: false}}
+  - {preset: pressure_plate, params: {position: [4.0, 2.0], press_on: alarm, drives: door_edge_1_1}}
 ```
 
 A `regime` (or its per-kind alias `unlock_on`/`press_on`) names a boolean
 asserted by a scripted kind's driving predicate. Other kinds (gate,
 pressure_plate) consult that name without a direct wire between the two
-entities. An elevator's `recall_on` field is the same regime-consult
+entities. A `sound` consumes a regime the same way, via its `sound_on` alias.
+An elevator's `recall_on` field is the same regime-consult
 mechanism, just wired as a first-class `Elevator` field instead of a
 `semantics:` alias, since recall is mechanism configuration rather than
 published state. See the fire-alarm worked example below.
@@ -204,12 +244,16 @@ action list of `{entity, field, value}` writes against exactly one trigger:
 
 ```yaml
 timeline:
+- at: 0.0
+  set:
+  - {entity: door_edge_1_1, field: locked, value: "true"}
 - at: 12.0
   set:
   - {entity: fire_alarm, field: active, value: "true"}
 ```
 
-At `t=12s` the `fire_alarm` schedule's `active` predicate goes true and
+The world's `door_edge_1_1` spawns unlocked, and this scenario locks it at
+`t=0` so the corridor starts sealed. At `t=12s` the `fire_alarm` schedule's `active` predicate goes true and
 asserts regime `alarm`: a gate with `unlock_on: alarm` reports `locked=false`,
 a pressure plate with `press_on: alarm` reports `pressed=true` and holds its
 `drives` door open, and an elevator with `recall_on: alarm` refuses calls and
@@ -267,6 +311,10 @@ robots:
 
 An empty scenario (robot start/goal only) is valid. Add static obstacles by
 listing `Obstacle` entries under `static:`, dynamic pedestrians under `dynamic:`.
+A static entry's flat top-level keys `type`, `capacity`, `satisfies`,
+`interaction_radius` and `formation` are forwarded to humansim as its
+WorldObject, so a `go_to` step or an interaction `target:` can name the
+entry by `type`.
 
 For HumanSim (arena_humansim) pedestrians include an `agent:` block. The
 `agent_type` is either a built-in type (`adult`, `elder`) or a path-relative

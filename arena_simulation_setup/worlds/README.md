@@ -119,7 +119,9 @@ zones:
 
 A preset (e.g. `{preset: gate}`) expands to the fixed set of states and
 predicates that kind's runtime handler tracks. Any other keys on the preset
-item (e.g. `distance`) apply as overrides to every expanded primitive.
+item (e.g. `distance`) apply as overrides to every expanded primitive, except
+`value`, which is rejected on a multi-primitive preset: a `params:` key named
+after one of the expanded primitives becomes that primitive's `value` instead.
 Expansion happens at parse time, so `SemanticCfg`s never retain the preset
 name. Annotating a door/elevator entry with a field from that mechanism's own
 published vocabulary (e.g. `{state: progress}` on a door) is rejected at

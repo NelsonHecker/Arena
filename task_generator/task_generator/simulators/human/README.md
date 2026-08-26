@@ -32,6 +32,7 @@ human-sim `_*_impl` methods:
 | `spawn_robot(robots)` | spawn in physics sim, then call `_spawn_robot_impl` |
 | `remove_robot(robots)` | remove from physics sim, then call `_remove_robot_impl` |
 | `move_robot(robots)` | move in physics sim, then call `_move_robot_impl` |
+| `notify_stimulus(agent_id, stimulus, intensity)` | stimulus seam, no-op by default, fed edge-triggered from `continuous_heard_sounds` for `agent:<id>` listeners |
 
 ### `HumanSimulator` Protocol surface
 

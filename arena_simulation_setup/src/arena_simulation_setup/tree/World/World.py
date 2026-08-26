@@ -25,6 +25,7 @@ from arena_simulation_setup.shared import (
     Schedule,
     SemanticCfg,
     Signal,
+    Sound,
     Wall,
 )
 from arena_simulation_setup.shared.semantics import parse_semantics
@@ -103,6 +104,7 @@ class LevelDescription:
         elevators: list[Elevator] = attrs.field(factory=list)
         schedules: list[Schedule] = attrs.field(factory=list)
         signals: list[Signal] = attrs.field(factory=list)
+        sounds: list[Sound] = attrs.field(factory=list)
         entities: WorldEntities = attrs.field(factory=WorldEntities)
         ceiling: bool = attrs.field(default=True)
         ceiling_height: float | None = attrs.field(default=None)
@@ -150,6 +152,10 @@ class LevelDescription:
     @property
     def all_signals(self) -> typing.Iterable[Signal]:
         return (signal for zone in self.zones for signal in zone.signals)
+
+    @property
+    def all_sounds(self) -> typing.Iterable[Sound]:
+        return (sound for zone in self.zones for sound in zone.sounds)
 
     @property
     def all_floors(self) -> typing.Iterable[Floor]:
@@ -219,6 +225,9 @@ class LevelDescription:
             dynamic_entity.pose.position = dynamic_entity.pose.position + diff
             for idx, wp in enumerate(dynamic_entity.waypoints):
                 dynamic_entity.waypoints[idx] = wp + diff
+        for sound in self.all_sounds:
+            if sound.position is not None:
+                sound.position = sound.position + diff
         for microphone in self.microphones:
             if microphone.frame.strip('/') == 'map':
                 microphone.position = microphone.position + diff

@@ -8,11 +8,6 @@ import pytest
 
 pytest.importorskip("rclpy")
 
-try:
-    import sounddevice  # noqa: F401
-except (ImportError, OSError) as exc:
-    pytest.skip(f"sounddevice unavailable: {exc}", allow_module_level=True)
-
 
 def _sample(values: list[float]) -> SimpleNamespace:
     return SimpleNamespace(

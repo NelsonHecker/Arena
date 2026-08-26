@@ -174,6 +174,11 @@ def generate_launch_description():
         default_value="true",
         description="Compute RIR metadata in the propagation node instead of deferring to playback.",
     )
+    auditory_ped_hearing = LaunchArgument(
+        name="auditory.ped_hearing",
+        default_value="true",
+        description="Pedestrians are propagation listeners and receive sound stimuli through the human simulator.",
+    )
     auditory_robot_sound = LaunchArgument(
         name="auditory.robot_sound",
         default_value="true",
@@ -196,10 +201,10 @@ def generate_launch_description():
         default_value="true",
         description="Play propagated environment audio locally; emission and robot hearing continue when false.",
     )
-    auditory_static_devices = LaunchArgument(
-        name="auditory.static_devices",
+    auditory_static_sounds = LaunchArgument(
+        name="auditory.static_sounds",
         default_value="[]",
-        description="YAML list of world-independent environment audio systems (radios, alarms); non-empty enables the audio_systems module.",
+        description="YAML list of world-independent sound entities (radios, alarms), same Sound schema as world.yaml sounds; non-empty enables the sounds module even with auditory:=none.",
     )
     auditory_listener = LaunchArgument(
         name="auditory.listener",
@@ -314,15 +319,19 @@ def generate_launch_description():
             for value in tm_modules_val.split(",")
             if value.strip()
         ]
-        static_devices_val = launch.utilities.perform_substitutions(
+        static_sounds_val = launch.utilities.perform_substitutions(
             context,
             launch.utilities.normalize_to_list_of_substitutions(
-                auditory_static_devices.substitution
+                auditory_static_sounds.substitution
             ),
         ).strip()
-        static_audio_enabled = static_devices_val not in ("", "[]")
-        if static_audio_enabled and "audio_systems" not in configured_modules:
-            configured_modules.append("audio_systems")
+        auditory_val = launch.utilities.perform_substitutions(
+            context,
+            launch.utilities.normalize_to_list_of_substitutions(auditory.substitution),
+        ).strip()
+        sounds_enabled = auditory_val != "none" or static_sounds_val not in ("", "[]")
+        if sounds_enabled and "sounds" not in configured_modules:
+            configured_modules.append("sounds")
         tm_modules_val = ",".join(configured_modules)
 
         planner_val = launch.utilities.perform_substitutions(context, launch.utilities.normalize_to_list_of_substitutions(planner.substitution))
@@ -370,6 +379,7 @@ def generate_launch_description():
                 **auditory_propagation.dict,
                 **auditory_multi_portal.dict,
                 **auditory_rir_in_propagation.dict,
+                **auditory_ped_hearing.dict,
                 **auditory_robot_sound.dict,
                 **auditory_motor.dict,
                 **auditory_motor_playback.dict,
@@ -448,7 +458,7 @@ def generate_launch_description():
                     "tm_obstacles": tm_obstacles.param_value(str),
                     "tm_modules": tm_modules_val,
                     **world.str_param,
-                    "static_audio_devices": auditory_static_devices.param_value(str),
+                    "static_sounds": auditory_static_sounds.param_value(str),
                     "auto_reset": auto_reset.param_value(bool),
                     "fail_on_collision": fail_on_collision.param_value(bool),
                     "train_mode": train_mode.param_value(bool),
