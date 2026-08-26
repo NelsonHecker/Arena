@@ -7,7 +7,7 @@ Run after `colcon build` installs the generated Python bindings.
 """
 
 def test_episode_record_fields():
-    from rcl_interfaces.msg import Parameter, ParameterValue
+    from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
     from task_generator_msgs.msg import EpisodeRecord
 
     r = EpisodeRecord()
@@ -26,7 +26,7 @@ def test_episode_record_fields():
     p = Parameter()
     p.name = "static.n"
     p.value = ParameterValue()
-    p.value.type = ParameterValue.PARAMETER_INTEGER
+    p.value.type = ParameterType.PARAMETER_INTEGER
     p.value.integer_value = 4
     r.obstacles_params = [p]
     r.robots_params = []
@@ -137,7 +137,7 @@ def test_query_parametrizeds_srv():
 
 
 def test_queue_episode_srv():
-    from rcl_interfaces.msg import Parameter, ParameterValue
+    from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
     from task_generator_msgs.srv import QueueEpisode
 
     req = QueueEpisode.Request()
@@ -151,7 +151,7 @@ def test_queue_episode_srv():
     p = Parameter()
     p.name = "static.n"
     p.value = ParameterValue()
-    p.value.type = ParameterValue.PARAMETER_INTEGER
+    p.value.type = ParameterType.PARAMETER_INTEGER
     p.value.integer_value = 5
     req.obstacles_params = [p]
     req.robots_params = []

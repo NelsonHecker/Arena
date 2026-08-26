@@ -268,7 +268,6 @@ def generate_launch_description():
         default_value="",
         description="comma list of debug tokens (e.g. aiomonitor,map_server); also debug.<token>:=true",
     )
-    debug = LaunchArgument(name="debug", default_value="False")
     auto_reset = LaunchArgument(
         name="task.auto_reset",
         default_value="true",
