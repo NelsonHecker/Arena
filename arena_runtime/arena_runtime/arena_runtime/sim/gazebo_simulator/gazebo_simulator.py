@@ -30,10 +30,11 @@ from arena_simulation_setup.utils.material import MdlUtil
 from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped, Quaternion
 from geometry_msgs.msg import Pose as RosPose
 from launch import LaunchDescription
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from ros_gz_interfaces.msg import Entity as EntityMsg
 from ros_gz_interfaces.msg import EntityFactory, WorldControl
 from ros_gz_interfaces.srv import ControlWorld, DeleteEntity, SetEntityPose, SpawnEntity
+from std_msgs.msg import Bool
 from task_generator.shared import (
     DynamicObstacle,
     Entity,
@@ -53,10 +54,9 @@ from viewport_control_msgs.srv import ViewportSetProjection, ViewportSetReferenc
 
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
-    controller_spawner_node,
     effective_control_yaml,
-    effective_controllers,
     odom_relay_node,
+    robot_controllers,
     twist_stamper_node,
 )
 from arena_runtime.sim._interface import resolve_obstacle_box
@@ -68,6 +68,11 @@ _VIEWPORT_STREAM_QOS = QoSProfile(
     depth=1,
     history=HistoryPolicy.KEEP_LAST,
     reliability=ReliabilityPolicy.BEST_EFFORT,
+)
+
+_LATCHED_QOS = QoSProfile(
+    depth=1,
+    durability=DurabilityPolicy.TRANSIENT_LOCAL,
 )
 
 
@@ -286,6 +291,11 @@ class GazeboSimulator(BaseSim):
         self._material_texture_cache: dict[str, dict[str, str]] = {}
         self._spawned_names: set[str] = set()
 
+        # gz leaves a model unactuated after a SetEntityPose issued while the
+        # world is paused; re-issuing the same pose once it runs wakes it.
+        self._repin: dict[str, Robot] = {}
+        self._paused: bool | None = None
+
         self._viewport_camera_pose: Pose | None = None
 
     def _robot_loader_args(self, robot: Robot) -> dict[str, object]:
@@ -341,6 +351,9 @@ class GazeboSimulator(BaseSim):
         # Ped actors are created and removed by PedSkeletonPlugin from arena_peds.
         return tuple(True for _ in pedestrians)
 
+    def robot_controllers(self, robot: Robot) -> list[str]:
+        return robot_controllers(arena_robots.Robot.RobotIdentifier(robot.model.name).resolve_sync(), robot.resolved_assembly)
+
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
 
         async def impl(robot: Robot) -> bool:
@@ -369,11 +382,23 @@ class GazeboSimulator(BaseSim):
 
     async def robot_move(self, robots: Sequence[Robot]) -> Sequence[bool]:
         async def impl(robot: Robot) -> bool:
-            return (await self._move_entity(robot)) and (await self._robot_move(robot))
+            if not await self._move_entity(robot):
+                return False
+            if self._paused:
+                self._repin[robot.sim_path] = robot
+            return await self._robot_move(robot)
 
         async with self.node.unpause_window():
             result = await asyncio.gather(*map(impl, robots))
         return result
+
+    async def _on_paused(self, msg: Bool) -> None:
+        was_paused, self._paused = self._paused, msg.data
+        if not was_paused or msg.data or not self._repin:
+            return
+        robots = list(self._repin.values())
+        self._repin.clear()
+        await asyncio.gather(*map(self._move_entity, robots))
 
     async def obstacle_delete(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         return await asyncio.gather(*(self._delete_entity(o.sim_path) for o in obstacles))
@@ -828,8 +853,6 @@ class GazeboSimulator(BaseSim):
         if control_spec is not None and control_spec.is_ros2_control:
             if not control_spec.controllers:
                 raise ValueError(f"control.mode=ros2_control but no controllers declared for {robot.name}")
-            for controller_name in effective_controllers(robot.resolved_assembly, control_spec.controllers, prefix=(robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_')):
-                launch_description.add_action(controller_spawner_node(controller_name))
             launch_description.add_action(
                 twist_stamper_node(
                     control_spec.cmd_vel_topic,
@@ -959,6 +982,7 @@ class GazeboSimulator(BaseSim):
         self._service_viewport_set_projection = self.node.create_client_wrapper(ViewportSetProjection, "/arena/viewport/set_projection", timeout=3.0)
         self._publisher_viewport_view = self.node.create_publisher(ViewportView, "/arena/viewport/cmd_view", _VIEWPORT_STREAM_QOS)
         self.node.create_subscription(PoseStamped, "/arena/viewport/camera_pose", self._on_viewport_camera_pose, 10)
+        self.node.create_subscription(Bool, "/arena/state/paused", self._on_paused, _LATCHED_QOS)
 
     async def shutdown(self) -> None:
         await self.stop_mechanisms()

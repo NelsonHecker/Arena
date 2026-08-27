@@ -61,7 +61,7 @@ from .prompt_utils import (
     process_json_doc,
 )
 
-DEBUG: bool = bool(os.environ.get("ARENA_DEBUG", True))  # TODO change to false
+DEBUG: bool = os.environ.get("ARENA_DEBUG", "0").lower() in ("1", "true")
 
 
 @attrs.define()

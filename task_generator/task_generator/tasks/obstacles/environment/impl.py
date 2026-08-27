@@ -470,6 +470,6 @@ class TM_Environment(TM_Obstacles):
 
         self._config = self.node.ROSParam[_ParsedConfig](
             self.namespace('file'),
-            'default.json',
+            'default',
             parse=self._parse_environment,
         )

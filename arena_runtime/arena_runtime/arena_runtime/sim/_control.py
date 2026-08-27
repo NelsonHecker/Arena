@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import typing
 from collections.abc import Sequence
 
 import launch_ros.actions
@@ -9,6 +10,9 @@ import yaml
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from arena_robots.assembly import ResolvedAssembly
 from arena_robots.catalog import Catalog, render_effective_control
+
+if typing.TYPE_CHECKING:
+    from arena_robots.Robot import RobotView
 
 
 def load_control_yaml(config_uri: str) -> dict:
@@ -98,31 +102,13 @@ def effective_controllers(
     return [*controllers, *extra]
 
 
-def controller_spawner_node(controller_name: str) -> launch_ros.actions.Node:
-    """Spawn one controller into the namespace-local controller_manager.
-
-    `--controller-manager-timeout 0` is the spawner's wait-forever sentinel.
-    `--switch-timeout 600` is a large finite (CM rejects 0 and uses 1s); covers
-    the sim-paused-during-reset window without masking real hangs forever.
-    """
-    return launch_ros.actions.Node(
-        package='controller_manager',
-        executable='spawner',
-        name=f'spawner_{controller_name}',
-        output='screen',
-        arguments=[
-            controller_name,
-            '--controller-manager',
-            'controller_manager',
-            '--controller-manager-timeout',
-            '0',
-            '--switch-timeout',
-            '600',
-            '--service-call-timeout',
-            '600',
-        ],
-        parameters=[{'use_sim_time': True}],
-    )
+def robot_controllers(robot_config: "RobotView", resolved: ResolvedAssembly | None) -> list[str]:
+    """Controller names the ros2_control plane spawns for this robot, empty when it is not ros2_control-driven."""
+    control_spec = robot_config.model_params.control
+    if control_spec is None or not control_spec.is_ros2_control:
+        return []
+    prefix = robot_config.assembly.prefix if robot_config.assembly is not None else 'robot_'
+    return effective_controllers(resolved, control_spec.controllers, prefix=prefix)
 
 
 def odom_relay_node(odom_topic: str) -> launch_ros.actions.Node:

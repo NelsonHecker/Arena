@@ -50,6 +50,7 @@ from arena_humansim_msgs.srv import (
     AddWorldObjects,
     Feedback,
     GetProfile,
+    NotifyStimulus,
     RemoveAgents,
     RemoveObstacles,
     RemoveSink,
@@ -125,6 +126,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     SERVICE_RESET = "reset"
     SERVICE_GET_PROFILE = "get_profile"
     SERVICE_FEEDBACK = "feedback"
+    SERVICE_NOTIFY_STIMULUS = "notify_stimulus"
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
@@ -200,6 +202,10 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._feedback_client: ClientWrapper = self.node.create_client_wrapper(
             Feedback,
             self.node.service_namespace(self.SERVICE_FEEDBACK),
+        )
+        self._notify_stimulus_client: ClientWrapper = self.node.create_client_wrapper(
+            NotifyStimulus,
+            self.node.service_namespace(self.SERVICE_NOTIFY_STIMULUS),
         )
         self._set_parameters_client: ClientWrapper = self.node.create_client_wrapper(
             SetParameters,
@@ -400,6 +406,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     self._reset_client,
                     self._get_profile_client,
                     self._feedback_client,
+                    self._notify_stimulus_client,
                     self._set_parameters_client,
                 )
             )
@@ -838,25 +845,29 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
         return obstacles
 
-    async def _sync_origin(self) -> None:
+    async def _sync_origin(self) -> bool:
         """Tell the engine the env reference so authored agent-type coordinates land in the realized frame."""
         cfg = self._realizer.get_config()
         origin = (float(cfg.x), float(cfg.y))
         if origin == self._sent_origin:
-            return
+            return True
         request = SetParameters.Request()
         request.parameters = [Parameter(name="origin", value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE_ARRAY, double_array_value=list(origin)))]
         response = await self._set_parameters_client.call_timeout(request)
-        if response is None or not all(r.successful for r in response.results):
-            raise RuntimeError(f"arena_humansim rejected origin {origin}")
-        self._sent_origin = origin
+        failures = ["no response"] if response is None else [result.reason for result in response.results if not result.successful]
+        if not failures or origin == (0.0, 0.0):
+            self._sent_origin = origin
+            return True
+        self._logger.error(f"arena_humansim did not take origin {origin} ({'; '.join(failures)}), skipping dynamic obstacles")
+        return False
 
     async def _spawn_dynamic_obstacles_impl(self, obstacles: Sequence[DynamicObstacle]) -> Sequence[DynamicObstacle | None]:
         """Forward dynamic obstacles to arena_humansim AgentManager via SpawnAgents."""
         if not obstacles:
             return obstacles
 
-        await self._sync_origin()
+        if not await self._sync_origin():
+            return [None] * len(obstacles)
         request = SpawnAgents.Request()
         for obstacle in obstacles:
             agent_msg = AgentStateMsg()
@@ -916,6 +927,19 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except Exception as e:
             self._logger.error(f"SpawnAgents call failed: {e}")
             return [None] * len(obstacles)
+
+    async def notify_stimulus(self, agent_id: int, stimulus: str, intensity: float) -> None:
+        request = NotifyStimulus.Request()
+        request.agent_id = agent_id
+        request.stimulus = stimulus
+        request.intensity = intensity
+        try:
+            response = await self._notify_stimulus_client.call_timeout(request)
+        except Exception as e:
+            self._logger.error(f"NotifyStimulus call failed: {e}")
+            return
+        if response is not None and not response.success:
+            self._logger.error(f"NotifyStimulus failed: {response.message}")
 
     async def _remove_obstacles_impl(self, names: Sequence[str]) -> bool:
         """Remove static obstacles (and their matching world objects) from arena_humansim."""

@@ -52,7 +52,7 @@ from task_generator.manager.world_manager.world_manager_ros import (
 )
 from task_generator.shared import Orientation, Pose, Position
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
-from task_generator.tasks import identifier_to_available
+from task_generator.tasks import identifier_to_available, identifier_to_available_async
 from task_generator.tasks.obstacles import ObstacleKind
 from task_generator.tasks.registry import MODULE_MODES, OBSTACLES_MODES, ROBOTS_MODES
 from task_generator.tasks.task import Task
@@ -398,7 +398,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             self._publish_queue_state()
         except Exception as e:
             self._logger.error(f"configure failed: {e!r}\n{traceback.format_exc()}")
-            return
+            raise
         self.trigger_configure()
 
     def on_configure(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
@@ -433,8 +433,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     async def teardown(self) -> None:
         self._heartbeat_timer.cancel()
-        if self._tick_loop_task is not None and not self._tick_loop_task.done():
-            self._tick_loop_task.cancel()
+        for t in (self._tick_loop_task, self._check_status_task, self._episode_task):
+            if t is not None and not t.done():
+                t.cancel()
         if self._task is not None:
             await self._task.teardown()
         if self._robots_manager is not None:
@@ -748,7 +749,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         response: task_generator_msgs.srv.SetSemantic.Response,
     ) -> task_generator_msgs.srv.SetSemantic.Response:
         """External untrusted write: full validation, structured error_msg, no bare-name resolution."""
-        reason = self._apply_semantic_checked(request.entity, request.field, request.value)
+
+        async def _apply() -> str:
+            return self._apply_semantic_checked(request.entity, request.field, request.value)
+
+        reason = self.wait_for(_apply())
         response.success = not reason
         response.error_msg = reason
         return response
@@ -898,54 +903,59 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 topic_must_exist=False,
             ),
         ]
-        latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
-        env_displays.append(
-            AdapterDisplay(
-                name="Pedestrians",
-                topic=f"{env_ns}/humans",
-                topic_type="",
-                kind=DisplayKind.PEDESTRIANS,
-                style_json=StyleSpec().to_json(),
-                topic_must_exist=False,
-                group="Pedestrians",
-            )
-        )
-        # Backend-internal debug overlay, off by default.
-        env_displays.append(
-            AdapterDisplay(
-                name="Extra",
-                topic=f"{env_ns}/pedestrian_markers/extra",
-                topic_type="visualization_msgs/MarkerArray",
-                kind=DisplayKind.MARKER_ARRAY,
-                style_json=StyleSpec(enabled=False).to_json(),
-                topic_must_exist=False,
-                group="Pedestrians",
-            )
-        )
-        # Static environment geometry: not pedestrians, own group.
-        env_displays.append(
-            AdapterDisplay(
-                name="Static",
-                topic=f"{env_ns}/pedestrian_markers/static",
-                topic_type="visualization_msgs/MarkerArray",
-                kind=DisplayKind.MARKER_ARRAY,
-                style_json=latched,
-                topic_must_exist=False,
-                group="Static",
-            )
-        )
-        for leaf in ("static_walls", "static_objects"):
+        human_sim = self.conf.Arena.HUMAN.value
+        if human_sim not in (Constants.HumanSimulator.DUMMY, Constants.HumanSimulator.NONE):
+            latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
             env_displays.append(
                 AdapterDisplay(
-                    name=leaf.replace("_", " ").title(),
-                    topic=f"{env_ns}/pedestrian_markers/{leaf}",
+                    name="Pedestrians",
+                    topic=f"{env_ns}/humans",
+                    topic_type="",
+                    kind=DisplayKind.PEDESTRIANS,
+                    style_json=StyleSpec().to_json(),
+                    topic_must_exist=False,
+                    group="Pedestrians",
+                )
+            )
+            # Backend marker overlay. On by default: the canonical Skeletons3D
+            # display cannot render namespaced envs (upstream hri_rviz reads
+            # absolute /humans paths), so this is the working pedestrian view.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Extra",
+                    topic=f"{env_ns}/pedestrian_markers/extra",
+                    topic_type="visualization_msgs/MarkerArray",
+                    kind=DisplayKind.MARKER_ARRAY,
+                    style_json=StyleSpec().to_json(),
+                    topic_must_exist=False,
+                    group="Pedestrians",
+                )
+            )
+            # Static environment geometry: not pedestrians, own group.
+            env_displays.append(
+                AdapterDisplay(
+                    name="Static",
+                    topic=f"{env_ns}/pedestrian_markers/static",
                     topic_type="visualization_msgs/MarkerArray",
                     kind=DisplayKind.MARKER_ARRAY,
                     style_json=latched,
-                    topic_must_exist=True,
+                    topic_must_exist=False,
                     group="Static",
                 )
             )
+            for leaf in ("static_walls", "static_objects"):
+                env_displays.append(
+                    AdapterDisplay(
+                        name=leaf.replace("_", " ").title(),
+                        topic=f"{env_ns}/pedestrian_markers/{leaf}",
+                        topic_type="visualization_msgs/MarkerArray",
+                        kind=DisplayKind.MARKER_ARRAY,
+                        style_json=latched,
+                        topic_must_exist=True,
+                        group="Static",
+                    )
+                )
+
         for name, topic in (
             (
                 "Microphones",
@@ -1288,7 +1298,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         response: task_generator_msgs.srv.QueryScenarios.Response,
     ) -> task_generator_msgs.srv.QueryScenarios.Response:
         world_name = request.world or self._episodes.current.world
-        response.ids = list(identifier_to_available(World.WorldIdentifier(world_name).resolve_sync().scenario))
+        try:
+            world_view = World.WorldIdentifier(world_name).resolve_sync()
+        except FileNotFoundError:
+            self.get_logger().warning(f'no scenarios: world {world_name!r} not found')
+            return response
+        response.ids = list(identifier_to_available(world_view.scenario))
         return response
 
     async def _cb_query_robots(
@@ -1304,7 +1319,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         request: task_generator_msgs.srv.QueryStaticObstacles.Request,
         response: task_generator_msgs.srv.QueryStaticObstacles.Response,
     ) -> task_generator_msgs.srv.QueryStaticObstacles.Response:
-        response.ids = list(identifier_to_available(arena_simulation_setup.tree.assets.Object.ObjectIdentifier, network=True))
+        response.ids = await identifier_to_available_async(arena_simulation_setup.tree.assets.Object.ObjectIdentifier, network=True)
         return response
 
     async def _cb_query_dynamic_obstacles(
@@ -1312,11 +1327,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         request: task_generator_msgs.srv.QueryDynamicObstacles.Request,
         response: task_generator_msgs.srv.QueryDynamicObstacles.Response,
     ) -> task_generator_msgs.srv.QueryDynamicObstacles.Response:
-        response.ids = list(
-            identifier_to_available(
-                arena_simulation_setup.tree.assets.Human.HumanIdentifier,
-                network=True,
-            )
+        response.ids = await identifier_to_available_async(
+            arena_simulation_setup.tree.assets.Human.HumanIdentifier,
+            network=True,
         )
         return response
 

@@ -75,8 +75,14 @@ class TM_Composite(TM_Robots):
         return all(results)
 
     async def set_position(self, pose: Pose):
+        robots = self._ctx.robots
+        if not robots:
+            return
+        last = next(reversed(robots))
         for m in self._sub_modes:
-            await m.set_position(pose)
+            if last in m._ctx.robots:
+                await m.set_position(pose)
+                return
 
     async def set_goal(self, pose: Pose):
         for m in self._sub_modes:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 from pathlib import Path
 from types import NotImplementedType
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 import attrs
 import cattrs
@@ -19,6 +19,9 @@ from arena_simulation_setup.utils.cattrs import (
 )
 from arena_simulation_setup.utils.geometry import Pose, Position, Scale
 from arena_simulation_setup.utils.resolution import resolve_zone_point
+
+if TYPE_CHECKING:
+    import shapely
 
 
 @attrs.define(auto_attribs=True, kw_only=True)
@@ -121,6 +124,22 @@ class Obstacle(Entity):
     scale: Scale | None = None
     level_id: str | None = None
 
+    async def footprint(self) -> shapely.Polygon | None:
+        """Map-frame 2D footprint from the asset's annotated bounds, None when unannotated."""
+        import shapely
+        import shapely.affinity
+
+        try:
+            view = await self.model.resolve()
+        except FileNotFoundError:
+            return None
+        bounds = view.bounds
+        if bounds is None:
+            return None
+        poly = shapely.Polygon(bounds)
+        poly = shapely.affinity.rotate(poly, self.pose.orientation.to_yaw(), origin=(0, 0), use_radians=True)
+        return shapely.affinity.translate(poly, xoff=self.pose.position.x, yoff=self.pose.position.y)
+
 
 def _waypoints_converter(value: object) -> list[Waypoint]:
     if not isinstance(value, list):
@@ -165,6 +184,4 @@ class CustomDynamicObstacle(DynamicObstacle):
 
         obj = converter.structure_attrs_fromdict(known_values, cls)
         obj.extra.update(custom_fields)
-        value = obj.asdict(True)
-
-        return converter.structure(value, cls)
+        return obj

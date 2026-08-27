@@ -138,6 +138,11 @@ class PedestrianITF(abc.ABC):
 class RobotITF(abc.ABC):
     """Abstract base class for robot management in simulators."""
 
+    def robot_controllers(self, robot: Robot) -> list[str]:
+        """ros2_control controllers this simulator spawns for `robot`. Empty when it runs no control plane."""
+        del robot
+        return []
+
     @abc.abstractmethod
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Spawn robots."""
@@ -353,11 +358,13 @@ class MechanismITF:
     def set_semantics_callback(self, cb: "Callable[[Sequence[SemanticChange]], None]") -> None:
         self._semantics.set_change_callback(cb)
 
-    def attach_semantics(self, kind: str, entity: str, cfgs: "Sequence[SemanticCfg]", *, polygon: "Sequence[tuple[float, float]] | None" = None) -> None:
+    def attach_semantics(self, kind: str, entity: str, cfgs: "Sequence[SemanticCfg]", *, polygon: "Sequence[tuple[float, float]] | None" = None) -> bool:
         from ._mechanism_shim import _ensure_loop
 
         if self._semantics.attach(kind, entity, cfgs, polygon=polygon):
             _ensure_loop(self)
+            return True
+        return False
 
     def detach_semantics(self, entity: str) -> None:
         self._semantics.detach(entity)

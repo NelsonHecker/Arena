@@ -26,7 +26,7 @@ from task_generator.tasks.robots.composite import (
     _scoped_ctx,
     get_extra_tm_loader,
 )
-from task_generator.tasks.robots.fleet_manager import FleetManager, TaskModeSpec
+from task_generator.tasks.robots.fleet_manager import FleetManager, TaskModeSpec, load_task_config
 from task_generator.tasks.robots.request import TaskKind, TaskRequest
 
 from . import TaskContext
@@ -54,8 +54,10 @@ class Task(NodeInterface):
     PARAM_TM_ROBOTS = "tm_robots"
     PARAM_TM_OBSTACLES = "tm_obstacles"
 
-    __param_tm_robots: Constants.TaskMode.TM_Robots
+    __param_tm_robots: Constants.TaskMode.TM_Robots | None
     __param_tm_obstacles: Constants.TaskMode.TM_Obstacles
+    __param_tm_config: str = ""
+    __composite_fleet: frozenset[str] = frozenset()
 
     __tm_robots: TM_Robots | None = None
     __tm_obstacles: TM_Obstacles | None = None
@@ -80,9 +82,13 @@ class Task(NodeInterface):
             modules=modules,
             **kwargs,
         )
-        await self.set_tm_robots(self.node.conf.TaskMode.TM_ROBOTS.value)
+        tm_config = self.node.conf.TaskMode.TM_CONFIG.value
+        if not tm_config:
+            await self.set_tm_robots(self.node.conf.TaskMode.TM_ROBOTS.value)
         await self.set_tm_obstacles(self.node.conf.TaskMode.TM_OBSTACLES.value)
         await self.robots_manager.set_up()
+        if tm_config:
+            await self.set_tm_robots_from_config(tm_config)
         return self
 
     _ctx: TaskContext
@@ -145,9 +151,18 @@ class Task(NodeInterface):
         assert tm_robots in ROBOTS_MODES, f"TaskMode '{tm_robots}' for robots is not registered!"
         cls = ROBOTS_MODES.get(tm_robots)
         meta = ROBOTS_MODES.meta(tm_robots)
+        new_mode = cls(ctx=self._ctx, namespace=meta.namespace, node=self.node)
         await self._tear_down_tm_robots()
-        self.__tm_robots = cls(ctx=self._ctx, namespace=meta.namespace, node=self.node)
+        self.__tm_robots = new_mode
         self.__param_tm_robots = tm_robots
+        self.__param_tm_config = ""
+
+    async def set_tm_robots_from_config(self, path: str) -> None:
+        """Bind the composite described by a task config file, task.robots is ignored."""
+        self._logger.info(f"task config {path} takes precedence over tm_robots")
+        await self.set_tm_robots_composite(load_task_config(path))
+        self.__param_tm_config = path
+        self.__param_tm_robots = self.node.conf.TaskMode.TM_ROBOTS.value
 
     async def set_tm_robots_composite(
         self,
@@ -190,19 +205,17 @@ class Task(NodeInterface):
             node=self.node,
             sub_modes=sub_modes,
         )
-        # No single enum value applies; sentinel prevents the
-        # new_tm_robots != __param_tm_robots comparison in _reset_episode
-        # from retriggering a rebind.
-        self.__param_tm_robots = None  # type: ignore[assignment]
+        self.__param_tm_robots = None
+        self.__composite_fleet = frozenset(self._ctx.robots.keys())
 
     async def set_tm_obstacles(self, tm_obstacles: Constants.TaskMode.TM_Obstacles):
         assert tm_obstacles in OBSTACLES_MODES, f"TaskMode '{tm_obstacles}' for obstacles is not registered!"
         cls = OBSTACLES_MODES.get(tm_obstacles)
         meta = OBSTACLES_MODES.meta(tm_obstacles)
+        new_mode = cls(ctx=self._ctx, namespace=meta.namespace, node=self.node)
         if self.__tm_obstacles is not None:
             await self.__tm_obstacles.teardown()
-            self.__tm_obstacles = None
-        self.__tm_obstacles = cls(ctx=self._ctx, namespace=meta.namespace, node=self.node)
+        self.__tm_obstacles = new_mode
         self.__param_tm_obstacles = tm_obstacles
 
     async def teardown(self) -> None:
@@ -226,7 +239,13 @@ class Task(NodeInterface):
             try:
                 self.node._apply_staged_params()
 
-                if (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
+                if new_tm_config := self.node.conf.TaskMode.TM_CONFIG.value:
+                    if new_tm_config != self.__param_tm_config or frozenset(self._ctx.robots.keys()) != self.__composite_fleet:
+                        await self.set_tm_robots_from_config(new_tm_config)
+                    elif (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
+                        self._logger.warning(f"tm_robots ignored while task config {new_tm_config} is bound")
+                        self.__param_tm_robots = new_tm_robots
+                elif (new_tm_robots := self.node.conf.TaskMode.TM_ROBOTS.value) != self.__param_tm_robots:
                     await self.set_tm_robots(new_tm_robots)
 
                 if (new_tm_obstacles := self.node.conf.TaskMode.TM_OBSTACLES.value) != self.__param_tm_obstacles:
