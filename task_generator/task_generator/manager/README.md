@@ -60,7 +60,7 @@ Key public surface:
 | `is_done` | whether the current task request is satisfied |
 | `accepts` | `frozenset[TaskKind]`: the set of task kinds this robot's adapter handles |
 | `set_up_robot(node_paths)` | async; spawn robot, bind adapter, start navigation stack |
-| `bring_up_controllers()` | async; drive the robot's ros2_control controllers to active, returns the names that did not make it |
+| `bring_up_controllers()` | async; drive the robot's ros2_control controllers to active, raises on an explicit controller_manager refusal |
 | `destroy()` | tear down adapter and remove robot from sim |
 
 `_launch_robot` order: unpause window, one sim step, tracked launch, adapter
@@ -69,9 +69,9 @@ Controllers are driven here, not by `controller_manager/spawner`: each round
 reads `list_controllers` and issues the one call the snapshot needs (load an
 absent one, configure an unconfigured one, one grouped STRICT switch for all
 inactive ones, nothing during a transient state), so a lost or slow reply costs
-a re-read rather than a failure. Three identical failed transitions or the
-`robot.controllers_timeout` budget (60 s, `-1` unbounded) end the loop, and
-`_launch_robot` raises on anything left inactive.
+a re-read rather than a failure. The wait is unbounded, switches go out in
+10 s bursts retried on controller_manager-side timeout, and only an explicit
+refusal or a finalized controller raises.
 
 ## `WorldManager`
 
