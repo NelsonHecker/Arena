@@ -35,11 +35,10 @@ Scripts live under [scripts/](scripts). To fetch a single asset by identifier, u
 
 ### arenian actor
 
-`assets/Common/Human/arenian/arenian.sdf` defines the default Gazebo
-pedestrian as an SDF `<actor>` with a `walk.dae` skin (Mingfei/Fuel) and a named
-`walk` animation clip. The actor form is
-required so Gazebo registers the skinned mesh and the clip that `PedSkeletonPlugin`
-scrubs.
+`arenian` is the default pedestrian. Like every other human it is an `arena_humans`
+bundle (MakeHuman skin, CMU clips, `cmu_mb` rig) fetched from the asset bucket, not
+shipped in the repo. The SDF `<actor>` form is required so Gazebo registers the skinned
+mesh and the clips that `PedSkeletonPlugin` scrubs.
 
 **gpu_lidar implication.** Arena's lidar sensor is `gpu_lidar`, a rendering
 sensor that forces a server-side render scene even in headless mode.  Because
