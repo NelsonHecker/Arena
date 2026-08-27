@@ -45,7 +45,7 @@ class DrlAdapter(MobileAdapter):
         *,
         planner: str,
         observations: dict | None = None,
-        rate: float = 10.0,
+        rate: float | None = None,
         **bringup_kwargs: object,
     ) -> None:
         super().__init__(robot_manager, **bringup_kwargs)
@@ -59,7 +59,6 @@ class DrlAdapter(MobileAdapter):
             raise ResolverError(f"DrlAdapter: planner '{planner}' has no package.xml <name> entry; cannot resolve ros2 run target.")
 
         self._planner_name = planner
-        self._rate = rate
         self._observations_override: dict = dict(observations) if observations else {}
 
         sub_path: Path = planner_dir(planner)
@@ -76,6 +75,7 @@ class DrlAdapter(MobileAdapter):
             manifest_dict.setdefault("observations", {})
             _deep_merge(manifest_dict["observations"], self._observations_override)
         self._manifest: dict = manifest_dict
+        self._rate: float = float(rate if rate is not None else manifest_dict.get("rate_hz", 10.0))
 
         depends = manifest_dict.get("depends") or {}
         self._depends_global_plan: bool = bool(depends.get("global_plan", False))
