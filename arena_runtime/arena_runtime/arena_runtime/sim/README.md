@@ -185,7 +185,10 @@ extra channels under caller `cli`.
 
 The sim is paused for the entire body of `Task._reset_episode`. Only
 node-discovery and lifecycle signals are observable while the sim is paused;
-tf, costmap, and sim-clock topics are not advancing.
+tf, costmap, and sim-clock topics are not advancing. `switch_controller` is the
+one controller_manager call that needs the sim to tick (on both gz_ros2_control
+and Isaac's `ros2_control_node`, whose update loops follow sim time), so
+controller activation lives inside the robot bring-up unpause window.
 
 ## Registered implementations
 

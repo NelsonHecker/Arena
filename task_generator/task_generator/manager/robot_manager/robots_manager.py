@@ -568,8 +568,13 @@ class RobotsManager(NodeInterface):
         await manager.set_up_robot()
         self.managers[name] = manager
         node_paths: set[str] = set()
-        with self.provide_node_paths(node_paths):
-            await manager.launch(node_paths)
+        try:
+            with self.provide_node_paths(node_paths):
+                await manager.launch(node_paths)
+        except Exception:
+            self.managers.pop(name, None)
+            await manager.destroy()
+            raise
         from task_generator.tasks.robots.adapters import ResetContext  # noqa: PLC0415
 
         await manager.reset(

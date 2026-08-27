@@ -410,7 +410,7 @@ def generate_launch_description():
         for k, v in context.launch_configurations.items():
             if k in declared:
                 continue
-            if k.startswith("task.") or k.startswith("robot.mobile.") or k.startswith("robot.arm."):
+            if k.startswith(("task.", "robot.")):
                 # `robot.<cap>.<key>:=<val>` lands as a kwarg in
                 # RobotManager._adapter_kwargs_for, overlaying the cap-file
                 # YAML for the bound adapter.
