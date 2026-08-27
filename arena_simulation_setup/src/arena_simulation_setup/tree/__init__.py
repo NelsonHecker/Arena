@@ -93,6 +93,7 @@ class Verdict(enum.Enum):
     HIT = 'hit'
     MISS = 'miss'
     SHADOWED = 'shadowed'
+    STALE = 'stale'
 
 
 @attrs.define
@@ -127,6 +128,11 @@ class ResolverBase(abc.ABC, typing.Generic[IdentifierT]):
     async def locate(self, identifier: IdentifierT) -> Path | None:
         """Where *identifier* would resolve, without transferring anything."""
         return await self.resolve(identifier)
+
+    def is_stale(self, identifier: IdentifierT) -> bool:
+        """Whether the last answer for *identifier* was served from an expired cache."""
+        del identifier
+        return False
 
     def destination(self, identifier: IdentifierT) -> Path | None:
         """Write path for *identifier*. None for resolvers that are not write targets."""
@@ -293,7 +299,8 @@ class DynamicPathResolver(PathResolverBase[IdentifierT], typing.Generic[Identifi
 
 class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], typing.Generic[IdentifierT]):
     """
-    Resolve asset paths from network.
+    Resolve asset paths from network. The TTL governs refresh, not availability: an
+    expired cache entry is served when the provider cannot be reached.
     """
 
     _TTL_MARKER = '.ttl'
@@ -325,6 +332,30 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         self._pending: dict[str, list[asyncio.Future[Path | None]]] = {}
         self._flush_scheduled = False
         self._batch_lock = asyncio.Lock()
+        self._stale: set[IdentifierT] = set()
+
+    def invalidate(self):
+        super().invalidate()
+        self._stale.clear()
+
+    def is_stale(self, identifier: IdentifierT) -> bool:
+        return identifier in self._stale
+
+    def _complete(self, candidate: Path) -> bool:
+        """Fully fetched once: the marker is written only after a successful fetch."""
+        if not candidate.is_dir():
+            return candidate.exists()
+        try:
+            return int((candidate / self._TTL_MARKER).read_text().strip()) > 0
+        except (OSError, ValueError):
+            return False
+
+    def _serve_stale(self, identifier: IdentifierT, candidate: Path) -> Path | None:
+        if not self._complete(candidate):
+            return None
+        logging.warning('%s: %s unreachable, serving expired cache %s', type(self).__name__, self._provider, candidate)
+        self._stale.add(identifier)
+        return candidate
 
     @classmethod
     async def check_output_async(cls, args: Iterable[str], **kwargs: object) -> bytes:
@@ -412,6 +443,8 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
                 return candidate
 
         result = await self._batch_request(str(identifier.relpath()))
+        if result is None:
+            result = self._serve_stale(identifier, candidate)
         if result is not None:
             self._cache[identifier] = result
 
@@ -449,7 +482,7 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
         except (subprocess.CalledProcessError, OSError) as e:
             # a failed check is not an absent asset, so say so rather than reporting a silent miss
             logging.warning('%s: could not check %s on %s: %s', type(self).__name__, identifier.relpath(), self._provider, e)
-            return None
+            return self._serve_stale(identifier, candidate)
         return candidate if output.decode().strip().splitlines()[-1:] == ['1'] else None
 
     _LISTING_FILE = '.listing'
@@ -658,7 +691,7 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
         for resolver in self._resolvers:
             located = await resolver.locate(self)
             if located is not None:
-                return ResolverVerdict(resolver, Verdict.HIT, located)
+                return ResolverVerdict(resolver, Verdict.STALE if resolver.is_stale(self) else Verdict.HIT, located)
         msg = f'{self} not found among'
         for resolver in self._resolvers:
             msg += f'\n\t{repr(resolver)}'
@@ -676,7 +709,8 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
             if located is None:
                 verdicts.append(ResolverVerdict(resolver, Verdict.MISS))
                 continue
-            verdicts.append(ResolverVerdict(resolver, Verdict.SHADOWED if found else Verdict.HIT, located))
+            verdict = Verdict.SHADOWED if found else Verdict.STALE if resolver.is_stale(self) else Verdict.HIT
+            verdicts.append(ResolverVerdict(resolver, verdict, located))
             found = True
         return verdicts
 

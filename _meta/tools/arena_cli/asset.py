@@ -94,7 +94,7 @@ def find(argv: list[str]) -> int:
 
     from arena_simulation_setup.tree import Verdict
 
-    labels = {Verdict.HIT: "HIT", Verdict.MISS: "miss", Verdict.SHADOWED: "shadowed"}
+    labels = {Verdict.HIT: "HIT", Verdict.MISS: "miss", Verdict.SHADOWED: "shadowed", Verdict.STALE: "STALE"}
     verdicts = _identifier(kind, name).probe_sync()
 
     if as_json:
