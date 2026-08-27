@@ -10,7 +10,6 @@ import typing
 import ament_index_python
 import arena_bringup.extensions.NodeLogLevelExtension as NodeLogLevelExtension
 import attrs
-import controller_manager_msgs.srv
 import geometry_msgs.msg
 import launch
 import launch.launch_description_sources
@@ -26,9 +25,9 @@ from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
 from arena_runtime._node import NodeInterface
 
-import task_generator.utils.arena as Utils
-from task_generator.constants import Constants
 from task_generator.manager.environment_manager import EnvironmentManager
+from task_generator.manager.robot_manager.controller_manager_client import ControllerManagerClient
+from task_generator.manager.robot_manager.controller_transitions import Transition, next_transition
 from task_generator.shared import Orientation, Pose, Position, Robot
 
 if typing.TYPE_CHECKING:
@@ -56,7 +55,9 @@ _MOVEIT_QUIET_RULES = '+[**/moveit/**:error]'
 
 _CONTROLLER_MANAGER_GRACE = 30.0
 _CONTROLLER_POLL = 0.2
-_CONTROLLER_ACTIVE_TIMEOUT = 60.0  # wall seconds for all controllers to reach active before proceeding
+_CM_CALL_TIMEOUT = 10.0
+_CM_SWITCH_TIMEOUT = 120.0
+_CM_MAX_REPEATS = 3
 
 
 class RobotManager(NodeInterface):
@@ -287,9 +288,6 @@ class RobotManager(NodeInterface):
 
     @property
     def namespace(self) -> Namespace:
-        if Utils.get_arena_type() == Constants.ArenaType.TRAINING:
-            return Namespace(f"{self._namespace}{self._namespace}_{self.model_name}")
-
         return self._namespace(self._robot.name)
 
     def _stop_current_task(self) -> None:
@@ -457,128 +455,156 @@ class RobotManager(NodeInterface):
 
     async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot's navstack via the bound adapters."""
-        if Utils.get_arena_type() != Constants.ArenaType.TRAINING:
-            await asyncio.gather(*(a.ensure_services() for a in self._adapter_instances))
-            launch_description = launch.LaunchDescription()
-            current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
-            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))
-            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_NAV2_QUIET_RULES))
-            launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_MOVEIT_QUIET_RULES))
+        await asyncio.gather(*(a.ensure_services() for a in self._adapter_instances))
+        launch_description = launch.LaunchDescription()
+        current_log_level = rclpy.logging.get_logger_effective_level(self.node.get_logger().name).name.lower()
+        launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(current_log_level))
+        launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_NAV2_QUIET_RULES))
+        launch_description.add_action(NodeLogLevelExtension.SetGlobalLogLevelAction(_MOVEIT_QUIET_RULES))
 
-            launch_arguments = {
-                'robot': self.model_name,
-                'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
-                'namespace': self.namespace,
-                'frame': self._robot.frame.tf(),
-                'use_sim_time': 'True',
-            }
+        launch_arguments = {
+            'robot': self.model_name,
+            'task_generator_node': os.path.join(self.node.get_namespace(), self.node.get_name()),
+            'namespace': self.namespace,
+            'frame': self._robot.frame.tf(),
+            'use_sim_time': 'True',
+        }
 
-            launch_description.add_action(
-                launch.actions.IncludeLaunchDescription(
-                    launch.launch_description_sources.PythonLaunchDescriptionSource(os.path.join(ament_index_python.packages.get_package_share_directory('arena_simulation_setup'), 'launch/robot.launch.py')),
-                    launch_arguments=launch_arguments.items(),
-                )
+        launch_description.add_action(
+            launch.actions.IncludeLaunchDescription(
+                launch.launch_description_sources.PythonLaunchDescriptionSource(os.path.join(ament_index_python.packages.get_package_share_directory('arena_simulation_setup'), 'launch/robot.launch.py')),
+                launch_arguments=launch_arguments.items(),
             )
-
-            from task_generator.tasks.robots.adapters import AdapterCtx
-
-            adapter_ctx = AdapterCtx(
-                namespace=self.namespace,
-                robot_name=self.model_name,
-                frame=self._robot.frame.tf(),
-                task_generator_node=os.path.join(self.node.get_namespace(), self.node.get_name()),
-                env_namespace=self.node.get_namespace(),
-                use_sim_time=True,
-                base_frame=self._config.model_params.base_frame,
-                odom_frame=self._config.model_params.odom_frame,
-                sensors=self._config.effective_sensors(self._robot.resolved_request, frames=self._robot.frames),
-                tf_buffer=None,
-                node_handle=self.node,
-            )
-            adapter_actions: list[object] = [
-                launch_ros.actions.PushRosNamespace(str(self.namespace)),
-                *(a.launch_description(adapter_ctx) for a in self._adapter_instances),
-            ]
-            if self._adapter_instances:
-                bringup_caps = [a.bringup.cap for a in self._adapter_instances]
-                bringup_kinds = [a.bringup.kind for a in self._adapter_instances]
-                adapter_actions.append(
-                    launch_ros.actions.Node(
-                        package="arena_robots",
-                        executable="task_server",
-                        name="task_server",
-                        parameters=[
-                            {
-                                "robot_name": self._robot.model.name,
-                                "bringup_caps": bringup_caps,
-                                "bringup_kinds": bringup_kinds,
-                                "parts_json": json.dumps({t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.resolved_request.items()}),
-                                "frame": self._robot.frame.tf(),
-                                "use_sim_time": adapter_ctx.use_sim_time,
-                            }
-                        ],
-                    )
-                )
-            bringup = os.path.join(
-                ament_index_python.packages.get_package_share_directory('arena_robots'),
-                'robots',
-                self.model_name,
-                'launch',
-                'bringup.launch.py',
-            )
-            if os.path.isfile(bringup):
-                adapter_actions.append(
-                    launch.actions.IncludeLaunchDescription(
-                        launch.launch_description_sources.PythonLaunchDescriptionSource(bringup),
-                        launch_arguments={
-                            'base_frame': self._robot.frame.tf(self._config.model_params.base_frame),
-                            'use_sim_time': 'True',
-                        }.items(),
-                    )
-                )
-
-            if self._adapter_instances:
-                try:
-                    adapter_actions.extend(self._adapter_instances[0].bringup.telemetry_actions())
-                except (OSError, ValueError, RuntimeError) as e:
-                    self.node.get_logger().error(f"Failed to add telemetry actions for robot {self.model_name!r}: {e!r}")
-
-            launch_description.add_action(launch.actions.GroupAction(adapter_actions))
-
-            async with self.node.unpause_window():
-                await self.node.await_sim_step()
-                self._launch_handle = await self.node.do_launch_tracked(launch_description)
-                ready_timeout = self.node.conf.Robot.READY_TIMEOUT.value
-                await asyncio.gather(*(a.await_ready(self, node_paths, ready_timeout) for a in self._adapter_instances))
-                await self.wait_controllers_active()
-            for adapter in self._adapter_instances:
-                await adapter.on_controllers_active(self)
-
-    async def wait_controllers_active(self) -> None:
-        """Block until every controller the sim spawns for this robot is active. Must run inside an open
-        sim-unpause window (the caller holds one). No expected controllers (dummy sim) returns at once.
-        Past the budget, log the laggards and proceed rather than wedging the reset."""
-        expected = set(self._environment_manager.robot_controllers(self._robot))
-        if not expected:
-            return
-        client = self.node.create_client_wrapper(
-            controller_manager_msgs.srv.ListControllers,
-            str(self.namespace("controller_manager", "list_controllers")),
-            timeout=_CONTROLLER_MANAGER_GRACE,
         )
-        if not await client.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
-            self._logger.warning(f"controller_manager not up within {_CONTROLLER_MANAGER_GRACE:.0f}s, proceeding without {sorted(expected)}")
-            return
-        deadline = time.monotonic() + _CONTROLLER_ACTIVE_TIMEOUT
-        active: set[str] = set()
-        while time.monotonic() < deadline:
-            resp = await client.call_timeout(controller_manager_msgs.srv.ListControllers.Request())
-            if resp is not None:
-                active = {c.name for c in resp.controller if c.state == "active"}
-                if expected <= active:
-                    return
-            await asyncio.sleep(_CONTROLLER_POLL)
-        self._logger.warning(f"controllers not active within budget, proceeding: {sorted(expected - active)}")
+
+        from task_generator.tasks.robots.adapters import AdapterCtx
+
+        adapter_ctx = AdapterCtx(
+            namespace=self.namespace,
+            robot_name=self.model_name,
+            frame=self._robot.frame.tf(),
+            task_generator_node=os.path.join(self.node.get_namespace(), self.node.get_name()),
+            env_namespace=self.node.get_namespace(),
+            use_sim_time=True,
+            base_frame=self._config.model_params.base_frame,
+            odom_frame=self._config.model_params.odom_frame,
+            sensors=self._config.effective_sensors(self._robot.resolved_request, frames=self._robot.frames),
+            tf_buffer=None,
+            node_handle=self.node,
+        )
+        adapter_actions: list[object] = [
+            launch_ros.actions.PushRosNamespace(str(self.namespace)),
+            *(a.launch_description(adapter_ctx) for a in self._adapter_instances),
+        ]
+        if self._adapter_instances:
+            bringup_caps = [a.bringup.cap for a in self._adapter_instances]
+            bringup_kinds = [a.bringup.kind for a in self._adapter_instances]
+            adapter_actions.append(
+                launch_ros.actions.Node(
+                    package="arena_robots",
+                    executable="task_server",
+                    name="task_server",
+                    parameters=[
+                        {
+                            "robot_name": self._robot.model.name,
+                            "bringup_caps": bringup_caps,
+                            "bringup_kinds": bringup_kinds,
+                            "parts_json": json.dumps({t: [{"variant": p.variant, "mount": p.mount} for p in ps] for t, ps in self._robot.resolved_request.items()}),
+                            "frame": self._robot.frame.tf(),
+                            "use_sim_time": adapter_ctx.use_sim_time,
+                        }
+                    ],
+                )
+            )
+        bringup = os.path.join(
+            ament_index_python.packages.get_package_share_directory('arena_robots'),
+            'robots',
+            self.model_name,
+            'launch',
+            'bringup.launch.py',
+        )
+        if os.path.isfile(bringup):
+            adapter_actions.append(
+                launch.actions.IncludeLaunchDescription(
+                    launch.launch_description_sources.PythonLaunchDescriptionSource(bringup),
+                    launch_arguments={
+                        'base_frame': self._robot.frame.tf(self._config.model_params.base_frame),
+                        'use_sim_time': 'True',
+                    }.items(),
+                )
+            )
+
+        if self._adapter_instances:
+            try:
+                adapter_actions.extend(self._adapter_instances[0].bringup.telemetry_actions())
+            except (OSError, ValueError, RuntimeError) as e:
+                self.node.get_logger().error(f"Failed to add telemetry actions for robot {self.model_name!r}: {e!r}")
+
+        launch_description.add_action(launch.actions.GroupAction(adapter_actions))
+
+        async with self.node.unpause_window():
+            await self.node.await_sim_step()
+            self._launch_handle = await self.node.do_launch_tracked(launch_description)
+            ready_timeout = self.node.conf.Robot.READY_TIMEOUT.value
+            await asyncio.gather(*(a.await_ready(self, node_paths, ready_timeout) for a in self._adapter_instances))
+            missing = await self.bring_up_controllers()
+        if missing:
+            raise RuntimeError(f"robot {self.name!r}: controllers not active: {sorted(missing)}")
+        for adapter in self._adapter_instances:
+            await adapter.on_controllers_active(self)
+
+    async def bring_up_controllers(self) -> set[str]:
+        """Drive this robot's controllers to active inside the caller's unpause window, returning the laggards."""
+        expected = self._environment_manager.robot_controllers(self._robot)
+        if not expected:
+            return set()
+        cm = ControllerManagerClient(self.node, str(self.namespace("controller_manager")), call_timeout=_CM_CALL_TIMEOUT)
+        try:
+            if not await cm.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
+                self._logger.error(f"controller_manager for {self.name!r} not up within {_CONTROLLER_MANAGER_GRACE:.0f}s")
+                return set(expected)
+            budget = self.node.conf.Robot.CONTROLLERS_TIMEOUT.value
+            deadline = time.monotonic() + budget
+            missing = set(expected)
+            last: Transition | None = None
+            repeats = 0
+            while time.monotonic() < deadline:
+                states = await cm.states()
+                if states is None:
+                    await asyncio.sleep(_CONTROLLER_POLL)
+                    continue
+                missing = {n for n in expected if states.get(n) != "active"}
+                step = next_transition(expected, states)
+                if step is None:
+                    return set()
+                action, names = step
+                if action == "fail":
+                    self._logger.error(f"controllers finalized on {self.name!r}, cannot recover: {names}")
+                    return missing
+                repeats = repeats + 1 if step == last else 0
+                last = step
+                if repeats >= _CM_MAX_REPEATS:
+                    self._logger.error(f"controller transition {action} {names} on {self.name!r} failed {repeats} times, giving up")
+                    return missing
+                match action:
+                    case "load":
+                        ok = await cm.load(names[0])
+                    case "configure":
+                        ok = await cm.configure(names[0])
+                    case "activate":
+                        result = await cm.activate(names, switch_timeout_sec=_CM_SWITCH_TIMEOUT, timeout_sec=deadline - time.monotonic())
+                        ok = None if result is None else result[0]
+                        if result is not None and not result[0]:
+                            self._logger.warning(f"switch_controller {names} on {self.name!r}: {result[1]}")
+                    case _:
+                        ok = None
+                if ok is not True:
+                    self._logger.info(f"controller transition {action} {names} on {self.name!r} -> {ok!r}, re-reading")
+                    await asyncio.sleep(_CONTROLLER_POLL)
+            self._logger.error(f"controllers on {self.name!r} not active within {budget:.0f}s: {sorted(missing)}")
+            return missing
+        finally:
+            cm.close()
 
     async def destroy(self):
         results = await asyncio.gather(

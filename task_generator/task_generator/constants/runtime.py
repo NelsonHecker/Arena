@@ -87,6 +87,12 @@ def Configuration(server: ROSParamServer) -> type:
                 parse=_positive_or_inf,
             )
 
+            CONTROLLERS_TIMEOUT = server.ROSParam[float](
+                'robot.controllers_timeout',
+                60,
+                parse=_positive_or_inf,
+            )
+
             MOBILE_ADAPTER = server.ROSParam[str](
                 'robot.mobile_adapter',
                 'nav2',

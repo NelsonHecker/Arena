@@ -398,7 +398,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             self._publish_queue_state()
         except Exception as e:
             self._logger.error(f"configure failed: {e!r}\n{traceback.format_exc()}")
-            return
+            raise
         self.trigger_configure()
 
     def on_configure(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
