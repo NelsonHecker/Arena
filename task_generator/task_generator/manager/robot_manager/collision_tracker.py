@@ -136,6 +136,7 @@ class CollisionTrackerNode(rclpy.node.Node):
 
             if not walls.is_empty and robot_poly.intersects(walls):
                 ev = arena_robots_msgs.msg.CollisionEvent()
+                ev.kind = 'wall'
                 ev.obstacle_id = '<wall>'
                 ev.polygon_name = name
                 ev.distance = 0.0
@@ -148,6 +149,7 @@ class CollisionTrackerNode(rclpy.node.Node):
                     continue
                 centroid = poly.centroid
                 ev = arena_robots_msgs.msg.CollisionEvent()
+                ev.kind = 'static'
                 ev.obstacle_id = obs_name
                 ev.polygon_name = name
                 ev.distance = 0.0
@@ -164,6 +166,7 @@ class CollisionTrackerNode(rclpy.node.Node):
                     if not robot_poly.intersects(ped_disc):
                         continue
                     ev = arena_robots_msgs.msg.CollisionEvent()
+                    ev.kind = 'pedestrian'
                     ev.obstacle_id = p.name
                     ev.polygon_name = name
                     ev.distance = 0.0
