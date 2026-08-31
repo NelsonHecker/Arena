@@ -15,6 +15,7 @@ from collections.abc import Callable
 
 import rclpy.publisher
 import rclpy.subscription
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -25,7 +26,9 @@ from task_generator.tasks.robots import TM_Robots
 
 from .schedule import (
     CONTROL_RATE_HZ,
+    DURATION_DEFAULTS,
     MAX_SCHEDULE_DURATION_S,
+    MODES,
     ODOM_STALL_TIMEOUT_S,
     Phase,
     build_schedule,
@@ -55,8 +58,13 @@ class _Run:
 class TM_Characterization(TM_Robots):
     """Open-loop sweep: exact cmd_vel profiles through each robot's envelope."""
 
+    _modes: dict[str, ROSParamT[bool]]
+    _durations: dict[str, ROSParamT[float]]
+
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
+        self._modes = {name: self.node.ROSParam[bool](self.namespace("modes", name), True) for name in MODES}
+        self._durations = {name: self.node.ROSParam[float](self.namespace(name), default) for name, default in DURATION_DEFAULTS.items()}
         self._runs: dict[str, _Run] = {}
         self._finished = False
         self._driver: asyncio.Task | None = None
@@ -85,12 +93,28 @@ class TM_Characterization(TM_Robots):
         self._sync_entities()
 
         now = self._sim_now()
+        modes = [name for name, param in self._modes.items() if param.value]
+        durations = {name: param.value for name, param in self._durations.items()}
+
         for manager in self._ctx.robots.values():
             envelope = resolve_envelope(manager.model_name)
-            schedule = build_schedule(vx_max=envelope["vx_max"], wz_max=envelope["wz_max"])
+            schedule = build_schedule(
+                modes=modes,
+                vx_max=float(envelope["vx_max"]),
+                vy_max=float(envelope["vy_max"]),
+                wz_max=float(envelope["wz_max"]),
+                radius=float(envelope["radius"]),
+                is_holonomic=bool(envelope["is_holonomic"]),
+                **durations,
+            )
             self._runs[manager.name] = _Run(schedule=schedule, phase_start=now)
             self._last_odom[manager.name] = now
-            self._logger.info(f"TM_Characterization: {manager.name} (model={manager.model_name}) {len(schedule)} phases, {schedule_duration(schedule):.0f}s (vx up to {envelope['vx_max']:.2f} m/s, wz up to {envelope['wz_max']:.2f} rad/s)")
+            self._logger.info(
+                f"TM_Characterization: {manager.name} (model={manager.model_name}) "
+                f"{len(schedule)} phases, {schedule_duration(schedule):.0f}s "
+                f"(vx<={float(envelope['vx_max']):.2f}, vy<={float(envelope['vy_max']):.2f}, wz<={float(envelope['wz_max']):.2f}, "
+                f"radius={float(envelope['radius']):.2f}, holonomic={envelope['is_holonomic']})"
+            )
 
         if self._runs:
             self._driver = asyncio.create_task(self._drive())
@@ -230,16 +254,28 @@ class TM_Characterization(TM_Robots):
 
     def _target_twist(self, phase: Phase, elapsed_s: float) -> Twist:
         twist = Twist()
-        if phase.kind.value == "angular":
+        kind = phase.kind.value
+        if kind == "angular":
             twist.angular.z = phase.wz_target
+        elif kind == "lateral":
+            twist.linear.y = phase.vy_target
+        elif kind == "arc":
+            twist.linear.x = phase.vx_target
+            twist.angular.z = phase.wz_target
+        elif kind == "brake":
+            twist.linear.x = 0.0
+            twist.linear.y = 0.0
+            twist.angular.z = 0.0
         elif phase.ramp_s > 0.0:
             frac = min(max(elapsed_s / phase.ramp_s, 0.0), 1.0)
-            if phase.kind.value == "ramp_down":
+            if kind == "ramp_down":
                 twist.linear.x = phase.vx_target * (1.0 - frac)
             else:
                 twist.linear.x = phase.vx_target * frac
         else:
             twist.linear.x = phase.vx_target
+            twist.linear.y = phase.vy_target
+            twist.angular.z = phase.wz_target
         return twist
 
     async def set_goal(self, pose: Pose):
