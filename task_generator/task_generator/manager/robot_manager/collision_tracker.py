@@ -17,6 +17,8 @@ from arena_rclpy_mixins.shared import Namespace
 from arena_robots.caps import PolygonSpec
 from rclpy.parameter import Parameter
 
+from task_generator.manager.collision_grid import Cell
+
 if TYPE_CHECKING:
     from task_generator.manager.environment_manager import EnvironmentManager
     from task_generator.manager.robot_manager.robot_manager import RobotManager
@@ -29,11 +31,17 @@ _ACTION_CODES: dict[str | None, int] = {
     'limit': 4,
 }
 
+_CELL_KINDS: dict[Cell, str] = {
+    Cell.MAP: arena_robots_msgs.msg.CollisionEvent.KIND_STATIC,
+    Cell.WALL: arena_robots_msgs.msg.CollisionEvent.KIND_WALL,
+    Cell.STATIC: arena_robots_msgs.msg.CollisionEvent.KIND_STATIC,
+}
+
 
 class CollisionTrackerNode(rclpy.node.Node):
     """Separate Node, same process, same executor as the task_generator.
 
-    Reads RobotManager.pose + EnvironmentManager geometry caches and publishes
+    Reads RobotManager.pose + EnvironmentManager.collision_grid and publishes
     collision topics. Tick timer uses sim time → automatically gated during
     pauses.
     """
@@ -125,7 +133,7 @@ class CollisionTrackerNode(rclpy.node.Node):
 
         rx, ry, rth = pose.to_2d()
 
-        walls = self._env.walls_geometry
+        grid = self._env.collision_grid
         statics = self._env.static_polygons
 
         events: list[arena_robots_msgs.msg.CollisionEvent] = []
@@ -134,24 +142,17 @@ class CollisionTrackerNode(rclpy.node.Node):
         for name, entry in self._poly_cache.items():
             robot_poly = self._robot_polygon(entry, rx, ry, rth)
 
-            if not walls.is_empty and robot_poly.intersects(walls):
+            hit = grid.hit(robot_poly) if grid is not None else None
+            if hit is not None:
+                cell, obstacle_id = hit
+                static = statics.get(obstacle_id)
+                position = geometry_msgs.msg.Point(x=rx, y=ry, z=0.0) if static is None else geometry_msgs.msg.Point(x=float(static.centroid.x), y=float(static.centroid.y), z=0.0)
                 ev = arena_robots_msgs.msg.CollisionEvent()
-                ev.obstacle_id = '<wall>'
+                ev.kind = _CELL_KINDS[cell]
+                ev.obstacle_id = obstacle_id
                 ev.polygon_name = name
                 ev.distance = 0.0
-                ev.obstacle_position = geometry_msgs.msg.Point(x=rx, y=ry, z=0.0)
-                events.append(ev)
-                polygons_hit[name] = entry['action_code']
-
-            for obs_name, poly in statics.items():
-                if not robot_poly.intersects(poly):
-                    continue
-                centroid = poly.centroid
-                ev = arena_robots_msgs.msg.CollisionEvent()
-                ev.obstacle_id = obs_name
-                ev.polygon_name = name
-                ev.distance = 0.0
-                ev.obstacle_position = geometry_msgs.msg.Point(x=float(centroid.x), y=float(centroid.y), z=0.0)
+                ev.obstacle_position = position
                 events.append(ev)
                 polygons_hit[name] = entry['action_code']
 
@@ -164,6 +165,7 @@ class CollisionTrackerNode(rclpy.node.Node):
                     if not robot_poly.intersects(ped_disc):
                         continue
                     ev = arena_robots_msgs.msg.CollisionEvent()
+                    ev.kind = arena_robots_msgs.msg.CollisionEvent.KIND_PEDESTRIAN
                     ev.obstacle_id = p.name
                     ev.polygon_name = name
                     ev.distance = 0.0
@@ -193,7 +195,7 @@ class CollisionTrackerNode(rclpy.node.Node):
                 xoff=rx,
                 yoff=ry,
             )
-            hit = (not walls.is_empty and footprint.intersects(walls)) or any(footprint.intersects(p) for p in statics.values())
+            hit = grid is not None and grid.hit(footprint) is not None
             if not hit and self._peds_msg is not None:
                 for p in self._peds_msg.pedestrians:
                     px, py = p.pose.position.x, p.pose.position.y

@@ -442,14 +442,15 @@ def test(args: list[str]) -> None:
     argv = _select_args(args)
     if not any(re.match(r"^--packages-(select|select-regex|up-to|above|ignore)", a) for a in argv):
         argv = [*TEST_DEFAULT_SELECT, *argv]
+    src_dir = os.path.join(_env("ARENA_WS_DIR"), "src")
     listing = subprocess.run(
-        ["colcon", "list", "--names-only", "--base-paths", os.path.join(_env("ARENA_WS_DIR"), "src"), *argv],
+        ["colcon", "list", "--names-only", "--base-paths", src_dir, *argv],
         capture_output=True,
         text=True,
         check=False,
     )
     pkgs = [line.strip() for line in listing.stdout.splitlines() if line.strip()] if listing.returncode == 0 else []
-    test_rc = _run("colcon", "test", "--event-handlers", "console_direct+", *argv)
+    test_rc = _run("colcon", "test", "--base-paths", src_dir, "--event-handlers", "console_direct+", *argv)
     from testsum import summarize
 
     summary = [os.path.join(_env("ARENA_WS_DIR"), "build")]

@@ -4,7 +4,6 @@ import asyncio
 import json
 import math
 import os
-import time
 import typing
 
 import ament_index_python
@@ -27,7 +26,7 @@ from arena_runtime._node import NodeInterface
 
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.robot_manager.controller_manager_client import ControllerManagerClient
-from task_generator.manager.robot_manager.controller_transitions import Transition, next_transition
+from task_generator.manager.robot_manager.controller_transitions import next_transition
 from task_generator.shared import Orientation, Pose, Position, Robot
 
 if typing.TYPE_CHECKING:
@@ -53,11 +52,10 @@ _NAV2_QUIET_RULES = '+[' + ', '.join(f'**/{n}:error' for n in _NAV2_QUIET_NODES)
 
 _MOVEIT_QUIET_RULES = '+[**/moveit/**:error]'
 
-_CONTROLLER_MANAGER_GRACE = 30.0
 _CONTROLLER_POLL = 0.2
 _CM_CALL_TIMEOUT = 10.0
-_CM_SWITCH_TIMEOUT = 120.0
-_CM_MAX_REPEATS = 3
+_CM_SWITCH_TIMEOUT = 10.0
+_CM_SWITCH_TIMED_OUT = "timed out"
 
 
 class RobotManager(NodeInterface):
@@ -547,62 +545,51 @@ class RobotManager(NodeInterface):
             self._launch_handle = await self.node.do_launch_tracked(launch_description)
             ready_timeout = self.node.conf.Robot.READY_TIMEOUT.value
             await asyncio.gather(*(a.await_ready(self, node_paths, ready_timeout) for a in self._adapter_instances))
-            missing = await self.bring_up_controllers()
-        if missing:
-            raise RuntimeError(f"robot {self.name!r}: controllers not active: {sorted(missing)}")
+            await self.bring_up_controllers()
         for adapter in self._adapter_instances:
             await adapter.on_controllers_active(self)
 
-    async def bring_up_controllers(self) -> set[str]:
-        """Drive this robot's controllers to active inside the caller's unpause window, returning the laggards."""
+    async def bring_up_controllers(self) -> None:
+        """Drive this robot's controllers to active inside the caller's unpause window, raising only on an explicit refusal."""
         expected = self._environment_manager.robot_controllers(self._robot)
         if not expected:
-            return set()
+            return
         cm = ControllerManagerClient(self.node, str(self.namespace("controller_manager")), call_timeout=_CM_CALL_TIMEOUT)
         try:
-            if not await cm.ensure(timeout_sec=_CONTROLLER_MANAGER_GRACE):
-                self._logger.error(f"controller_manager for {self.name!r} not up within {_CONTROLLER_MANAGER_GRACE:.0f}s")
-                return set(expected)
-            budget = self.node.conf.Robot.CONTROLLERS_TIMEOUT.value
-            deadline = time.monotonic() + budget
-            missing = set(expected)
-            last: Transition | None = None
-            repeats = 0
-            while time.monotonic() < deadline:
+            await cm.ensure()
+            while True:
                 states = await cm.states()
                 if states is None:
                     await asyncio.sleep(_CONTROLLER_POLL)
                     continue
-                missing = {n for n in expected if states.get(n) != "active"}
                 step = next_transition(expected, states)
                 if step is None:
-                    return set()
+                    return
                 action, names = step
-                if action == "fail":
-                    self._logger.error(f"controllers finalized on {self.name!r}, cannot recover: {names}")
-                    return missing
-                repeats = repeats + 1 if step == last else 0
-                last = step
-                if repeats >= _CM_MAX_REPEATS:
-                    self._logger.error(f"controller transition {action} {names} on {self.name!r} failed {repeats} times, giving up")
-                    return missing
                 match action:
+                    case "fail":
+                        raise RuntimeError(f"robot {self.name!r}: controllers finalized, cannot recover: {names}")
                     case "load":
                         ok = await cm.load(names[0])
+                        detail = ""
                     case "configure":
                         ok = await cm.configure(names[0])
+                        detail = ""
                     case "activate":
-                        result = await cm.activate(names, switch_timeout_sec=_CM_SWITCH_TIMEOUT, timeout_sec=deadline - time.monotonic())
+                        result = await cm.activate(names, switch_timeout_sec=_CM_SWITCH_TIMEOUT, timeout_sec=_CM_SWITCH_TIMEOUT + 1.0)
                         ok = None if result is None else result[0]
-                        if result is not None and not result[0]:
-                            self._logger.warning(f"switch_controller {names} on {self.name!r}: {result[1]}")
+                        detail = "" if result is None else result[1]
+                        if ok is False and _CM_SWITCH_TIMED_OUT in detail:
+                            self._logger.warning(f"switch_controller {names} on {self.name!r}: {detail}, retrying")
+                            ok = None
                     case _:
                         ok = None
-                if ok is not True:
-                    self._logger.info(f"controller transition {action} {names} on {self.name!r} -> {ok!r}, re-reading")
+                        detail = ""
+                if ok is False:
+                    raise RuntimeError(f"robot {self.name!r}: controller_manager refused {action} {names}: {detail}")
+                if ok is None:
+                    self._logger.info(f"controller transition {action} {names} on {self.name!r} pending, re-reading")
                     await asyncio.sleep(_CONTROLLER_POLL)
-            self._logger.error(f"controllers on {self.name!r} not active within {budget:.0f}s: {sorted(missing)}")
-            return missing
         finally:
             cm.close()
 

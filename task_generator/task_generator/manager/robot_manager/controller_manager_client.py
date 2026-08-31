@@ -37,7 +37,7 @@ class ControllerManagerClient:
         )
         self._node = node
 
-    async def ensure(self, timeout_sec: float) -> bool:
+    async def ensure(self, timeout_sec: float | None = None) -> bool:
         ready = await asyncio.gather(*(c.ensure(timeout_sec=timeout_sec) for c in (self._list, self._load, self._configure, self._switch)))
         return all(ready)
 

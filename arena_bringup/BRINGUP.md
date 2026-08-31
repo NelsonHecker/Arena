@@ -365,7 +365,7 @@ testing knobs, not a supported experiment surface.
 |---|---|
 | `debug:=aiomonitor` | Open an aiomonitor console on the env's asyncio loop (port `20101 + env_id*10`). |
 | `debug:=map_server` | Force-launch the map server even when no adapter requested it. |
-| `debug.map_source:=disk` | Treat the world's on-disk `<level>/map.png` as the single occupancy truth (nav2, spawn sampling, and pedestrian collision walls) instead of rasterizing `world.yaml`. Single-level worlds with an on-disk map only; errors otherwise. Default `compute` rasterizes from `world.yaml`. |
+| `debug.map_source:=disk` | Treat the world's on-disk `<level>/map.png` as the single occupancy truth (nav2, spawn sampling, pedestrian collision walls, and robot collision events) instead of rasterizing `world.yaml`. Single-level worlds with an on-disk map only; errors otherwise. Default `compute` rasterizes from `world.yaml`. |
 | `optim.obstacles:=bbox` | Spawn static obstacles as bounding-box primitives (read from each asset's `annotation.yaml`) instead of full meshes; assets without a `bounding_box` annotation fall back to the mesh. |
 | `optim.obstacles:=none` | Silently skip all static obstacle spawns (world + episode). Pedestrians, walls, and floors are kept. |
 
@@ -389,9 +389,8 @@ shapes of argument:
 | `robot.<cap>.<key>:=<val>` | `robot.mobile.local_planner:=teb`, `robot.mobile.planner:=drlvo` | `robot.<cap>.<key>` | Override a value from `caps/<cap>.yaml`. |
 | `<adapter-kwarg>:=<val>` | `global_planner:=smac`, `global_planner:=nav2/navfn` | `robot.<cap>.<key>` (via the adapter's launch file) | Adapter-internal launch kwargs (nav2 planner names, or the `<family>/<kind>` form consumed by the `drl` adapter). |
 
-Two robot-level timeouts also take the `robot.` prefix: `robot.ready_timeout`
-(adapter readiness, default unbounded) and `robot.controllers_timeout`
-(ros2_control bring-up, default 60 s). `-1` means unbounded for both.
+One robot-level timeout also takes the `robot.` prefix: `robot.ready_timeout`
+(adapter readiness, default unbounded, `-1` means unbounded).
 
 The cap-scoped form is the recommended style because it's self-documenting and
 maps unambiguously to a single cap. To discover what `<key>`s a cap accepts,
