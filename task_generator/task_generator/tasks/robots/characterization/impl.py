@@ -15,6 +15,7 @@ from collections.abc import Callable
 
 import rclpy.publisher
 import rclpy.subscription
+from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -25,7 +26,9 @@ from task_generator.tasks.robots import TM_Robots
 
 from .schedule import (
     CONTROL_RATE_HZ,
+    DURATION_DEFAULTS,
     MAX_SCHEDULE_DURATION_S,
+    MODES,
     ODOM_STALL_TIMEOUT_S,
     Phase,
     build_schedule,
@@ -55,8 +58,13 @@ class _Run:
 class TM_Characterization(TM_Robots):
     """Open-loop sweep: exact cmd_vel profiles through each robot's envelope."""
 
+    _modes: dict[str, ROSParamT[bool]]
+    _durations: dict[str, ROSParamT[float]]
+
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
+        self._modes = {name: self.node.ROSParam[bool](self.namespace("modes", name), True) for name in MODES}
+        self._durations = {name: self.node.ROSParam[float](self.namespace(name), default) for name, default in DURATION_DEFAULTS.items()}
         self._runs: dict[str, _Run] = {}
         self._finished = False
         self._driver: asyncio.Task | None = None
@@ -85,41 +93,27 @@ class TM_Characterization(TM_Robots):
         self._sync_entities()
 
         now = self._sim_now()
-        char_cfg = (
-            kwargs.get("characterization")
-            or (kwargs.get("CONFIG", {}) if isinstance(kwargs.get("CONFIG"), dict) else {}).get("characterization")
-            or {}
-        )
-        if not isinstance(char_cfg, dict):
-            char_cfg = {}
+        modes = [name for name, param in self._modes.items() if param.value]
+        durations = {name: param.value for name, param in self._durations.items()}
 
         for manager in self._ctx.robots.values():
             envelope = resolve_envelope(manager.model_name)
             schedule = build_schedule(
-                modes=char_cfg.get("modes"),
-                idle_s=float(char_cfg.get("idle_s", 10.0)),
-                linear_dwell_s=float(char_cfg.get("linear_dwell_s", 5.0)),
-                linear_settle_s=float(char_cfg.get("linear_settle_s", 1.0)),
-                lateral_dwell_s=float(char_cfg.get("lateral_dwell_s", 5.0)),
-                angular_dwell_s=float(char_cfg.get("angular_dwell_s", 5.0)),
-                arc_dwell_s=float(char_cfg.get("arc_dwell_s", 5.0)),
-                arc_speeds=char_cfg.get("arc_speeds"),
-                arc_radii_m=char_cfg.get("arc_radii_m"),
-                ramp_horizon_s=float(char_cfg.get("ramp_horizon_s", 1.0)),
-                ramp_horizons=char_cfg.get("ramp_horizons") or char_cfg.get("ramp_horizons_s"),
-                ramp_settle_s=float(char_cfg.get("ramp_settle_s", 1.0)),
-                brake_dwell_s=float(char_cfg.get("brake_dwell_s", 3.0)),
-                vx_max=float(char_cfg.get("vx_max", envelope["vx_max"])),
-                vy_max=float(char_cfg.get("vy_max", envelope["vy_max"])),
-                wz_max=float(char_cfg.get("wz_max", envelope["wz_max"])),
-                is_holonomic=bool(char_cfg.get("is_holonomic", envelope["is_holonomic"])),
+                modes=modes,
+                vx_max=float(envelope["vx_max"]),
+                vy_max=float(envelope["vy_max"]),
+                wz_max=float(envelope["wz_max"]),
+                radius=float(envelope["radius"]),
+                is_holonomic=bool(envelope["is_holonomic"]),
+                **durations,
             )
             self._runs[manager.name] = _Run(schedule=schedule, phase_start=now)
             self._last_odom[manager.name] = now
             self._logger.info(
                 f"TM_Characterization: {manager.name} (model={manager.model_name}) "
                 f"{len(schedule)} phases, {schedule_duration(schedule):.0f}s "
-                f"(vx<={float(envelope['vx_max']):.2f}, vy<={float(envelope['vy_max']):.2f}, wz<={float(envelope['wz_max']):.2f}, holonomic={envelope['is_holonomic']})"
+                f"(vx<={float(envelope['vx_max']):.2f}, vy<={float(envelope['vy_max']):.2f}, wz<={float(envelope['wz_max']):.2f}, "
+                f"radius={float(envelope['radius']):.2f}, holonomic={envelope['is_holonomic']})"
             )
 
         if self._runs:

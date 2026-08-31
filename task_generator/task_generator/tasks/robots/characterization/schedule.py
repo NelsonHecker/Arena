@@ -4,53 +4,71 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import pathlib
 from enum import StrEnum
 
-try:
-    import yaml
-except ImportError:
-    yaml = None
+import yaml
 
 _log = logging.getLogger(__name__)
 
-VX_MIN = 0.0  # m/s
 VX_MAX = 2.0  # m/s, default maximum rated linear speed
 VX_STEP = 0.25  # m/s
 VY_MAX = 0.0  # m/s (non-holonomic default)
 VY_STEP = 0.25  # m/s
-LINEAR_DWELL_S = 5.0  # s, steady-state capture per velocity step
-LINEAR_SETTLE_S = 1.0  # s, settle at rest between linear directions
-LATERAL_DWELL_S = 5.0  # s, steady-state capture per lateral step
-RAMP_HORIZON_S = 1.0  # s, acceleration/deceleration horizon per step
-RAMP_HORIZONS_S = (1.0,)  # legacy alias
-RAMP_SETTLE_S = 1.0  # s, settle at the ramp apex before decelerating
-BRAKE_DWELL_S = 3.0  # s, capture settling after step deceleration
-ARC_DWELL_S = 5.0  # s, steady-state capture per arc maneuver
-WZ_MIN = -2.5  # rad/s
 WZ_MAX = 2.5  # rad/s, default maximum rated angular rate
 WZ_STEP = 0.5  # rad/s
-ANGULAR_DWELL_S = 5.0  # s, per pivot rate
-IDLE_DURATION_S = 10.0  # s, mandatory standstill blocks (baseline standby draw)
+RADIUS_M = 0.5  # m, default footprint radius, anchors the arc radii
 
-DEFAULT_ARC_SPEEDS = (0.5, 1.0, 1.5)  # m/s
-DEFAULT_ARC_RADII_M = (0.5, 1.0, 2.5)  # m
+LINEAR_DWELL_S = 5.0  # s, steady-state capture per velocity step
+LINEAR_SETTLE_S = 1.0  # s, settle at rest between directions
+LATERAL_DWELL_S = 5.0  # s, steady-state capture per lateral step
+ANGULAR_DWELL_S = 5.0  # s, per pivot rate
+RAMP_HORIZON_S = 1.0  # s, acceleration/deceleration horizon per step
+RAMP_SETTLE_S = 1.0  # s, settle at the ramp apex before decelerating
+BRAKE_APPROACH_S = 3.0  # s, cruise at the rated speed before the step to zero
+BRAKE_DWELL_S = 3.0  # s, capture settling after step deceleration
+IDLE_DURATION_S = 10.0  # s, mandatory standstill blocks (baseline standby draw)
+MIN_DWELL_S = 3.0  # s, a step shorter than this holds no usable steady state
+
+ARC_SPEED_FACTORS = (0.25, 0.5, 0.75)  # of vx_max
+ARC_RADIUS_FACTORS = (1.0, 2.5, 6.0)  # of the footprint radius
+
+MAX_EXCURSION_M = 10.0  # m, maximum excursion from spawn within one maneuver
+MAX_ORBIT_S = 60.0  # s, longest closed arc orbit worth sampling
 
 CONTROL_RATE_HZ = 20.0  # cmd_vel publish rate during a maneuver
 ODOM_STALL_TIMEOUT_S = 3.0  # odom silent for this long: zero cmd_vel + abort
 MAX_SCHEDULE_DURATION_S = 3600.0  # global safety ceiling for one run
 
+MODES = ("idle", "linear", "lateral", "arc", "ramps", "brake", "angular")
+
+DURATION_DEFAULTS = {  # keys are build_schedule's duration keywords
+    "idle_s": IDLE_DURATION_S,
+    "linear_dwell_s": LINEAR_DWELL_S,
+    "linear_settle_s": LINEAR_SETTLE_S,
+    "lateral_dwell_s": LATERAL_DWELL_S,
+    "angular_dwell_s": ANGULAR_DWELL_S,
+    "ramp_horizon_s": RAMP_HORIZON_S,
+    "ramp_settle_s": RAMP_SETTLE_S,
+    "brake_approach_s": BRAKE_APPROACH_S,
+    "brake_dwell_s": BRAKE_DWELL_S,
+}
+
 
 class PhaseKind(StrEnum):
     IDLE = "idle"
+    SETTLE = "settle"
     LINEAR = "linear"
     LATERAL = "lateral"
     ANGULAR = "angular"
     ARC = "arc"
     RAMP_UP = "ramp_up"
+    RAMP_APEX = "ramp_apex"
     RAMP_DOWN = "ramp_down"
+    BRAKE_APPROACH = "brake_approach"
     BRAKE = "brake"
-    TRANSIENT = "transient"
+    TRANSIENT = "transient"  # assigned offline, never scheduled
 
 
 @dataclasses.dataclass(frozen=True)
@@ -66,18 +84,27 @@ class Phase:
     ramp_s: float = 0.0  # >0 for ramps: linearly interpolate vx from 0 to target over this horizon
     radius_m: float = 0.0  # m (turn radius for arc maneuvers)
 
-    @property
-    def key(self) -> tuple[str, float, float]:
-        """Grouping key for offline aggregation: (kind, vx_target, wz_target)."""
-        return self.kind.value, round(self.vx_target, 3), round(self.wz_target, 3)
-
 
 def _steps(start: float, stop: float, step: float) -> list[float]:
-    """Floating-point safe step range (inclusive of stop)."""
-    if step <= 0:
-        return [round(start, 6)]
-    n = round((stop - start) / step) + 1
-    return [round(start + i * step, 6) for i in range(max(1, n))]
+    """Step range that never overshoots stop and always ends exactly on it."""
+    if step <= 0.0 or stop <= start:
+        return [round(stop, 6)]
+    n = int((stop - start) / step + 1e-9)
+    out = [round(start + i * step, 6) for i in range(n + 1)]
+    if stop - out[-1] > 1e-3:
+        out.append(round(stop, 6))
+    return out
+
+
+def _dwell(dwell_s: float, speed: float, label: str) -> float | None:
+    """Dwell capped by the excursion budget, None when the budget cannot fund a steady state."""
+    if speed <= 0.0:
+        return None
+    capped = min(dwell_s, MAX_EXCURSION_M / speed)
+    if capped < MIN_DWELL_S:
+        _log.warning(f"characterization: skipping {label}, the {MAX_EXCURSION_M:.0f}m budget funds only {capped:.2f}s (<{MIN_DWELL_S:.1f}s)")
+        return None
+    return capped
 
 
 def resolve_envelope(
@@ -86,10 +113,11 @@ def resolve_envelope(
     caps_dir: pathlib.Path | None = None,
     fallback: tuple[float, float] | None = None,
 ) -> dict[str, float | bool]:
-    """Resolve the operating envelope (vx_max, vy_max, wz_max, is_holonomic) for a robot."""
+    """Resolve the operating envelope (vx_max, vy_max, wz_max, radius, is_holonomic) for a robot."""
     vx_max = VX_MAX
     vy_max = VY_MAX
     wz_max = WZ_MAX
+    radius = RADIUS_M
     is_holonomic = False
 
     if fallback is not None:
@@ -100,48 +128,35 @@ def resolve_envelope(
         if caps_dir is not None:
             mobile = pathlib.Path(caps_dir) / f"{robot_name}/caps/mobile.yaml" if robot_name else None
             if mobile is None or not mobile.is_file():
-                return {
-                    "vx_max": vx_max,
-                    "vy_max": vy_max,
-                    "wz_max": wz_max,
-                    "is_holonomic": is_holonomic,
-                }
+                return {"vx_max": vx_max, "vy_max": vy_max, "wz_max": wz_max, "radius": radius, "is_holonomic": is_holonomic}
         else:
             from ament_index_python.packages import get_package_share_directory
 
             mobile = pathlib.Path(get_package_share_directory("arena_robots")) / "robots" / (robot_name or "") / "caps" / "mobile.yaml"
 
-        if yaml is not None:
-            cfg = yaml.safe_load(mobile.read_text()) or {}
-            is_holonomic = bool(cfg.get("is_holonomic", False))
+        cfg = yaml.safe_load(mobile.read_text()) or {}
+        is_holonomic = bool(cfg.get("is_holonomic", False))
+        if cfg.get("radius") is not None:
+            radius = float(cfg["radius"])
 
-            continuous = cfg.get("actions", {}).get("continuous", {})
-            if isinstance(continuous, dict):
-                linear = continuous.get("linear")
-                if isinstance(linear, dict) and linear.get("max") is not None:
-                    vx_max = float(linear["max"])
-                lateral = continuous.get("lateral")
-                if isinstance(lateral, dict) and lateral.get("max") is not None:
-                    vy_max = float(lateral["max"])
-                    is_holonomic = True
-                elif is_holonomic:
-                    vy_max = vx_max
-                angular = continuous.get("angular")
-                if isinstance(angular, dict) and angular.get("max") is not None:
-                    wz_max = float(angular["max"])
-        else:
-            text = mobile.read_text()
-            is_holonomic = "is_holonomic: true" in text.lower()
-            if is_holonomic and vy_max == 0.0:
+        continuous = cfg.get("actions", {}).get("continuous", {})
+        if isinstance(continuous, dict):
+            linear = continuous.get("linear")
+            if isinstance(linear, dict) and linear.get("max") is not None:
+                vx_max = float(linear["max"])
+            lateral = continuous.get("lateral")
+            if isinstance(lateral, dict) and lateral.get("max") is not None:
+                vy_max = float(lateral["max"])
+                is_holonomic = True
+            elif is_holonomic:
                 vy_max = vx_max
-    except (OSError, KeyError, TypeError, ValueError, AttributeError) as e:
-        _log.warning(f"characterization: robot {robot_name!r} envelope falls back to vx_max={vx_max} wz_max={wz_max}, could not read {mobile}: {e!r}")
-    return {
-        "vx_max": vx_max,
-        "vy_max": vy_max,
-        "wz_max": wz_max,
-        "is_holonomic": is_holonomic,
-    }
+                _log.info(f"characterization: robot {robot_name!r} declares no lateral limit, sweeping vy up to vx_max={vy_max}")
+            angular = continuous.get("angular")
+            if isinstance(angular, dict) and angular.get("max") is not None:
+                wz_max = float(angular["max"])
+    except (OSError, KeyError, TypeError, ValueError, AttributeError, yaml.YAMLError) as e:
+        _log.warning(f"characterization: robot {robot_name!r} envelope falls back to vx_max={vx_max} wz_max={wz_max} radius={radius}, could not read {mobile}: {e!r}")
+    return {"vx_max": vx_max, "vy_max": vy_max, "wz_max": wz_max, "radius": radius, "is_holonomic": is_holonomic}
 
 
 def build_schedule(
@@ -152,139 +167,111 @@ def build_schedule(
     linear_settle_s: float = LINEAR_SETTLE_S,
     lateral_dwell_s: float = LATERAL_DWELL_S,
     angular_dwell_s: float = ANGULAR_DWELL_S,
-    arc_dwell_s: float = ARC_DWELL_S,
-    arc_speeds: list[float] | None = None,
-    arc_radii_m: list[float] | None = None,
     ramp_horizon_s: float = RAMP_HORIZON_S,
-    ramp_horizons: list[float] | None = None,
     ramp_settle_s: float = RAMP_SETTLE_S,
+    brake_approach_s: float = BRAKE_APPROACH_S,
     brake_dwell_s: float = BRAKE_DWELL_S,
-    vx_min: float = VX_MIN,
     vx_max: float = VX_MAX,
     vx_step: float = VX_STEP,
     vy_max: float = VY_MAX,
     vy_step: float = VY_STEP,
-    wz_min: float = WZ_MIN,
+    wz_min: float | None = None,
     wz_max: float = WZ_MAX,
     wz_step: float = WZ_STEP,
+    radius: float = RADIUS_M,
     is_holonomic: bool = False,
 ) -> list[Phase]:
-    """Build the comprehensive open-loop maneuver schedule."""
+    """Build one robot's maneuver schedule. Labels come from the envelope alone, never a duration, so the offline rebuild matches."""
     phases: list[Phase] = []
-    active_modes = set(modes) if modes is not None else {"idle", "linear", "lateral", "arc", "ramps", "brake", "angular"}
+    active = set(modes) if modes is not None else set(MODES)
+    if wz_min is None:
+        wz_min = -wz_max
 
-    # 1. Baseline Standby / Idle Block
-    if "idle" in active_modes:
+    def settle(name: str) -> None:
+        if linear_settle_s > 0.0:
+            phases.append(Phase(PhaseKind.SETTLE, name, duration_s=linear_settle_s))
+
+    def pre_idle(name: str) -> None:
+        if "idle" in active:
+            phases.append(Phase(PhaseKind.IDLE, name, duration_s=idle_s / 2.0))
+
+    if "idle" in active:
         phases.append(Phase(PhaseKind.IDLE, "idle_start", duration_s=idle_s))
 
-    # 2. Longitudinal Linear Cruising Sweep (Up to 10m out-and-back)
-    MAX_EXCURSION_M = 10.0  # m, maximum linear excursion from spawn
-    if "linear" in active_modes:
+    if "linear" in active:
         for vx in _steps(vx_step, vx_max, vx_step):
-            dur = max(2.0, min(linear_dwell_s, MAX_EXCURSION_M / max(abs(vx), 0.1)))
-            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_{vx:.2f}", vx_target=vx, duration_s=dur))
-            if linear_settle_s > 0:
-                phases.append(Phase(PhaseKind.IDLE, f"linear_settle_{vx:.2f}", duration_s=linear_settle_s))
-            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_-{vx:.2f}", vx_target=-vx, duration_s=dur))
-            if linear_settle_s > 0:
-                phases.append(Phase(PhaseKind.IDLE, f"linear_settle_-{vx:.2f}", duration_s=linear_settle_s))
-
-    # 3. Lateral Holonomic Cruising Sweep (Omnidirectional / Mecanum, Up to 10m out-and-back)
-    if "lateral" in active_modes and is_holonomic and vy_max > 0.0:
-        if "idle" in active_modes:
-            phases.append(Phase(PhaseKind.IDLE, "idle_lateral_pre", duration_s=max(2.0, idle_s / 2.0)))
-        for vy in _steps(vy_step, vy_max, vy_step):
-            dur = max(2.0, min(lateral_dwell_s, MAX_EXCURSION_M / max(abs(vy), 0.1)))
-            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_{vy:.2f}", vy_target=vy, duration_s=dur))
-            if linear_settle_s > 0:
-                phases.append(Phase(PhaseKind.IDLE, f"lateral_settle_{vy:.2f}", duration_s=linear_settle_s))
-            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_-{vy:.2f}", vy_target=-vy, duration_s=dur))
-            if linear_settle_s > 0:
-                phases.append(Phase(PhaseKind.IDLE, f"lateral_settle_-{vy:.2f}", duration_s=linear_settle_s))
-
-    # 4. Curvilinear Arc Steering Sweeps (Closed 2pi circular orbits for zero net drift)
-    if "arc" in active_modes:
-        import math
-        if "idle" in active_modes:
-            phases.append(Phase(PhaseKind.IDLE, "idle_arc_pre", duration_s=max(2.0, idle_s / 2.0)))
-        speeds = arc_speeds or list(DEFAULT_ARC_SPEEDS)
-        radii = arc_radii_m or list(DEFAULT_ARC_RADII_M)
-        for vx in speeds:
-            if vx > vx_max:
+            tag = f"{vx:.2f}"
+            dur = _dwell(linear_dwell_s, abs(vx), f"linear_vx_{tag}")
+            if dur is None:
                 continue
-            for r in radii:
-                if r <= 0.0:
+            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_{tag}", vx_target=vx, duration_s=dur))
+            settle(f"linear_settle_{tag}")
+            phases.append(Phase(PhaseKind.LINEAR, f"linear_vx_-{tag}", vx_target=-vx, duration_s=dur))
+            settle(f"linear_settle_-{tag}")
+
+    if "lateral" in active and is_holonomic and vy_max > 0.0:
+        pre_idle("idle_lateral_pre")
+        for vy in _steps(vy_step, vy_max, vy_step):
+            tag = f"{vy:.2f}"
+            dur = _dwell(lateral_dwell_s, abs(vy), f"lateral_vy_{tag}")
+            if dur is None:
+                continue
+            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_{tag}", vy_target=vy, duration_s=dur))
+            settle(f"lateral_settle_{tag}")
+            phases.append(Phase(PhaseKind.LATERAL, f"lateral_vy_-{tag}", vy_target=-vy, duration_s=dur))
+            settle(f"lateral_settle_-{tag}")
+
+    if "arc" in active and vx_max > 0.0 and radius > 0.0:
+        pre_idle("idle_arc_pre")
+        for speed_factor in ARC_SPEED_FACTORS:
+            vx = round(speed_factor * vx_max, 6)
+            for radius_factor in ARC_RADIUS_FACTORS:
+                r = round(radius_factor * radius, 6)
+                tag = f"{vx:.2f}_r_{r:.2f}"
+                if 2.0 * r > MAX_EXCURSION_M:
+                    _log.warning(f"characterization: skipping arc_vx_{tag}, orbit diameter {2.0 * r:.2f}m exceeds the {MAX_EXCURSION_M:.0f}m budget")
                     continue
                 wz = vx / r
                 if wz > wz_max:
+                    _log.warning(f"characterization: skipping arc_vx_{tag}, it needs wz={wz:.2f} rad/s over the rated {wz_max:.2f}")
                     continue
-                # Time for exact 360-degree closed orbit: T = 2*pi*r / vx
-                t_orbit = round(2.0 * math.pi * r / max(vx, 0.1), 2)
-                # Left Turn (+wz, returns to spawn pose)
-                phases.append(
-                    Phase(
-                        PhaseKind.ARC,
-                        f"arc_vx_{vx:.2f}_r_{r:.2f}_left",
-                        vx_target=vx,
-                        wz_target=wz,
-                        duration_s=t_orbit,
-                        radius_m=r,
-                    )
-                )
-                if linear_settle_s > 0:
-                    phases.append(Phase(PhaseKind.IDLE, f"arc_settle_{vx:.2f}_r_{r:.2f}_left", duration_s=linear_settle_s))
-                # Right Turn (-wz, returns to spawn pose)
-                phases.append(
-                    Phase(
-                        PhaseKind.ARC,
-                        f"arc_vx_{vx:.2f}_r_{r:.2f}_right",
-                        vx_target=vx,
-                        wz_target=-wz,
-                        duration_s=t_orbit,
-                        radius_m=r,
-                    )
-                )
-                if linear_settle_s > 0:
-                    phases.append(Phase(PhaseKind.IDLE, f"arc_settle_{vx:.2f}_r_{r:.2f}_right", duration_s=linear_settle_s))
+                t_orbit = round(2.0 * math.pi * r / vx, 2)
+                if t_orbit > MAX_ORBIT_S:
+                    _log.warning(f"characterization: skipping arc_vx_{tag}, one closed orbit takes {t_orbit:.1f}s (>{MAX_ORBIT_S:.0f}s)")
+                    continue
+                phases.append(Phase(PhaseKind.ARC, f"arc_vx_{tag}_left", vx_target=vx, wz_target=wz, duration_s=t_orbit, radius_m=r))
+                settle(f"arc_settle_{tag}_left")
+                phases.append(Phase(PhaseKind.ARC, f"arc_vx_{tag}_right", vx_target=vx, wz_target=-wz, duration_s=t_orbit, radius_m=r))
+                settle(f"arc_settle_{tag}_right")
 
-    # 5. Dynamic Acceleration & Deceleration Ramps (Sweeping multiple acceleration horizons)
-    if "ramps" in active_modes:
-        if "idle" in active_modes:
-            phases.append(Phase(PhaseKind.IDLE, "idle_ramps_pre", duration_s=max(2.0, idle_s / 2.0)))
-        horizons = ramp_horizons or [ramp_horizon_s]
-        for h in horizons:
-            suffix = f"_h_{h:.1f}s" if len(horizons) > 1 else ""
-            for vx in _steps(vx_step, vx_max, vx_step):
-                phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_{vx:.2f}{suffix}", vx_target=vx, duration_s=h, ramp_s=h))
-                if ramp_settle_s > 0:
-                    phases.append(Phase(PhaseKind.LINEAR, f"ramp_apex_vx_{vx:.2f}{suffix}", vx_target=vx, duration_s=ramp_settle_s))
-                phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_{vx:.2f}{suffix}", vx_target=vx, duration_s=h, ramp_s=h))
-                phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_-{vx:.2f}{suffix}", vx_target=-vx, duration_s=h, ramp_s=h))
-                if ramp_settle_s > 0:
-                    phases.append(Phase(PhaseKind.LINEAR, f"ramp_apex_vx_-{vx:.2f}{suffix}", vx_target=-vx, duration_s=ramp_settle_s))
-                phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_-{vx:.2f}{suffix}", vx_target=-vx, duration_s=h, ramp_s=h))
+    if "ramps" in active:
+        pre_idle("idle_ramps_pre")
+        for vx in _steps(vx_step, vx_max, vx_step):
+            for target in (vx, -vx):
+                tag = f"{target:.2f}"
+                phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_{tag}", vx_target=target, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
+                if ramp_settle_s > 0.0:
+                    phases.append(Phase(PhaseKind.RAMP_APEX, f"ramp_apex_vx_{tag}", vx_target=target, duration_s=ramp_settle_s))
+                phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_{tag}", vx_target=target, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
 
-    # 6. Emergency Braking & Step Deceleration
-    if "brake" in active_modes:
-        if "idle" in active_modes:
-            phases.append(Phase(PhaseKind.IDLE, "idle_brake_pre", duration_s=max(2.0, idle_s / 2.0)))
-        # Forward rated brake
-        phases.append(Phase(PhaseKind.LINEAR, f"brake_approach_vx_{vx_max:.2f}", vx_target=vx_max, duration_s=3.0))
-        phases.append(Phase(PhaseKind.BRAKE, f"brake_step_vx_{vx_max:.2f}", vx_target=0.0, duration_s=brake_dwell_s))
-        # Reverse rated brake
-        phases.append(Phase(PhaseKind.LINEAR, f"brake_approach_vx_-{vx_max:.2f}", vx_target=-vx_max, duration_s=3.0))
-        phases.append(Phase(PhaseKind.BRAKE, f"brake_step_vx_-{vx_max:.2f}", vx_target=0.0, duration_s=brake_dwell_s))
+    if "brake" in active:
+        pre_idle("idle_brake_pre")
+        for target in (vx_max, -vx_max):
+            tag = f"{target:.2f}"
+            phases.append(Phase(PhaseKind.BRAKE_APPROACH, f"brake_approach_vx_{tag}", vx_target=target, duration_s=brake_approach_s))
+            phases.append(Phase(PhaseKind.BRAKE, f"brake_step_vx_{tag}", duration_s=brake_dwell_s))
 
-    # 7. In-Place Angular Pivot Sweep
-    if "angular" in active_modes:
-        if "idle" in active_modes:
-            phases.append(Phase(PhaseKind.IDLE, "idle_angular_pre", duration_s=max(2.0, idle_s / 2.0)))
+    if "angular" in active:
+        pre_idle("idle_angular_pre")
         for wz in _steps(wz_min, wz_max, wz_step):
             phases.append(Phase(PhaseKind.ANGULAR, f"angular_wz_{wz:+.2f}", wz_target=wz, duration_s=angular_dwell_s))
 
-    # 8. Final Standstill Block
-    if "idle" in active_modes:
+    if "idle" in active:
         phases.append(Phase(PhaseKind.IDLE, "idle_end", duration_s=idle_s))
+
+    total = schedule_duration(phases)
+    if total > MAX_SCHEDULE_DURATION_S:
+        _log.warning(f"characterization: schedule runs {total:.0f}s, over the {MAX_SCHEDULE_DURATION_S:.0f}s ceiling, the sweep will abort part-way")
 
     return phases
 
@@ -292,20 +279,3 @@ def build_schedule(
 def schedule_duration(phases: list[Phase]) -> float:
     """Total wall/sim time of a schedule (sum of phase durations)."""
     return sum(p.duration_s for p in phases)
-
-
-def classify_cmd_point(vx_cmd: float, wz_cmd: float, vy_cmd: float = 0.0) -> tuple[PhaseKind, float, float]:
-    """Offline fallback: classify a (cmd_vel) sample into a phase key."""
-    vx = round(float(vx_cmd or 0.0), 3)
-    vy = round(float(vy_cmd or 0.0), 3)
-    wz = round(float(wz_cmd or 0.0), 3)
-    if vx == 0.0 and vy == 0.0 and wz == 0.0:
-        return PhaseKind.IDLE, 0.0, 0.0
-    if vy != 0.0 and vx == 0.0 and wz == 0.0:
-        return PhaseKind.LATERAL, 0.0, 0.0
-    if vx != 0.0 and wz != 0.0:
-        return PhaseKind.ARC, vx, wz
-    if wz != 0.0:
-        return PhaseKind.ANGULAR, 0.0, wz
-    return PhaseKind.LINEAR, vx, 0.0
-

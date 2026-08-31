@@ -45,7 +45,7 @@ sorted(k.value for k in OBSTACLES_MODES.keys())
 | `stationary` | robot stays parked at start pose, or an explicit pose via `pos_x`/`pos_y`/`pos_theta` (`pos_x`/`pos_y` default NaN = use start pose, `pos_theta` defaults 0.0), no goal dispatch |
 | `scenario` | reads each robot's `start` pose and an ordered list of `phases` (goto/gesture) from the world's scenario YAML (`file` param, default `default`, or the world's first scenario if it has none named `default`) |
 | `demo` | cycles robots through vertices of a regular polygon around a center point, dispatching goto/gesture phases |
-| `characterization` | open-loop `cmd_vel` maneuver sweep through the robot's rated envelope, no nav goals |
+| `characterization` | open-loop `cmd_vel` maneuver sweep through the robot's rated envelope, no nav goals. `modes.idle`/`modes.linear`/`modes.lateral`/`modes.arc`/`modes.ramps`/`modes.brake`/`modes.angular` toggle each block (all default true), and the `*_s` doubles set block durations. Speeds, rates and arc radii are derived from the robot's `caps/mobile.yaml` and are not configurable |
 
 ### `task.obstacles` kinds
 
