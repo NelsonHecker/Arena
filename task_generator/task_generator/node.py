@@ -980,11 +980,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     topic=topic,
                     topic_type="visualization_msgs/MarkerArray",
                     kind=DisplayKind.MARKER_ARRAY,
-                    style_json=(
-                        latched
-                        if name == "Microphones"
-                        else StyleSpec(enabled=True).to_json()
-                    ),
+                    style_json=(latched if name == "Microphones" else StyleSpec(enabled=True).to_json()),
                     topic_must_exist=False,
                     group="Sound Propagation",
                 )
@@ -1025,10 +1021,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     displays=[
                         AdapterDisplay(
                             name="Motor Sound",
-                            topic=(
-                                f"{auditory_ns}/{robot_value}/"
-                                "motor_sound_markers"
-                            ),
+                            topic=(f"{auditory_ns}/{robot_value}/motor_sound_markers"),
                             topic_type="visualization_msgs/MarkerArray",
                             kind=DisplayKind.MARKER_ARRAY,
                             style_json=StyleSpec(enabled=True).to_json(),
@@ -1178,7 +1171,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             try:
                 if record.world:
                     await self._world_manager.apply_world(record.world)
-                await self._task.reset(world=record.world, seed=record.seed)
+                await self._task.reset(seed=record.seed)
             finally:
                 await self.release("reset")
                 self._pub_state_resetting.publish(Bool(data=False))

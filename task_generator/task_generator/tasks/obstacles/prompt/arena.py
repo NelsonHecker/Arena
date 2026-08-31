@@ -239,11 +239,7 @@ class TM_Prompt(TM_Obstacles):
             if cache.name is not None:
                 self.cached_context_name.update({generation_mode: cache.name})
 
-        message = (
-            f"Generate pedestrian agents data for a simulation where: {prompt}. "
-            f"Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. "
-            "Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
-        )
+        message = f"Generate pedestrian agents data for a simulation where: {prompt}. Generate data base on this world data as below <WORLD_DESCRIPTION>: {world_info}. Only return valid JSON using the format declared in the system context, with no explanation, thoughts, or extra text."
         if generation_mode == GenerationMode.BEHAVIOR.value:
             message += ' Define every non-built-in agent_type referenced by the agents in the top-level "agent_types" object.'
 
@@ -313,7 +309,7 @@ class TM_Prompt(TM_Obstacles):
 
         return result
 
-    async def reset(self, **kwargs: object) -> tuple[list[Obstacle], list[DynamicObstacle]]:
+    async def reset(self, *, seed: int) -> tuple[list[Obstacle], list[DynamicObstacle]]:
         parsed_config = await self._parse_prompt(
             self._config.user_prompt.value,
             self._config.top_p.value,

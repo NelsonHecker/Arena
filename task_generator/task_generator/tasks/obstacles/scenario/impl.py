@@ -12,7 +12,7 @@ from task_generator.tasks.registry import default_scenario
 class TM_Scenario(TM_Obstacles):
     _config: ROSParamT[str]
 
-    async def reset(self, **kwargs: object) -> Obstacles:
+    async def reset(self, *, seed: int) -> Obstacles:
         scenario_name = self._config.value
         world_description = self._ctx.world_manager.world_compacted()
 
@@ -57,7 +57,7 @@ class TM_Scenario(TM_Obstacles):
         ]
         await self._ctx.environment_manager.setup_regions(regions)
 
-        self.node.register_timeline(scenario.timeline, int(kwargs.get("seed", -1)))
+        self.node.register_timeline(scenario.timeline, seed)
         self.node.register_conditions(scenario.conditions)
 
         return scenario.static, scenario.dynamic

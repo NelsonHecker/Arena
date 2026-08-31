@@ -11,8 +11,8 @@ from task_generator.tasks.robots.request import GoToPhase, PlayGesturePhase, Tas
 class TM_Scenario(TM_Robots):
     _config: ROSParamT[str]
 
-    async def reset(self, **kwargs: object) -> None:
-        await super().reset(**kwargs)
+    async def reset(self) -> None:
+        await super().reset()
 
         zone_conv = self._ctx.world_manager.world_compacted().zone_converter(self.node.conf.General.RNG.stream("robots", "scenario"))
         scenario_view = WorldIdentifier(self._ctx.world_manager.loaded_world).resolve_sync().scenario(self._config.value).resolve_sync()

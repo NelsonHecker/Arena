@@ -1,8 +1,9 @@
 """TM_Characterization: open-loop maneuver sweep publishing exact ``cmd_vel`` profiles
 through each robot's rated envelope, without navigation goals or planners. Every maneuver
-is tagged on ``<robot_ns>/characterization_phase`` so offline calculators can map
-energy/acoustic samples to working points. Odom silent beyond ``ODOM_STALL_TIMEOUT_S``
-zeroes ``cmd_vel`` and aborts the episode.
+is tagged on ``<robot_ns>/characterization_phase`` and the full schedule is latched on
+``<robot_ns>/characterization_schedule`` so offline calculators map energy/acoustic samples
+to the exact working points that ran. Odom silent beyond ``ODOM_STALL_TIMEOUT_S`` zeroes
+``cmd_vel`` and aborts the episode.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import dataclasses
+import json
 import traceback
 from collections.abc import Callable
 
@@ -18,7 +20,8 @@ import rclpy.subscription
 from arena_rclpy_mixins.ROSParamServer import ROSParamT
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy import Parameter
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
 from task_generator.shared import Pose
@@ -30,6 +33,7 @@ from .schedule import (
     MAX_SCHEDULE_DURATION_S,
     MODES,
     ODOM_STALL_TIMEOUT_S,
+    SWEEP_DEFAULTS,
     Phase,
     build_schedule,
     resolve_envelope,
@@ -42,6 +46,8 @@ from .schedule import (
 # is compatible with a RELIABLE publisher.
 _CMD_QOS = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 _ODOM_QOS = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+# The schedule is published once per reset, so a recorder that subscribes later still gets it.
+_LATCHED_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
 @dataclasses.dataclass
@@ -60,21 +66,24 @@ class TM_Characterization(TM_Robots):
 
     _modes: dict[str, ROSParamT[bool]]
     _durations: dict[str, ROSParamT[float]]
+    _sweeps: dict[str, ROSParamT[list[float]]]
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self._modes = {name: self.node.ROSParam[bool](self.namespace("modes", name), True) for name in MODES}
         self._durations = {name: self.node.ROSParam[float](self.namespace(name), default) for name, default in DURATION_DEFAULTS.items()}
+        self._sweeps = {name: self.node.ROSParam[list[float]](self.namespace(name), list(default), type_=Parameter.Type.DOUBLE_ARRAY) for name, default in SWEEP_DEFAULTS.items()}
         self._runs: dict[str, _Run] = {}
         self._finished = False
         self._driver: asyncio.Task | None = None
         self._twist_pubs: dict[str, rclpy.publisher.Publisher] = {}
         self._phase_pubs: dict[str, rclpy.publisher.Publisher] = {}
+        self._schedule_pubs: dict[str, rclpy.publisher.Publisher] = {}
         self._odom_subs: dict[str, rclpy.subscription.Subscription] = {}
         self._last_odom: dict[str, float] = {}
 
-    async def reset(self, **kwargs: object) -> None:
-        await super().reset(**kwargs)
+    async def reset(self) -> None:
+        await super().reset()
         await self._cancel_driver()
         self._finished = False
         self._runs = {}
@@ -82,12 +91,8 @@ class TM_Characterization(TM_Robots):
         # Place every robot near the map centre (a free cell) so the sweep's
         # out-and-back legs stay inside the arena.
         self._start_poses = {}
-        robot_positions = list(kwargs.get("ROBOT_POSITIONS", []) or [])
-        for idx, manager in enumerate(self._ctx.robots.values()):
-            if idx < len(robot_positions):
-                self._start_poses[manager.name] = robot_positions[idx][0]
-            else:
-                self._start_poses[manager.name] = await self._centre_placement()
+        for manager in self._ctx.robots.values():
+            self._start_poses[manager.name] = await self._centre_placement()
             self._logger.info(f"TM_Characterization: {manager.name} placed at {self._start_poses[manager.name].position}")
 
         self._sync_entities()
@@ -95,6 +100,7 @@ class TM_Characterization(TM_Robots):
         now = self._sim_now()
         modes = [name for name, param in self._modes.items() if param.value]
         durations = {name: param.value for name, param in self._durations.items()}
+        sweeps = {name: [float(v) for v in param.value] for name, param in self._sweeps.items()}
 
         for manager in self._ctx.robots.values():
             envelope = resolve_envelope(manager.model_name)
@@ -106,9 +112,20 @@ class TM_Characterization(TM_Robots):
                 radius=float(envelope["radius"]),
                 is_holonomic=bool(envelope["is_holonomic"]),
                 **durations,
+                **sweeps,
             )
             self._runs[manager.name] = _Run(schedule=schedule, phase_start=now)
             self._last_odom[manager.name] = now
+            record = String()
+            record.data = json.dumps(
+                {
+                    "robot": manager.name,
+                    "model": manager.model_name,
+                    "envelope": envelope,
+                    "phases": [dataclasses.asdict(p) for p in schedule],
+                }
+            )
+            self._schedule_pubs[manager.name].publish(record)
             self._logger.info(
                 f"TM_Characterization: {manager.name} (model={manager.model_name}) "
                 f"{len(schedule)} phases, {schedule_duration(schedule):.0f}s "
@@ -125,6 +142,7 @@ class TM_Characterization(TM_Robots):
         for name in [n for n in self._twist_pubs if n not in current]:
             self.node.destroy_publisher(self._twist_pubs.pop(name))
             self.node.destroy_publisher(self._phase_pubs.pop(name))
+            self.node.destroy_publisher(self._schedule_pubs.pop(name))
             self.node.destroy_subscription(self._odom_subs.pop(name))
             self._last_odom.pop(name, None)
 
@@ -137,6 +155,7 @@ class TM_Characterization(TM_Robots):
             ns = str(manager.namespace)
             self._twist_pubs[manager.name] = self.node.create_publisher(Twist, f"{ns}/cmd_vel", _CMD_QOS)
             self._phase_pubs[manager.name] = self.node.create_publisher(String, f"{ns}/characterization_phase", _CMD_QOS)
+            self._schedule_pubs[manager.name] = self.node.create_publisher(String, f"{ns}/characterization_schedule", _LATCHED_QOS)
             self._odom_subs[manager.name] = self.node.create_subscription(Odometry, f"{ns}/odom", self._make_odom_cb(manager.name), _ODOM_QOS)
 
     async def _centre_placement(self) -> Pose:
@@ -300,4 +319,5 @@ class TM_Characterization(TM_Robots):
         for name in list(self._twist_pubs):
             self.node.destroy_publisher(self._twist_pubs.pop(name))
             self.node.destroy_publisher(self._phase_pubs.pop(name))
+            self.node.destroy_publisher(self._schedule_pubs.pop(name))
             self.node.destroy_subscription(self._odom_subs.pop(name))

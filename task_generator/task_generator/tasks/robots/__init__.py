@@ -24,7 +24,7 @@ class TM_Robots(TaskMode):
     def start_poses(self) -> dict[str, Pose]:
         return self._start_poses
 
-    async def reset(self, **kwargs: object) -> None:
+    async def reset(self) -> None:
         self._last_reset = self.node.sim_time.sec
         self._start_poses = {}
 

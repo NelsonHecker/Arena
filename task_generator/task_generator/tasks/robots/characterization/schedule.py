@@ -6,6 +6,7 @@ import dataclasses
 import logging
 import math
 import pathlib
+from collections.abc import Sequence
 from enum import StrEnum
 
 import yaml
@@ -24,7 +25,6 @@ LINEAR_DWELL_S = 5.0  # s, steady-state capture per velocity step
 LINEAR_SETTLE_S = 1.0  # s, settle at rest between directions
 LATERAL_DWELL_S = 5.0  # s, steady-state capture per lateral step
 ANGULAR_DWELL_S = 5.0  # s, per pivot rate
-RAMP_HORIZON_S = 1.0  # s, acceleration/deceleration horizon per step
 RAMP_SETTLE_S = 1.0  # s, settle at the ramp apex before decelerating
 BRAKE_APPROACH_S = 3.0  # s, cruise at the rated speed before the step to zero
 BRAKE_DWELL_S = 3.0  # s, capture settling after step deceleration
@@ -33,6 +33,7 @@ MIN_DWELL_S = 3.0  # s, a step shorter than this holds no usable steady state
 
 ARC_SPEED_FACTORS = (0.25, 0.5, 0.75)  # of vx_max
 ARC_RADIUS_FACTORS = (1.0, 2.5, 6.0)  # of the footprint radius
+RAMP_HORIZONS_S = (1.0,)  # s, one acceleration/deceleration family per horizon
 
 MAX_EXCURSION_M = 10.0  # m, maximum excursion from spawn within one maneuver
 MAX_ORBIT_S = 60.0  # s, longest closed arc orbit worth sampling
@@ -49,10 +50,15 @@ DURATION_DEFAULTS = {  # keys are build_schedule's duration keywords
     "linear_settle_s": LINEAR_SETTLE_S,
     "lateral_dwell_s": LATERAL_DWELL_S,
     "angular_dwell_s": ANGULAR_DWELL_S,
-    "ramp_horizon_s": RAMP_HORIZON_S,
     "ramp_settle_s": RAMP_SETTLE_S,
     "brake_approach_s": BRAKE_APPROACH_S,
     "brake_dwell_s": BRAKE_DWELL_S,
+}
+
+SWEEP_DEFAULTS = {  # keys are build_schedule's sweep keywords
+    "arc_speed_factors": ARC_SPEED_FACTORS,
+    "arc_radius_factors": ARC_RADIUS_FACTORS,
+    "ramp_horizons_s": RAMP_HORIZONS_S,
 }
 
 
@@ -167,7 +173,6 @@ def build_schedule(
     linear_settle_s: float = LINEAR_SETTLE_S,
     lateral_dwell_s: float = LATERAL_DWELL_S,
     angular_dwell_s: float = ANGULAR_DWELL_S,
-    ramp_horizon_s: float = RAMP_HORIZON_S,
     ramp_settle_s: float = RAMP_SETTLE_S,
     brake_approach_s: float = BRAKE_APPROACH_S,
     brake_dwell_s: float = BRAKE_DWELL_S,
@@ -180,8 +185,11 @@ def build_schedule(
     wz_step: float = WZ_STEP,
     radius: float = RADIUS_M,
     is_holonomic: bool = False,
+    arc_speed_factors: Sequence[float] = ARC_SPEED_FACTORS,
+    arc_radius_factors: Sequence[float] = ARC_RADIUS_FACTORS,
+    ramp_horizons_s: Sequence[float] = RAMP_HORIZONS_S,
 ) -> list[Phase]:
-    """Build one robot's maneuver schedule. Labels come from the envelope alone, never a duration, so the offline rebuild matches."""
+    """Build one robot's maneuver schedule. Labels encode the working point (speed, radius, ramp horizon), never a dwell."""
     phases: list[Phase] = []
     active = set(modes) if modes is not None else set(MODES)
     if wz_min is None:
@@ -223,9 +231,9 @@ def build_schedule(
 
     if "arc" in active and vx_max > 0.0 and radius > 0.0:
         pre_idle("idle_arc_pre")
-        for speed_factor in ARC_SPEED_FACTORS:
+        for speed_factor in arc_speed_factors:
             vx = round(speed_factor * vx_max, 6)
-            for radius_factor in ARC_RADIUS_FACTORS:
+            for radius_factor in arc_radius_factors:
                 r = round(radius_factor * radius, 6)
                 tag = f"{vx:.2f}_r_{r:.2f}"
                 if 2.0 * r > MAX_EXCURSION_M:
@@ -246,13 +254,16 @@ def build_schedule(
 
     if "ramps" in active:
         pre_idle("idle_ramps_pre")
-        for vx in _steps(vx_step, vx_max, vx_step):
-            for target in (vx, -vx):
-                tag = f"{target:.2f}"
-                phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_{tag}", vx_target=target, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
-                if ramp_settle_s > 0.0:
-                    phases.append(Phase(PhaseKind.RAMP_APEX, f"ramp_apex_vx_{tag}", vx_target=target, duration_s=ramp_settle_s))
-                phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_{tag}", vx_target=target, duration_s=ramp_horizon_s, ramp_s=ramp_horizon_s))
+        for horizon in ramp_horizons_s:
+            if horizon <= 0.0:
+                continue
+            for vx in _steps(vx_step, vx_max, vx_step):
+                for target in (vx, -vx):
+                    tag = f"{target:.2f}_h_{horizon:.2f}"
+                    phases.append(Phase(PhaseKind.RAMP_UP, f"ramp_up_vx_{tag}", vx_target=target, duration_s=horizon, ramp_s=horizon))
+                    if ramp_settle_s > 0.0:
+                        phases.append(Phase(PhaseKind.RAMP_APEX, f"ramp_apex_vx_{tag}", vx_target=target, duration_s=ramp_settle_s))
+                    phases.append(Phase(PhaseKind.RAMP_DOWN, f"ramp_down_vx_{tag}", vx_target=target, duration_s=horizon, ramp_s=horizon))
 
     if "brake" in active:
         pre_idle("idle_brake_pre")

@@ -225,11 +225,11 @@ class Task(NodeInterface):
             await self.__tm_obstacles.teardown()
             self.__tm_obstacles = None
 
-    async def _reset_episode(self, **kwargs: object) -> None:
+    async def _reset_episode(self, seed: int) -> None:
         try:
             self.__reset_start.publish(std_msgs.Empty())
 
-            self.node.conf.General.RNG.reseed(int(kwargs["seed"]))
+            self.node.conf.General.RNG.reseed(seed)
 
             await self.robots_manager.set_up()
             await self.robots_manager.launch_pending()
@@ -254,9 +254,9 @@ class Task(NodeInterface):
                 for module in self.__modules:
                     module.before_reset()
 
-                await self.tm_robots.reset(**kwargs)
+                await self.tm_robots.reset()
 
-                obstacles, dynamic_obstacles = await self.tm_obstacles.reset(**kwargs)
+                obstacles, dynamic_obstacles = await self.tm_obstacles.reset(seed=seed)
 
                 async def respawn():
                     await asyncio.gather(
@@ -303,10 +303,10 @@ class Task(NodeInterface):
         self._abort_reason = reason
         self._force_reset = True
 
-    async def reset(self, **kwargs: object) -> None:
+    async def reset(self, *, seed: int) -> None:
         self._force_reset = False
         self._abort_reason = None
-        await self._reset_episode(**kwargs)
+        await self._reset_episode(seed)
 
     @property
     async def is_done(self) -> bool:

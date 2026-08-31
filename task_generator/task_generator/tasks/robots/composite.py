@@ -51,9 +51,9 @@ class TM_Composite(TM_Robots):
         super().__init__(*args, **kwargs)
         self._sub_modes = list(sub_modes)
 
-    async def reset(self, **kwargs: object) -> None:
-        await super().reset(**kwargs)
-        await asyncio.gather(*(m.reset(**kwargs) for m in self._sub_modes))
+    async def reset(self) -> None:
+        await super().reset()
+        await asyncio.gather(*(m.reset() for m in self._sub_modes))
 
     async def teardown(self) -> None:
         await asyncio.gather(*(m.teardown() for m in self._sub_modes))
@@ -92,8 +92,8 @@ class TM_Composite(TM_Robots):
 class TM_Null(TM_Robots):
     """Idle sink for unallocated robots."""
 
-    async def reset(self, **kwargs: object) -> None:
-        await super().reset(**kwargs)
+    async def reset(self) -> None:
+        await super().reset()
 
     @property
     async def done(self) -> bool:

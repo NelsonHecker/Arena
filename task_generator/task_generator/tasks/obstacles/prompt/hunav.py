@@ -533,7 +533,7 @@ class TM_Prompt(TM_Obstacles):
 
         return result
 
-    async def reset(self, **kwargs: object) -> tuple[list[Obstacle], list[DynamicObstacle]]:
+    async def reset(self, *, seed: int) -> tuple[list[Obstacle], list[DynamicObstacle]]:
         parsed_config = await self._parse_prompt(
             self._config.user_prompt.value,
             self._config.top_p.value,
