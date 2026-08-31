@@ -108,12 +108,13 @@ publishes two topics under the robot namespace each tick (sim-time gated):
 | Topic | Type | Content |
 |---|---|---|
 | `<robot_ns>/collision_monitor_state` | `nav2_msgs/CollisionMonitorState` | Scalar `polygon_name` + `action_type` for the most severe active polygon. Drop-in for the same observation nav2's `collision_monitor` emits, training consumers don't care which produced it. |
-| `<robot_ns>/collision_events` | `arena_robots_msgs/CollisionEvents` | Per-obstacle attribution: one `CollisionEvent` per (cap polygon × hit entity). `obstacle_id` is the entity name (`<wall>` for world walls/doors), `polygon_name` is the cap polygon. `distance` is reserved for future signed-clearance reporting; v1 is intersect-only and always emits `0.0`. |
+| `<robot_ns>/collision_events` | `arena_robots_msgs/CollisionEvents` | Per-obstacle attribution: one `CollisionEvent` per (cap polygon × hit entity). `kind` is one of the `KIND_*` constants; `obstacle_id` is the static name, `<wall>` for an authored wall, `<map>` for map occupancy with nothing authored behind it, or the pedestrian name. `polygon_name` is the cap polygon. `distance` is reserved for future signed-clearance reporting; v1 is intersect-only and always emits `0.0`. |
 
-Geometry comes from `EnvironmentManager.walls_geometry` (MultiLineString) and
-`EnvironmentManager.static_polygons` (name-keyed footprint dict); both are kept
-in sync by the spawn/respawn pipeline, so the tracker needs no per-episode
-refresh hook. Pedestrians are read from the `arena_peds` topic.
+Static geometry is one window read on `EnvironmentManager.collision_grid`
+(see [manager/README.md](../../../manager/README.md)), kept in sync by the
+spawn/respawn pipeline, so the tracker needs no per-episode refresh hook.
+`EnvironmentManager.static_polygons` only supplies the reported centroid.
+Pedestrians are read from the `arena_peds` topic.
 
 Opt in by mounting the node in `__init__` and adding it to the task_generator's
 executor:

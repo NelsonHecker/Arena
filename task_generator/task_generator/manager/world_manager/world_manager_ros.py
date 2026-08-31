@@ -270,7 +270,7 @@ class WorldManagerROS(MapServerHandler, WorldManager):
             zones = [zone for level in world.all_levels for zone in level.zones]
             if not zones or any(zone.wall_material.name for zone in zones):
                 detected_walls = {disk_level: tuple(disk_map.detect_walls())}
-        await self._environment_manager.spawn_world_obstacles(self._world, detected_walls=detected_walls)
+        await self._environment_manager.spawn_world_obstacles(self._world, detected_walls=detected_walls, world_map=world_map)
         self.node._publish_semantics_snapshot()
 
         return True

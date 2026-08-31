@@ -82,7 +82,8 @@ Key points:
 - An empty material opts a surface out entirely: `material: ''` on a zone
   spawns no floor, `ceiling_material: ''` no ceiling, `material: ''` on a
   wall entry drops that wall, and `wall_material: ''` on every zone of a
-  level suppresses the occupancy-detected collision walls. The short keys
+  level suppresses the occupancy-detected pedestrian collision walls (robot
+  collision tracking reads the map regardless). The short keys
   `mat`, `ceiling_mat`, `wall_mat` are accepted as aliases.
 - `entities: {static: [...], dynamic: [...]}` on a zone places obstacles and
   pedestrians that exist in every scenario run against this world. Same
