@@ -140,15 +140,20 @@ class GazeboHost(SimLifecycle):
     async def _set_physics_rtf(self, value: float) -> None:
         # gz applies the FULL Physics message: unset fields land as zeros, and a
         # sparse request zeroes gravity (models levitate), so send world defaults
-        req = (
-            f'real_time_factor: {value}'
-            ', gravity: {x: 0, y: 0, z: -9.8}'
-            ', magnetic_field: {x: 5.5645e-06, y: 2.28758e-05, z: -4.23884e-05}'
-        )
+        req = f'real_time_factor: {value}, gravity: {{x: 0, y: 0, z: -9.8}}, magnetic_field: {{x: 5.5645e-06, y: 2.28758e-05, z: -4.23884e-05}}'
         process = await asyncio.create_subprocess_exec(
-            'gz', 'service', '-s', '/world/default/set_physics',
-            '--reqtype', 'gz.msgs.Physics', '--reptype', 'gz.msgs.Boolean',
-            '--timeout', '3000', '--req', req,
+            'gz',
+            'service',
+            '-s',
+            '/world/default/set_physics',
+            '--reqtype',
+            'gz.msgs.Physics',
+            '--reptype',
+            'gz.msgs.Boolean',
+            '--timeout',
+            '3000',
+            '--req',
+            req,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )

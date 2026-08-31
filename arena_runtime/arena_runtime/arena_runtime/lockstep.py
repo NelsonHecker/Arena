@@ -226,10 +226,7 @@ class LockstepScheduler:
 
     def _foreign_hold_active(self) -> bool:
         fqn = self._node.get_fully_qualified_name()
-        return any(
-            entry.caller_id != fqn or entry.reason != _LOCKSTEP_REASON
-            for entry in self._node._holds.snapshot()
-        )
+        return any(entry.caller_id != fqn or entry.reason != _LOCKSTEP_REASON for entry in self._node._holds.snapshot())
 
     async def _run(self, config: LockstepConfig) -> None:
         dt = self._node.rosparam[float].get('physics_dt', 0.0333)
@@ -301,10 +298,7 @@ class LockstepScheduler:
                         # frozen clock (rcl timers reschedule from fire time), so
                         # gate on window coverage, not tick freshness. dt/2 rejects
                         # the previous window's boundary sample
-                        gates = {
-                            ch.topic: base + Time.from_float(ch.next_due - ch.period + dt / 2.0)
-                            for ch in hard_due
-                        }
+                        gates = {ch.topic: base + Time.from_float(ch.next_due - ch.period + dt / 2.0) for ch in hard_due}
                         await self._await_hard(due_time, gates, hard_due)
                     for ch in due_channels:
                         ch.next_due += ch.period

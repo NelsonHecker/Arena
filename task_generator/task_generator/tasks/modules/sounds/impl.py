@@ -278,10 +278,7 @@ class Mod_Sounds(TM_Module):
         try:
             return self._spawn_sound_impl(request, response)
         except Exception as exc:
-            self._logger.error(
-                "spawning runtime sound failed:\n"
-                f"{traceback.format_exc()}"
-            )
+            self._logger.error(f"spawning runtime sound failed:\n{traceback.format_exc()}")
             response.error_msg = f"{type(exc).__name__}: {exc}"
             return response
 
@@ -329,12 +326,7 @@ class Mod_Sounds(TM_Module):
         if not all(math.isfinite(value) for value in values):
             response.error_msg = "sound pose must be finite"
             return response
-        orientation_norm = math.sqrt(
-            orientation.x**2
-            + orientation.y**2
-            + orientation.z**2
-            + orientation.w**2
-        )
+        orientation_norm = math.sqrt(orientation.x**2 + orientation.y**2 + orientation.z**2 + orientation.w**2)
         if orientation_norm <= 1e-9:
             response.error_msg = "sound orientation must be valid"
             return response
@@ -363,10 +355,7 @@ class Mod_Sounds(TM_Module):
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ) as exc:
-                response.error_msg = (
-                    f"cannot transform sound from {frame_id!r} "
-                    f"to 'map': {exc}"
-                )
+                response.error_msg = f"cannot transform sound from {frame_id!r} to 'map': {exc}"
                 return response
             transform_orientation = (
                 float(transform.rotation.x),
@@ -432,11 +421,7 @@ class Mod_Sounds(TM_Module):
 
         response.entity = realized_name
         response.success = True
-        self._logger.info(
-            f"spawned {mode} source {realized_name!r} at "
-            f"({map_position.x:.2f}, {map_position.y:.2f}, "
-            f"{map_position.z:.2f})"
-        )
+        self._logger.info(f"spawned {mode} source {realized_name!r} at ({map_position.x:.2f}, {map_position.y:.2f}, {map_position.z:.2f})")
         return response
 
     def _remove_sound(
@@ -508,10 +493,7 @@ class Mod_Sounds(TM_Module):
         try:
             self._publish_sources_impl()
         except Exception:
-            self._logger.error(
-                "publishing static audio state failed:\n"
-                f"{traceback.format_exc()}"
-            )
+            self._logger.error(f"publishing static audio state failed:\n{traceback.format_exc()}")
 
     def _publish_sources_impl(self) -> None:
         for msg in self.node.wait_for(self._source_msgs()):

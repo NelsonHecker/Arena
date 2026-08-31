@@ -228,9 +228,7 @@ class WorldManager(NodeInterface):
                 x, y = obstacle.pose.position.x, obstacle.pose.position.y
                 footprint = shapely.box(x - r, y - r, x + r, y + r)
             level_origin = self.map.level_origins.get(level_id, (0.0, 0.0))
-            self.map.occupancy.obstacle_occupy(
-                self.map.tf_poly2mask(shapely.affinity.translate(footprint, xoff=level_origin[0], yoff=level_origin[1]))
-            )
+            self.map.occupancy.obstacle_occupy(self.map.tf_poly2mask(shapely.affinity.translate(footprint, xoff=level_origin[0], yoff=level_origin[1])))
             level_map = self.level_maps.get_map(level_id)
             if level_map is not None:
                 level_map.occupancy.obstacle_occupy(level_map.tf_poly2mask(footprint))

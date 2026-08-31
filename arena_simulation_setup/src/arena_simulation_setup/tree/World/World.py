@@ -54,9 +54,7 @@ MICROPHONE_PLACEMENT_TOLERANCE_M = 0.05
 @attrs.define
 class WorldMicrophone:
     zone: str = attrs.field(converter=lambda value: str(value).strip())
-    placement: str = attrs.field(
-        converter=lambda value: str(value).strip().lower()
-    )
+    placement: str = attrs.field(converter=lambda value: str(value).strip().lower())
     position: Position = attrs.field(converter=Position.converter)
     frame: str = attrs.field(
         converter=lambda value: str(value).strip().strip('/'),
@@ -66,9 +64,7 @@ class WorldMicrophone:
 
     @property
     def listener_id(self) -> str:
-        return (
-            f'microphone:zone:{self.zone}:{self.placement}:{self.index}'
-        )
+        return f'microphone:zone:{self.zone}:{self.placement}:{self.index}'
 
 
 @attrs.define
@@ -240,51 +236,33 @@ class LevelDescription:
             placement = microphone.placement.strip()
             frame = microphone.frame.strip().strip('/')
             if not zone_name or ':' in zone_name:
-                raise ValueError(
-                    f'invalid microphone zone {microphone.zone!r}'
-                )
+                raise ValueError(f'invalid microphone zone {microphone.zone!r}')
             if not placement or ':' in placement:
-                raise ValueError(
-                    f'invalid microphone placement {microphone.placement!r}'
-                )
+                raise ValueError(f'invalid microphone placement {microphone.placement!r}')
             if not frame:
-                raise ValueError(
-                    f'microphone in zone {zone_name!r} requires a TF frame'
-                )
+                raise ValueError(f'microphone in zone {zone_name!r} requires a TF frame')
             if microphone.index < 1:
                 raise ValueError('microphone index must be at least 1')
             zone = zones.get(zone_name)
             if zone is None:
-                raise ValueError(
-                    f'microphone references unknown zone {zone_name!r}'
-                )
+                raise ValueError(f'microphone references unknown zone {zone_name!r}')
             listener_id = microphone.listener_id
             if listener_id in listener_ids:
                 raise ValueError(f'duplicate microphone {listener_id!r}')
             listener_ids.add(listener_id)
-            if placement == 'ceiling' and (
-                not zone.ceiling or not zone.ceiling_material.name
-            ):
-                raise ValueError(
-                    f'ceiling microphone {listener_id!r} is in a zone '
-                    'without a ceiling'
-                )
+            if placement == 'ceiling' and (not zone.ceiling or not zone.ceiling_material.name):
+                raise ValueError(f'ceiling microphone {listener_id!r} is in a zone without a ceiling')
             if frame != 'map':
                 continue
             import shapely
 
-            polygon = shapely.Polygon(
-                [(corner.x, corner.y) for corner in zone.corners]
-            )
+            polygon = shapely.Polygon([(corner.x, corner.y) for corner in zone.corners])
             point = shapely.Point(
                 microphone.position.x,
                 microphone.position.y,
             )
             if not polygon.covers(point):
-                raise ValueError(
-                    f'microphone {listener_id!r} is outside zone '
-                    f'{zone_name!r}'
-                )
+                raise ValueError(f'microphone {listener_id!r} is outside zone {zone_name!r}')
             if (
                 placement == 'ceiling'
                 and zone.ceiling_height is not None
@@ -294,10 +272,7 @@ class LevelDescription:
                     abs_tol=MICROPHONE_PLACEMENT_TOLERANCE_M,
                 )
             ):
-                raise ValueError(
-                    f'microphone {listener_id!r} z={microphone.position.z} '
-                    f'does not match ceiling height {zone.ceiling_height}'
-                )
+                raise ValueError(f'microphone {listener_id!r} z={microphone.position.z} does not match ceiling height {zone.ceiling_height}')
 
     def lookup_zone_polygon(self, name: str) -> list[Position] | None:
         """Look up a zone, door, or elevator by name and return its polygon vertices."""
@@ -640,10 +615,7 @@ class WorldDescription:
             level.validate_microphones()
             for microphone in level.microphones:
                 if microphone.listener_id in microphone_ids:
-                    raise RuntimeError(
-                        f'microphone {microphone.listener_id!r} appears in '
-                        'multiple levels'
-                    )
+                    raise RuntimeError(f'microphone {microphone.listener_id!r} appears in multiple levels')
                 microphone_ids.add(microphone.listener_id)
             for elevator in level.all_elevators:
                 if elevator.name in elevator_levels:

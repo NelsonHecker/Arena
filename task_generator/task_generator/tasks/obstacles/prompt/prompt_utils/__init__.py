@@ -37,11 +37,7 @@ def __getattr__(name: str) -> object:
     try:
         resolved = importlib.import_module(module, __package__ if module.startswith(".") else None)
     except ImportError as e:
-        raise AttributeError(
-            f"{name!r} needs the optional HuNav prompt dependencies ({module}). "
-            f"Install hunav_sim and arena_hunav_sim_bridge from arena.repos, or use "
-            f"tm_obstacles:=prompt under human:=arena, which does not require them."
-        ) from e
+        raise AttributeError(f"{name!r} needs the optional HuNav prompt dependencies ({module}). Install hunav_sim and arena_hunav_sim_bridge from arena.repos, or use tm_obstacles:=prompt under human:=arena, which does not require them.") from e
     value = getattr(resolved, name)
     globals()[name] = value
     return value

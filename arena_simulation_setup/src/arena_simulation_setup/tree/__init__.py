@@ -42,6 +42,7 @@ async def _subprocess_output(args: Sequence[str], **kwargs: object) -> bytes:
         raise subprocess.CalledProcessError(process.returncode or -1, list(args), output=stdout, stderr=stderr)
     return stdout
 
+
 # Utils
 
 
