@@ -34,7 +34,7 @@ from std_srvs.srv import Trigger
 
 from arena_runtime.constants import SimSimulator
 from arena_runtime.holds import HoldRegistry
-from arena_runtime.lockstep import ChannelSpec, LockstepConfig, LockstepScheduler, _parse_channel_spec
+from arena_runtime.lockstep import LockstepConfig, LockstepScheduler, _parse_channel_spec, spec_from_msg
 from arena_runtime.registry import EnvRegistry, _extent_eq, sweep_verdict
 from arena_runtime.sim import LifecycleRegistry, SimLifecycle
 from arena_runtime.sim.dummy_simulator import DummyHost
@@ -318,25 +318,10 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         await asyncio.gather(*(_spawn_one(i) for i in range(n)))
 
     async def _publish_clock_loop(self, lifecycle: DummyHost) -> None:
-        """Publish simulated clock at ~100Hz using wall time, only when sim is dummy."""
-        start = self.wall_time
-        paused_duration = Time()
-        pause_start: Time | None = None
         try:
             while True:
-                if lifecycle.paused:
-                    if pause_start is None:
-                        pause_start = self.wall_time
-                    await asyncio.sleep(0.01)
-                    continue
-
-                if pause_start is not None:
-                    paused_duration += self.wall_time - pause_start
-                    pause_start = None
-
-                elapsed = self.wall_time - start - paused_duration
-                self._clock_publisher.publish(elapsed.to_rosgraph_msg())
-                await asyncio.sleep(0.01)
+                self._clock_publisher.publish(Time.from_float(lifecycle.now()).to_rosgraph_msg())
+                await asyncio.sleep(DummyHost.CLOCK_PERIOD)
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -608,7 +593,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             self._lockstep.register(
                 registration.caller,
                 registration.env,
-                [ChannelSpec.from_msg(ch) for ch in registration.channels],
+                [spec_from_msg(ch) for ch in registration.channels],
             )
         except ValueError as e:
             response.success = False

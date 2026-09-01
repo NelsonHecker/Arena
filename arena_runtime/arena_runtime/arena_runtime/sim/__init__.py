@@ -64,11 +64,11 @@ async def lazy_dummy(**kwargs: object) -> BaseSim:
 
 
 @LifecycleRegistry.register(SimSimulator.DUMMY)
-async def lazy_dummy_lifecycle(**kwargs: object) -> SimLifecycle:
+async def lazy_dummy_lifecycle(physics_dt: float = 0.0333, **kwargs: object) -> SimLifecycle:
     del kwargs
     from .dummy_simulator import DummyHost
 
-    return DummyHost()
+    return DummyHost(physics_dt)
 
 
 # @SimulatorRegistry.register(SimSimulator.FLATLAND)
