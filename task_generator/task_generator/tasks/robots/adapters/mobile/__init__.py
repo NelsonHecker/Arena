@@ -21,6 +21,8 @@ class MobileAdapter(Adapter):
         mobile = self.rm.robot.model.resolve_sync().caps.mobile
         polys = mobile.polygons_dict
         footprint = mobile.footprint
+        if footprint is None:
+            self.rm.node.get_logger().warning(f'{self.rm.namespace}: caps/mobile.yaml has no footprint, collisions are not tracked')
         if not polys and footprint is None:
             return
         self._collision = CollisionTrackerNode(self.rm, polys or {}, footprint=footprint)
