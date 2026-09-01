@@ -68,7 +68,7 @@ class WorldGeneratorROS(WorldGenerator, ROSParamServer, ServiceNamespace):
             diagnostics = diagnostics_of(level)
 
             if not request.preview_only:
-                WorldIdentifier(request.world or self.get_parameter('world').value).resolve_sync().save(WorldDescription.from_levels(level), extra_files=self.files())
+                WorldIdentifier(request.world or self.get_parameter('world').value).resolve_write_sync().save(WorldDescription.from_levels(level), extra_files=self.files())
 
             resolution = request.resolution or max(0.05, max(diagnostics.extent) / PREVIEW_PIXEL_BUDGET)
             response.png, map_origin = level.render(resolution=resolution)
@@ -90,7 +90,7 @@ class WorldGeneratorROS(WorldGenerator, ROSParamServer, ServiceNamespace):
         except Exception as error:
             response.success = False
             response.message = repr(error)
-            self.get_logger().error(f'preview failed: {error!r}')
+            self.get_logger().error(f"{'preview' if request.preview_only else 'generation'} failed: {error!r}")
 
         response.compile_ms = (time.perf_counter() - started) * 1e3
         if request.include_alphabet:
