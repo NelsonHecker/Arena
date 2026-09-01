@@ -20,8 +20,35 @@ DESCRIPTION = (
     "  ls                   list planners, [x] ready, [ ] pending\n"
     "  check [--all]        verify planner submodules are initialized\n"
     "  update               refresh initialized planner submodules\n"
-    "  uninstall            deinit all planner submodules"
+    "  uninstall            deinit all planner submodules\n"
+    "  test <name...>       lockstep soak via the benchmark runner (needs the evaluation feature)"
 )
+
+
+# one short crowded stage per contestant with the scheduler stepping the sim, so a
+# planner that cannot keep its beat shows up as a stall in the run report
+_SOAK_SUITE = {
+    "launch": {"lockstep": True, "lockstep.paused": False, "headless": True},
+    "references": False,
+    "stages": [
+        {
+            "name": "soak",
+            "map": "map_empty",
+            "robot": "auto",
+            "episodes": 2,
+            "tm_robots": "random",
+            "tm_obstacles": "random",
+            "config": {
+                "random": {
+                    "dynamic": {"min": 4, "max": 6, "models": ["arenian"]},
+                    "static": {"min": 3, "max": 6, "models": ["shelf"]},
+                    "interactive": {"min": 0, "max": 0},
+                }
+            },
+            "timeout": "60s",
+        }
+    ],
+}
 
 
 def _payload() -> str:
@@ -32,14 +59,33 @@ def _deps_build() -> int:
     return common._resourced("arena deps && arena build --executor sequential")
 
 
-def _names() -> list[str]:
+def _payload_module():
     import importlib.util
-    from pathlib import Path
 
     spec = importlib.util.spec_from_file_location("_planners_payload", _payload())
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return sorted(mod.planner_submodules(Path(common._env("ARENA_DIR"))))
+    return mod
+
+
+def _names() -> list[str]:
+    from pathlib import Path
+
+    return sorted(_payload_module().planner_submodules(Path(common._env("ARENA_DIR"))))
+
+
+def _contestants(names: list[str]) -> list[dict]:
+    """Bridge planners run under the drl adapter, anything else is a nav2 local planner."""
+    from pathlib import Path
+
+    kinds = _payload_module().planner_kinds(Path(common._env("ARENA_DIR")))
+    out = []
+    for name in names:
+        if kinds.get(name, "nav2") == "bridge":
+            out.append({"name": name, "mobile": {"driver": "drl", "planner": name}})
+        else:
+            out.append({"name": name, "mobile": {"driver": "nav2", "local_planner": name}})
+    return out
 
 
 _ALL = Flags({"--all": "every planner"})
@@ -84,6 +130,19 @@ def install(argv: list[str]) -> None:
     sys.exit(_deps_build() or rc)
 
 
+def test(argv: list[str]) -> None:
+    """soak the named planners under lockstep (inline suite + contest, --lockstep-verdict)"""
+    import json
+
+    common._reg_require("evaluation")
+    names = [a for a in argv if ":=" not in a and not a.startswith("-")]
+    rest = [a for a in argv if ":=" in a or a.startswith("-")]
+    if not names:
+        raise common.CLIError("planners test needs planner names, see 'arena feature planners ls'")
+    contest = json.dumps(_contestants(names))
+    common._exec("ros2", "run", "arena_evaluation", "benchmark", "--suite", json.dumps(_SOAK_SUITE), "--contest", contest, "--lockstep-verdict", *rest)
+
+
 def uninstall(argv: list[str]) -> None:
     if argv:
         sys.exit(_forward("rm", argv))
@@ -102,5 +161,6 @@ COMMANDS: dict[str, Verb] = {
         make_verb("check", check, passthrough=True, help_text="verify planner submodules are initialized", complete=Union(_ALL, Flags({"-q": "quiet"}))),
         make_verb("install", install, passthrough=True, help_text="clone planner's submodules (alias for add)", complete=_SELECT),
         make_verb("uninstall", uninstall, passthrough=True, help_text="Uninstall and unregister the feature.", complete=Static(_names)),
+        make_verb("test", test, passthrough=True, help_text="lockstep soak of the named planners via the benchmark runner", complete=Static(_names)),
     ]
 }

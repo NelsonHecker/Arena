@@ -582,6 +582,12 @@ def evaluation(args: list[str]) -> None:
     sys.exit(_feature_cmd(["evaluation", *args]))
 
 
+@verb("planners", hidden=True, passthrough=True, complete=Sub(lambda: _features.load("planners").COMMANDS))
+def planners(args: list[str]) -> None:
+    """Alias for feature planners."""
+    sys.exit(_feature_cmd(["planners", *args]))
+
+
 REGISTRY_VERBS = ("has", "require", "add", "remove", "list", "pull")
 
 

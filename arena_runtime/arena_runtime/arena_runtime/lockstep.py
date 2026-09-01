@@ -75,6 +75,7 @@ class LockstepScheduler:
         self._task: asyncio.Task | None = None
         self._resume_task: asyncio.Task | None = None
         self._measured_rtf = 0.0
+        self._waiting: list[str] = []
         self._resume = asyncio.Event()
         self._resume.set()
         self._registry = ChannelRegistry()
@@ -261,6 +262,7 @@ class LockstepScheduler:
             self._measured_rtf = 0.0
             self._publish_status()
         finally:
+            self._waiting = []
             for sub in subs.values():
                 self._node.destroy_subscription(sub)
 
@@ -298,12 +300,14 @@ class LockstepScheduler:
                 self._publish_stall(ledger, due_time, hard_due)
                 next_warn += 10.0
             await asyncio.sleep(0.01)
+        self._waiting = []
         if stalled:
             self._publish_status(tick=due_time, arrived=[ch.name for ch in hard_due])
 
     def _publish_stall(self, ledger: GateLedger, due_time: Time, hard_due: list[Channel]) -> None:
         waiting_on = [ch.name for ch in ledger.waiting(hard_due)]
         arrived = [ch.name for ch in hard_due if ch.name not in waiting_on]
+        self._waiting = waiting_on
         self._publish_status(tick=due_time, waiting_on=waiting_on, arrived=arrived)
 
     def _snapshot_registrations(self) -> list[arena_runtime_msgs.msg.LockstepRegistration]:
@@ -319,9 +323,10 @@ class LockstepScheduler:
     def _publish_status(
         self,
         tick: Time | None = None,
-        waiting_on: typing.Sequence[str] = (),
+        waiting_on: typing.Sequence[str] | None = None,
         arrived: typing.Sequence[str] = (),
     ) -> None:
+        """Status reflects the live gate: a publish from register/drop mid-stall keeps waiting_on."""
         config = self._config
         self._pub_status.publish(
             arena_runtime_msgs.msg.LockstepStatus(
@@ -332,7 +337,7 @@ class LockstepScheduler:
                 measured_rtf=self._measured_rtf,
                 tick=(tick if tick is not None else Time()).to_msg(),
                 registrations=self._snapshot_registrations(),
-                waiting_on=list(waiting_on),
+                waiting_on=list(waiting_on) if waiting_on is not None else list(self._waiting),
                 arrived=list(arrived),
             )
         )

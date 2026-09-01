@@ -71,6 +71,17 @@ async def _gated_run(rig: Rig) -> None:
     assert clock == pytest.approx(tick, abs=1e-3)
     await rig.until(lambda: probe.paused is not None and probe.paused.data, 2.0, "paused state")
 
+    # a registration arriving mid-stall republishes status with the stall still visible
+    soft = LockstepChannel(name="peds", topic="/probe/peds", type=HEARTBEAT, period_s=PERIOD, hard=False)
+    response = await probe.register_channels([soft], caller="probe2")
+    assert response.success
+    await rig.until(lambda: sorted(probe.registered_callers()) == ["probe", "probe2"], 2.0, "second registration")
+    assert probe.stalled_on("beat")
+    response = await probe.register_channels([], caller="probe2")
+    assert response.success
+    await rig.until(lambda: probe.registered_callers() == ["probe"], 2.0, "second deregistration")
+    assert probe.stalled_on("beat")
+
     # the previous window's boundary sample does not cover this window
     probe.pulse(tick - PERIOD)
     await asyncio.sleep(0.3)

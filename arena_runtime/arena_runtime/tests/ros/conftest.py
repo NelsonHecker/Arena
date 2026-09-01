@@ -101,9 +101,9 @@ async def _run(scenario: typing.Callable[[Rig], typing.Awaitable[None]]) -> None
             msg.header.stamp = Time.from_float(stamp).to_msg()
             self.beat.publish(msg)
 
-        async def register_channels(self, channels: list) -> LockstepRegister.Response:
+        async def register_channels(self, channels: list, caller: str = "probe") -> LockstepRegister.Response:
             request = LockstepRegister.Request()
-            request.registration = LockstepRegistration(caller="probe", env="", channels=channels)
+            request.registration = LockstepRegistration(caller=caller, env="", channels=channels)
             response = await self.register.call_timeout(request)
             assert response is not None
             return response
