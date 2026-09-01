@@ -1,0 +1,49 @@
+robots:
+- start:
+  - 15.0
+  - 12.0
+  - 0.0
+  phases:
+  - goto:
+    - 45.0
+    - 12.0
+    - 0.0
+dynamic:
+- name: ped_exit_office
+  model: arenian
+  pose:
+  - 26.0
+  - 18.0
+  - -1.5708
+  velocity: 0.35
+  waypoints:
+  - - 26.0
+    - 14.0
+    - -1.5708
+  - - 26.0
+    - 12.0
+    - 3.1416
+  - - 10.0
+    - 12.0
+    - 3.1416
+- name: ped_exit_reception
+  model: arenian
+  pose:
+  - 27.0
+  - 5.0
+  - 1.5708
+  velocity: 0.35
+  waypoints:
+  - - 27.0
+    - 10.0
+    - 1.5708
+  - - 27.0
+    - 12.0
+    - 0.0
+  - - 50.0
+    - 12.0
+    - 0.0
+static: []
+regions: {}
+timeline: []
+conditions: []

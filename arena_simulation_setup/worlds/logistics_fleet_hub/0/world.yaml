@@ -1,0 +1,4602 @@
+zones:
+- name: picking_bay
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 24.0
+    y: 6.0
+    z: 0.0
+  - x: 24.0
+    y: 9.0
+    z: 0.0
+  - x: 24.0
+    y: 12.0
+    z: 0.0
+  - x: 24.0
+    y: 15.0
+    z: 0.0
+  - x: 24.0
+    y: 18.0
+    z: 0.0
+  - x: 26.0
+    y: 18.0
+    z: 0.0
+  - x: 28.0
+    y: 18.0
+    z: 0.0
+  - x: 30.0
+    y: 18.0
+    z: 0.0
+  - x: 33.0
+    y: 18.0
+    z: 0.0
+  - x: 36.0
+    y: 18.0
+    z: 0.0
+  - x: 38.0
+    y: 18.0
+    z: 0.0
+  - x: 40.0
+    y: 18.0
+    z: 0.0
+  - x: 42.0
+    y: 18.0
+    z: 0.0
+  - x: 42.0
+    y: 15.0
+    z: 0.0
+  - x: 42.0
+    y: 12.0
+    z: 0.0
+  - x: 42.0
+    y: 9.0
+    z: 0.0
+  - x: 42.0
+    y: 6.0
+    z: 0.0
+  - x: 42.0
+    y: 0.0
+    z: 0.0
+  - x: 36.0
+    y: 0.0
+    z: 0.0
+  - x: 30.0
+    y: 0.0
+    z: 0.0
+  - x: 24.0
+    y: 0.0
+    z: 0.0
+  - x: 24.0
+    y: 6.0
+    z: 0.0
+  walls:
+  - start:
+      x: 0.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 6.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 6.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 12.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 12.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 19.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 19.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 21.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 21.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 23.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 23.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 26.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 26.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 26.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 26.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 30.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 30.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 36.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 36.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 40.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 40.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 40.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 40.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 43.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 43.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 45.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 45.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 47.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 47.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 50.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 50.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 50.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 50.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 54.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 54.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 60.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 60.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 64.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 64.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 64.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 64.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 67.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 67.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 69.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 69.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 71.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 71.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 74.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 74.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 74.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 74.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 78.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 78.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 84.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 84.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 88.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 88.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 88.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 88.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 91.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 91.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 93.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 93.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 95.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 95.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 98.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 98.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 98.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 98.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 102.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 102.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 108.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 108.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 42.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 42.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 36.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 33.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 33.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 27.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 27.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 112.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 112.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 112.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 112.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 112.0
+      y: 21.0
+      z: 0.0
+  - start:
+      x: 112.0
+      y: 21.0
+      z: 0.0
+    end:
+      x: 112.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 112.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 112.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 112.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 114.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 114.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 108.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 108.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 102.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 102.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 98.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 98.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 98.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 98.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 96.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 96.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 95.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 95.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 93.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 93.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 91.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 91.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 88.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 88.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 88.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 88.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 90.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 90.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 84.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 84.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 78.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 78.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 74.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 74.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 74.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 74.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 72.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 72.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 71.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 71.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 69.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 69.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 67.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 67.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 64.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 64.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 64.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 64.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 66.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 66.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 60.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 60.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 54.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 54.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 50.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 50.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 50.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 50.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 48.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 48.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 47.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 47.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 45.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 45.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 43.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 43.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 40.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 40.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 40.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 40.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 42.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 42.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 36.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 36.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 30.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 30.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 26.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 26.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 26.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 26.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 24.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 24.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 23.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 23.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 21.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 21.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 19.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 19.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 15.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 15.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 9.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 9.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 18.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 18.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 12.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 12.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 6.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 6.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 6.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 6.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 12.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 12.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 30.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 30.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 36.0
+      z: 0.0
+  - start:
+      x: 60.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 57.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 57.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 54.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 54.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 52.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 52.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 52.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 52.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 54.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 54.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 55.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 55.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 57.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 57.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 59.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 59.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 60.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 60.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 62.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 62.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 62.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 62.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 60.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 30.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 33.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 33.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 36.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 36.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 38.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 38.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 38.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 38.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 36.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 36.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 35.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 35.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 33.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 33.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 31.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 31.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 30.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 30.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 28.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 28.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 28.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 28.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 30.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 36.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 38.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 38.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 38.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 38.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 36.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 36.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 33.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 33.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 30.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 30.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 28.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 28.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 28.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 28.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 30.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 30.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 31.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 31.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 33.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 33.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 35.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 35.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 36.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 62.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 62.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 62.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 60.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 60.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 59.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 59.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 57.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 57.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 55.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 55.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 54.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 54.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 52.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 52.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 52.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 52.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 54.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 54.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 57.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 57.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 60.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 60.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 62.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 76.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 76.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 76.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 78.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 78.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 80.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 80.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 80.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 80.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 78.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 78.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 76.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 86.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 86.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 86.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 84.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 84.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 82.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 82.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 82.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 82.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 84.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 84.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 86.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 86.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 86.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 86.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 84.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 84.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 82.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 82.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 82.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 82.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 84.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 84.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 86.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 78.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 76.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 76.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 76.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 76.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 78.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 78.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 80.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 80.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 80.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 80.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 78.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 102.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 105.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 105.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 108.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 108.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 110.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 110.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 110.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 110.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 108.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 108.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 107.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 107.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 105.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 105.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 103.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 103.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 102.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 102.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 100.0
+      y: 19.0
+      z: 0.0
+  - start:
+      x: 100.0
+      y: 19.0
+      z: 0.0
+    end:
+      x: 100.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 100.0
+      y: 18.0
+      z: 0.0
+    end:
+      x: 102.0
+      y: 18.0
+      z: 0.0
+  - start:
+      x: 103.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 105.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 105.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 107.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 107.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 108.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 108.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 110.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 110.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 110.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 110.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 108.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 108.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 105.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 105.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 102.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 102.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 100.0
+      y: 24.0
+      z: 0.0
+  - start:
+      x: 100.0
+      y: 24.0
+      z: 0.0
+    end:
+      x: 100.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 100.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 102.0
+      y: 23.0
+      z: 0.0
+  - start:
+      x: 102.0
+      y: 23.0
+      z: 0.0
+    end:
+      x: 103.0
+      y: 23.0
+      z: 0.0
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_B1_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 25.2
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B1_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 25.2
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B1_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 32.2
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B1_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 32.2
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B1_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 33.8
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B1_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 33.8
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B1_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 40.8
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B1_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 40.8
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_1
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 48.0
+    y: 15.0
+    z: 0.0
+  - x: 48.0
+    y: 18.0
+    z: 0.0
+  - x: 50.0
+    y: 18.0
+    z: 0.0
+  - x: 52.0
+    y: 18.0
+    z: 0.0
+  - x: 54.0
+    y: 18.0
+    z: 0.0
+  - x: 57.0
+    y: 18.0
+    z: 0.0
+  - x: 60.0
+    y: 18.0
+    z: 0.0
+  - x: 62.0
+    y: 18.0
+    z: 0.0
+  - x: 64.0
+    y: 18.0
+    z: 0.0
+  - x: 66.0
+    y: 18.0
+    z: 0.0
+  - x: 66.0
+    y: 15.0
+    z: 0.0
+  - x: 66.0
+    y: 12.0
+    z: 0.0
+  - x: 66.0
+    y: 9.0
+    z: 0.0
+  - x: 66.0
+    y: 6.0
+    z: 0.0
+  - x: 66.0
+    y: 0.0
+    z: 0.0
+  - x: 60.0
+    y: 0.0
+    z: 0.0
+  - x: 54.0
+    y: 0.0
+    z: 0.0
+  - x: 48.0
+    y: 0.0
+    z: 0.0
+  - x: 48.0
+    y: 6.0
+    z: 0.0
+  - x: 48.0
+    y: 9.0
+    z: 0.0
+  - x: 48.0
+    y: 12.0
+    z: 0.0
+  - x: 48.0
+    y: 15.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_B2_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 49.2
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B2_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 49.2
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B2_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 56.2
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B2_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 56.2
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B2_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 57.8
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B2_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 57.8
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B2_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 64.8
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B2_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 64.8
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_2
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 18.0
+    y: 15.0
+    z: 0.0
+  - x: 18.0
+    y: 12.0
+    z: 0.0
+  - x: 12.0
+    y: 12.0
+    z: 0.0
+  - x: 12.0
+    y: 18.0
+    z: 0.0
+  - x: 18.0
+    y: 18.0
+    z: 0.0
+  - x: 18.0
+    y: 15.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static: []
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_3
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 33.0
+    y: 24.0
+    z: 0.0
+  - x: 30.0
+    y: 24.0
+    z: 0.0
+  - x: 28.0
+    y: 24.0
+    z: 0.0
+  - x: 26.0
+    y: 24.0
+    z: 0.0
+  - x: 24.0
+    y: 24.0
+    z: 0.0
+  - x: 24.0
+    y: 27.0
+    z: 0.0
+  - x: 24.0
+    y: 30.0
+    z: 0.0
+  - x: 24.0
+    y: 33.0
+    z: 0.0
+  - x: 24.0
+    y: 36.0
+    z: 0.0
+  - x: 24.0
+    y: 42.0
+    z: 0.0
+  - x: 30.0
+    y: 42.0
+    z: 0.0
+  - x: 36.0
+    y: 42.0
+    z: 0.0
+  - x: 42.0
+    y: 42.0
+    z: 0.0
+  - x: 42.0
+    y: 36.0
+    z: 0.0
+  - x: 42.0
+    y: 33.0
+    z: 0.0
+  - x: 42.0
+    y: 30.0
+    z: 0.0
+  - x: 42.0
+    y: 27.0
+    z: 0.0
+  - x: 42.0
+    y: 24.0
+    z: 0.0
+  - x: 40.0
+    y: 24.0
+    z: 0.0
+  - x: 38.0
+    y: 24.0
+    z: 0.0
+  - x: 36.0
+    y: 24.0
+    z: 0.0
+  - x: 33.0
+    y: 24.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_T1_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 25.2
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T1_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 25.2
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T1_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 32.2
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T1_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 32.2
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T1_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 33.8
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T1_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 33.8
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T1_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 40.8
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T1_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 40.8
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_4
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 48.0
+    y: 42.0
+    z: 0.0
+  - x: 54.0
+    y: 42.0
+    z: 0.0
+  - x: 60.0
+    y: 42.0
+    z: 0.0
+  - x: 66.0
+    y: 42.0
+    z: 0.0
+  - x: 66.0
+    y: 36.0
+    z: 0.0
+  - x: 66.0
+    y: 33.0
+    z: 0.0
+  - x: 66.0
+    y: 30.0
+    z: 0.0
+  - x: 66.0
+    y: 27.0
+    z: 0.0
+  - x: 66.0
+    y: 24.0
+    z: 0.0
+  - x: 64.0
+    y: 24.0
+    z: 0.0
+  - x: 62.0
+    y: 24.0
+    z: 0.0
+  - x: 60.0
+    y: 24.0
+    z: 0.0
+  - x: 57.0
+    y: 24.0
+    z: 0.0
+  - x: 54.0
+    y: 24.0
+    z: 0.0
+  - x: 52.0
+    y: 24.0
+    z: 0.0
+  - x: 50.0
+    y: 24.0
+    z: 0.0
+  - x: 48.0
+    y: 24.0
+    z: 0.0
+  - x: 48.0
+    y: 27.0
+    z: 0.0
+  - x: 48.0
+    y: 30.0
+    z: 0.0
+  - x: 48.0
+    y: 33.0
+    z: 0.0
+  - x: 48.0
+    y: 36.0
+    z: 0.0
+  - x: 48.0
+    y: 42.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_T2_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 49.2
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T2_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 49.2
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T2_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 56.2
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T2_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 56.2
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T2_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 57.8
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T2_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 57.8
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T2_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 64.8
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T2_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 64.8
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_5
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 72.0
+    y: 9.0
+    z: 0.0
+  - x: 72.0
+    y: 12.0
+    z: 0.0
+  - x: 72.0
+    y: 15.0
+    z: 0.0
+  - x: 72.0
+    y: 18.0
+    z: 0.0
+  - x: 74.0
+    y: 18.0
+    z: 0.0
+  - x: 76.0
+    y: 18.0
+    z: 0.0
+  - x: 78.0
+    y: 18.0
+    z: 0.0
+  - x: 80.0
+    y: 18.0
+    z: 0.0
+  - x: 82.0
+    y: 18.0
+    z: 0.0
+  - x: 84.0
+    y: 18.0
+    z: 0.0
+  - x: 86.0
+    y: 18.0
+    z: 0.0
+  - x: 88.0
+    y: 18.0
+    z: 0.0
+  - x: 90.0
+    y: 18.0
+    z: 0.0
+  - x: 90.0
+    y: 15.0
+    z: 0.0
+  - x: 90.0
+    y: 12.0
+    z: 0.0
+  - x: 90.0
+    y: 9.0
+    z: 0.0
+  - x: 90.0
+    y: 6.0
+    z: 0.0
+  - x: 90.0
+    y: 0.0
+    z: 0.0
+  - x: 84.0
+    y: 0.0
+    z: 0.0
+  - x: 78.0
+    y: 0.0
+    z: 0.0
+  - x: 72.0
+    y: 0.0
+    z: 0.0
+  - x: 72.0
+    y: 6.0
+    z: 0.0
+  - x: 72.0
+    y: 9.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_B3_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 73.2
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B3_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 73.2
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B3_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 80.2
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B3_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 80.2
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B3_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 81.8
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B3_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 81.8
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B3_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 88.8
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B3_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 88.8
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_6
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 78.0
+    y: 42.0
+    z: 0.0
+  - x: 84.0
+    y: 42.0
+    z: 0.0
+  - x: 90.0
+    y: 42.0
+    z: 0.0
+  - x: 90.0
+    y: 36.0
+    z: 0.0
+  - x: 90.0
+    y: 33.0
+    z: 0.0
+  - x: 90.0
+    y: 30.0
+    z: 0.0
+  - x: 90.0
+    y: 27.0
+    z: 0.0
+  - x: 90.0
+    y: 24.0
+    z: 0.0
+  - x: 88.0
+    y: 24.0
+    z: 0.0
+  - x: 86.0
+    y: 24.0
+    z: 0.0
+  - x: 84.0
+    y: 24.0
+    z: 0.0
+  - x: 82.0
+    y: 24.0
+    z: 0.0
+  - x: 80.0
+    y: 24.0
+    z: 0.0
+  - x: 78.0
+    y: 24.0
+    z: 0.0
+  - x: 76.0
+    y: 24.0
+    z: 0.0
+  - x: 74.0
+    y: 24.0
+    z: 0.0
+  - x: 72.0
+    y: 24.0
+    z: 0.0
+  - x: 72.0
+    y: 27.0
+    z: 0.0
+  - x: 72.0
+    y: 30.0
+    z: 0.0
+  - x: 72.0
+    y: 33.0
+    z: 0.0
+  - x: 72.0
+    y: 36.0
+    z: 0.0
+  - x: 72.0
+    y: 42.0
+    z: 0.0
+  - x: 78.0
+    y: 42.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_T3_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 73.2
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T3_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 73.2
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T3_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 80.2
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T3_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 80.2
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T3_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 81.8
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T3_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 81.8
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T3_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 88.8
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T3_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 88.8
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_7
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 102.0
+    y: 0.0
+    z: 0.0
+  - x: 96.0
+    y: 0.0
+    z: 0.0
+  - x: 96.0
+    y: 6.0
+    z: 0.0
+  - x: 96.0
+    y: 9.0
+    z: 0.0
+  - x: 96.0
+    y: 12.0
+    z: 0.0
+  - x: 96.0
+    y: 15.0
+    z: 0.0
+  - x: 96.0
+    y: 18.0
+    z: 0.0
+  - x: 98.0
+    y: 18.0
+    z: 0.0
+  - x: 100.0
+    y: 18.0
+    z: 0.0
+  - x: 102.0
+    y: 18.0
+    z: 0.0
+  - x: 105.0
+    y: 18.0
+    z: 0.0
+  - x: 108.0
+    y: 18.0
+    z: 0.0
+  - x: 110.0
+    y: 18.0
+    z: 0.0
+  - x: 112.0
+    y: 18.0
+    z: 0.0
+  - x: 114.0
+    y: 18.0
+    z: 0.0
+  - x: 114.0
+    y: 15.0
+    z: 0.0
+  - x: 114.0
+    y: 12.0
+    z: 0.0
+  - x: 114.0
+    y: 9.0
+    z: 0.0
+  - x: 114.0
+    y: 6.0
+    z: 0.0
+  - x: 114.0
+    y: 0.0
+    z: 0.0
+  - x: 108.0
+    y: 0.0
+    z: 0.0
+  - x: 102.0
+    y: 0.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_B4_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 97.2
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B4_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 97.2
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B4_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 104.2
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B4_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 104.2
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B4_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 105.8
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B4_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 105.8
+          y: 4.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B4_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 112.8
+          y: 13.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_B4_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 112.8
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: picking_bay_8
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 96.0
+    y: 42.0
+    z: 0.0
+  - x: 102.0
+    y: 42.0
+    z: 0.0
+  - x: 108.0
+    y: 42.0
+    z: 0.0
+  - x: 114.0
+    y: 42.0
+    z: 0.0
+  - x: 114.0
+    y: 36.0
+    z: 0.0
+  - x: 114.0
+    y: 33.0
+    z: 0.0
+  - x: 114.0
+    y: 30.0
+    z: 0.0
+  - x: 114.0
+    y: 27.0
+    z: 0.0
+  - x: 114.0
+    y: 24.0
+    z: 0.0
+  - x: 112.0
+    y: 24.0
+    z: 0.0
+  - x: 110.0
+    y: 24.0
+    z: 0.0
+  - x: 108.0
+    y: 24.0
+    z: 0.0
+  - x: 105.0
+    y: 24.0
+    z: 0.0
+  - x: 102.0
+    y: 24.0
+    z: 0.0
+  - x: 100.0
+    y: 24.0
+    z: 0.0
+  - x: 98.0
+    y: 24.0
+    z: 0.0
+  - x: 96.0
+    y: 24.0
+    z: 0.0
+  - x: 96.0
+    y: 27.0
+    z: 0.0
+  - x: 96.0
+    y: 30.0
+    z: 0.0
+  - x: 96.0
+    y: 33.0
+    z: 0.0
+  - x: 96.0
+    y: 36.0
+    z: 0.0
+  - x: 96.0
+    y: 42.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: bay_T4_rack_west_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 97.2
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T4_rack_west_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 97.2
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T4_rack_center_left_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 104.2
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T4_rack_center_left_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 104.2
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T4_rack_center_right_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 105.8
+          y: 38.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T4_rack_center_right_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 105.8
+          y: 28.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T4_rack_east_N
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 112.8
+          y: 37.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: bay_T4_rack_east_S
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 112.8
+          y: 28.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: central_collection_hub
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 0.0
+    y: 24.0
+    z: 0.0
+  - x: 0.0
+    y: 30.0
+    z: 0.0
+  - x: 0.0
+    y: 36.0
+    z: 0.0
+  - x: 0.0
+    y: 42.0
+    z: 0.0
+  - x: 6.0
+    y: 42.0
+    z: 0.0
+  - x: 12.0
+    y: 42.0
+    z: 0.0
+  - x: 18.0
+    y: 42.0
+    z: 0.0
+  - x: 18.0
+    y: 36.0
+    z: 0.0
+  - x: 18.0
+    y: 30.0
+    z: 0.0
+  - x: 18.0
+    y: 27.0
+    z: 0.0
+  - x: 18.0
+    y: 24.0
+    z: 0.0
+  - x: 18.0
+    y: 23.0
+    z: 0.0
+  - x: 18.0
+    y: 19.0
+    z: 0.0
+  - x: 18.0
+    y: 18.0
+    z: 0.0
+  - x: 12.0
+    y: 18.0
+    z: 0.0
+  - x: 12.0
+    y: 12.0
+    z: 0.0
+  - x: 18.0
+    y: 12.0
+    z: 0.0
+  - x: 18.0
+    y: 9.0
+    z: 0.0
+  - x: 18.0
+    y: 6.0
+    z: 0.0
+  - x: 18.0
+    y: 0.0
+    z: 0.0
+  - x: 12.0
+    y: 0.0
+    z: 0.0
+  - x: 6.0
+    y: 0.0
+    z: 0.0
+  - x: 0.0
+    y: 0.0
+    z: 0.0
+  - x: 0.0
+    y: 6.0
+    z: 0.0
+  - x: 0.0
+    y: 12.0
+    z: 0.0
+  - x: 0.0
+    y: 18.0
+    z: 0.0
+  - x: 0.0
+    y: 24.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static:
+    - name: hub_sort_table_1
+      model: Office/Stand_Table_Work
+      pose:
+        position:
+          x: 9.0
+          y: 21.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: hub_sort_table_2
+      model: Office/Stand_Table_Work
+      pose:
+        position:
+          x: 9.0
+          y: 27.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: hub_pallet_stack_north
+      model: Warehouse/Pallet
+      pose:
+        position:
+          x: 3.0
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: hub_pallet_stack_south
+      model: Warehouse/Pallet
+      pose:
+        position:
+          x: 3.0
+          y: 6.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+- name: corridor_6
+  description: ''
+  material:
+  - Common/Material/Porcelain_Tile_4
+  - {}
+  corners:
+  - x: 19.0
+    y: 23.0
+    z: 0.0
+  - x: 21.0
+    y: 23.0
+    z: 0.0
+  - x: 23.0
+    y: 23.0
+    z: 0.0
+  - x: 24.0
+    y: 23.0
+    z: 0.0
+  - x: 26.0
+    y: 23.0
+    z: 0.0
+  - x: 26.0
+    y: 24.0
+    z: 0.0
+  - x: 28.0
+    y: 24.0
+    z: 0.0
+  - x: 28.0
+    y: 23.0
+    z: 0.0
+  - x: 30.0
+    y: 23.0
+    z: 0.0
+  - x: 31.0
+    y: 23.0
+    z: 0.0
+  - x: 33.0
+    y: 23.0
+    z: 0.0
+  - x: 35.0
+    y: 23.0
+    z: 0.0
+  - x: 36.0
+    y: 23.0
+    z: 0.0
+  - x: 38.0
+    y: 23.0
+    z: 0.0
+  - x: 38.0
+    y: 24.0
+    z: 0.0
+  - x: 40.0
+    y: 24.0
+    z: 0.0
+  - x: 40.0
+    y: 23.0
+    z: 0.0
+  - x: 42.0
+    y: 23.0
+    z: 0.0
+  - x: 43.0
+    y: 23.0
+    z: 0.0
+  - x: 45.0
+    y: 23.0
+    z: 0.0
+  - x: 47.0
+    y: 23.0
+    z: 0.0
+  - x: 48.0
+    y: 23.0
+    z: 0.0
+  - x: 50.0
+    y: 23.0
+    z: 0.0
+  - x: 50.0
+    y: 24.0
+    z: 0.0
+  - x: 52.0
+    y: 24.0
+    z: 0.0
+  - x: 52.0
+    y: 23.0
+    z: 0.0
+  - x: 54.0
+    y: 23.0
+    z: 0.0
+  - x: 55.0
+    y: 23.0
+    z: 0.0
+  - x: 57.0
+    y: 23.0
+    z: 0.0
+  - x: 59.0
+    y: 23.0
+    z: 0.0
+  - x: 60.0
+    y: 23.0
+    z: 0.0
+  - x: 62.0
+    y: 23.0
+    z: 0.0
+  - x: 62.0
+    y: 24.0
+    z: 0.0
+  - x: 64.0
+    y: 24.0
+    z: 0.0
+  - x: 64.0
+    y: 23.0
+    z: 0.0
+  - x: 66.0
+    y: 23.0
+    z: 0.0
+  - x: 67.0
+    y: 23.0
+    z: 0.0
+  - x: 69.0
+    y: 23.0
+    z: 0.0
+  - x: 71.0
+    y: 23.0
+    z: 0.0
+  - x: 72.0
+    y: 23.0
+    z: 0.0
+  - x: 74.0
+    y: 23.0
+    z: 0.0
+  - x: 74.0
+    y: 24.0
+    z: 0.0
+  - x: 76.0
+    y: 24.0
+    z: 0.0
+  - x: 76.0
+    y: 23.0
+    z: 0.0
+  - x: 78.0
+    y: 23.0
+    z: 0.0
+  - x: 80.0
+    y: 23.0
+    z: 0.0
+  - x: 80.0
+    y: 24.0
+    z: 0.0
+  - x: 82.0
+    y: 24.0
+    z: 0.0
+  - x: 82.0
+    y: 23.0
+    z: 0.0
+  - x: 84.0
+    y: 23.0
+    z: 0.0
+  - x: 86.0
+    y: 23.0
+    z: 0.0
+  - x: 86.0
+    y: 24.0
+    z: 0.0
+  - x: 88.0
+    y: 24.0
+    z: 0.0
+  - x: 88.0
+    y: 23.0
+    z: 0.0
+  - x: 90.0
+    y: 23.0
+    z: 0.0
+  - x: 91.0
+    y: 23.0
+    z: 0.0
+  - x: 93.0
+    y: 23.0
+    z: 0.0
+  - x: 95.0
+    y: 23.0
+    z: 0.0
+  - x: 96.0
+    y: 23.0
+    z: 0.0
+  - x: 98.0
+    y: 23.0
+    z: 0.0
+  - x: 98.0
+    y: 24.0
+    z: 0.0
+  - x: 100.0
+    y: 24.0
+    z: 0.0
+  - x: 100.0
+    y: 23.0
+    z: 0.0
+  - x: 102.0
+    y: 23.0
+    z: 0.0
+  - x: 103.0
+    y: 23.0
+    z: 0.0
+  - x: 105.0
+    y: 23.0
+    z: 0.0
+  - x: 107.0
+    y: 23.0
+    z: 0.0
+  - x: 108.0
+    y: 23.0
+    z: 0.0
+  - x: 110.0
+    y: 23.0
+    z: 0.0
+  - x: 110.0
+    y: 24.0
+    z: 0.0
+  - x: 112.0
+    y: 24.0
+    z: 0.0
+  - x: 112.0
+    y: 23.0
+    z: 0.0
+  - x: 112.0
+    y: 21.0
+    z: 0.0
+  - x: 112.0
+    y: 19.0
+    z: 0.0
+  - x: 112.0
+    y: 18.0
+    z: 0.0
+  - x: 110.0
+    y: 18.0
+    z: 0.0
+  - x: 110.0
+    y: 19.0
+    z: 0.0
+  - x: 108.0
+    y: 19.0
+    z: 0.0
+  - x: 107.0
+    y: 19.0
+    z: 0.0
+  - x: 105.0
+    y: 19.0
+    z: 0.0
+  - x: 103.0
+    y: 19.0
+    z: 0.0
+  - x: 102.0
+    y: 19.0
+    z: 0.0
+  - x: 100.0
+    y: 19.0
+    z: 0.0
+  - x: 100.0
+    y: 18.0
+    z: 0.0
+  - x: 98.0
+    y: 18.0
+    z: 0.0
+  - x: 98.0
+    y: 19.0
+    z: 0.0
+  - x: 96.0
+    y: 19.0
+    z: 0.0
+  - x: 95.0
+    y: 19.0
+    z: 0.0
+  - x: 93.0
+    y: 19.0
+    z: 0.0
+  - x: 91.0
+    y: 19.0
+    z: 0.0
+  - x: 90.0
+    y: 19.0
+    z: 0.0
+  - x: 88.0
+    y: 19.0
+    z: 0.0
+  - x: 88.0
+    y: 18.0
+    z: 0.0
+  - x: 86.0
+    y: 18.0
+    z: 0.0
+  - x: 86.0
+    y: 19.0
+    z: 0.0
+  - x: 84.0
+    y: 19.0
+    z: 0.0
+  - x: 82.0
+    y: 19.0
+    z: 0.0
+  - x: 82.0
+    y: 18.0
+    z: 0.0
+  - x: 80.0
+    y: 18.0
+    z: 0.0
+  - x: 80.0
+    y: 19.0
+    z: 0.0
+  - x: 78.0
+    y: 19.0
+    z: 0.0
+  - x: 76.0
+    y: 19.0
+    z: 0.0
+  - x: 76.0
+    y: 18.0
+    z: 0.0
+  - x: 74.0
+    y: 18.0
+    z: 0.0
+  - x: 74.0
+    y: 19.0
+    z: 0.0
+  - x: 72.0
+    y: 19.0
+    z: 0.0
+  - x: 71.0
+    y: 19.0
+    z: 0.0
+  - x: 69.0
+    y: 19.0
+    z: 0.0
+  - x: 67.0
+    y: 19.0
+    z: 0.0
+  - x: 66.0
+    y: 19.0
+    z: 0.0
+  - x: 64.0
+    y: 19.0
+    z: 0.0
+  - x: 64.0
+    y: 18.0
+    z: 0.0
+  - x: 62.0
+    y: 18.0
+    z: 0.0
+  - x: 62.0
+    y: 19.0
+    z: 0.0
+  - x: 60.0
+    y: 19.0
+    z: 0.0
+  - x: 59.0
+    y: 19.0
+    z: 0.0
+  - x: 57.0
+    y: 19.0
+    z: 0.0
+  - x: 55.0
+    y: 19.0
+    z: 0.0
+  - x: 54.0
+    y: 19.0
+    z: 0.0
+  - x: 52.0
+    y: 19.0
+    z: 0.0
+  - x: 52.0
+    y: 18.0
+    z: 0.0
+  - x: 50.0
+    y: 18.0
+    z: 0.0
+  - x: 50.0
+    y: 19.0
+    z: 0.0
+  - x: 48.0
+    y: 19.0
+    z: 0.0
+  - x: 47.0
+    y: 19.0
+    z: 0.0
+  - x: 45.0
+    y: 19.0
+    z: 0.0
+  - x: 43.0
+    y: 19.0
+    z: 0.0
+  - x: 42.0
+    y: 19.0
+    z: 0.0
+  - x: 40.0
+    y: 19.0
+    z: 0.0
+  - x: 40.0
+    y: 18.0
+    z: 0.0
+  - x: 38.0
+    y: 18.0
+    z: 0.0
+  - x: 38.0
+    y: 19.0
+    z: 0.0
+  - x: 36.0
+    y: 19.0
+    z: 0.0
+  - x: 35.0
+    y: 19.0
+    z: 0.0
+  - x: 33.0
+    y: 19.0
+    z: 0.0
+  - x: 31.0
+    y: 19.0
+    z: 0.0
+  - x: 30.0
+    y: 19.0
+    z: 0.0
+  - x: 28.0
+    y: 19.0
+    z: 0.0
+  - x: 28.0
+    y: 18.0
+    z: 0.0
+  - x: 26.0
+    y: 18.0
+    z: 0.0
+  - x: 26.0
+    y: 19.0
+    z: 0.0
+  - x: 24.0
+    y: 19.0
+    z: 0.0
+  - x: 23.0
+    y: 19.0
+    z: 0.0
+  - x: 21.0
+    y: 19.0
+    z: 0.0
+  - x: 19.0
+    y: 19.0
+    z: 0.0
+  - x: 18.0
+    y: 19.0
+    z: 0.0
+  - x: 18.0
+    y: 23.0
+    z: 0.0
+  - x: 19.0
+    y: 23.0
+    z: 0.0
+  walls: []
+  doors: []
+  elevators: []
+  schedules: []
+  signals: []
+  sounds: []
+  entities:
+    static: []
+    dynamic: []
+  ceiling: false
+  ceiling_height: null
+  ceiling_cast_shadows: false
+  ceiling_material:
+  - Common/Material/Concrete_Smooth
+  - {}
+  wall_material:
+  - Common/Material/Marble
+  - {}
+  semantics: []
+microphones: []

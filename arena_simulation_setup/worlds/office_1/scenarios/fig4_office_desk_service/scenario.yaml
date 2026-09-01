@@ -1,0 +1,83 @@
+robots:
+- start:
+  - 5.0
+  - 12.0
+  - 0.0
+  phases:
+  - goto:
+    - 24.0
+    - 18.0
+    - 1.5708
+  - goto:
+    - 30.0
+    - 18.0
+    - 0.0
+  - goto:
+    - 36.0
+    - 22.0
+    - 1.5708
+  - goto:
+    - 42.0
+    - 22.0
+    - 0.0
+  - goto:
+    - 48.0
+    - 12.0
+    - -1.5708
+dynamic:
+- name: coworker_aisle_patrol
+  model: arenian
+  pose:
+  - 20.0
+  - 16.0
+  - 0.0
+  velocity: 0.65
+  waypoints:
+  - - 46.0
+    - 16.0
+    - 0.0
+  - - 20.0
+    - 16.0
+    - 3.1415
+- name: hallway_walker
+  model: arenian
+  pose:
+  - 28.0
+  - 5.0
+  - 1.5708
+  velocity: 0.75
+  waypoints:
+  - - 28.0
+    - 22.0
+    - 1.5708
+  - - 28.0
+    - 5.0
+    - -1.5708
+static:
+- name: worker_desk_A
+  model: arenian
+  pose:
+  - 24.0
+  - 18.0
+  - 0.0
+- name: worker_desk_B
+  model: arenian
+  pose:
+  - 30.0
+  - 18.0
+  - 0.0
+- name: worker_desk_C
+  model: arenian
+  pose:
+  - 36.0
+  - 22.0
+  - 0.0
+- name: worker_desk_D
+  model: arenian
+  pose:
+  - 42.0
+  - 22.0
+  - 0.0
+regions: {}
+timeline: []
+conditions: []

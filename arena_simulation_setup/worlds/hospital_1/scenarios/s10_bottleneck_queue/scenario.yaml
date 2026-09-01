@@ -1,0 +1,40 @@
+robots:
+- start:
+  - 10.5
+  - 24.0
+  - 1.5708
+  phases:
+  - goto:
+    - 4.0
+    - 27.65
+    - 3.1416
+dynamic:
+- name: ped_in_door
+  model: arenian
+  pose:
+  - 8.0
+  - 27.65
+  - 3.1416
+  velocity: 0.3
+  waypoints:
+  - - 4.0
+    - 27.65
+    - 3.1416
+- name: ped_waiting
+  model: arenian
+  pose:
+  - 9.2
+  - 27.65
+  - 3.1416
+  velocity: 0.3
+  waypoints:
+  - - 8.0
+    - 27.65
+    - 3.1416
+  - - 4.0
+    - 27.65
+    - 3.1416
+static: []
+regions: {}
+timeline: []
+conditions: []

@@ -1,0 +1,63 @@
+robots:
+- name: jackal
+  start: [5.0, 5.0, 1.5708]
+  phases:
+  - goto: [8.0, 12.0, 0.0]
+  - goto: [26.0, 12.0, 0.0]
+  - goto: [26.0, 16.0, 1.5708]
+  - goto: [35.0, 20.0, 0.0]
+dynamic:
+- name: ped_hallway_walker
+  model: arenian
+  pose: [45.0, 12.0, 3.1415]
+  velocity: 0.65
+  waypoints:
+  - [8.0, 12.0, 3.1415]
+  - [45.0, 12.0, 0.0]
+- name: ped_office_colleague
+  model: arenian
+  pose: [24.0, 16.0, 0.0]
+  velocity: 0.50
+  waypoints:
+  - [40.0, 16.0, 0.0]
+  - [24.0, 16.0, 3.1415]
+static:
+- name: mic_worker_desk_A
+  model: arenian
+  pose: [24.0, 18.0, 0.0]
+- name: mic_worker_desk_B
+  model: arenian
+  pose: [30.0, 18.0, 0.0]
+- name: mic_worker_desk_C
+  model: arenian
+  pose: [36.0, 22.0, 0.0]
+- name: mic_worker_desk_D
+  model: arenian
+  pose: [42.0, 22.0, 0.0]
+regions:
+  reception:
+    type: polygon
+    corners:
+    - [0.0, 0.0]
+    - [16.0, 0.0]
+    - [16.0, 10.0]
+    - [0.0, 10.0]
+    max_velocity: 0.60
+  main_hallway:
+    type: polygon
+    corners:
+    - [0.0, 10.0]
+    - [60.0, 10.0]
+    - [60.0, 14.0]
+    - [0.0, 14.0]
+    max_velocity: 1.00
+  main_office:
+    type: polygon
+    corners:
+    - [18.0, 14.0]
+    - [48.0, 14.0]
+    - [48.0, 26.0]
+    - [18.0, 26.0]
+    max_velocity: 0.35
+timeline: []
+conditions: []

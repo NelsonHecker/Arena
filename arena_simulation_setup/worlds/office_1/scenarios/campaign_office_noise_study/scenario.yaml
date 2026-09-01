@@ -1,0 +1,43 @@
+robots:
+- start:
+  - 5.0
+  - 12.0
+  - 0.0
+  phases:
+  - goto:
+    - 55.0
+    - 12.0
+    - 0.0
+dynamic:
+- name: ped_worker_oncoming
+  model: arenian
+  pose:
+  - 45.0
+  - 12.0
+  - 3.1415
+  velocity: 0.45
+  waypoints:
+  - - 5.0
+    - 12.0
+    - 3.1415
+  - - 45.0
+    - 12.0
+    - 0.0
+- name: ped_cafeteria_cross
+  model: arenian
+  pose:
+  - 30.0
+  - 4.0
+  - 1.5708
+  velocity: 0.40
+  waypoints:
+  - - 30.0
+    - 20.0
+    - 1.5708
+  - - 30.0
+    - 4.0
+    - -1.5708
+static: []
+regions: {}
+timeline: []
+conditions: []

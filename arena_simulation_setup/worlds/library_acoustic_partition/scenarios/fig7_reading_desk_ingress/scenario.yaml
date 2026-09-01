@@ -1,0 +1,41 @@
+robots:
+- name: jackal
+  start: [32.5, 25.5, -1.5708]
+  phases:
+  - goto: [32.5, 19.5, -1.5708]
+  - goto: [17.0, 19.5, 3.1416]
+  - goto: [14.5, 19.5, 3.1416]
+  - goto: [8.0, 14.0, -1.5708]
+dynamic:
+- name: reader_cross_aisle
+  model: arenian
+  pose: [44.0, 19.5, 3.1415]
+  velocity: 0.50
+  waypoints:
+  - [18.0, 19.5, 3.1415]
+  - [44.0, 19.5, 0.0]
+- name: student_hallway_walker
+  model: arenian
+  pose: [8.0, 8.0, 1.5708]
+  velocity: 0.45
+  waypoints:
+  - [8.0, 26.0, 1.5708]
+  - [8.0, 8.0, -1.5708]
+- name: mic_reading_hall
+  model: arenian
+  pose: [8.0, 14.0, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [8.0, 14.0, 0.0]
+static: []
+regions:
+  west_reading_hall:
+    type: polygon
+    corners:
+    - [0.0, 0.0]
+    - [16.0, 0.0]
+    - [16.0, 34.0]
+    - [0.0, 34.0]
+    max_velocity: 0.35
+timeline: []
+conditions: []

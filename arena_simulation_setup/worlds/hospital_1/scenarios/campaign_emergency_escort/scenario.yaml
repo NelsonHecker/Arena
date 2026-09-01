@@ -1,0 +1,57 @@
+robots:
+- start:
+  - 10.0
+  - 30.0
+  - -1.5708
+  phases:
+  - goto:
+    - 10.0
+    - 2.0
+    - -1.5708
+dynamic:
+- name: ped_escort_leader
+  model: arenian
+  pose:
+  - 10.0
+  - 5.0
+  - 1.5708
+  velocity: 0.35
+  waypoints:
+  - - 10.0
+    - 30.0
+    - 1.5708
+  - - 10.0
+    - 5.0
+    - -1.5708
+- name: ped_escort_staff_l
+  model: arenian
+  pose:
+  - 9.2
+  - 4.0
+  - 1.5708
+  velocity: 0.35
+  waypoints:
+  - - 9.2
+    - 29.0
+    - 1.5708
+  - - 9.2
+    - 4.0
+    - -1.5708
+- name: ped_escort_staff_r
+  model: arenian
+  pose:
+  - 10.8
+  - 4.0
+  - 1.5708
+  velocity: 0.35
+  waypoints:
+  - - 10.8
+    - 29.0
+    - 1.5708
+  - - 10.8
+    - 4.0
+    - -1.5708
+static: []
+regions: {}
+timeline: []
+conditions: []

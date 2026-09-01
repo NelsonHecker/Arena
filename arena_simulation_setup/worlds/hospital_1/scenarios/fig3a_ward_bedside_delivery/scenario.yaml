@@ -1,0 +1,60 @@
+robots:
+- start:
+  - 4.0
+  - 2.5
+  - 0.0
+  phases:
+  - goto:
+    - 10.0
+    - 14.1
+    - 1.5708
+  - goto:
+    - 4.0
+    - 17.6
+    - 1.5708
+dynamic:
+- name: nurse_staff_cross
+  model: arenian
+  pose:
+  - 15.0
+  - 5.0
+  - 1.5708
+  velocity: 0.6
+  waypoints:
+  - - 15.0
+    - 11.5
+    - 1.5708
+  - - 10.0
+    - 11.5
+    - 3.1415
+  - - 10.0
+    - 2.0
+    - -1.5708
+  - - 10.0
+    - 11.5
+    - 1.5708
+  - - 15.0
+    - 5.0
+    - -1.5708
+static:
+- name: patient_bed_mic
+  model: arenian
+  pose:
+  - 4.0
+  - 17.6
+  - 0.0
+regions:
+  quiet_patient_ward:
+    type: polygon
+    corners:
+    - - 0.0
+      - 10.1
+    - - 8.0
+      - 10.1
+    - - 8.0
+      - 25.1
+    - - 0.0
+      - 25.1
+    max_velocity: 0.4
+timeline: []
+conditions: []
