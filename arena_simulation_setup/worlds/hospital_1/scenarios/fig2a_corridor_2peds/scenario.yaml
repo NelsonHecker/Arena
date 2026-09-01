@@ -1,0 +1,43 @@
+robots:
+- start:
+  - 21.5
+  - 5.0
+  - 1.5708
+  phases:
+  - goto:
+    - 15.0
+    - 32.2
+    - 0.0
+dynamic:
+- name: nurse_hallway_patrol
+  model: arenian
+  pose:
+  - 10.4
+  - 26.0
+  - -1.5708
+  velocity: 0.6
+  waypoints:
+  - - 10.4
+    - 3.0
+    - -1.5708
+  - - 10.4
+    - 26.0
+    - 1.5708
+- name: cross_junction_staff
+  model: arenian
+  pose:
+  - 3.5
+  - 14.1
+  - 0.0
+  velocity: 0.45
+  waypoints:
+  - - 16.5
+    - 14.1
+    - 0.0
+  - - 3.5
+    - 14.1
+    - 3.1415
+static: []
+regions: {}
+timeline: []
+conditions: []

@@ -1,0 +1,498 @@
+zones:
+- name: warehouse_floor
+  description: Continuous Single-Piece Open Warehouse Logistics Floor
+  corners:
+  - x: 0.0
+    y: 0.0
+    z: 0.0
+  - x: 75.0
+    y: 0.0
+    z: 0.0
+  - x: 75.0
+    y: 45.0
+    z: 0.0
+  - x: 0.0
+    y: 45.0
+    z: 0.0
+  material:
+  - Porcelain_Tile_4
+  - {}
+  walls:
+  - start:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 75.0
+      y: 0.0
+      z: 0.0
+  - start:
+      x: 75.0
+      y: 0.0
+      z: 0.0
+    end:
+      x: 75.0
+      y: 45.0
+      z: 0.0
+  - start:
+      x: 75.0
+      y: 45.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 45.0
+      z: 0.0
+  - start:
+      x: 0.0
+      y: 45.0
+      z: 0.0
+    end:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+  entities:
+    static:
+    - name: rack_row_1_bot_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 9.4
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_1_bot_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 10.6
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_1_top_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 9.4
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_1_top_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 10.6
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_2_bot_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 18.4
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_2_bot_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 19.6
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_2_top_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 18.4
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_2_top_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 19.6
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_3_bot_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 27.4
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_3_bot_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 28.6
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_3_top_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 27.4
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_3_top_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 28.6
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_4_bot_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 36.4
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_4_bot_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 37.6
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_4_top_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 36.4
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_4_top_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 37.6
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_5_bot_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 45.4
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_5_bot_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 46.6
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_5_top_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 45.4
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_5_top_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 46.6
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_6_bot_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 54.4
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_6_bot_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 55.6
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_6_top_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 54.4
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_6_top_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 55.6
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_7_bot_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 63.4
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_7_bot_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 64.6
+          y: 20.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_7_top_left
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 63.4
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: rack_row_7_top_right
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 64.6
+          y: 36.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: packing_station_15
+      model: Office/Stand_Table_Work
+      pose:
+        position:
+          x: 15.0
+          y: 5.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: packing_station_30
+      model: Office/Stand_Table_Work
+      pose:
+        position:
+          x: 30.0
+          y: 5.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: packing_station_45
+      model: Office/Stand_Table_Work
+      pose:
+        position:
+          x: 45.0
+          y: 5.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: packing_station_60
+      model: Office/Stand_Table_Work
+      pose:
+        position:
+          x: 60.0
+          y: 5.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pallet_staging_6
+      model: Warehouse/Pallet
+      pose:
+        position:
+          x: 6.0
+          y: 2.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pallet_staging_22
+      model: Warehouse/Pallet
+      pose:
+        position:
+          x: 22.0
+          y: 2.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pallet_staging_38
+      model: Warehouse/Pallet
+      pose:
+        position:
+          x: 38.0
+          y: 2.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pallet_staging_52
+      model: Warehouse/Pallet
+      pose:
+        position:
+          x: 52.0
+          y: 2.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pallet_staging_68
+      model: Warehouse/Pallet
+      pose:
+        position:
+          x: 68.0
+          y: 2.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0

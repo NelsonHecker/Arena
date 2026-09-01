@@ -1,0 +1,80 @@
+robots:
+- start:
+  - 10.0
+  - 1.0
+  - 1.5708
+  phases:
+  - goto:
+    - 10.0
+    - 32.0
+    - 1.5708
+dynamic:
+- name: vis_reception
+  model: arenian
+  pose:
+  - 4.0
+  - 2.5
+  - 0.0
+  velocity: 0.4
+  waypoints:
+  - - 8.0
+    - 2.5
+    - 0.0
+  - - 10.5
+    - 2.5
+    - 1.5708
+  - - 10.5
+    - 32.0
+    - 1.5708
+- name: vis_exam
+  model: arenian
+  pose:
+  - 4.0
+  - 7.55
+  - 0.0
+  velocity: 0.35
+  waypoints:
+  - - 8.0
+    - 7.55
+    - 0.0
+  - - 9.5
+    - 7.55
+    - -1.5708
+  - - 9.5
+    - 0.5
+    - -1.5708
+- name: vis_sub
+  model: arenian
+  pose:
+  - 16.0
+  - 11.5
+  - 3.1416
+  velocity: 0.4
+  waypoints:
+  - - 10.5
+    - 11.5
+    - 3.1416
+  - - 10.5
+    - 0.5
+    - -1.5708
+- name: vis_ward
+  model: arenian
+  pose:
+  - 4.0
+  - 21.1
+  - 0.0
+  velocity: 0.35
+  waypoints:
+  - - 8.0
+    - 21.1
+    - 0.0
+  - - 9.5
+    - 21.1
+    - 1.5708
+  - - 9.5
+    - 32.0
+    - 1.5708
+static: []
+regions: {}
+timeline: []
+conditions: []

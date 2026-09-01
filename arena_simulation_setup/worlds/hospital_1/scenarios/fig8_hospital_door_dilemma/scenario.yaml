@@ -1,0 +1,34 @@
+robots:
+- name: jackal
+  start: [10.0, 5.0, 1.5708]
+  phases:
+  - goto: [10.0, 13.0, 1.5708]
+  - goto: [10.0, 21.1, 1.5708]
+  - goto: [7.0, 21.1, 3.1416]
+  - goto: [4.0, 21.1, 3.1416]
+dynamic:
+- name: ped_nurse_corridor
+  model: arenian
+  pose: [10.0, 25.0, -1.5708]
+  velocity: 0.55
+  waypoints:
+  - [10.0, 4.0, -1.5708]
+  - [10.0, 25.0, 1.5708]
+static:
+- name: mic_patient_bed_1
+  model: arenian
+  pose: [4.0, 14.1, 0.0]
+- name: mic_patient_bed_2
+  model: arenian
+  pose: [4.0, 21.1, 0.0]
+regions:
+  patient_ward:
+    type: polygon
+    corners:
+    - [0.0, 10.1]
+    - [8.0, 10.1]
+    - [8.0, 25.1]
+    - [0.0, 25.1]
+    max_velocity: 0.35
+timeline: []
+conditions: []

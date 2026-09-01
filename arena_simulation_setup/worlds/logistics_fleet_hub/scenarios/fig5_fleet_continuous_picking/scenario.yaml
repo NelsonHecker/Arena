@@ -1,0 +1,102 @@
+robots:
+- name: agv_alpha
+  start:
+  - 6.0
+  - 22.0
+  - 0.0
+  phases:
+  - goto:
+    - 48.0
+    - 24.0
+    - 0.0
+  - goto:
+    - 6.0
+    - 22.0
+    - 3.1415
+- name: agv_beta
+  start:
+  - 6.0
+  - 8.0
+  - 0.0
+  phases:
+  - goto:
+    - 84.0
+    - 6.0
+    - 0.0
+  - goto:
+    - 6.0
+    - 8.0
+    - 3.1415
+- name: agv_gamma
+  start:
+  - 12.0
+  - 15.0
+  - 0.0
+  phases:
+  - goto:
+    - 102.0
+    - 24.0
+    - 0.0
+  - goto:
+    - 12.0
+    - 15.0
+    - 3.1415
+- name: agv_delta
+  start:
+  - 12.0
+  - 24.0
+  - 0.0
+  phases:
+  - goto:
+    - 48.0
+    - 6.0
+    - 0.0
+  - goto:
+    - 12.0
+    - 24.0
+    - 3.1415
+dynamic:
+- name: forklift_aisle_1
+  model: arenian
+  pose:
+  - 40.0
+  - 15.0
+  - 0.0
+  velocity: 0.7
+  waypoints:
+  - - 85.0
+    - 15.0
+    - 0.0
+  - - 40.0
+    - 15.0
+    - 3.1415
+- name: hub_sorter
+  model: arenian
+  pose:
+  - 8.0
+  - 10.0
+  - 1.5708
+  velocity: 0.5
+  waypoints:
+  - - 8.0
+    - 25.0
+    - 1.5708
+  - - 8.0
+    - 10.0
+    - -1.5708
+static: []
+regions:
+  central_collection_hub:
+    type: polygon
+    corners:
+    - - 0.0
+      - 0.0
+    - - 18.0
+      - 0.0
+    - - 18.0
+      - 30.0
+    - - 0.0
+      - 30.0
+    max_velocity: 0.8
+timeline: []
+conditions: []

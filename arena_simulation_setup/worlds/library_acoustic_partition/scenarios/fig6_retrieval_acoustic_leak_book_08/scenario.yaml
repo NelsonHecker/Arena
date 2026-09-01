@@ -1,0 +1,83 @@
+robots:
+- name: jackal
+  start:
+  - 22.0
+  - 4.5
+  - -1.5708
+  phases:
+  - goto:
+    - 33.85
+    - 14.0
+    - 0.0
+  - goto:
+    - 22.0
+    - 4.5
+    - -1.5708
+dynamic:
+- name: ped_cross_corridor
+  model: arenian
+  pose:
+  - 44.0
+  - 19.5
+  - 3.1416
+  velocity: 0.55
+  waypoints:
+  - - 20.0
+    - 19.5
+    - 3.1416
+  - - 44.0
+    - 19.5
+    - 0.0
+- name: ped_aisle_patrol
+  model: arenian
+  pose:
+  - 27.5
+  - 9.5
+  - 1.5708
+  velocity: 0.45
+  waypoints:
+  - - 27.5
+    - 31.5
+    - 1.5708
+  - - 27.5
+    - 9.5
+    - -1.5708
+- name: ped_reading_hall_mic
+  model: arenian
+  pose:
+  - 8.0
+  - 14.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 8.0
+    - 14.0
+    - 0.0
+static: []
+regions:
+  west_reading_hall:
+    type: polygon
+    corners:
+    - - 0.0
+      - 0.0
+    - - 16.0
+      - 0.0
+    - - 16.0
+      - 30.0
+    - - 0.0
+      - 30.0
+    max_velocity: 0.35
+  front_circulation_lobby:
+    type: polygon
+    corners:
+    - - 16.0
+      - 0.0
+    - - 48.0
+      - 0.0
+    - - 48.0
+      - 9.0
+    - - 16.0
+      - 9.0
+    max_velocity: 0.8
+timeline: []
+conditions: []

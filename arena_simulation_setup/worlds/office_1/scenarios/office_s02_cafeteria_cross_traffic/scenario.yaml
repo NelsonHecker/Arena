@@ -1,0 +1,43 @@
+robots:
+- start:
+  - 5.0
+  - 12.0
+  - 0.0
+  phases:
+  - goto:
+    - 30.0
+    - 12.0
+    - 0.0
+dynamic:
+- name: cafeteria_crossing_1
+  model: arenian
+  pose:
+  - 6.0
+  - 4.0
+  - 1.5708
+  velocity: 0.35
+  waypoints:
+  - - 6.0
+    - 10.0
+    - 1.5708
+  - - 6.0
+    - 18.0
+    - 1.5708
+- name: cafeteria_crossing_2
+  model: arenian
+  pose:
+  - 7.5
+  - 18.0
+  - -1.5708
+  velocity: 0.35
+  waypoints:
+  - - 7.5
+    - 10.0
+    - -1.5708
+  - - 7.5
+    - 4.0
+    - -1.5708
+static: []
+regions: {}
+timeline: []
+conditions: []

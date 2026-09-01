@@ -1,0 +1,57 @@
+robots:
+- start:
+  - 21.5
+  - 5.0
+  - 1.5708
+  phases:
+  - goto:
+    - 15.0
+    - 32.2
+    - 0.0
+dynamic: []
+static:
+- name: resting_nurse
+  model: arenian
+  pose:
+  - 15.0
+  - 5.0
+  - 0.0
+- name: sleeping_patient_bed_1
+  model: arenian
+  pose:
+  - 4.0
+  - 14.1
+  - 0.0
+- name: sleeping_patient_bed_2
+  model: arenian
+  pose:
+  - 4.0
+  - 21.1
+  - 0.0
+regions:
+  quiet_nurse_room:
+    type: polygon
+    corners:
+    - - 12.0
+      - 0.0
+    - - 18.5
+      - 0.0
+    - - 18.5
+      - 10.0
+    - - 12.0
+      - 10.0
+    max_velocity: 0.4
+  quiet_patient_ward:
+    type: polygon
+    corners:
+    - - 0.0
+      - 10.1
+    - - 8.0
+      - 10.1
+    - - 8.0
+      - 25.1
+    - - 0.0
+      - 25.1
+    max_velocity: 0.4
+timeline: []
+conditions: []

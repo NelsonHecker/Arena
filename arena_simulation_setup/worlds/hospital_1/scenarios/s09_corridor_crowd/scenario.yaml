@@ -1,0 +1,59 @@
+robots:
+- start:
+  - 10.0
+  - 2.0
+  - 1.5708
+  phases:
+  - goto:
+    - 10.0
+    - 32.0
+    - 1.5708
+dynamic:
+- name: crowd_1
+  model: arenian
+  pose:
+  - 9.4
+  - 16.0
+  - -1.5708
+  velocity: 0.4
+  waypoints:
+  - - 9.4
+    - 2.0
+    - -1.5708
+- name: crowd_2
+  model: arenian
+  pose:
+  - 10.6
+  - 20.0
+  - -1.5708
+  velocity: 0.35
+  waypoints:
+  - - 10.6
+    - 2.0
+    - -1.5708
+- name: crowd_3
+  model: arenian
+  pose:
+  - 9.7
+  - 24.0
+  - -1.5708
+  velocity: 0.4
+  waypoints:
+  - - 9.7
+    - 2.0
+    - -1.5708
+- name: crowd_4
+  model: arenian
+  pose:
+  - 10.3
+  - 28.0
+  - -1.5708
+  velocity: 0.35
+  waypoints:
+  - - 10.3
+    - 2.0
+    - -1.5708
+static: []
+regions: {}
+timeline: []
+conditions: []

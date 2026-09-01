@@ -1,0 +1,29 @@
+robots:
+- start:
+  - 10.5
+  - 14.1
+  - 3.1416
+  phases:
+  - goto:
+    - 4.0
+    - 14.1
+    - 3.1416
+dynamic:
+- name: ped_1
+  model: arenian
+  pose:
+  - 3.0
+  - 14.1
+  - 0.0
+  velocity: 0.35
+  waypoints:
+  - - 8.0
+    - 14.1
+    - 0.0
+  - - 11.0
+    - 14.1
+    - 0.0
+static: []
+regions: {}
+timeline: []
+conditions: []

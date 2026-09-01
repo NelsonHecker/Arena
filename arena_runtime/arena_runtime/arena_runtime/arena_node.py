@@ -846,6 +846,10 @@ sys.exit(ls.run())
             log_file.close()
             self._envs.pop(env_id, None)
             await env.dispose(self, grace_seconds=0.0)
+            try:
+                await self._lifecycle.cleanup_namespace(self._lifecycle.env_prefix(env_id))
+            except Exception as e:
+                self.get_logger().warning(f"cleanup after failed spawn env_{env_id} raised: {e!r}")
             self._env_registry.free(env_id)
             self._publish_envs()
             response.success = False
@@ -870,6 +874,10 @@ sys.exit(ls.run())
                 raise
             self._envs.pop(env_id, None)
             await env.dispose(self, grace_seconds=0.0)
+            try:
+                await self._lifecycle.cleanup_namespace(self._lifecycle.env_prefix(env_id))
+            except Exception as e:
+                self.get_logger().warning(f"cleanup after failed spawn env_{env_id} raised: {e!r}")
             self._env_registry.free(env_id)
             self._publish_envs()
             response.success = False

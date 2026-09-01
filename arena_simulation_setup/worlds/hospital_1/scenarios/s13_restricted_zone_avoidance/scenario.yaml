@@ -1,0 +1,43 @@
+robots:
+- start:
+  - 10.0
+  - 10.0
+  - 1.5708
+  phases:
+  - goto:
+    - 10.0
+    - 25.0
+    - 1.5708
+dynamic:
+- name: staff_1
+  model: arenian
+  pose:
+  - 14.0
+  - 15.0
+  - 1.5708
+  velocity: 0.35
+  waypoints:
+  - - 12.0
+    - 17.35
+    - 1.5708
+  - - 10.0
+    - 17.35
+    - 3.1416
+  - - 10.0
+    - 11.5
+    - -1.5708
+static: []
+regions:
+  operating_room:
+    polygon:
+    - - 12.0
+      - 13.1
+    - - 18.0
+      - 13.1
+    - - 18.0
+      - 21.6
+    - - 12.0
+      - 21.6
+    type: restricted_zone
+timeline: []
+conditions: []

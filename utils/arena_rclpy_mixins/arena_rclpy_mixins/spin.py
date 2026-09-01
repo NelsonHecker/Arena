@@ -132,10 +132,15 @@ async def async_main(
                 return
             except InvalidHandle:
                 continue
-            except _rclpy.RCLError:
-                if rclpy.ok():
-                    raise
-                return
+            except Exception:
+                # rclpy.shutdown() from another thread can race the executor's
+                # next wait-set build (RCLError: "the given context is not
+                # valid"), which otherwise kills env processes with exit 1 and a
+                # traceback on every routine teardown. Once shutdown has begun,
+                # any spin failure is the normal exit path.
+                if not rclpy.ok():
+                    return
+                raise
 
     spin_future = loop.run_in_executor(None, _spin)
 

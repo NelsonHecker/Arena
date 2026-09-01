@@ -244,35 +244,60 @@ class GazeboHost(SimLifecycle):
             if result is None or not result.success:
                 raise RuntimeError(f"step_seconds({seconds}) service call failed")
 
-    async def cleanup_namespace(self, prefix: str) -> int:
-        names = await self._list_models()
-        targets = [n for n in names if n.startswith(prefix)]
-        if not targets:
-            return 0
+    async def cleanup_namespace(self, prefix: str, *, max_rounds: int = 3) -> int:
+        removed_total = 0
+        for attempt in range(1, max_rounds + 1):
+            targets = [n for n in await self._list_models() if n.startswith(prefix)]
+            if not targets:
+                return removed_total
 
-        async def _del(name: str) -> bool:
-            req = DeleteEntity.Request()
-            req.entity = EntityMsg(name=name, type=EntityMsg.MODEL)
-            async with self._semaphore:
-                try:
-                    res = await self._service_delete_entity.call_timeout(req)
-                except Exception as e:
-                    self._logger.warning(f"cleanup_namespace: delete {name} raised: {e!r}")
-                    return False
-            return bool(res) and res.success
+            async def _del(name: str) -> bool:
+                req = DeleteEntity.Request()
+                req.entity = EntityMsg(name=name, type=EntityMsg.MODEL)
+                async with self._semaphore:
+                    try:
+                        res = await self._service_delete_entity.call_timeout(req)
+                    except Exception as e:
+                        self._logger.warning(f"cleanup_namespace: delete {name} raised: {e!r}")
+                        return False
+                return bool(res) and res.success
 
-        results = await asyncio.gather(*(_del(n) for n in targets))
-        return sum(1 for r in results if r)
+            results = await asyncio.gather(*(_del(n) for n in targets))
+            removed_total += sum(1 for r in results if r)
+
+            # Verify by re-listing: a delete whose ack was lost may still have landed.
+            remaining = [n for n in await self._list_models() if n.startswith(prefix)]
+            if not remaining:
+                return removed_total
+            if attempt < max_rounds:
+                self._logger.warning(
+                    f"cleanup_namespace: round {attempt}/{max_rounds} left {len(remaining)} model(s) "
+                    f"under '{prefix}'; retrying"
+                )
+                await asyncio.sleep(1.0 * attempt)
+
+        self._logger.error(
+            f"cleanup_namespace: {len(remaining)} model(s) still under '{prefix}' after "
+            f"{max_rounds} rounds: {remaining[:10]}{' ...' if len(remaining) > 10 else ''}; "
+            f"recycling this env id would re-create duplicate scene nodes and crash gz — "
+            f"the next env boot will try to purge its own prefix first"
+        )
+        return removed_total
 
     async def _list_models(self) -> list[str]:
-        proc = await asyncio.create_subprocess_exec(
-            'gz',
-            'model',
-            '--list',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
+        """Models in the running gz world (bounded wait; [] + warning on failure)."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                'gz',
+                'model',
+                '--list',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+        except asyncio.TimeoutError:
+            self._logger.warning("gz model --list timed out after 30s")
+            return []
         if proc.returncode != 0:
             self._logger.warning(f"gz model --list failed: {stderr.decode().strip()}")
             return []
@@ -1073,10 +1098,69 @@ class GazeboSimulator(BaseSim):
         self._entity_ids.clear()
         self._id_wanted.clear()
 
+    async def purge_prefix(self, prefix: str) -> int:
+        removed_total = 0
+        for _ in range(3):
+            targets = [n for n in await self._list_models() if n.startswith(prefix)]
+            if not targets:
+                break
+
+            async def _del(name: str) -> bool:
+                req = DeleteEntity.Request()
+                req.entity = EntityMsg(name=name, type=EntityMsg.MODEL)
+                async with self._semaphore:
+                    try:
+                        res = await self._service_delete_entity.call_timeout(req)
+                    except Exception as e:
+                        self._logger.warning(f"purge_prefix: delete {name} raised: {e!r}")
+                        return False
+                return bool(res) and res.success
+
+            results = await asyncio.gather(*(_del(n) for n in targets))
+            removed_total += sum(1 for r in results if r)
+            remaining = [n for n in await self._list_models() if n.startswith(prefix)]
+            if not remaining:
+                break
+            await asyncio.sleep(1.0)
+
+        if removed_total:
+            self._logger.warning(
+                f"purge_prefix: removed {removed_total} leftover model(s) under '{prefix}' "
+                f"left by a previous env incarnation"
+            )
+        return removed_total
+
+    async def _list_models(self) -> list[str]:
+        """Models in the running gz world (bounded wait; [] + warning on failure)."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                'gz',
+                'model',
+                '--list',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+        except asyncio.TimeoutError:
+            self._logger.warning("gz model --list timed out after 30s")
+            return []
+        if proc.returncode != 0:
+            self._logger.warning(f"gz model --list failed: {stderr.decode().strip()}")
+            return []
+        names: list[str] = []
+        for line in stdout.decode().splitlines():
+            stripped = line.strip()
+            if stripped.startswith('- '):
+                names.append(stripped[2:].strip())
+        return names
+
     @classmethod
     async def create(cls, *args: object, namespace: Namespace, **kwargs: object) -> "GazeboSimulator":
         simulator = cls(*args, namespace=namespace, **kwargs)
         await simulator._set_up_services()
+        env_id = kwargs.get("env_id")
+        if env_id is not None:
+            await simulator.purge_prefix(f"env_{env_id}/")
         return simulator
 
 
