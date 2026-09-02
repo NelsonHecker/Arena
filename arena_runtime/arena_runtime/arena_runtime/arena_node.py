@@ -43,6 +43,7 @@ _LATCHED = rclpy.qos.QoSProfile(
     depth=1,
     durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
 )
+_ENV_DISPOSE_GRACE_S = 15.0
 
 
 def _tee_subprocess_output(
@@ -448,7 +449,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         env = self._envs.pop(env_id, None)
         if env is not None:
             if env.popen is not None:
-                await env.dispose(self, grace_seconds=15.0)
+                await env.dispose(self, grace_seconds=_ENV_DISPOSE_GRACE_S)
             else:
                 await env.dispose(self, grace_seconds=0.0)
                 await asyncio.sleep(2.0)  # give external env time to observe shutdown_request
@@ -736,7 +737,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
             with contextlib.suppress(Exception):
                 self._publish_shutdown_request(env.env_id, "arena_node_teardown")
         await asyncio.gather(
-            *(env.dispose(self, grace_seconds=2.0) for env in envs),
+            *(env.dispose(self, grace_seconds=_ENV_DISPOSE_GRACE_S) for env in envs),
             return_exceptions=True,
         )
 
