@@ -117,6 +117,10 @@ default 0.0333 matching `empty.sdf`). The base raises `NotImplementedError`.
 Gazebo sends one `ControlWorld` request with `pause=True` and `multi_step=n`
 (both fields in the same message, else gz free-runs). Isaac calls
 `/isaac/StepSimulationN` and awaits `/clock` reaching the projected target.
+The dummy host adds the delta to its synthetic clock, so `sim:=dummy` runs the
+whole control plane without a physics engine. That is what
+[`tests/ros/`](../../tests/ros/) exercises, the gate math itself is
+[`lockstep_gates.py`](../lockstep_gates.py) and has ROS-free unit tests.
 
 `arena_node` exposes it as `sim_lifecycle/step` (valid only while holds are
 active and no unpause window is open), plus the lockstep control plane
@@ -166,7 +170,9 @@ design. `soft` channels are observed and reported only. The scheduler also
 idles while a foreign hold or an unpause window is open (episode resets)
 and rebases its window grid to whatever sim time passed meanwhile.
 `sim_lifecycle/lockstep/stop` ends the run and restores the pre-run
-pause state and gz `real_time_factor`. `sim_lifecycle/lockstep/pause` /
+pause state and gz `real_time_factor`, responding as soon as the hold is
+released (the guard against a draining gz chunk re-pausing the world runs
+in the background). `sim_lifecycle/lockstep/pause` /
 `sim_lifecycle/lockstep/resume` freeze and unfreeze the clock within a run
 without ending it. Status is the latched `/arena/state/lockstep` topic
 (LockstepStatus): `active`, `paused`, `ungated`, `target_rtf`,
@@ -197,7 +203,7 @@ controller activation lives inside the robot bring-up unpause window.
 
 | Key | Class | File | Notes |
 | --- | --- | --- | --- |
-| `dummy` | `DummySimulator` | [`dummy_simulator.py`](dummy_simulator.py) | no-op; publishes a synthetic `/clock` for testing |
+| `dummy` | `DummySimulator` | [`dummy_simulator.py`](dummy_simulator.py) | no-op entity verbs; `DummyHost` publishes a synthetic `/clock` (wall time minus paused time plus stepped time, also while paused) and supports `step_seconds` |
 | `gazebo` | `GazeboSimulator` | [`gazebo_simulator/gazebo_simulator.py`](gazebo_simulator/gazebo_simulator.py) | Gazebo (Ignition) via gz-transport |
 | `isaac` | `IsaacSimulator` | [`isaac_simulator.py`](isaac_simulator.py) | Isaac Sim integration |
 
