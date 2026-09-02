@@ -17,6 +17,7 @@ import rclpy.executors
 import rclpy.node
 from rclpy.exceptions import InvalidHandle
 from rclpy.executors import ExternalShutdownException
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
 from rclpy.signals import SignalHandlerOptions
 
 if typing.TYPE_CHECKING:
@@ -28,11 +29,14 @@ def spin_context(
     *,
     executor: rclpy.executors.Executor | None = None,
 ) -> Iterator[None]:
-    """Wrap a custom mainloop: swallow SIGINT/ExternalShutdown, shut down executor + rclpy on exit."""
+    """Wrap a custom mainloop: swallow shutdown-time exceptions, shut down executor + rclpy on exit."""
     try:
         yield
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except Exception:
+        if rclpy.ok():
+            raise
     finally:
         with contextlib.suppress(KeyboardInterrupt):
             if executor is not None:
@@ -65,7 +69,7 @@ def _suppress_shutdown_noise(loop: asyncio.AbstractEventLoop, context: dict) -> 
     if isinstance(exc, asyncio.InvalidStateError):
         return
     if not rclpy.ok():
-        if isinstance(exc, AssertionError):
+        if isinstance(exc, AssertionError | InvalidHandle | _rclpy.RCLError):
             return
         if isinstance(exc, OSError) and exc.errno == errno.EBADF:
             return
@@ -96,6 +100,10 @@ async def async_main(
                 return
             except InvalidHandle:
                 continue
+            except _rclpy.RCLError:
+                if rclpy.ok():
+                    raise
+                return
 
     spin_future = loop.run_in_executor(None, _spin)
 
@@ -116,7 +124,7 @@ async def async_main(
             await asyncio.wait_for(node.teardown(), timeout=5.0)
         except Exception as e:
             node.get_logger().warning(f"teardown raised: {e!r}")
-        rclpy.try_shutdown()
+        app_task.cancel()
 
     def _c_sig_handler(signum: int, _frame: object) -> None:
         name = signal.Signals(signum).name
