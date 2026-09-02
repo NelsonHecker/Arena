@@ -37,8 +37,6 @@ class TM_Stationary(TM_Robots):
 
     @property
     async def done(self) -> bool:
-        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
-            return True
         return False
 
     async def set_position(self, pose: Pose):

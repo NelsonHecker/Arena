@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import os
+import time
 import typing
 
 import ament_index_python
@@ -23,6 +24,7 @@ from arena_rclpy_mixins.Async import LaunchHandle
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.Robot import RobotView
 from arena_runtime._node import NodeInterface
+from arena_runtime.sim._interface import SimUnavailable
 
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.robot_manager.controller_manager_client import ControllerManagerClient
@@ -54,6 +56,7 @@ _MOVEIT_QUIET_RULES = '+[**/moveit/**:error]'
 
 _CONTROLLER_POLL = 0.2
 _CM_CALL_TIMEOUT = 10.0
+_CM_REFUSAL_GRACE_S = 20.0
 _CM_SWITCH_TIMEOUT = 10.0
 _CM_SWITCH_TIMED_OUT = "timed out"
 
@@ -129,6 +132,18 @@ class RobotManager(NodeInterface):
         """Current robot pose in the map frame (None during reset/respawn windows)."""
         stamped = self.pose_stamped
         return None if stamped is None else stamped[0]
+
+    @property
+    def goal(self) -> Pose | None:
+        """Pose of the first GoToPhase in the current TaskRequest, or None."""
+        from task_generator.tasks.robots.request import GoToPhase
+
+        if self._current_request is None:
+            return None
+        for phase in self._current_request.phases:
+            if isinstance(phase, GoToPhase):
+                return phase.pose
+        return None
 
     def __init__(
         self,
@@ -239,6 +254,7 @@ class RobotManager(NodeInterface):
 
         _gen_goal_topic = self.namespace("goal_pose")
 
+        self._stop_pub = self.node.create_publisher(geometry_msgs.msg.Twist, str(self.namespace("cmd_vel")), 1)
         self._goal_pub = self.node.create_publisher(
             geometry_msgs.msg.PoseStamped,
             _gen_goal_topic,
@@ -431,6 +447,9 @@ class RobotManager(NodeInterface):
             *(a.on_reset(self, ctx) for a in self._adapter_instances),
             return_exceptions=True,
         )
+        for result in results:
+            if isinstance(result, SimUnavailable):
+                raise result
         outcomes: dict[str, BaseException | None] = {}
         for adapter, result in zip(self._adapter_instances, results, strict=True):
             if isinstance(result, BaseException):
@@ -476,6 +495,8 @@ class RobotManager(NodeInterface):
 
         # TF reports the realized map frame, pose is env-local
         target = self._environment_manager.realize(pose)
+        await asyncio.gather(*(a.before_move(pose, self) for a in self._adapter_instances))
+        self._stop_pub.publish(geometry_msgs.msg.Twist())
         # set-pose only applies on a sim update and TF only republishes while stepping
         async with self.node.unpause_window():
             since = self._pose_stamp()
@@ -606,11 +627,12 @@ class RobotManager(NodeInterface):
             await adapter.on_controllers_active(self)
 
     async def bring_up_controllers(self) -> None:
-        """Drive this robot's controllers to active inside the caller's unpause window, raising only on an explicit refusal."""
+        """Drive this robot's controllers to active inside the caller's unpause window, raising only on a refusal that outlasts the manager's startup grace."""
         expected = self._environment_manager.robot_controllers(self._robot)
         if not expected:
             return
         cm = ControllerManagerClient(self.node, str(self.namespace("controller_manager")), call_timeout=_CM_CALL_TIMEOUT)
+        started = time.monotonic()
         try:
             await cm.ensure()
             while True:
@@ -641,6 +663,9 @@ class RobotManager(NodeInterface):
                     case _:
                         ok = None
                         detail = ""
+                if ok is False and action in ("load", "configure") and time.monotonic() - started < _CM_REFUSAL_GRACE_S:
+                    self._logger.warning(f"controller_manager refused {action} {names} on {self.name!r} while still starting, retrying")
+                    ok = None
                 if ok is False:
                     raise RuntimeError(f"robot {self.name!r}: controller_manager refused {action} {names}: {detail}")
                 if ok is None:
@@ -654,6 +679,9 @@ class RobotManager(NodeInterface):
             *(a.teardown() for a in self._adapter_instances),
             return_exceptions=True,
         )
+        for result in results:
+            if isinstance(result, SimUnavailable):
+                raise result
         for adapter, result in zip(self._adapter_instances, results, strict=True):
             if isinstance(result, Exception):
                 self._logger.warning(f"adapter {adapter.kind!r} teardown failed: {result!r}")

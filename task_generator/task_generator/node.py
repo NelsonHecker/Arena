@@ -57,6 +57,7 @@ from task_generator.tasks.obstacles import ObstacleKind
 from task_generator.tasks.registry import MODULE_MODES, OBSTACLES_MODES, ROBOTS_MODES
 from task_generator.tasks.task import Task
 from task_generator.utils.flags import flag_enabled
+from task_generator.utils.goal_progress import GoalProgressTracker
 
 from . import SafeCallbackNode
 
@@ -92,6 +93,9 @@ class EpisodeRecord:
     outcome_state: int = 0
     outcome_info: str = ""
     goal_uuid: str = ""
+    goal_dist_start: float = 0.0
+    goal_dist_min: float = 0.0
+    path_length: float = 0.0
     integrity: bool = True
 
 
@@ -139,6 +143,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     _arena_unpause_window_client: ClientWrapper
 
     _episodes: EpisodeRuntime
+    _goal_progress: GoalProgressTracker
     _env_id: int
     _reference: tuple[float, float]
     _prespawn_offset: tuple[float, float]
@@ -202,6 +207,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._episodes = EpisodeRuntime(
             run_seed=run_seed or uuid.uuid4().hex,
         )
+        self._goal_progress = GoalProgressTracker()
 
         self._reset_lock: asyncio.Lock = asyncio.Lock()
         self._start_time = self.time
@@ -549,6 +555,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.outcome_state = record.outcome_state
         msg.outcome_info = record.outcome_info
         msg.goal_uuid = record.goal_uuid
+        msg.goal_dist_start = record.goal_dist_start
+        msg.goal_dist_min = record.goal_dist_min
+        msg.path_length = record.path_length
         msg.integrity = record.integrity
         msg.conditions = json.dumps([c.serialize() for c in self._episode_conditions])
         return msg
@@ -1157,6 +1166,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             tm_modules=tm_modules,
             integrity=True,
         )
+        self._goal_progress.reset()
 
         self._publish_queue_state()
 
@@ -1210,6 +1220,25 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 for p in robots_params:
                     log.info(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
 
+    def _sample_goal_progress(self) -> None:
+        for manager in self._robots_manager.managers.values():
+            pose = manager.pose
+            goal = manager.goal
+            if pose is None or goal is None:
+                continue
+            self._goal_progress.sample(
+                manager.name,
+                (pose.position.x, pose.position.y),
+                (goal.position.x, goal.position.y),
+            )
+        best = self._goal_progress.least_progress()
+        if best is None:
+            return
+        record = self._episodes.current
+        record.goal_dist_start = best.start_dist
+        record.goal_dist_min = best.min_dist
+        record.path_length = best.path_length
+
     async def _termination_watcher(self) -> None:
         try:
             while True:
@@ -1218,6 +1247,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 fut = self._episodes.pending_outcomes.get(episode_id)
                 if fut is None or fut.done():
                     continue
+                self._sample_goal_progress()
                 if not await self._task.is_done:
                     continue
                 if self._task.abort_reason is not None:

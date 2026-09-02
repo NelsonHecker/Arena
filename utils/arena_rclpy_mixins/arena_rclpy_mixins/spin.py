@@ -82,10 +82,18 @@ def _suppress_shutdown_noise(loop: asyncio.AbstractEventLoop, context: dict) -> 
     loop.default_exception_handler(context)
 
 
-def _watch_loop(loop: asyncio.AbstractEventLoop, node: ArenaMixinNode, stop: threading.Event) -> None:
-    """Dump all threads once per episode when the loop stops beating for _LOOP_STALL_S."""
+def _watch_loop(
+    loop: asyncio.AbstractEventLoop,
+    node: ArenaMixinNode,
+    stop: threading.Event,
+    *,
+    deadline_s: float | None = None,
+    on_deadline: Callable[[], None] | None = None,
+) -> None:
+    """Dump all threads once when the loop stops beating for _LOOP_STALL_S; past deadline_s, dump again and call on_deadline once."""
     last_beat = time.monotonic()
     dumped = False
+    deadline_fired = False
 
     def _beat() -> None:
         nonlocal last_beat
@@ -102,6 +110,32 @@ def _watch_loop(loop: asyncio.AbstractEventLoop, node: ArenaMixinNode, stop: thr
             faulthandler.dump_traceback(all_threads=True)
             if not stop.is_set():
                 node.get_logger().warning(f"event loop stalled for {stalled:.0f}s, dumping threads")
+        if deadline_s is not None and not deadline_fired and stalled >= deadline_s:
+            deadline_fired = True
+            faulthandler.dump_traceback(all_threads=True)
+            with contextlib.suppress(Exception):
+                node.get_logger().warning(f"event loop stalled for {stalled:.0f}s past deadline {deadline_s:.0f}s")
+            if on_deadline is not None:
+                on_deadline()
+
+
+def start_loop_watchdog(
+    loop: asyncio.AbstractEventLoop,
+    node: ArenaMixinNode,
+    *,
+    deadline_s: float | None = None,
+    on_deadline: Callable[[], None] | None = None,
+) -> threading.Event:
+    """Start the loop-stall watchdog thread; returns its stop event."""
+    stop = threading.Event()
+    threading.Thread(
+        target=_watch_loop,
+        args=(loop, node, stop),
+        kwargs={"deadline_s": deadline_s, "on_deadline": on_deadline},
+        name="loop_watchdog",
+        daemon=True,
+    ).start()
+    return stop
 
 
 async def async_main(
@@ -119,9 +153,7 @@ async def async_main(
     node.event_loop = loop
     executor.add_node(node)
 
-    watchdog_stop = threading.Event()
-    watchdog = threading.Thread(target=_watch_loop, args=(loop, node, watchdog_stop), name="loop_watchdog", daemon=True)
-    watchdog.start()
+    watchdog_stop = start_loop_watchdog(loop, node)
 
     def _spin() -> None:
         while rclpy.ok():
@@ -211,7 +243,6 @@ async def async_main(
             await spin_future
 
         watchdog_stop.set()
-        watchdog.join(timeout=_LOOP_BEAT_S)
         executor.remove_node(node)
         node.destroy_node()
         _close_subprocess_transports()

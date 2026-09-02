@@ -12,6 +12,7 @@ from arena_runtime._node import NodeInterface
 from arena_runtime.constants import SimSimulator
 
 from ._interface import MechanismITF, ObstacleITF, PedestrianITF, RobotITF, SimLifecycle, ViewportITF, WorldITF
+from ._interface import SimUnavailable as SimUnavailable
 
 
 class BaseSim(NodeInterface, ObstacleITF, PedestrianITF, RobotITF, WorldITF, MechanismITF, ViewportITF, abc.ABC):
