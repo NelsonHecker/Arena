@@ -57,6 +57,11 @@ _CM_CALL_TIMEOUT = 10.0
 _CM_SWITCH_TIMEOUT = 10.0
 _CM_SWITCH_TIMED_OUT = "timed out"
 
+_TELEPORT_TOLERANCE = 0.3
+_TELEPORT_SETTLE_TIMEOUT = 2.0
+_TELEPORT_POLL = 0.02
+_TELEPORT_ATTEMPTS = 3
+
 
 class RobotManager(NodeInterface):
     """Manages the goal and start position of a robot for all task modes."""
@@ -435,15 +440,66 @@ class RobotManager(NodeInterface):
                 outcomes[adapter.kind] = None
         return outcomes
 
+    def _pose_stamp(self) -> rclpy.time.Time | None:
+        """TF stamp of the robot's latest observed map pose, or None if TF has none."""
+        stamped = self.pose_stamped
+        return None if stamped is None else stamped[1]
+
+    def _pose_error(self, target: Pose) -> tuple[float, rclpy.time.Time] | None:
+        """Planar distance from the robot's observed map pose to ``target``, with its TF stamp."""
+        stamped = self.pose_stamped
+        if stamped is None:
+            return None
+        observed, stamp = stamped
+        return math.hypot(observed.position.x - target.position.x, observed.position.y - target.position.y), stamp
+
+    async def _await_teleport_landed(self, target: Pose, since: rclpy.time.Time | None) -> tuple[bool, float | None]:
+        """Poll TF for a sample stamped after ``since`` within tolerance of ``target``, as ``(landed, last_error)``."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _TELEPORT_SETTLE_TIMEOUT
+        last_error: float | None = None
+        while True:
+            sample = self._pose_error(target)
+            if sample is not None:
+                error, stamp = sample
+                if since is None or stamp > since:
+                    last_error = error
+                    if error <= _TELEPORT_TOLERANCE:
+                        return True, error
+            if loop.time() >= deadline:
+                return False, last_error
+            await asyncio.sleep(_TELEPORT_POLL)
+
     async def _apply_pose(self, pose: Pose):
         pose.position.z += self._config.model_params.z_offset
         self.robot.pose = pose
-        results = await self._environment_manager.move_robot((self.robot,))
-        if not results or not all(results):
-            raise RuntimeError(f"simulator rejected teleport of robot {self.name!r} (move_robot -> {tuple(results)})")
-        import time
 
-        time.sleep(0.001)  # wait for the robot to move
+        # TF reports the realized map frame, pose is env-local
+        target = self._environment_manager.realize(pose)
+        # set-pose only applies on a sim update and TF only republishes while stepping
+        async with self.node.unpause_window():
+            since = self._pose_stamp()
+            last_error: float | None = None
+            for attempt in range(1, _TELEPORT_ATTEMPTS + 1):
+                results = await self._environment_manager.move_robot((self.robot,))
+                if not results or not all(results):
+                    raise RuntimeError(f"simulator rejected teleport of robot {self.name!r} (move_robot -> {tuple(results)})")
+
+                await self.node.await_sim_step(_TELEPORT_SETTLE_TIMEOUT)
+                landed, last_error = await self._await_teleport_landed(target, since)
+                if landed:
+                    break
+                if last_error is None:
+                    base = self.frame(self._config.model_params.base_frame).raw()
+                    detail = f"no map -> {base} transform" if self.pose_stamped is None else f"no map -> {base} sample newer than the teleport"
+                    self._logger.warning(f"teleport of robot {self.name!r} is unverifiable within {_TELEPORT_SETTLE_TIMEOUT}s: {detail}")
+                    break
+                self._logger.warning(f"teleport of robot {self.name!r} did not land (attempt {attempt}/{_TELEPORT_ATTEMPTS}): observed {last_error:.2f}m from target ({target.position.x:.2f}, {target.position.y:.2f}), tolerance {_TELEPORT_TOLERANCE}m; retrying")
+                since = self._pose_stamp()
+            else:
+                observed = "unknown" if last_error is None else f"{last_error:.2f}m"
+                raise RuntimeError(f"teleport of robot {self.name!r} never landed: after {_TELEPORT_ATTEMPTS} attempts the robot is {observed} from target ({target.position.x:.2f}, {target.position.y:.2f}), tolerance {_TELEPORT_TOLERANCE}m")
+
         await asyncio.gather(*(a.on_move(pose, self) for a in self._adapter_instances))
 
     async def move(self, pose: Pose) -> None:
