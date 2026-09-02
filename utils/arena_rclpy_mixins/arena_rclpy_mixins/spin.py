@@ -6,8 +6,11 @@ import asyncio
 import asyncio.base_subprocess
 import contextlib
 import errno
+import faulthandler
 import gc
 import signal
+import threading
+import time
 import traceback
 import typing
 from collections.abc import Callable, Iterator
@@ -22,6 +25,9 @@ from rclpy.signals import SignalHandlerOptions
 
 if typing.TYPE_CHECKING:
     from arena_rclpy_mixins import ArenaMixinNode
+
+_LOOP_STALL_S = 10.0
+_LOOP_BEAT_S = 1.0
 
 
 @contextlib.contextmanager
@@ -76,6 +82,28 @@ def _suppress_shutdown_noise(loop: asyncio.AbstractEventLoop, context: dict) -> 
     loop.default_exception_handler(context)
 
 
+def _watch_loop(loop: asyncio.AbstractEventLoop, node: ArenaMixinNode, stop: threading.Event) -> None:
+    """Dump all threads once per episode when the loop stops beating for _LOOP_STALL_S."""
+    last_beat = time.monotonic()
+    dumped = False
+
+    def _beat() -> None:
+        nonlocal last_beat
+        last_beat = time.monotonic()
+
+    while not stop.wait(_LOOP_BEAT_S):
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(_beat)
+        stalled = time.monotonic() - last_beat
+        if stalled < _LOOP_STALL_S:
+            dumped = False
+        elif not dumped:
+            dumped = True
+            faulthandler.dump_traceback(all_threads=True)
+            if not stop.is_set():
+                node.get_logger().warning(f"event loop stalled for {stalled:.0f}s, dumping threads")
+
+
 async def async_main(
     *,
     node_factory: Callable[[], ArenaMixinNode],
@@ -90,6 +118,10 @@ async def async_main(
     node = node_factory()
     node.event_loop = loop
     executor.add_node(node)
+
+    watchdog_stop = threading.Event()
+    watchdog = threading.Thread(target=_watch_loop, args=(loop, node, watchdog_stop), name="loop_watchdog", daemon=True)
+    watchdog.start()
 
     def _spin() -> None:
         while rclpy.ok():
@@ -178,6 +210,8 @@ async def async_main(
         with contextlib.suppress(Exception):
             await spin_future
 
+        watchdog_stop.set()
+        watchdog.join(timeout=_LOOP_BEAT_S)
         executor.remove_node(node)
         node.destroy_node()
         _close_subprocess_transports()

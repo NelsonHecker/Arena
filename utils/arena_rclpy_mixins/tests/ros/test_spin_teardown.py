@@ -34,6 +34,19 @@ def test_async_main_sigint_is_quiet():
     assert not any(marker in stderr for marker in _NOISE), stderr
 
 
+def test_async_main_reports_loop_stall():
+    proc = subprocess.Popen([sys.executable, str(_CHILD), "async_stall"], env=_env(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc.stdout is not None
+    deadline = time.monotonic() + 40.0
+    while proc.stdout.readline().strip() != "RESUMED":
+        assert time.monotonic() < deadline, "child never resumed"
+    proc.send_signal(signal.SIGINT)
+    _, stderr = proc.communicate(timeout=20)
+    assert proc.returncode == 0, stderr
+    assert "event loop stalled" in stderr, stderr
+    assert "Thread 0x" in stderr, stderr
+
+
 def test_spin_context_swallows_after_shutdown():
     proc = _run("sync_late")
     assert proc.returncode == 0, proc.stderr

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import time
 
 import rclpy
 from std_msgs.msg import String
 
 from arena_rclpy_mixins.node import ArenaMixinNode
 from arena_rclpy_mixins.spin import spin_context
+
+_STALL_S = 12.0
 
 
 class Storm(ArenaMixinNode):
@@ -30,10 +33,24 @@ class Storm(ArenaMixinNode):
         self._pub.publish(String(data="tick"))
 
 
+class Stall(ArenaMixinNode):
+    """Block the loop past the watchdog threshold, then report back."""
+
+    async def setup(self) -> None:
+        print("READY", flush=True)
+        self._stall = asyncio.create_task(self._block())
+
+    async def _block(self) -> None:
+        time.sleep(_STALL_S)
+        print("RESUMED", flush=True)
+
+
 def main() -> None:
     mode = sys.argv[1]
     if mode == "async_storm":
         Storm.run_main("teardown_storm")
+    elif mode == "async_stall":
+        Stall.run_main("teardown_stall")
     elif mode == "sync_late":
         rclpy.init()
         with spin_context():
