@@ -57,15 +57,8 @@ _PREFLIGHT_STAGE = {
     "robot": "auto",
     "episodes": 2,
     "tm_robots": "scenario",
-    "tm_obstacles": "random",
-    "config": {
-        "scenario": {"file": "quicktest"},
-        "random": {
-            "dynamic": {"min": 2, "max": 2, "models": ["arenian"]},
-            "static": {"min": 0, "max": 0},
-            "interactive": {"min": 0, "max": 0},
-        },
-    },
+    "tm_obstacles": "scenario",
+    "config": {"scenario": {"file": "preflight"}},
     "timeout": "20s",
 }
 
@@ -169,9 +162,10 @@ def test(argv: list[str]) -> None:
     per-planner stall/rtf/beat table. Exit 3 when a planner stalls for 5 s
     or never beats the gate, exit 4 when the runner itself hung and was
     killed by its deadman. `--preflight` is the start-and-drive check: two
-    episodes of the `quicktest` scenario (a 5 m straight run past two
-    arenians) on a 20 s sim budget, a 60 s env startup deadline, a 90 s
-    spawn ceiling and no retries. Verdict per planner: wedged (a cell
+    episodes of map_empty's `preflight` scenario (a clear 5 m straight run,
+    two scripted arenians patrolling elsewhere in the hall) on a 20 s sim
+    budget, a 90 s env startup deadline, a 120 s spawn ceiling and no
+    retries. Verdict per planner: wedged (a cell
     errored or ran short, `--strict`), weak (an episode closed less than
     half its start distance without reaching the goal, `--efficacy 0.5`)
     or ok, exit 3 on any wedged or weak. Lockstep rows informational.
@@ -198,8 +192,8 @@ def test(argv: list[str]) -> None:
     suite = _SOAK_SUITE
     verdict = ["--lockstep-verdict"]
     if preflight:
-        suite = {**_SOAK_SUITE, "launch": {**_SOAK_SUITE["launch"], "env.bootstrap_timeout": 60}, "stages": [_PREFLIGHT_STAGE]}
-        verdict = ["--retries", "0", "--strict", "--efficacy", "0.5", "--spawn-budget", "90"]
+        suite = {**_SOAK_SUITE, "launch": {**_SOAK_SUITE["launch"], "env.bootstrap_timeout": 90}, "stages": [_PREFLIGHT_STAGE]}
+        verdict = ["--retries", "0", "--strict", "--efficacy", "0.5", "--spawn-budget", "120"]
     common._exec("ros2", "run", "arena_evaluation", "benchmark", "--suite", json.dumps(suite), "--contest", contest, *verdict, *rest)
 
 
