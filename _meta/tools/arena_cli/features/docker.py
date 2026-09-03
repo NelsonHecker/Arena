@@ -3,7 +3,7 @@
 import os
 import sys
 
-from common import CLIError, Verb, _env, make_verb
+from common import CLIError, Verb, _env, _env_set, _host_path, _row, make_verb
 from complete import Static
 
 import features
@@ -92,25 +92,6 @@ def _gpu() -> tuple[str, str, str]:
     return fields[0], fields[1], fields[2]
 
 
-def _env_set(key: str, value: str) -> None:
-    """Rewrite key in the workspace .env, truncating in place: .env is bind-mounted into the container as a single file."""
-    path = _env("ARENA_ENV_FILE")
-    kept = ""
-    if os.path.exists(path):
-        with open(path) as f:
-            kept = "".join(line for line in f if not line.lstrip().startswith(f"{key}="))
-    if kept and not kept.endswith("\n"):
-        kept += "\n"
-    with open(path, "w") as f:
-        f.write(f"{kept}{key}={value}\n")
-
-
-def _host_path(path: str) -> str:
-    """Rewrite a container path to the host path the user knows it by."""
-    ws, host = os.environ.get("ARENA_WS_DIR", ""), os.environ.get("HOST_ARENA_WS_DIR", "")
-    return host + path[len(ws) :] if ws and host and path.startswith(ws) else path
-
-
 def _container_gpu() -> str:
     """Whether the running arena container reserves a gpu: 'yes', 'no', 'down' or 'unknown'."""
     import json
@@ -125,10 +106,6 @@ def _container_gpu() -> str:
         return "unknown"
     requests = json.loads(p.stdout or "null") or []
     return "yes" if any(r["Driver"] == "nvidia" for r in requests) else "no"
-
-
-def _row(label: str, text: str) -> None:
-    print(f"{label + ':':<11}{text}")
 
 
 def _gpu_status(hint: bool) -> None:
