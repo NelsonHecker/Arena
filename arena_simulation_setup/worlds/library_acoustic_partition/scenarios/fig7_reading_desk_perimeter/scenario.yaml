@@ -2,7 +2,10 @@ robots:
 - name: jackal
   start: [42.5, 25.5, -1.5708]
   phases:
-  - goto: [5.0, 6.0, -1.5708]
+  - goto: [14.0, 19.5, 3.1416]
+  - goto: [14.0, 4.0, -1.5708]
+  - goto: [5.0, 4.0, 3.1416]
+  - goto: [5.0, 6.0, 1.5708]
 dynamic:
 - name: ped_stack_aisle
   model: arenian

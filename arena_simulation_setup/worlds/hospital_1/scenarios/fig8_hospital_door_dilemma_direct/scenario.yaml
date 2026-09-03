@@ -2,9 +2,6 @@ robots:
 - name: jackal
   start: [4.0, 27.65, 0.0]
   phases:
-  - goto: [10.0, 27.65, -1.5708]
-  - goto: [10.0, 14.1, -1.5708]
-  - goto: [7.0, 14.1, 3.1416]
   - goto: [4.0, 14.1, 3.1416]
 dynamic:
 - name: ped_nurse_corridor
