@@ -66,8 +66,14 @@ class EnvRegistry:
                 raise ValueError(f"env_id {requested_env_id} already in use")
             env_id = requested_env_id
         else:
-            free_candidates = [i for i in self._free if not self._is_draining(i)]
-            env_id = free_candidates[0] if free_candidates else self._next_id
+            # Never recycle env ids within this arena_node lifetime. Env model
+            # names embed the id (env_<id>/ceiling_1, ...) and gz-sim8's render
+            # scene does not reliably drop an Ogre scene node when a model is
+            # deleted (delete succeeds, `gz model --list` is clean, but the node
+            # survives), so a recycled id re-creates a same-named visual and the
+            # sensors render thread aborts with Ogre::ItemIdentityException.
+            # Fresh ids keep every env incarnation's names unique for the run.
+            env_id = self._next_id
 
         namespace = requested_ns.lstrip("/") if requested_ns else f"arena/env_{env_id}/task_generator_node"
         fqn = f"/{namespace}"

@@ -856,7 +856,10 @@ sys.exit(ls.run())
             response.error_msg = f"popen failed: {e!r}"
             return response
 
-        echo_prefix = None if request.headless else f"[env_{env_id}] ".encode()
+        # Always echo env output (headless or not) so it lands in the benchmark
+        # console and runner.log; env detail is otherwise only in the per-env
+        # log file and infra failures are impossible to diagnose from the run.
+        echo_prefix = f"[env_{env_id}] ".encode()
         env.tee_thread = threading.Thread(
             target=_tee_subprocess_output,
             args=(env.popen.stdout, log_file, echo_prefix),
