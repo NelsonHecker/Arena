@@ -78,6 +78,7 @@ class LockstepScheduler:
         self._waiting: list[str] = []
         self._resume = asyncio.Event()
         self._resume.set()
+        self._arrived = asyncio.Event()
         self._registry = ChannelRegistry()
         self._pub_status = node.create_publisher(
             arena_runtime_msgs.msg.LockstepStatus,
@@ -100,11 +101,17 @@ class LockstepScheduler:
             _validate_spec(spec)
         self._registry.register(caller, env, channels)
         self._publish_status()
+        self._wake()
 
     def drop_env(self, env: str) -> None:
         """Drop all registrations owned by a despawned env."""
         if self._registry.drop_env(env):
             self._publish_status()
+            self._wake()
+
+    def _wake(self) -> None:
+        """Let a gate wait re-read the ledger: a message arrived or the registry changed."""
+        self._node.event_loop.call_soon_threadsafe(self._arrived.set)
 
     async def start(self, config: LockstepConfig) -> None:
         if self.running:
@@ -277,8 +284,11 @@ class LockstepScheduler:
         return self._registry.desired(env_id for env_id, record in self._node._env_registry.items() if not record.draining)
 
     def _subscribe(self, ledger: GateLedger, channel: Channel) -> rclpy.subscription.Subscription:
+        loop = self._node.event_loop
+
         def _cb(msg: object) -> None:
             ledger.observe(channel, Time.from_msg(msg.header.stamp).to_seconds())
+            loop.call_soon_threadsafe(self._arrived.set)
 
         return self._node.create_subscription(get_message(channel.spec.type_name), channel.topic, _cb, 10)
 
@@ -289,6 +299,7 @@ class LockstepScheduler:
         version = self._registry.version
         due_time = Time.from_float(ledger.tick)
         while True:
+            self._arrived.clear()
             if self._registry.version != version:
                 # a deregistered channel (env despawn) must not stall the tick forever
                 version = self._registry.version
@@ -306,7 +317,11 @@ class LockstepScheduler:
                     self._node.get_logger().warning(f"lockstep: waiting on {ch.name} ({ch.topic}) for {elapsed:.0f}s")
                 self._publish_stall(ledger, due_time, hard_due)
                 next_warn += 10.0
-            await asyncio.sleep(0.01)
+            threshold = next_warn if stalled else min(_STALL_AFTER, next_warn)
+            try:
+                await asyncio.wait_for(self._arrived.wait(), timeout=max(threshold - elapsed, 0.01))
+            except TimeoutError:
+                pass
         self._waiting = []
         if stalled:
             self._publish_status(tick=due_time, arrived=[ch.name for ch in hard_due])

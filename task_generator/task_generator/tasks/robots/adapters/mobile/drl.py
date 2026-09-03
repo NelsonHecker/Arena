@@ -48,6 +48,7 @@ class DrlAdapter(MobileAdapter):
         planner: str,
         observations: dict | None = None,
         rate: float | None = None,
+        deadline: float | None = None,
         **bringup_kwargs: object,
     ) -> None:
         super().__init__(robot_manager, **bringup_kwargs)
@@ -78,6 +79,7 @@ class DrlAdapter(MobileAdapter):
             _deep_merge(manifest_dict["observations"], self._observations_override)
         self._manifest: dict = manifest_dict
         self._rate: float = float(rate if rate is not None else manifest_dict.get("rate_hz", 10.0))
+        self._deadline_s: float = float(deadline) if deadline is not None else 0.0
 
         depends = manifest_dict.get("depends") or {}
         self._depends_global_plan: bool = bool(depends.get("global_plan", False))
@@ -224,6 +226,7 @@ class DrlAdapter(MobileAdapter):
             is_holonomic=is_holonomic,
             simulation_namespace=robot.node.get_namespace(),
             velocity_limits=_limits,
+            deadline_s=self._deadline_s,
             parameter_overrides=[rclpy.Parameter("planner_rate_hz", value=float(self._rate))],
         )
         robot.node.executor.add_node(edge_node)

@@ -79,8 +79,8 @@ Namespace prefix for all names below: `/arena/`.
 ACTIVE/INACTIVE/FINALIZED state) and `/<ns>/state/heartbeat` (to detect
 stale envs). A periodic timer applies `sweep_verdict` per record: a managed env
 whose wrapper process exited is evicted immediately, a pre-ready env (still
-bootstrapping, e.g. loading its world) is evicted after
-`bootstrap_timeout_sec` (default 600 s, `env.bootstrap_timeout:=<s>` at launch)
+bootstrapping, e.g. loading its world) is evicted after `bootstrap_timeout_sec`
+when one is set (`env.bootstrap_timeout:=<s>` at launch, default 0 = never),
 measured from `reserve()` time rather than heartbeat silence, so an env that
 keeps heartbeating while stuck in setup is still evicted. A ready env is evicted after
 `heartbeat_timeout_sec` (default 5 s), stretched to `reset_hold_timeout_sec`

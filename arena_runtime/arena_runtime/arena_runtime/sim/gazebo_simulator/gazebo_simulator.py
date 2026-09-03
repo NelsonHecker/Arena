@@ -78,6 +78,9 @@ _SPAWN_SWEEP_INTERVAL = 0.05
 _SPAWN_SWEEP_DRAIN_TIMEOUT = 2.0
 _ENTITY_ID_TIMEOUT = 5.0
 _ENTITY_ID_POLL = 0.25
+_RTF_BOOST = 1e6
+_SET_PHYSICS_TIMEOUT_MS = 5000
+_SET_PHYSICS_ATTEMPTS = 3
 
 _LATCHED_QOS = QoSProfile(
     depth=1,
@@ -146,33 +149,40 @@ class GazeboHost(SimLifecycle):
                 traceback.print_exc()
                 return False
 
-    async def _set_physics_rtf(self, value: float) -> None:
-        # gz applies the FULL Physics message: unset fields land as zeros, and a
-        # sparse request zeroes gravity (models levitate), so send world defaults
+    async def _set_physics_rtf(self, value: float) -> bool:
+        # a sparse request zeroes gravity (models levitate), so send the world defaults
         req = f'real_time_factor: {value}, gravity: {{x: 0, y: 0, z: -9.8}}, magnetic_field: {{x: 5.5645e-06, y: 2.28758e-05, z: -4.23884e-05}}'
-        process = await asyncio.create_subprocess_exec(
-            'gz',
-            'service',
-            '-s',
-            '/world/default/set_physics',
-            '--reqtype',
-            'gz.msgs.Physics',
-            '--reptype',
-            'gz.msgs.Boolean',
-            '--timeout',
-            '3000',
-            '--req',
-            req,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        await process.wait()
+        for attempt in range(1, _SET_PHYSICS_ATTEMPTS + 1):
+            started = time.monotonic()
+            process = await asyncio.create_subprocess_exec(
+                'gz',
+                'service',
+                '-s',
+                '/world/default/set_physics',
+                '--reqtype',
+                'gz.msgs.Physics',
+                '--reptype',
+                'gz.msgs.Boolean',
+                '--timeout',
+                str(_SET_PHYSICS_TIMEOUT_MS),
+                '--req',
+                req,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            out, _ = await process.communicate()
+            reply = out.decode(errors='replace').strip()
+            # the CLI exits 0 on a timed-out call, only the echoed reply proves delivery
+            if process.returncode == 0 and 'data: true' in reply:
+                self._logger.info(f"gz real_time_factor set to {value:g} in {time.monotonic() - started:.2f}s")
+                return True
+            self._logger.warning(f"set_physics real_time_factor={value:g} attempt {attempt}/{_SET_PHYSICS_ATTEMPTS} failed: {reply or f'rc={process.returncode}'}")
+        return False
 
     async def unpause(self) -> bool:
         # returning to free-run: restore gz's realtime pacing
         if self._rtf_boosted:
-            await self._set_physics_rtf(1.0)
-            self._rtf_boosted = False
+            self._rtf_boosted = not await self._set_physics_rtf(1.0)
         async with self._semaphore:
             self._logger.debug("Attempting to unpause simulation")
             request = ControlWorld.Request()
@@ -200,8 +210,7 @@ class GazeboHost(SimLifecycle):
         # gz throttles stepped iterations to real_time_factor x wall clock, so
         # lift the limiter while stepping drives the sim, unpause() restores it
         if not self._rtf_boosted:
-            await self._set_physics_rtf(1e6)
-            self._rtf_boosted = True
+            self._rtf_boosted = await self._set_physics_rtf(_RTF_BOOST)
         # gz acks multi_step on acceptance and completion is observed via /clock, so
         # record the target before sending (half-tick slack for float vs ns rounding)
         target = self._node.sim_time + Time.from_float((n - 0.5) * self._dt)
@@ -217,15 +226,7 @@ class GazeboHost(SimLifecycle):
             chunk = min(max_chunk, remaining)
             chunk_target = min(target, start_sim + Time.from_float((chunk - 0.5) * self._dt))
             await self._send_multi_step(chunk, seconds)
-            last = start_sim
-            stall = 0.0
-            while self._node.sim_time < chunk_target and stall < 1.0:
-                await asyncio.sleep(0.002)
-                if self._node.sim_time > last:
-                    last = self._node.sim_time
-                    stall = 0.0
-                else:
-                    stall += 0.002
+            await self._node.await_sim_time(chunk_target, freeze_timeout=1.0)
         return n * self._dt
 
     async def _send_multi_step(self, n: int, seconds: float) -> None:

@@ -264,12 +264,13 @@ def sweep_verdict(
     reset_timeout: float,
     bootstrap_timeout: float,
 ) -> str | None:
-    """Return the eviction reason, or None to keep the env alive. Pre-ready envs age from reservation."""
+    """Return the eviction reason, or None to keep the env alive. Pre-ready envs age from
+    reservation, bootstrap_timeout 0 never evicts them."""
     if record.draining:
         return None
     if process_alive is False:
         return "process_exited"
     if not record.ready:
-        return "bootstrap_timeout" if age > bootstrap_timeout else None
+        return "bootstrap_timeout" if 0 < bootstrap_timeout < age else None
     budget = reset_timeout if has_reset_hold else heartbeat_timeout
     return "heartbeat_timeout" if elapsed > budget else None

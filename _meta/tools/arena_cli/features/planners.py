@@ -192,7 +192,7 @@ def test(argv: list[str]) -> None:
     suite = _SOAK_SUITE
     verdict = ["--lockstep-verdict"]
     if preflight:
-        suite = {**_SOAK_SUITE, "launch": {**_SOAK_SUITE["launch"], "env.bootstrap_timeout": 90}, "stages": [_PREFLIGHT_STAGE]}
+        suite = {**_SOAK_SUITE, "launch": {**_SOAK_SUITE["launch"], "env.bootstrap_timeout": 90, "robot.mobile.deadline": 30}, "stages": [_PREFLIGHT_STAGE]}
         verdict = ["--retries", "0", "--strict", "--efficacy", "0.5", "--spawn-budget", "120"]
     common._exec("ros2", "run", "arena_evaluation", "benchmark", "--suite", json.dumps(suite), "--contest", contest, *verdict, *rest)
 
