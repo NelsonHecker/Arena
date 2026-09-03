@@ -21,7 +21,7 @@ DESCRIPTION = (
     "  check [--all]        verify planner submodules are initialized\n"
     "  update               refresh initialized planner submodules\n"
     "  uninstall            deinit all planner submodules\n"
-    "  test <name...|--all> lockstep soak via the benchmark runner (needs the evaluation feature)"
+    "  test [--preflight] <name...|--all>  lockstep soak, or a short start-and-drive check, via the benchmark runner (needs the evaluation feature)"
 )
 
 
@@ -48,6 +48,18 @@ _SOAK_SUITE = {
             "timeout": "60s",
         }
     ],
+}
+
+
+_PREFLIGHT_STAGE = {
+    "name": "preflight",
+    "map": "map_empty",
+    "robot": "auto",
+    "episodes": 2,
+    "tm_robots": "scenario",
+    "tm_obstacles": "scenario",
+    "config": {"scenario": {"file": "preflight"}},
+    "timeout": "20s",
 }
 
 
@@ -99,6 +111,7 @@ def _contestants(names: list[str]) -> list[dict]:
 
 
 _ALL = Flags({"--all": "every planner"})
+_PREFLIGHT = Flags({"--preflight": "short start-and-drive check instead of the soak"})
 _SELECT = Union(Static(_names), _ALL)
 
 
@@ -143,20 +156,30 @@ def install(argv: list[str]) -> None:
 def test(argv: list[str]) -> None:
     """Lockstep soak of planners via the benchmark runner.
 
-    `arena planners test <name...|--all> [sim:=gazebo] [KEY:=VALUE ...]`
+    `arena planners test [--preflight] <name...|--all> [sim:=gazebo] [KEY:=VALUE ...]`
     runs one short crowded stage per planner with the scheduler stepping
     the sim (inline suite + contest, `--lockstep-verdict`), then prints a
     per-planner stall/rtf/beat table. Exit 3 when a planner stalls for 5 s
-    or never beats the gate. `--all` soaks every initialized planner, the
-    `[x]` rows of `arena planners check`. Bridge planners run under the drl
-    driver, anything else as a nav2 local planner. Other tokens forward
-    verbatim to the benchmark runner. Needs the evaluation feature.
+    or never beats the gate, exit 4 when the runner itself hung and was
+    killed by its deadman. `--preflight` is the start-and-drive check: two
+    episodes of map_empty's `preflight` scenario (a clear 5 m straight run,
+    two scripted arenians patrolling elsewhere in the hall) on a 20 s sim
+    budget, a 90 s env startup deadline, a 120 s spawn ceiling and no
+    retries. Verdict per planner: wedged (a cell
+    errored or ran short, `--strict`), weak (an episode closed less than
+    half its start distance without reaching the goal, `--efficacy 0.5`)
+    or ok, exit 3 on any wedged or weak. Lockstep rows informational.
+    `--all` soaks every initialized planner, the `[x]` rows of
+    `arena planners check`. Bridge planners run under the drl driver,
+    anything else as a nav2 local planner. Other tokens forward verbatim
+    to the benchmark runner. Needs the evaluation feature.
     """
     import json
 
     common._reg_require("evaluation")
+    preflight = "--preflight" in argv
     names = [a for a in argv if ":=" not in a and not a.startswith("-")]
-    rest = [a for a in argv if (":=" in a or a.startswith("-")) and a != "--all"]
+    rest = [a for a in argv if (":=" in a or a.startswith("-")) and a not in ("--all", "--preflight")]
     if "--all" in argv:
         if names:
             raise common.CLIError("planners test: --all is mutually exclusive with planner names")
@@ -166,7 +189,12 @@ def test(argv: list[str]) -> None:
     elif not names:
         raise common.CLIError("planners test: specify planner name(s) or --all, see 'arena planners ls'")
     contest = json.dumps(_contestants(names))
-    common._exec("ros2", "run", "arena_evaluation", "benchmark", "--suite", json.dumps(_SOAK_SUITE), "--contest", contest, "--lockstep-verdict", *rest)
+    suite = _SOAK_SUITE
+    verdict = ["--lockstep-verdict"]
+    if preflight:
+        suite = {**_SOAK_SUITE, "launch": {**_SOAK_SUITE["launch"], "env.bootstrap_timeout": 90}, "stages": [_PREFLIGHT_STAGE]}
+        verdict = ["--retries", "0", "--strict", "--efficacy", "0.5", "--spawn-budget", "120"]
+    common._exec("ros2", "run", "arena_evaluation", "benchmark", "--suite", json.dumps(suite), "--contest", contest, *verdict, *rest)
 
 
 def uninstall(argv: list[str]) -> None:
@@ -187,6 +215,6 @@ COMMANDS: dict[str, Verb] = {
         make_verb("check", check, passthrough=True, help_text="verify planner submodules are initialized", complete=Union(_ALL, Flags({"-q": "quiet"}))),
         make_verb("install", install, passthrough=True, help_text="clone planner's submodules (alias for add)", complete=_SELECT),
         make_verb("uninstall", uninstall, passthrough=True, help_text="Uninstall and unregister the feature.", complete=Static(_names)),
-        make_verb("test", test, passthrough=True, complete=_SELECT),
+        make_verb("test", test, passthrough=True, complete=Union(_SELECT, _PREFLIGHT)),
     ]
 }

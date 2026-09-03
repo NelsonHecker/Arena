@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
 
 import rclpy
+from arena_rclpy_mixins.node import ArenaMixinNode
+from arena_rclpy_mixins.spin import spin_context, start_loop_watchdog
 from std_msgs.msg import String
 
-from arena_rclpy_mixins.node import ArenaMixinNode
-from arena_rclpy_mixins.spin import spin_context
-
 _STALL_S = 12.0
+_DEADLINE_BLOCK_S = 5.0
+_DEADLINE_S = 1.5
 
 
 class Storm(ArenaMixinNode):
@@ -45,12 +47,26 @@ class Stall(ArenaMixinNode):
         print("RESUMED", flush=True)
 
 
+class Deadline(ArenaMixinNode):
+    """Block the loop past a short watchdog deadline; on_deadline exits the process."""
+
+    async def setup(self) -> None:
+        loop = asyncio.get_running_loop()
+        start_loop_watchdog(loop, self, deadline_s=_DEADLINE_S, on_deadline=lambda: os._exit(7))
+        self._stall = asyncio.create_task(self._block())
+
+    async def _block(self) -> None:
+        time.sleep(_DEADLINE_BLOCK_S)
+
+
 def main() -> None:
     mode = sys.argv[1]
     if mode == "async_storm":
         Storm.run_main("teardown_storm")
     elif mode == "async_stall":
         Stall.run_main("teardown_stall")
+    elif mode == "watchdog_deadline":
+        Deadline.run_main("teardown_deadline")
     elif mode == "sync_late":
         rclpy.init()
         with spin_context():

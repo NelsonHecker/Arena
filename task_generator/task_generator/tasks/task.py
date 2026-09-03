@@ -68,6 +68,7 @@ class Task(NodeInterface):
     _force_reset: bool
     _abort_reason: str | None
     _consecutive_reset_failures: int
+    _reset_sim_time: int
 
     @classmethod
     async def create(
@@ -127,6 +128,7 @@ class Task(NodeInterface):
         self._force_reset = False
         self._abort_reason = None
         self._consecutive_reset_failures = 0
+        self._reset_sim_time = self.node.sim_time.sec
 
         self._ctx = TaskContext(
             environment_manager=environment_manager,
@@ -328,11 +330,17 @@ class Task(NodeInterface):
     async def reset(self, *, seed: int) -> None:
         self._force_reset = False
         self._abort_reason = None
+        self._reset_sim_time = self.node.sim_time.sec
         await self._reset_episode(seed)
 
     @property
     async def is_done(self) -> bool:
-        return self._force_reset or await self.tm_robots.done
+        if self._force_reset:
+            return True
+        if (self.node.sim_time.sec - self._reset_sim_time) > self.node.conf.Robot.TIMEOUT.value:
+            self.abort_episode("timeout")
+            return True
+        return await self.tm_robots.done
 
     @property
     def tm_obstacles(self) -> TM_Obstacles:

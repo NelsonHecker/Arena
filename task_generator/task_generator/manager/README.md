@@ -55,6 +55,7 @@ Key public surface:
 | `robot` | the `Robot` config (model, name, initial pose) |
 | `pose` | current `Pose` in the map frame; `None` during reset/respawn windows |
 | `start_pos` / `goal_pos` | last set start and goal positions |
+| `goal` | pose of the first `GoToPhase` in the current `TaskRequest`, or `None` |
 | `submit_task(request)` | hand a typed `TaskRequest` to the adapter |
 | `move(pose)` | teleport the robot via `EnvironmentManager.move_robot` |
 | `is_done` | whether the current task request is satisfied |

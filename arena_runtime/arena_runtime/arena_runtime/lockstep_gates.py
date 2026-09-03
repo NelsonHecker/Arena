@@ -6,6 +6,8 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Iterable, Mapping, Sequence
 
+_NS = 1_000_000_000
+
 
 @dataclasses.dataclass(frozen=True)
 class ChannelSpec:
@@ -141,8 +143,7 @@ class GateLedger:
         for topic, (spec, display) in desired.items():
             if topic in self.channels:
                 continue
-            # raw period, floored to one sim step: snapping to the sim grid would
-            # break 1:1 fire-per-window pacing for grid-timer producers (engine)
+            # raw period, floored to one sim step
             period = max(spec.period_s, self.dt)
             channel = Channel(spec=spec, name=display, topic=topic, period=period, next_due=self.now + period)
             self.channels[topic] = channel
@@ -161,18 +162,17 @@ class GateLedger:
     def due(self) -> list[Channel]:
         return [ch for ch in self.channels.values() if ch.next_due <= self.now + 1e-9]
 
-    def gate(self, channel: Channel) -> float:
-        """Earliest stamp covering the window that ends at next_due. A periodic producer
-        promises one sample per window, and its timer may fire mid-burst and reschedule
-        past the frozen clock (rcl timers reschedule from fire time), so gate on window
-        coverage, not tick freshness. dt/2 rejects the previous window's boundary sample."""
-        return channel.next_due - channel.period + self.dt / 2.0
+    def covers(self, channel: Channel) -> bool:
+        """Latest stamp within one period of the ledger's tick, at clock resolution."""
+        if channel.latest_stamp is None:
+            return False
+        return round(channel.latest_stamp * _NS) > round((self.now - channel.period) * _NS)
 
     def observe(self, channel: Channel, stamp: float) -> None:
         channel.latest_stamp = stamp - self.base
 
     def waiting(self, channels: Iterable[Channel]) -> list[Channel]:
-        return [ch for ch in channels if ch.latest_stamp is None or ch.latest_stamp < self.gate(ch)]
+        return [ch for ch in channels if not self.covers(ch)]
 
     def complete(self, channels: Iterable[Channel]) -> None:
         for ch in channels:

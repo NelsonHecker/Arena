@@ -53,7 +53,7 @@ from viewport_control_msgs.msg import ViewportView
 from viewport_control_msgs.srv import ViewportSetProjection, ViewportSetReferenceFrame, ViewportSetView
 
 from arena_runtime.gz_scene import parse_scene_models
-from arena_runtime.sim import BaseSim, SimLifecycle
+from arena_runtime.sim import BaseSim, SimLifecycle, SimUnavailable
 from arena_runtime.sim._control import (
     effective_control_yaml,
     odom_relay_node,
@@ -274,8 +274,7 @@ class GazeboHost(SimLifecycle):
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
-            self._logger.warning(f"gz model --list failed: {stderr.decode().strip()}")
-            return []
+            raise SimUnavailable(f"gz model --list failed: {stderr.decode().strip()}")
         names: list[str] = []
         for line in stdout.decode().splitlines():
             stripped = line.strip()
@@ -638,6 +637,8 @@ class GazeboSimulator(BaseSim):
                     self.entities[entity.name] = entity
                 return ok
 
+            except SimUnavailable:
+                raise
             except Exception as e:
                 self._logger.error(f"Error spawning entity {entity.name}: {str(e)}")
                 traceback.print_exc()
@@ -695,13 +696,14 @@ class GazeboSimulator(BaseSim):
 
         try:
             result = await self._service_spawn_entity.call_timeout(request)
+        except SimUnavailable:
+            raise
         except Exception as e:
             self._logger.error(f"Spawn service call raised for {name}: {e}")
             return False
 
         if result is None:
-            self._logger.error(f"Spawn service call failed for {name}")
-            return False
+            raise SimUnavailable(f"spawn_sdf({name}) timed out")
 
         if result.success:
             self._spawned_names.add(name)
@@ -720,25 +722,25 @@ class GazeboSimulator(BaseSim):
 
             try:
                 result = await self._service_delete_entity.call_timeout(request)
-
-                if result is None:
-                    self._logger.error(f"Delete service call failed for {sim_path}")
-                    return False
-
-                self._logger.debug(f"Delete result for {sim_path}: {result.success}")
-
-                if result.success:
-                    self.entities.pop(sim_path, None)
-                    self._spawned_names.discard(sim_path)
-                    self._entity_ids.pop(sim_path, None)
-                    self._id_wanted.discard(sim_path)
-
-                return result.success
-
+            except SimUnavailable:
+                raise
             except Exception as e:
                 self._logger.error(f"Error deleting entity {sim_path}: {str(e)}")
                 traceback.print_exc()
                 return False
+
+            if result is None:
+                raise SimUnavailable(f"delete_entity({sim_path}) timed out")
+
+            self._logger.debug(f"Delete result for {sim_path}: {result.success}")
+
+            if result.success:
+                self.entities.pop(sim_path, None)
+                self._spawned_names.discard(sim_path)
+                self._entity_ids.pop(sim_path, None)
+                self._id_wanted.discard(sim_path)
+
+            return result.success
 
     async def _sweep_entity_name(self, sim_path: str) -> None:
         """Bounded delete-by-name of whatever holds ``sim_path``, drained by one sim step before the spawn that follows."""

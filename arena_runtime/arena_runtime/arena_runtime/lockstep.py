@@ -90,6 +90,10 @@ class LockstepScheduler:
     def running(self) -> bool:
         return self._task is not None and not self._task.done()
 
+    def owns_current_task(self) -> bool:
+        """True when called from inside the loop task itself."""
+        return self._task is not None and asyncio.current_task() is self._task
+
     def register(self, caller: str, env: str, channels: typing.Sequence[ChannelSpec]) -> None:
         """Replace the caller's registration (empty channels clears it). Raises ValueError with no state change."""
         for spec in channels:
@@ -231,8 +235,10 @@ class LockstepScheduler:
 
                 if config.ungated or not ledger.channels:
                     ledger.advance(await self._node._lifecycle.step_seconds(step_slice(config.target_rtf, dt)))
+                    self._node._lifecycle.record_success()
                 else:
                     ledger.advance(await self._node._lifecycle.step_seconds(ledger.next_delta()))
+                    self._node._lifecycle.record_success()
                     due = ledger.due()
                     hard_due = [ch for ch in due if ch.hard]
                     if hard_due:
@@ -255,6 +261,7 @@ class LockstepScheduler:
             raise
         except Exception as e:
             self._node.get_logger().error(f"lockstep scheduler crashed: {e!r}")
+            await self._node._lifecycle.record_failure(f"lockstep step: {e!r}")
             fqn = self._node.get_fully_qualified_name()
             await self._node._release_hold(fqn, _LOCKSTEP_REASON)
             self._node._publish_state()

@@ -93,6 +93,16 @@ The attachment happens in `BaseHumanSimulator.__init__` (see [human simulator](.
 
 Registered in `LifecycleRegistry` alongside `SimulatorRegistry` ([`__init__.py`](__init__.py)).
 
+`arena_node` wraps the registered `SimLifecycle` in a liveness-accounting
+proxy: two consecutive `pause`/`unpause` failures (`False` or raised) or step
+failures mark the sim dead, published latched on `state/sim`
+([`SimState.msg`](../../../arena_runtime_msgs/msg/SimState.msg)), see the
+[arena_runtime README](../README.md) topic table.
+Adapters signal a dead transport (a timed-out service call, not a genuine
+rejection) by raising [`SimUnavailable`](_interface.py) instead of returning
+`False`. `cleanup_namespace` should let it propagate. `arena_node` never
+retries or recovers a dead sim on its own.
+
 ## `BaseSim`
 
 [`__init__.py:17`](__init__.py#L17)
@@ -151,15 +161,21 @@ is gated like any other producer and frame-exact at any target rtf. With no
 run active it holds and steps the sim itself. Beats republish
 `LockstepHeartbeat` coverage stamps, and a wall-clock grace watchdog publishes
 forward keepalives through legitimately silent phases (MoveIt planning,
-nav2 recovery behaviors), so a producer that itself needs sim time to pass
-cannot freeze the sim. Training-mode robots have no task_server and stay
+nav2 recovery behaviors), pacing the sim at wall rate so a producer that
+itself needs sim time to pass cannot freeze the sim. Training-mode robots have no task_server and stay
 outside the gate set.
 Producers publish with `header.stamp` reflecting the sim time they have
-actually covered. Gates are per-period windows: each window of `period_s`
-sim seconds must receive one covering stamp before the sim advances past
-it. A producer driven by a sim-clock timer registers `period_s` equal to
-its own tick length, which paces the sim to the producer's true coverage.
-An elapsed-based rate loop registers a period strictly above its interval.
+actually covered. A hard channel is satisfied at sim time `T` when its
+latest stamp is newer than `T - period_s`, compared at the clock's
+nanosecond resolution: the gate asks whether the producer has covered the
+clock, never whether it landed on a window boundary, so a producer whose
+own grid is phased against the ledger's cannot deadlock the run. Windows
+only pick the step sizes the scheduler takes. A producer driven by the sim
+clock registers `period_s` equal to its own tick length, which paces the
+sim to the producer's true coverage. An elapsed-based rate loop registers
+a period strictly above its interval. The arena_humansim engine ticks off
+`/clock` itself rather than an rcl timer, so a clock the gate is holding
+still owes it the tick the gate is waiting for.
 
 `sim_lifecycle/lockstep/start` (LockstepStart: `target_rtf`, `ungated`)
 starts a run or reconfigures one in place: `target_rtf` of 0 is unpaced,

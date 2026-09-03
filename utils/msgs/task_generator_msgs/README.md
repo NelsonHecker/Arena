@@ -24,7 +24,7 @@ Runtime types (env registry, holds, world confirm, cleanup, purge) live in [`are
 
 | File | Purpose |
 |---|---|
-| `EpisodeRecord.msg` | One episode: id, world, seed, task modes, `robots[]`, `outcome_state` (`QUEUED` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `FATAL`), `outcome_info` (live status string, may be republished mid-episode via `Task.set_info`), integrity flag, plus `obstacles_params` / `robots_params` (effective per-mode params, with staged dict overlay for queued records). Published latched on `state/episode` and `state/queue`. `conditions` is a JSON list of `{op, p, q, text}` episode conditions, empty when none. |
+| `EpisodeRecord.msg` | One episode: id, world, seed, task modes, `robots[]`, `outcome_state` (`QUEUED` / `RUNNING` / `SUCCESS` / `FAILED` / `SKIPPED` / `FATAL`), `outcome_info` (live status string, may be republished mid-episode via `Task.set_info`), integrity flag, plus `obstacles_params` / `robots_params` (effective per-mode params, with staged dict overlay for queued records). Published latched on `state/episode` and `state/queue`. `conditions` is a JSON list of `{op, p, q, text}` episode conditions, empty when none. `goal_dist_start` / `goal_dist_min` / `path_length` track the robot that closed the least of its start-to-goal distance, sampled every 0.5s; zero when no GoTo goal was active. |
 | `RobotDescriptor.msg` | Lean per-robot identity (name, model, ns, frame); shared with `RobotQueue`, whose pending entries have no resolved caps. |
 | `RobotCap.msg` | One resolved, effective cap on a live robot: cap name, bound adapter kind, mount instance, morphology variant. |
 | `RobotState.msg` | A resolved, live fleet member: `RobotDescriptor` + resolved `RobotCap[]` + resolved morphology `params`. |

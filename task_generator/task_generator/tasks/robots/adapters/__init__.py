@@ -251,6 +251,13 @@ class Adapter(ABC):
     ) -> bool | None:
         return self.client_for(phase.kind).is_done()
 
+    async def before_move(
+        self,
+        pose: Pose,
+        robot: RobotManager,
+    ) -> None:
+        return None
+
     async def on_move(
         self,
         pose: Pose,
