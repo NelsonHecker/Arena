@@ -396,9 +396,7 @@ class ArenaNode(ArenaMixinNode, rclpy.lifecycle.LifecycleNode):
         self._pub_envs.publish(arena_runtime_msgs.msg.EnvRegistry(envs=self._env_registry.snapshot()))
 
     def _publish_sim_state(self, alive: bool, reason: str) -> None:
-        self._pub_sim_state.publish(
-            arena_runtime_msgs.msg.SimState(header=Header(stamp=self.wall_time.to_msg()), alive=alive, reason=reason)
-        )
+        self._pub_sim_state.publish(arena_runtime_msgs.msg.SimState(header=Header(stamp=self.wall_time.to_msg()), alive=alive, reason=reason))
 
     async def _mark_sim_dead(self, reason: str) -> None:
         """Sim death is terminal: publish it and fail everything waiting on the sim, no recovery."""
