@@ -6,10 +6,6 @@ robots:
   - 0.0
   phases:
   - goto:
-    - 21.5
-    - 5.0
-    - -1.5708
-  - goto:
     - 6.0
     - 28.0
     - 3.1415
@@ -18,68 +14,62 @@ robots:
     - 16.5
     - -1.5708
 dynamic:
-- name: nurse_down
+- name: nurse_corridor_south
   model: arenian
   pose:
-  - 10.4
+  - 10.2
   - 26.0
   - -1.5708
-  velocity: 0.6
-  waypoints:
-  - - 10.4
-    - 3.0
-    - -1.5708
-  - - 10.4
-    - 26.0
-    - 1.5708
-- name: doctor_up
-  model: arenian
-  pose:
-  - 9.6
-  - 3.0
-  - 1.5708
   velocity: 0.55
   waypoints:
-  - - 9.6
+  - - 10.2
+    - 12.0
+    - -1.5708
+  - - 10.2
     - 26.0
     - 1.5708
-  - - 9.6
-    - 3.0
-    - -1.5708
-- name: visitor_patrol
+- name: doctor_junction_crosser
   model: arenian
   pose:
-  - 21.5
-  - 8.0
-  - 1.5708
-  velocity: 0.45
-  waypoints:
-  - - 15.0
-    - 11.5
-    - 1.5708
-  - - 10.0
-    - 11.5
-    - 3.1415
-  - - 15.0
-    - 11.5
-    - 0.0
-  - - 21.5
-    - 8.0
-    - -1.5708
-- name: ward_crosser
-  model: arenian
-  pose:
-  - 3.5
+  - 8.2
   - 14.1
   - 0.0
-  velocity: 0.5
+  velocity: 0.45
   waypoints:
-  - - 16.5
+  - - 11.8
     - 14.1
     - 0.0
-  - - 3.5
+  - - 8.2
     - 14.1
     - 3.1415
+- name: pharmacy_door_crosser
+  model: arenian
+  pose:
+  - 11.8
+  - 26.5
+  - 3.1415
+  velocity: 0.45
+  waypoints:
+  - - 8.5
+    - 26.5
+    - 3.1415
+  - - 11.8
+    - 26.5
+    - 0.0
+- name: ward_corridor_nurse
+  model: arenian
+  pose:
+  - 9.8
+  - 16.0
+  - 1.5708
+  velocity: 0.5
+  waypoints:
+  - - 9.8
+    - 25.0
+    - 1.5708
+  - - 9.8
+    - 16.0
+    - -1.5708
 static: []
 regions: {}
 timeline: []

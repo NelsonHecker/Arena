@@ -6,10 +6,6 @@ robots:
   - 0.0
   phases:
   - goto:
-    - 21.5
-    - 5.0
-    - -1.5708
-  - goto:
     - 6.0
     - 28.0
     - 3.1415
@@ -18,40 +14,34 @@ robots:
     - 16.5
     - -1.5708
 dynamic:
-- name: nurse_hallway
+- name: nurse_corridor_south
   model: arenian
   pose:
-  - 10.4
+  - 10.2
   - 26.0
   - -1.5708
-  velocity: 0.6
+  velocity: 0.55
   waypoints:
-  - - 10.4
-    - 3.0
+  - - 10.2
+    - 12.0
     - -1.5708
-  - - 10.4
+  - - 10.2
     - 26.0
     - 1.5708
-- name: visitor_subhall
+- name: doctor_junction_crosser
   model: arenian
   pose:
-  - 21.5
-  - 8.0
-  - 1.5708
+  - 8.2
+  - 14.1
+  - 0.0
   velocity: 0.45
   waypoints:
-  - - 15.0
-    - 11.5
-    - 1.5708
-  - - 10.0
-    - 11.5
-    - 3.1415
-  - - 15.0
-    - 11.5
+  - - 11.8
+    - 14.1
     - 0.0
-  - - 21.5
-    - 8.0
-    - -1.5708
+  - - 8.2
+    - 14.1
+    - 3.1415
 static: []
 regions: {}
 timeline: []
