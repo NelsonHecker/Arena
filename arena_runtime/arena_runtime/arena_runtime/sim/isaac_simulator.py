@@ -29,6 +29,7 @@ from arena_people_msgs.srv import (
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_rclpy_mixins.Time import Time
 from arena_simulation_setup.shared import Obstacle as ObstacleDefinition
 from arena_simulation_setup.tree.Wall import WallSegment
 from isaacsim_msgs.msg import (
@@ -200,10 +201,9 @@ class IsaacHost(SimLifecycle):
         res = await self._step_client.call_forever(StepSimulation.Request(steps=n))
         if not res.success:
             raise RuntimeError(res.error_msg)
-        await self._node.poll(
-            lambda: self._node.sim_time.to_seconds() >= res.target_sim_time,
-            f"isaac sim clock >= {res.target_sim_time:.3f}s",
-        )
+        target = Time.from_float(res.target_sim_time)
+        while not await self._node.await_sim_time(target, freeze_timeout=10.0):
+            self._node.get_logger().warning(f"waiting on isaac sim clock >= {res.target_sim_time:.3f}s")
         return n / _ISAAC_PHYSICS_HZ
 
 

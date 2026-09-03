@@ -226,15 +226,7 @@ class GazeboHost(SimLifecycle):
             chunk = min(max_chunk, remaining)
             chunk_target = min(target, start_sim + Time.from_float((chunk - 0.5) * self._dt))
             await self._send_multi_step(chunk, seconds)
-            last = start_sim
-            stall = 0.0
-            while self._node.sim_time < chunk_target and stall < 1.0:
-                await asyncio.sleep(0.002)
-                if self._node.sim_time > last:
-                    last = self._node.sim_time
-                    stall = 0.0
-                else:
-                    stall += 0.002
+            await self._node.await_sim_time(chunk_target, freeze_timeout=1.0)
         return n * self._dt
 
     async def _send_multi_step(self, n: int, seconds: float) -> None:
