@@ -128,3 +128,19 @@ def test_reserve_ids_are_monotonic_after_free():
     reg.free(first)
     second, _ns = reg.reserve(now=_time(sec=2))
     assert second == first + 1
+
+
+def test_pre_ready_bootstrap_timeout_zero_never_evicts():
+    assert (
+        sweep_verdict(
+            _record(ready=False),
+            elapsed=9999.0,
+            age=9999.0,
+            has_reset_hold=False,
+            process_alive=True,
+            heartbeat_timeout=5.0,
+            reset_timeout=30.0,
+            bootstrap_timeout=0.0,
+        )
+        is None
+    )

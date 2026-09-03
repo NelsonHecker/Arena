@@ -79,7 +79,7 @@ def generate_launch_description():
     LaunchArgument(
         name='env.bootstrap_timeout',
         default_value='',
-        description='Seconds an env may spend never-ACTIVE before eviction, measured from reservation, empty = node default.',
+        description='Seconds an env may spend never-ACTIVE before eviction, measured from reservation, empty = node default (never).',
     )
 
     launch_sim = launch.actions.IncludeLaunchDescription(
