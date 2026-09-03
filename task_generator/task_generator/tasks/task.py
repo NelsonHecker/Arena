@@ -33,6 +33,9 @@ from . import TaskContext
 from .obstacles import TM_Obstacles
 from .robots import TM_Robots
 
+# consecutive reset failures mean the environment is broken, not the episode: raise so the runner respawns it
+_MAX_CONSECUTIVE_RESET_FAILURES = 3
+
 # import training.srv as training_srvs
 
 
@@ -64,6 +67,7 @@ class Task(NodeInterface):
 
     _force_reset: bool
     _abort_reason: str | None
+    _consecutive_reset_failures: int
 
     @classmethod
     async def create(
@@ -122,6 +126,7 @@ class Task(NodeInterface):
 
         self._force_reset = False
         self._abort_reason = None
+        self._consecutive_reset_failures = 0
 
         self._ctx = TaskContext(
             environment_manager=environment_manager,
@@ -279,9 +284,26 @@ class Task(NodeInterface):
                     ),
                     return_exceptions=True,
                 )
+                reasons: list[str] = []
                 for name, outcome in zip(self.robots_manager.managers, robot_outcomes, strict=True):
                     if isinstance(outcome, BaseException):
-                        self._logger.warning(f"robot {name!r} adapter reset failed: {outcome!r}")
+                        failures: dict[str, BaseException] = {"reset": outcome}
+                    else:
+                        failures = {kind: exc for kind, exc in outcome.items() if exc is not None}
+                    if not failures:
+                        continue
+                    detail = "; ".join(f"{kind}: {exc!r}" for kind, exc in failures.items())
+                    reasons.append(f"robot {name!r} adapter reset failed: {detail}")
+
+                if reasons:
+                    self._consecutive_reset_failures += 1
+                    for reason in reasons:
+                        self._logger.error(reason)
+                    if self._consecutive_reset_failures >= _MAX_CONSECUTIVE_RESET_FAILURES:
+                        raise RuntimeError(f"robot reset failed on {self._consecutive_reset_failures} consecutive episodes; treating the environment as unusable: {'; '.join(reasons)}")
+                    self.node.fail_episode(reasons[0] if len(reasons) == 1 else "; ".join(reasons))
+                else:
+                    self._consecutive_reset_failures = 0
 
                 for module in self.__modules:
                     module.after_reset()

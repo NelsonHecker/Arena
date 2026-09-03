@@ -21,7 +21,7 @@ DESCRIPTION = (
     "  check [--all]        verify planner submodules are initialized\n"
     "  update               refresh initialized planner submodules\n"
     "  uninstall            deinit all planner submodules\n"
-    "  test <name...>       lockstep soak via the benchmark runner (needs the evaluation feature)"
+    "  test <name...|--all> lockstep soak via the benchmark runner (needs the evaluation feature)"
 )
 
 
@@ -72,6 +72,16 @@ def _names() -> list[str]:
     from pathlib import Path
 
     return sorted(_payload_module().planner_submodules(Path(common._env("ARENA_DIR"))))
+
+
+def _ready_names() -> list[str]:
+    """Registered planners whose submodules are all initialized."""
+    from pathlib import Path
+
+    mod = _payload_module()
+    arena = Path(common._env("ARENA_DIR"))
+    status = mod.submodule_status(arena)
+    return sorted(name for name, paths in mod.planner_submodules(arena).items() if all(status.get(p) == "init" for p in paths))
 
 
 def _contestants(names: list[str]) -> list[dict]:
@@ -131,14 +141,30 @@ def install(argv: list[str]) -> None:
 
 
 def test(argv: list[str]) -> None:
-    """soak the named planners under lockstep (inline suite + contest, --lockstep-verdict)"""
+    """Lockstep soak of planners via the benchmark runner.
+
+    `arena planners test <name...|--all> [sim:=gazebo] [KEY:=VALUE ...]`
+    runs one short crowded stage per planner with the scheduler stepping
+    the sim (inline suite + contest, `--lockstep-verdict`), then prints a
+    per-planner stall/rtf/beat table. Exit 3 when a planner stalls for 5 s
+    or never beats the gate. `--all` soaks every initialized planner, the
+    `[x]` rows of `arena planners check`. Bridge planners run under the drl
+    driver, anything else as a nav2 local planner. Other tokens forward
+    verbatim to the benchmark runner. Needs the evaluation feature.
+    """
     import json
 
     common._reg_require("evaluation")
     names = [a for a in argv if ":=" not in a and not a.startswith("-")]
-    rest = [a for a in argv if ":=" in a or a.startswith("-")]
-    if not names:
-        raise common.CLIError("planners test needs planner names, see 'arena feature planners ls'")
+    rest = [a for a in argv if (":=" in a or a.startswith("-")) and a != "--all"]
+    if "--all" in argv:
+        if names:
+            raise common.CLIError("planners test: --all is mutually exclusive with planner names")
+        names = _ready_names()
+        if not names:
+            raise common.CLIError("planners test: no initialized planners, see 'arena planners check'")
+    elif not names:
+        raise common.CLIError("planners test: specify planner name(s) or --all, see 'arena planners ls'")
     contest = json.dumps(_contestants(names))
     common._exec("ros2", "run", "arena_evaluation", "benchmark", "--suite", json.dumps(_SOAK_SUITE), "--contest", contest, "--lockstep-verdict", *rest)
 
@@ -161,6 +187,6 @@ COMMANDS: dict[str, Verb] = {
         make_verb("check", check, passthrough=True, help_text="verify planner submodules are initialized", complete=Union(_ALL, Flags({"-q": "quiet"}))),
         make_verb("install", install, passthrough=True, help_text="clone planner's submodules (alias for add)", complete=_SELECT),
         make_verb("uninstall", uninstall, passthrough=True, help_text="Uninstall and unregister the feature.", complete=Static(_names)),
-        make_verb("test", test, passthrough=True, help_text="lockstep soak of the named planners via the benchmark runner", complete=Static(_names)),
+        make_verb("test", test, passthrough=True, complete=_SELECT),
     ]
 }

@@ -52,6 +52,7 @@ from task_generator.utils.flags import ObstaclesOptim, obstacles_optim_level
 from viewport_control_msgs.msg import ViewportView
 from viewport_control_msgs.srv import ViewportSetProjection, ViewportSetReferenceFrame, ViewportSetView
 
+from arena_runtime.gz_scene import parse_scene_models
 from arena_runtime.sim import BaseSim, SimLifecycle
 from arena_runtime.sim._control import (
     effective_control_yaml,
@@ -69,6 +70,14 @@ _VIEWPORT_STREAM_QOS = QoSProfile(
     history=HistoryPolicy.KEEP_LAST,
     reliability=ReliabilityPolicy.BEST_EFFORT,
 )
+
+# gz resolves set_pose and remove by name, first match wins, so a stale entity under a
+# robot's sim_path swallows every later teleport while still acking success
+_SPAWN_SWEEP_ROUNDS = 5
+_SPAWN_SWEEP_INTERVAL = 0.05
+_SPAWN_SWEEP_DRAIN_TIMEOUT = 2.0
+_ENTITY_ID_TIMEOUT = 5.0
+_ENTITY_ID_POLL = 0.25
 
 _LATCHED_QOS = QoSProfile(
     depth=1,
@@ -295,6 +304,8 @@ class GazeboSimulator(BaseSim):
         self._wall_counter = itertools.count()
         self._material_texture_cache: dict[str, dict[str, str]] = {}
         self._spawned_names: set[str] = set()
+        self._entity_ids: dict[str, int] = {}
+        self._id_wanted: set[str] = set()
 
         # gz leaves a model unactuated after a SetEntityPose issued while the
         # world is paused; re-issuing the same pose once it runs wakes it.
@@ -362,12 +373,18 @@ class GazeboSimulator(BaseSim):
     async def robot_spawn(self, robots: Sequence[Robot]) -> Sequence[bool]:
 
         async def impl(robot: Robot) -> bool:
+            await self._sweep_entity_name(robot.sim_path)
             if not await self._spawn_entity(robot):
                 return False
             _loader_args = self._robot_loader_args(robot)
             model = await (await robot.model.resolve()).model.get(ModelType.URDF, loader_args=_loader_args)
             if model.type is ModelType.UNKNOWN:
+                self._logger.error(f"robot {robot.name!r} resolved to an unknown model type after spawning; removing the entity again")
+                await self._delete_entity(robot.sim_path)
                 return False
+            self._id_wanted.add(robot.sim_path)
+            if await self._resolve_entity_id(robot.sim_path, timeout=_ENTITY_ID_TIMEOUT) is None:
+                self._logger.warning(f"entity id of {robot.sim_path!r} not in scene/info within {_ENTITY_ID_TIMEOUT}s, will retry at the first teleport")
             model_description = model.description
             self._robot_initialpose(robot)
             await self._robot_bridge(robot, model_description)
@@ -568,11 +585,14 @@ class GazeboSimulator(BaseSim):
 
     async def _move_entity(self, entity: Entity, entity_type: int = EntityMsg.MODEL) -> bool:
         async with self._semaphore:
+            if entity.sim_path in self._id_wanted and entity.sim_path not in self._entity_ids:
+                await self._resolve_entity_id(entity.sim_path, timeout=0.0)
             self._logger.debug(f"Attempting to move entity: {entity.sim_path}")
             self._logger.debug(f"Moving entity {entity.sim_path} to position: {entity.pose}")
 
             request = SetEntityPose.Request()
             request.entity = EntityMsg(
+                id=self._entity_ids.get(entity.sim_path, 0),
                 name=entity.sim_path,
                 type=entity_type,
             )
@@ -693,6 +713,7 @@ class GazeboSimulator(BaseSim):
 
             request = DeleteEntity.Request()
             request.entity = EntityMsg(
+                id=self._entity_ids.get(sim_path, 0),
                 name=sim_path,
                 type=entity_type,
             )
@@ -709,6 +730,8 @@ class GazeboSimulator(BaseSim):
                 if result.success:
                     self.entities.pop(sim_path, None)
                     self._spawned_names.discard(sim_path)
+                    self._entity_ids.pop(sim_path, None)
+                    self._id_wanted.discard(sim_path)
 
                 return result.success
 
@@ -716,6 +739,52 @@ class GazeboSimulator(BaseSim):
                 self._logger.error(f"Error deleting entity {sim_path}: {str(e)}")
                 traceback.print_exc()
                 return False
+
+    async def _sweep_entity_name(self, sim_path: str) -> None:
+        """Bounded delete-by-name of whatever holds ``sim_path``, drained by one sim step before the spawn that follows."""
+        for _ in range(_SPAWN_SWEEP_ROUNDS):
+            await self._delete_entity(sim_path)
+            await asyncio.sleep(_SPAWN_SWEEP_INTERVAL)
+        await self.node.await_sim_step(_SPAWN_SWEEP_DRAIN_TIMEOUT)
+
+    async def _scene_model_ids(self) -> dict[str, int]:
+        proc = await asyncio.create_subprocess_exec(
+            'gz',
+            'service',
+            '-s',
+            '/world/default/scene/info',
+            '--reqtype',
+            'gz.msgs.Empty',
+            '--reptype',
+            'gz.msgs.Scene',
+            '--timeout',
+            str(int(_ENTITY_ID_TIMEOUT * 1000)),
+            '--req',
+            '',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            self._logger.warning(f"gz scene/info failed: {stderr.decode().strip()}")
+            return {}
+        return parse_scene_models(stdout.decode())
+
+    async def _resolve_entity_id(self, sim_path: str, *, timeout: float) -> int | None:
+        """Cache the gz entity id behind ``sim_path``, polling scene/info for up to ``timeout``."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            models = await self._scene_model_ids()
+            entity_id = models.get(sim_path)
+            if entity_id is not None:
+                self._entity_ids[sim_path] = entity_id
+                self._logger.info(f"entity id of {sim_path!r} is {entity_id} ({len(models)} models listed)")
+                return entity_id
+            if loop.time() >= deadline:
+                self._logger.debug(f"entity id of {sim_path!r} not in scene/info ({len(models)} models listed)")
+                return None
+            await asyncio.sleep(_ENTITY_ID_POLL)
 
     async def step(self, n: int = 1) -> bool:
         async with self._semaphore:
@@ -995,12 +1064,14 @@ class GazeboSimulator(BaseSim):
         async def _delete_one(name: str) -> None:
             async with self._semaphore:
                 req = DeleteEntity.Request()
-                req.entity = EntityMsg(name=name, type=EntityMsg.MODEL)
+                req.entity = EntityMsg(id=self._entity_ids.get(name, 0), name=name, type=EntityMsg.MODEL)
                 await self._service_delete_entity.call_timeout(req)
 
         names = list(self._spawned_names)
         await asyncio.gather(*(_delete_one(n) for n in names), return_exceptions=True)
         self._spawned_names.clear()
+        self._entity_ids.clear()
+        self._id_wanted.clear()
 
     @classmethod
     async def create(cls, *args: object, namespace: Namespace, **kwargs: object) -> "GazeboSimulator":
