@@ -64,14 +64,17 @@ class TM_Robots(TaskMode):
 
     @property
     async def done(self) -> bool:
-        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
+        if self._ctx.robots and all(await asyncio.gather(*(robot_manager.is_done for robot_manager in self._ctx.robots.values()))):
             return True
 
-        if not self._ctx.robots:
-            return False
-        if not all(await asyncio.gather(*(robot_manager.is_done for robot_manager in self._ctx.robots.values()))):
-            return False
-        return True
+        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
+            if hasattr(self.node, "fail_episode"):
+                self.node.fail_episode("timeout")
+            elif hasattr(self._ctx, "abort_episode"):
+                self._ctx.abort_episode("timeout")
+            return True
+
+        return False
 
 
 __all__ = ["TM_Robots", "characterization", "demo", "explore", "guided", "random", "scenario", "stationary"]

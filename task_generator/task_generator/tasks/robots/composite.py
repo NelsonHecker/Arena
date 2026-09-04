@@ -67,12 +67,19 @@ class TM_Composite(TM_Robots):
 
     @property
     async def done(self) -> bool:
+        if self._sub_modes:
+            results = await asyncio.gather(*(m.done for m in self._sub_modes))
+            if all(results):
+                return True
+
         if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
+            if hasattr(self.node, "fail_episode"):
+                self.node.fail_episode("timeout")
+            elif hasattr(self._ctx, "abort_episode"):
+                self._ctx.abort_episode("timeout")
             return True
-        if not self._sub_modes:
-            return False
-        results = await asyncio.gather(*(m.done for m in self._sub_modes))
-        return all(results)
+
+        return False
 
     async def set_position(self, pose: Pose):
         robots = self._ctx.robots
