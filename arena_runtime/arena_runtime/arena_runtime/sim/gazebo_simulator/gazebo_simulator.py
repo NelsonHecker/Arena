@@ -373,7 +373,22 @@ class GazeboSimulator(BaseSim):
 
     async def obstacle_spawn(self, obstacles: Sequence[Obstacle]) -> Sequence[bool]:
         level = obstacles_optim_level(self.node)
-        return await asyncio.gather(*(self._spawn_obstacle(o, level) for o in obstacles))
+        total = len(obstacles)
+        if total == 0:
+            return ()
+        done_count = 0
+        lock = asyncio.Lock()
+
+        async def _spawn_with_progress(o: Obstacle) -> bool:
+            nonlocal done_count
+            res = await self._spawn_obstacle(o, level)
+            async with lock:
+                done_count += 1
+                if done_count == 1 or done_count % 10 == 0 or done_count == total:
+                    self._logger.info(f"Spawning obstacles in gazebo: {done_count}/{total}")
+            return res
+
+        return await asyncio.gather(*(_spawn_with_progress(o) for o in obstacles))
 
     async def _spawn_obstacle(self, obstacle: Obstacle, level: ObstaclesOptim) -> bool:
         if level is ObstaclesOptim.BBOX and (box := await resolve_obstacle_box(obstacle)) is not None:
@@ -464,23 +479,25 @@ class GazeboSimulator(BaseSim):
         return tuple(True for _ in pedestrians.pedestrians)
 
     async def spawn_floors(self, floors: Sequence[Floor]) -> bool:
-        for floor in floors:
+        for idx, floor in enumerate(floors, 1):
             name = self._realizer.realize(f"floor_{next(self._wall_counter)}")
             textures = await self._resolve_wall_textures(floor.material)
             floor_sdf = _generate_floor_sdf(name, floor, textures)
             async with self._semaphore:
                 await self._spawn_sdf(name, floor_sdf, Pose())
             self._walls_entities.append(name)
+            self._logger.info(f"Spawned floor {idx}/{len(floors)}: {name}")
         return True
 
     async def spawn_ceilings(self, ceilings: Sequence[Ceiling]) -> bool:
-        for ceiling in ceilings:
+        for idx, ceiling in enumerate(ceilings, 1):
             name = self._realizer.realize(f"ceiling_{next(self._wall_counter)}")
             textures = await self._resolve_wall_textures(ceiling.material)
             ceiling_sdf = _generate_ceiling_sdf(name, ceiling, textures)
             async with self._semaphore:
                 await self._spawn_sdf(name, ceiling_sdf, Pose())
             self._walls_entities.append(name)
+            self._logger.info(f"Spawned ceiling {idx}/{len(ceilings)}: {name}")
         return True
 
     async def set_robot_pose(self, sim_path: str, pose: Pose) -> bool:

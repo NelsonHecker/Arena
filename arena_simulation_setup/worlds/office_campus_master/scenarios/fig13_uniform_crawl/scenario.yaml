@@ -36,12 +36,12 @@ dynamic:
 - name: mic_focus_worker
   model: arenian
   pose:
-  - 32.5
+  - 31.2
   - 14.0
   - 0.0
   velocity: 0.0
   waypoints:
-  - - 32.5
+  - - 31.2
     - 14.0
     - 0.0
 static: []

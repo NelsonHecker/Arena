@@ -7,7 +7,7 @@ robots:
   phases:
   - goto:
     - 21.0
-    - 2.5
+    - 3.5
     - 3.1416
 dynamic:
 - name: ped_hesitant_door
@@ -27,14 +27,14 @@ dynamic:
 - name: mic_boardroom
   model: arenian
   pose:
-  - 20.0
-  - 2.5
-  - 0.0
+  - 21.0
+  - 0.8
+  - 1.5708
   velocity: 0.0
   waypoints:
-  - - 20.0
-    - 2.5
-    - 0.0
+  - - 21.0
+    - 0.8
+    - 1.5708
 static: []
 regions:
   boardroom:
