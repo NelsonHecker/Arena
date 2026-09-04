@@ -47,6 +47,11 @@ def test_async_main_reports_loop_stall():
     assert "Thread 0x" in stderr, stderr
 
 
+def test_watchdog_deadline_exits_process():
+    proc = _run("watchdog_deadline")
+    assert proc.returncode == 7, proc.stderr
+
+
 def test_spin_context_swallows_after_shutdown():
     proc = _run("sync_late")
     assert proc.returncode == 0, proc.stderr

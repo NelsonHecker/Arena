@@ -8,6 +8,7 @@ import complete as _complete
 import features as _features
 import human as _human_mod
 import robot as _robot_mod
+import settings as _settings_mod
 import viz as _viz_mod
 from common import (
     CLIError,
@@ -33,7 +34,7 @@ the underlying launch file or tool."""
 SECTIONS = {
     "Simulation": ["runtime", "env", "viz", "cleanup", "launch", "train", "demo", "lockstep"],
     "Attach": ["human", "robot", "cam"],
-    "Workspace": ["build", "rebuild", "test", "deps", "update", "preload", "uninstall"],
+    "Workspace": ["build", "rebuild", "test", "deps", "update", "preload", "uninstall", "settings"],
     "Data": ["asset"],
     "Features": ["feature", "registry"],
     "Shell": ["deactivate", "resource", "repair"],
@@ -208,6 +209,15 @@ _register(
         passthrough=True,
         help_text=f"{_asset_mod.DESCRIPTION}\n\nCommands:\n{_listing([(v.name, v.short) for v in _asset_mod.COMMANDS.values()])}",
         complete=Sub(_asset_mod.COMMANDS),
+    )
+)
+_register(
+    make_verb(
+        "settings",
+        lambda args: _group_cmd("arena settings", _settings_mod.DESCRIPTION, _settings_mod.COMMANDS, args),
+        passthrough=True,
+        help_text=f"{_settings_mod.DESCRIPTION}\n\nCommands:\n{_listing([(v.name, v.short) for v in _settings_mod.COMMANDS.values()])}",
+        complete=Sub(_settings_mod.COMMANDS),
     )
 )
 _register(_viz_mod.VERB)

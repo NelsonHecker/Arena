@@ -179,21 +179,27 @@ def test_well_behaved_producer_never_waits() -> None:
     assert ledger.now == pytest.approx(4.9)
 
 
-def test_coverage_gate_accepts_mid_window_sample_and_rejects_previous_boundary() -> None:
-    """A producer timer that fired mid-burst and rescheduled past the frozen clock
-    (rcl timers reschedule from fire time) deadlocked the old freshness gate."""
-    ledger = GateLedger(dt=DT, base=0.0)
+def test_coverage_predicate_is_clock_relative() -> None:
+    """A stamp covers the tick the ledger stands on when it is less than one period old.
+    The window grid picks step sizes only and must not enter the predicate."""
+    ledger = GateLedger(dt=DT, base=100.0)
     ledger.refresh(_desired(_spec("engine", 0.1)))
     (engine,) = ledger.channels.values()
-    ledger.observe(engine, 0.0)
-    ledger.complete(_tick(ledger))
-    hard_due = _tick(ledger)
-    assert hard_due == [engine]
-    assert ledger.gate(engine) == pytest.approx(0.1 + DT / 2)
-    ledger.observe(engine, 0.1)
-    assert ledger.waiting(hard_due) == [engine]
-    ledger.observe(engine, 0.13)
-    assert ledger.waiting(hard_due) == []
+    assert not ledger.covers(engine)
+    ledger.advance(0.1)
+    ledger.observe(engine, 100.0)
+    assert not ledger.covers(engine)
+    ledger.observe(engine, 100.001)
+    assert ledger.covers(engine)
+    ledger.observe(engine, 100.07)
+    assert ledger.covers(engine)
+    # the same stamp against any window boundary, and stale once the clock moves on
+    engine.next_due = 1234.0
+    assert ledger.covers(engine)
+    engine.next_due = 0.0
+    assert ledger.covers(engine)
+    ledger.advance(0.1)
+    assert not ledger.covers(engine)
 
 
 def _elapsed_producer(gate_period: float, producer_interval: float, ticks: int) -> int:
@@ -224,23 +230,59 @@ def test_gate_period_must_exceed_elapsed_based_producer_interval() -> None:
     assert _elapsed_producer(gate_period=0.0999, producer_interval=0.1, ticks=200) < 200
 
 
-def test_engine_gate_paces_clock_to_completed_ticks() -> None:
-    """Engine stamps epoch + tick*dt. While it lags a tick the gate holds, and the
-    clock only moves once the owed tick lands (honest under lag, no coverage leak)."""
-    engine_dt = 0.05
-    ledger = GateLedger(dt=DT, base=0.0)
-    ledger.refresh(_desired(_spec("engine", engine_dt)))
+ENGINE_PERIOD = 0.05
+ENGINE_BASE = 100.0
+NS = 1_000_000_000
+
+
+def _engine_replay(physics_dt: float, phase: float, windows: int) -> tuple[float, int]:
+    """Scheduler and clock-driven engine in lockstep: the scheduler steps in whole
+    physics steps (gz rounds the request), the engine ticks up to the grid point the
+    clock has covered since its epoch and stamps that tick's start. Returns the sim
+    time reached and the engine's tick count."""
+    period_ns = int(ENGINE_PERIOD * NS)
+    epoch_ns = int(ENGINE_BASE * NS) - int(phase * NS)
+    ledger = GateLedger(dt=physics_dt, base=ENGINE_BASE)
+    ledger.refresh(_desired(_spec("engine", ENGINE_PERIOD)))
     (engine,) = ledger.channels.values()
-    completed = 0
+    ticks = 0
+    for _ in range(windows):
+        before = ledger.now
+        ledger.advance(max(1, round(ledger.next_delta() / physics_dt)) * physics_dt)
+        assert ledger.now > before, "the scheduler must always advance the clock"
+        hard_due = [ch for ch in ledger.due() if ch.hard]
+        covered = (round(ledger.tick * NS) - epoch_ns) // period_ns + 1
+        assert covered >= ticks, "the clock never owes fewer ticks than the engine ran"
+        if covered > ticks:
+            ticks = covered
+            ledger.observe(engine, (epoch_ns + (ticks - 1) * period_ns) / NS)
+        assert ledger.waiting(hard_due) == [], f"gate wedged at {ledger.now:.4f} with {ticks} ticks"
+        ledger.complete(hard_due)
+    return ledger.now, ticks
+
+
+@pytest.mark.parametrize("physics_dt", [0.0333, 0.01, 0.004, 0.001])
+@pytest.mark.parametrize("phase", [i * ENGINE_PERIOD / 8 for i in range(8)])
+def test_engine_gate_never_wedges_across_phases_and_step_sizes(physics_dt: float, phase: float) -> None:
+    """The engine epoch lands anywhere in its period relative to the run, and a step
+    can advance less than that period. Neither may freeze the clock (live 2026-09-03)."""
+    windows = 60
+    now, ticks = _engine_replay(physics_dt, phase, windows)
+    assert now >= windows * physics_dt
+    assert ticks == pytest.approx(now / ENGINE_PERIOD, abs=2)
+
+
+def test_gate_holds_while_the_engine_lags() -> None:
+    """Coverage is honest under lag: a stamp a full period stale never clears the tick."""
+    ledger = GateLedger(dt=DT, base=0.0)
+    ledger.refresh(_desired(_spec("engine", ENGINE_PERIOD)))
+    (engine,) = ledger.channels.values()
     for k in range(1, 20):
         hard_due = _tick(ledger)
-        assert ledger.now == pytest.approx(k * engine_dt)
-        # engine is one tick behind on every third window
-        if k % 3 == 0:
-            ledger.observe(engine, (completed) * engine_dt)
-            assert ledger.waiting(hard_due) == [engine]
-        completed = k
-        ledger.observe(engine, completed * engine_dt)
+        assert ledger.now == pytest.approx(k * ENGINE_PERIOD)
+        ledger.observe(engine, (k - 1) * ENGINE_PERIOD)
+        assert ledger.waiting(hard_due) == [engine]
+        ledger.observe(engine, k * ENGINE_PERIOD)
         assert ledger.waiting(hard_due) == []
         ledger.complete(hard_due)
 

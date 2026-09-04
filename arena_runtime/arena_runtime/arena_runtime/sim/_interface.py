@@ -63,6 +63,10 @@ class HumanSimulator(typing.Protocol):
     async def pedestrian_teleport(self, destinations: Mapping[str, tuple[float, float]]) -> bool: ...
 
 
+class SimUnavailable(RuntimeError):
+    """Sim service call timed out or the sim transport is gone."""
+
+
 class SimLifecycle(abc.ABC):
     """Process-singleton hooks for sim-wide pause/unpause and namespace cleanup."""
 

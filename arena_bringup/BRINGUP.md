@@ -89,6 +89,7 @@ arena launch \
 | `lockstep.paused:=false` | Autostarted lockstep begins stepping immediately instead of waiting for `arena lockstep resume` |
 | `lockstep.channels:="a;b"` | Semicolon-separated `name\|topic\|type\|period_s\|hard-or-soft` entries registered under caller `launch`, extra channels, producers self-register their own. `{env}` expands per env |
 | `lockstep.rtf:=N` | Target real-time factor for the lockstep scheduler, 0 or empty = unpaced |
+| `env.bootstrap_timeout:=N` | Seconds an env may spend never-ACTIVE before eviction, measured from reservation, empty = node default (never) |
 
 To suppress the arena_humansim node when no human obstacles are needed,
 add `human:=dummy` to the command above.

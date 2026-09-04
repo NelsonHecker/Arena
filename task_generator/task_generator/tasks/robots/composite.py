@@ -67,8 +67,6 @@ class TM_Composite(TM_Robots):
 
     @property
     async def done(self) -> bool:
-        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
-            return True
         if not self._sub_modes:
             return False
         results = await asyncio.gather(*(m.done for m in self._sub_modes))
@@ -97,8 +95,6 @@ class TM_Null(TM_Robots):
 
     @property
     async def done(self) -> bool:
-        if (self.node.sim_time.sec - self._last_reset) > self.node.conf.Robot.TIMEOUT.value:
-            return True
         return False
 
     async def set_position(self, pose: Pose):
