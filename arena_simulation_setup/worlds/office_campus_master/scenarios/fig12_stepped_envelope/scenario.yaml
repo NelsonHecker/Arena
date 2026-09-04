@@ -1,0 +1,84 @@
+robots:
+- name: jackal
+  start:
+  - 36.0
+  - 5.0
+  - 1.5708
+  phases:
+  - goto:
+    - 36.0
+    - 6.0
+    - 1.5708
+  - goto:
+    - 36.0
+    - 8.0
+    - 1.5708
+  - goto:
+    - 36.0
+    - 11.0
+    - 1.5708
+  - goto:
+    - 36.0
+    - 14.0
+    - 1.5708
+  - goto:
+    - 36.0
+    - 17.0
+    - 1.5708
+  - goto:
+    - 36.0
+    - 20.0
+    - 1.5708
+  - goto:
+    - 36.0
+    - 22.0
+    - 1.5708
+dynamic:
+- name: worker_desk_1
+  model: arenian
+  pose:
+  - 32.5
+  - 8.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 32.5
+    - 8.0
+    - 0.0
+- name: worker_desk_2
+  model: arenian
+  pose:
+  - 32.5
+  - 14.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 32.5
+    - 14.0
+    - 0.0
+- name: worker_desk_3
+  model: arenian
+  pose:
+  - 32.5
+  - 20.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 32.5
+    - 20.0
+    - 0.0
+- name: worker_desk_4
+  model: arenian
+  pose:
+  - 39.5
+  - 11.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 39.5
+    - 11.0
+    - 0.0
+static: []
+regions: {}
+timeline: []
+conditions: []

@@ -2,84 +2,84 @@ robots:
 - name: jackal
   start: [42.5, 25.5, -1.5708]
   phases:
-  - goto: [5.0, 6.0, -1.5708]
+  - goto: [5.0, 4.2, 1.5708]
 dynamic:
 - name: ped_stack_aisle
   model: arenian
-  pose: [42.5, 10.0, 1.5708]
+  pose: [42.2, 18.0, 1.5708]
   velocity: 0.45
   waypoints:
-  - [42.5, 27.0, 1.5708]
-  - [42.5, 10.0, -1.5708]
+  - [42.2, 27.0, 1.5708]
+  - [42.2, 18.0, -1.5708]
 - name: ped_hallway_1
   model: arenian
-  pose: [44.0, 19.5, 3.1415]
+  pose: [44.0, 20.2, 3.1415]
   velocity: 0.55
   waypoints:
-  - [18.0, 19.5, 3.1415]
-  - [44.0, 19.5, 0.0]
+  - [18.0, 20.2, 3.1415]
+  - [44.0, 20.2, 0.0]
 - name: ped_hallway_2
   model: arenian
-  pose: [18.0, 19.5, 0.0]
+  pose: [18.0, 18.8, 0.0]
   velocity: 0.50
   waypoints:
-  - [44.0, 19.5, 0.0]
-  - [18.0, 19.5, 3.1415]
+  - [44.0, 18.8, 0.0]
+  - [18.0, 18.8, 3.1415]
 - name: ped_reading_hall_walker
   model: arenian
-  pose: [8.0, 6.0, 1.5708]
+  pose: [8.0, 7.0, 1.5708]
   velocity: 0.40
   waypoints:
-  - [8.0, 28.0, 1.5708]
-  - [8.0, 6.0, -1.5708]
+  - [8.0, 22.0, 1.5708]
+  - [8.0, 7.0, -1.5708]
 - name: mic_student_1
   model: arenian
-  pose: [5.0, 6.0, 0.0]
+  pose: [4.0, 6.0, 0.0]
   velocity: 0.0
   waypoints:
-  - [5.0, 6.0, 0.0]
+  - [4.0, 6.0, 0.0]
 - name: mic_student_2
   model: arenian
-  pose: [11.0, 6.0, 0.0]
+  pose: [12.0, 6.0, 3.1416]
   velocity: 0.0
   waypoints:
-  - [11.0, 6.0, 0.0]
+  - [12.0, 6.0, 3.1416]
 - name: mic_student_3
   model: arenian
-  pose: [5.0, 10.0, 0.0]
+  pose: [4.0, 10.0, 0.0]
   velocity: 0.0
   waypoints:
-  - [5.0, 10.0, 0.0]
+  - [4.0, 10.0, 0.0]
 - name: mic_student_4
   model: arenian
-  pose: [11.0, 10.0, 0.0]
+  pose: [12.0, 10.0, 3.1416]
   velocity: 0.0
   waypoints:
-  - [11.0, 10.0, 0.0]
+  - [12.0, 10.0, 3.1416]
 - name: mic_student_5
   model: arenian
-  pose: [5.0, 18.0, 0.0]
+  pose: [4.0, 18.0, 0.0]
   velocity: 0.0
   waypoints:
-  - [5.0, 18.0, 0.0]
+  - [4.0, 18.0, 0.0]
 - name: mic_student_6
   model: arenian
-  pose: [11.0, 18.0, 0.0]
+  pose: [12.0, 18.0, 3.1416]
   velocity: 0.0
   waypoints:
-  - [11.0, 18.0, 0.0]
+  - [12.0, 18.0, 3.1416]
 - name: mic_student_7
   model: arenian
-  pose: [5.0, 26.0, 0.0]
+  pose: [4.0, 26.0, 0.0]
   velocity: 0.0
   waypoints:
-  - [5.0, 26.0, 0.0]
+  - [4.0, 26.0, 0.0]
 - name: mic_student_8
   model: arenian
-  pose: [11.0, 26.0, 0.0]
+  pose: [12.0, 26.0, 3.1416]
   velocity: 0.0
   waypoints:
-  - [11.0, 26.0, 0.0]
+  - [12.0, 26.0, 3.1416]
 static: []
 regions:
   west_reading_hall:
