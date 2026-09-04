@@ -37,47 +37,47 @@ dynamic:
 - name: worker_desk_1
   model: arenian
   pose:
-  - 32.5
+  - 31.2
   - 8.0
   - 0.0
   velocity: 0.0
   waypoints:
-  - - 32.5
+  - - 31.2
     - 8.0
     - 0.0
 - name: worker_desk_2
   model: arenian
   pose:
-  - 32.5
+  - 31.2
   - 14.0
   - 0.0
   velocity: 0.0
   waypoints:
-  - - 32.5
+  - - 31.2
     - 14.0
     - 0.0
 - name: worker_desk_3
   model: arenian
   pose:
-  - 32.5
+  - 31.2
   - 20.0
   - 0.0
   velocity: 0.0
   waypoints:
-  - - 32.5
+  - - 31.2
     - 20.0
     - 0.0
 - name: worker_desk_4
   model: arenian
   pose:
-  - 39.5
+  - 40.8
   - 11.0
-  - 0.0
+  - 3.1416
   velocity: 0.0
   waypoints:
-  - - 39.5
+  - - 40.8
     - 11.0
-    - 0.0
+    - 3.1416
 static: []
 regions: {}
 timeline: []

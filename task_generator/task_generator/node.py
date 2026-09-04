@@ -1211,8 +1211,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     log.info(f"    {p.name}: {_fmt(Parameter.from_parameter_msg(p).value)}")
 
     async def _termination_watcher(self) -> None:
-        try:
-            while True:
+        while True:
+            try:
                 await asyncio.sleep(0.5)
                 episode_id = self._episodes.current.episode_id
                 fut = self._episodes.pending_outcomes.get(episode_id)
@@ -1220,15 +1220,17 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     continue
                 if not await self._task.is_done:
                     continue
+                if fut.done():
+                    continue
                 if self._task.abort_reason is not None:
                     fut.set_result((task_generator_msgs.action.RunEpisode.Result.FAILED, self._task.abort_reason))
                 else:
                     fut.set_result((task_generator_msgs.action.RunEpisode.Result.SUCCESS, ""))
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            self.get_logger().error(f"Error in termination watcher: {e}\n{traceback.format_exc()}")
-            raise
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.get_logger().error(f"Error in termination watcher: {e}\n{traceback.format_exc()}")
+
 
     def _send_end_message_on_end(self):
         desired = self.conf.General.DESIRED_EPISODES.value

@@ -347,7 +347,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             obstacles (Sequence[Obstacle]): Static obstacles to spawn.
             layer (ObstacleLayer, optional): Layer to assign to spawned obstacles. Defaults to ObstacleLayer.INUSE.
         """
-        self._logger.debug(f"spawning {len(obstacles)} static obstacles")
+        self._logger.info(f"spawning {len(obstacles)} static obstacles")
 
         futures: list[typing.Awaitable] = []
         to_register: list[KnownObstacle[Obstacle]] = []
@@ -393,7 +393,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         Args:
             obstacles (typing.Sequence[DynamicObstacle]): Dynamic obstacles to spawn.
         """
-        self._logger.debug(f"spawning {len(obstacles)} dynamic obstacles")
+        self._logger.info(f"spawning {len(obstacles)} dynamic obstacles")
 
         futures: list[typing.Awaitable] = []
         to_register: list[KnownObstacle[DynamicObstacle]] = []
