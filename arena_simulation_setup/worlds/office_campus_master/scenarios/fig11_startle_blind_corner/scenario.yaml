@@ -1,0 +1,34 @@
+robots:
+- name: jackal
+  start:
+  - 14.0
+  - 11.0
+  - 1.5708
+  phases:
+  - goto:
+    - 14.0
+    - 20.0
+    - 1.5708
+  - goto:
+    - 22.0
+    - 20.0
+    - 0.0
+dynamic:
+- name: ped_oncoming_corner
+  model: arenian
+  pose:
+  - 24.0
+  - 20.0
+  - 3.1416
+  velocity: 0.45
+  waypoints:
+  - - 14.0
+    - 20.0
+    - 3.1416
+  - - 14.0
+    - 10.0
+    - -1.5708
+static: []
+regions: {}
+timeline: []
+conditions: []

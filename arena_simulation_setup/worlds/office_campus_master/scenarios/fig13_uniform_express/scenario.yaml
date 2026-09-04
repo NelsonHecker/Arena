@@ -1,0 +1,86 @@
+robots:
+- name: jackal
+  start:
+  - 6.0
+  - 7.0
+  - 0.0
+  phases:
+  - goto:
+    - 12.0
+    - 7.0
+    - 0.0
+  - goto:
+    - 22.0
+    - 7.0
+    - 0.0
+  - goto:
+    - 30.0
+    - 7.0
+    - 0.0
+  - goto:
+    - 36.0
+    - 14.0
+    - 1.5708
+dynamic:
+- name: mic_atrium
+  model: arenian
+  pose:
+  - 6.0
+  - 9.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 6.0
+    - 9.0
+    - 0.0
+- name: mic_focus_worker
+  model: arenian
+  pose:
+  - 32.5
+  - 14.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 32.5
+    - 14.0
+    - 0.0
+static: []
+regions:
+  atrium_zone:
+    type: polygon
+    corners:
+    - - 0.0
+      - 0.0
+    - - 12.0
+      - 0.0
+    - - 12.0
+      - 24.0
+    - - 0.0
+      - 24.0
+    max_velocity: 1.4
+  hallway_zone:
+    type: polygon
+    corners:
+    - - 12.0
+      - 5.0
+    - - 30.0
+      - 5.0
+    - - 30.0
+      - 9.0
+    - - 12.0
+      - 9.0
+    max_velocity: 1.4
+  bullpen_zone:
+    type: polygon
+    corners:
+    - - 30.0
+      - 0.0
+    - - 42.0
+      - 0.0
+    - - 42.0
+      - 24.0
+    - - 30.0
+      - 24.0
+    max_velocity: 1.4
+timeline: []
+conditions: []
