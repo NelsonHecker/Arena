@@ -23,7 +23,7 @@ class TaskPhase(ABC):
 
     kind: ClassVar[TaskKind]
 
-    on_failure: Literal["continue", "stop_task", "abort_episode"] = attrs.field(default="continue", kw_only=True)
+    on_failure: Literal["continue", "stop_task", "abort_episode"] = attrs.field(default="abort_episode", kw_only=True)
     """Phase failure disposition: advance to next phase, stop the task, or abort the episode."""
 
     @abstractmethod
