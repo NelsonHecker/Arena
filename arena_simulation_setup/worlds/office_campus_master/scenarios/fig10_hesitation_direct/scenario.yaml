@@ -1,53 +1,53 @@
 robots:
 - name: jackal
   start:
-  - 13.5
-  - 7.0
+  - 12.0
+  - 11.5
   - 0.0
   phases:
   - goto:
-    - 21.0
-    - 3.5
-    - 3.1416
+    - 15.0
+    - 7.5
+    - -1.5708
 dynamic:
 - name: ped_hesitant_door
   model: arenian
   pose:
-  - 17.0
-  - 4.9
-  - 1.5708
+  - 14.5
+  - 10.0
+  - -1.5708
   velocity: 0.15
   waypoints:
-  - - 17.0
-    - 5.2
+  - - 14.5
+    - 10.3
     - 1.5708
-  - - 17.0
-    - 4.8
+  - - 14.5
+    - 9.7
     - -1.5708
 - name: mic_boardroom
   model: arenian
   pose:
-  - 21.0
-  - 0.8
+  - 15.0
+  - 2.5
   - 1.5708
   velocity: 0.0
   waypoints:
-  - - 21.0
-    - 0.8
+  - - 15.0
+    - 2.5
     - 1.5708
 static: []
 regions:
   boardroom:
     type: polygon
     corners:
-    - - 12.0
+    - - 10.0
       - 0.0
-    - - 26.0
+    - - 20.0
       - 0.0
-    - - 26.0
-      - 5.0
-    - - 12.0
-      - 5.0
+    - - 20.0
+      - 10.0
+    - - 10.0
+      - 10.0
     max_velocity: 0.6
 timeline: []
 conditions: []

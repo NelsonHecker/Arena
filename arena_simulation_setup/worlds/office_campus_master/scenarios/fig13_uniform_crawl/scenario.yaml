@@ -1,49 +1,53 @@
 robots:
 - name: jackal
   start:
-  - 6.0
-  - 7.0
+  - 3.5
+  - 5.0
   - 0.0
   phases:
   - goto:
-    - 12.0
-    - 7.0
+    - 8.0
+    - 8.0
+    - 0.7854
+  - goto:
+    - 10.0
+    - 11.5
     - 0.0
   - goto:
-    - 22.0
-    - 7.0
+    - 18.0
+    - 11.5
+    - 0.0
+  - goto:
+    - 24.0
+    - 11.5
     - 0.0
   - goto:
     - 30.0
-    - 7.0
+    - 11.5
     - 0.0
-  - goto:
-    - 36.0
-    - 14.0
-    - 1.5708
 dynamic:
-- name: mic_atrium
+- name: mic_cafeteria
   model: arenian
   pose:
-  - 6.0
-  - 9.0
+  - 5.0
+  - 7.5
   - 0.0
   velocity: 0.0
   waypoints:
-  - - 6.0
-    - 9.0
+  - - 5.0
+    - 7.5
     - 0.0
-- name: mic_focus_worker
+- name: mic_bullpen_worker
   model: arenian
   pose:
-  - 31.2
-  - 14.0
-  - 0.0
+  - 27.0
+  - 16.4
+  - -1.5708
   velocity: 0.0
   waypoints:
-  - - 31.2
-    - 14.0
-    - 0.0
+  - - 27.0
+    - 16.4
+    - -1.5708
 static: []
 regions:
   atrium_zone:
@@ -51,36 +55,36 @@ regions:
     corners:
     - - 0.0
       - 0.0
-    - - 12.0
+    - - 10.0
       - 0.0
-    - - 12.0
-      - 24.0
+    - - 10.0
+      - 22.0
     - - 0.0
-      - 24.0
+      - 22.0
     max_velocity: 0.35
   hallway_zone:
     type: polygon
     corners:
-    - - 12.0
-      - 5.0
-    - - 30.0
-      - 5.0
-    - - 30.0
-      - 9.0
-    - - 12.0
-      - 9.0
+    - - 10.0
+      - 10.0
+    - - 24.0
+      - 10.0
+    - - 24.0
+      - 13.0
+    - - 10.0
+      - 13.0
     max_velocity: 0.35
   bullpen_zone:
     type: polygon
     corners:
-    - - 30.0
+    - - 24.0
       - 0.0
-    - - 42.0
+    - - 36.0
       - 0.0
-    - - 42.0
-      - 24.0
-    - - 30.0
-      - 24.0
+    - - 36.0
+      - 22.0
+    - - 24.0
+      - 22.0
     max_velocity: 0.35
 timeline: []
 conditions: []

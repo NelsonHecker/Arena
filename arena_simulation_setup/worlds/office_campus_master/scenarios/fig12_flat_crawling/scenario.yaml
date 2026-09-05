@@ -1,72 +1,72 @@
 robots:
 - name: jackal
   start:
-  - 36.0
-  - 5.0
+  - 30.0
+  - 2.0
   - 1.5708
   phases:
   - goto:
-    - 36.0
-    - 22.0
+    - 30.0
+    - 20.0
     - 1.5708
 dynamic:
-- name: worker_desk_1
+- name: worker_pod_A
   model: arenian
   pose:
-  - 31.2
-  - 8.0
-  - 0.0
+  - 27.0
+  - 6.4
+  - -1.5708
   velocity: 0.0
   waypoints:
-  - - 31.2
-    - 8.0
-    - 0.0
-- name: worker_desk_2
+  - - 27.0
+    - 6.4
+    - -1.5708
+- name: worker_pod_B
   model: arenian
   pose:
-  - 31.2
-  - 14.0
-  - 0.0
+  - 27.0
+  - 16.4
+  - -1.5708
   velocity: 0.0
   waypoints:
-  - - 31.2
-    - 14.0
-    - 0.0
-- name: worker_desk_3
+  - - 27.0
+    - 16.4
+    - -1.5708
+- name: worker_pod_C
   model: arenian
   pose:
-  - 31.2
-  - 20.0
-  - 0.0
+  - 33.0
+  - 6.4
+  - -1.5708
   velocity: 0.0
   waypoints:
-  - - 31.2
-    - 20.0
-    - 0.0
-- name: worker_desk_4
+  - - 33.0
+    - 6.4
+    - -1.5708
+- name: worker_pod_D
   model: arenian
   pose:
-  - 40.8
-  - 11.0
-  - 3.1416
+  - 33.0
+  - 16.4
+  - -1.5708
   velocity: 0.0
   waypoints:
-  - - 40.8
-    - 11.0
-    - 3.1416
+  - - 33.0
+    - 16.4
+    - -1.5708
 static: []
 regions:
   bullpen_quiet_zone:
     type: polygon
     corners:
-    - - 30.0
+    - - 24.0
       - 0.0
-    - - 42.0
+    - - 36.0
       - 0.0
-    - - 42.0
-      - 24.0
-    - - 30.0
-      - 24.0
+    - - 36.0
+      - 22.0
+    - - 24.0
+      - 22.0
     max_velocity: 0.35
 timeline: []
 conditions: []

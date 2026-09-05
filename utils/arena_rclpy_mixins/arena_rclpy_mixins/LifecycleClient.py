@@ -13,7 +13,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_lifecycle_state(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> lifecycle_msgs.msg.State:
+    def get_lifecycle_state(self, node_name: str, *, timeout: float | None = 10.0, **kwargs: object) -> lifecycle_msgs.msg.State:
         cli = self.create_client(
             lifecycle_msgs.srv.GetState,
             name := os.path.join(node_name, 'get_state'),
@@ -23,7 +23,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
             raise RuntimeError(f'timed out waiting for {name} after {timeout} secs')
         return cli.call(lifecycle_msgs.srv.GetState.Request()).current_state
 
-    def get_available_lifecycle_states(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.State]:
+    def get_available_lifecycle_states(self, node_name: str, *, timeout: float | None = 10.0, **kwargs: object) -> list[lifecycle_msgs.msg.State]:
         cli = self.create_client(
             lifecycle_msgs.srv.GetAvailableStates,
             name := os.path.join(node_name, 'get_available_states'),
@@ -34,7 +34,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
             raise RuntimeError(f'timed out waiting for {name} after {timeout} secs')
         return cli.call(lifecycle_msgs.srv.GetAvailableStates.Request()).available_states
 
-    def get_available_lifecycle_transitions(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.Transition]:
+    def get_available_lifecycle_transitions(self, node_name: str, *, timeout: float | None = 10.0, **kwargs: object) -> list[lifecycle_msgs.msg.Transition]:
         cli = self.create_client(
             lifecycle_msgs.srv.GetAvailableTransitions,
             name := os.path.join(node_name, 'get_available_transitions'),
@@ -45,7 +45,7 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
             raise RuntimeError(f'timed out waiting for {name} after {timeout} secs')
         return cli.call(lifecycle_msgs.srv.GetAvailableTransitions.Request()).available_transitions
 
-    def change_lifecycle_state(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = None, **kwargs: object) -> bool:
+    def change_lifecycle_state(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = 10.0, **kwargs: object) -> bool:
         if isinstance(transition, int):
             transition = lifecycle_msgs.msg.Transition(id=transition)
         cli = self.create_client(
@@ -75,13 +75,12 @@ class LifecycleClient(TimeNode, rclpy.node.Node):
 class AsyncLifecycleClient(AsyncNode):
     async def _call_wrapper(self, cli: ClientWrapper, request: object, timeout: float | None) -> object:
         srv_name = cli.client.srv_name
-        if timeout is None:
-            return await cli.call_forever(request)
-        if not await cli.ensure(timeout_sec=timeout):
-            raise TimeoutError(f'timed out waiting for {srv_name} after {timeout}s')
-        res = await cli.call_timeout(request, timeout_sec=timeout)
+        timeout_sec = 10.0 if timeout is None else timeout
+        if not await cli.ensure(timeout_sec=timeout_sec):
+            raise TimeoutError(f'timed out waiting for {srv_name} after {timeout_sec}s')
+        res = await cli.call_timeout(request, timeout_sec=timeout_sec)
         if res is None:
-            raise TimeoutError(f'service call {srv_name} timed out after {timeout}s')
+            raise TimeoutError(f'service call {srv_name} timed out after {timeout_sec}s')
         return res
 
     async def _call_lifecycle(self, srv_type: type, sub_path: str, node_name: str, request: object, timeout: float | None, **kwargs: object) -> object:
@@ -95,7 +94,7 @@ class AsyncLifecycleClient(AsyncNode):
         finally:
             self.destroy_client(cli.client)
 
-    async def get_lifecycle_state_async(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> lifecycle_msgs.msg.State:
+    async def get_lifecycle_state_async(self, node_name: str, *, timeout: float | None = 10.0, **kwargs: object) -> lifecycle_msgs.msg.State:
         res = await self._call_lifecycle(
             lifecycle_msgs.srv.GetState,
             'get_state',
@@ -106,7 +105,7 @@ class AsyncLifecycleClient(AsyncNode):
         )
         return res.current_state
 
-    async def get_available_lifecycle_states_async(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.State]:
+    async def get_available_lifecycle_states_async(self, node_name: str, *, timeout: float | None = 10.0, **kwargs: object) -> list[lifecycle_msgs.msg.State]:
         res = await self._call_lifecycle(
             lifecycle_msgs.srv.GetAvailableStates,
             'get_available_states',
@@ -117,7 +116,7 @@ class AsyncLifecycleClient(AsyncNode):
         )
         return res.available_states
 
-    async def get_available_lifecycle_transitions_async(self, node_name: str, *, timeout: float | None = None, **kwargs: object) -> list[lifecycle_msgs.msg.Transition]:
+    async def get_available_lifecycle_transitions_async(self, node_name: str, *, timeout: float | None = 10.0, **kwargs: object) -> list[lifecycle_msgs.msg.Transition]:
         res = await self._call_lifecycle(
             lifecycle_msgs.srv.GetAvailableTransitions,
             'get_available_transitions',
@@ -128,7 +127,7 @@ class AsyncLifecycleClient(AsyncNode):
         )
         return res.available_transitions
 
-    async def change_lifecycle_state_async(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = None, **kwargs: object) -> bool:
+    async def change_lifecycle_state_async(self, node_name: str, transition: lifecycle_msgs.msg.Transition | int, *, timeout: float | None = 10.0, **kwargs: object) -> bool:
         if isinstance(transition, int):
             transition = lifecycle_msgs.msg.Transition(id=transition)
         res = await self._call_lifecycle(
@@ -150,10 +149,11 @@ class AsyncLifecycleClient(AsyncNode):
             **kwargs,
         )
         start_time = self.wall_time
+        probe_timeout = min(timeout, 2.0) if timeout is not None else 2.0
         try:
             while True:
                 try:
-                    res = await self._call_wrapper(cli, lifecycle_msgs.srv.GetState.Request(), timeout)
+                    res = await self._call_wrapper(cli, lifecycle_msgs.srv.GetState.Request(), probe_timeout)
                 except TimeoutError:
                     pass
                 else:

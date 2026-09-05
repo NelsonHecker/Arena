@@ -121,6 +121,14 @@ class Nav2Adapter(MobileAdapter):
             return
         bt_node_path = str(robot.namespace("bt_navigator"))
         await robot.node.poll(lambda: bt_node_path in node_paths, f"node {bt_node_path}", interval=0.01)
+        try:
+            await robot.node.wait_for_lifecycle_state_async(
+                bt_node_path,
+                lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE,
+                timeout=20.0,
+            )
+        except Exception as e:
+            robot.node.get_logger().warning(f"timed out waiting for {bt_node_path} to become ACTIVE: {e}")
         await super().wait_until_ready(robot, node_paths)
 
     async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
@@ -159,18 +167,24 @@ class Nav2Adapter(MobileAdapter):
             req = ClearCostmapAroundRobot.Request()
             req.reset_distance = reset_distance
 
-        state = await robot.node.get_lifecycle_state_async(node_name)
-        if state.id != lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE:
+        try:
+            state = await robot.node.get_lifecycle_state_async(node_name, timeout=5.0)
+            if state.id != lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE:
+                return False
+        except Exception as exc:
+            robot.node.get_logger().warning(f"failed to query lifecycle state for {node_name}: {exc}")
             return False
 
         cli = self._costmap_clients.get(srv_name)
         if cli is None:
             cli = robot.node.create_client_wrapper(srv_type, srv_name)
             self._costmap_clients[srv_name] = cli
-        await cli.ensure()
+        if not await cli.ensure(timeout_sec=5.0):
+            robot.node.get_logger().warning(f"costmap service {srv_name} not available")
+            return False
 
-        result = await cli.call_timeout(req)
+        result = await cli.call_timeout(req, timeout_sec=5.0)
         if result is None:
-            robot.node.get_logger().error(f"service call failed for {srv_name}")
+            robot.node.get_logger().warning(f"service call failed for {srv_name}")
             return False
         return True
