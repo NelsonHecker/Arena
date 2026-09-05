@@ -1,133 +1,66 @@
 zones:
-- name: atrium_lounge
-  description: Active Reception & Coffee Atrium with high ambient noise (62 dBA)
+- name: cafeteria_atrium
+  description: Bustling Cafeteria & Lounge with high ambient noise (62 dBA)
   material:
   - Oak_Planks
   - {}
   corners:
   - x: 0.0
     y: 0.0
-    z: 0.0
-  - x: 12.0
+  - x: 10.0
     y: 0.0
-    z: 0.0
-  - x: 12.0
-    y: 24.0
-    z: 0.0
+  - x: 10.0
+    y: 10.0
   - x: 0.0
-    y: 24.0
-    z: 0.0
+    y: 10.0
   walls:
   - start:
       x: 0.0
       y: 0.0
-      z: 0.0
     end:
-      x: 12.0
+      x: 10.0
       y: 0.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
   - start:
       x: 0.0
       y: 0.0
-      z: 0.0
     end:
       x: 0.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      y: 10.0
   - start:
-      x: 0.0
-      y: 24.0
-      z: 0.0
-    end:
-      x: 12.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 12.0
+      x: 10.0
       y: 0.0
-      z: 0.0
     end:
-      x: 12.0
-      y: 5.5
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      x: 10.0
+      y: 10.0
   - start:
-      x: 12.0
-      y: 8.5
-      z: 0.0
+      x: 0.0
+      y: 10.0
     end:
-      x: 12.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  doors:
-  - name: door_atrium_to_hallway
-    start:
-      x: 12.0
-      y: 5.5
-      z: 0.0
-    end:
-      x: 12.0
-      y: 8.5
-      z: 0.0
-    kind: sliding
-    width: 0.1
-    height: 2.4
-    material:
-    - Aluminum_Anodized
-    - {}
+      x: 6.0
+      y: 10.0
+  doors: []
   semantics:
   - state: max_speed
     value: 1.4
   entities:
     static:
-    - name: atrium_cafe_counter
+    - name: cafe_counter
       model: Office/SM_ReceptionTableStraight
       pose:
         position:
-          x: 4.0
-          y: 18.0
+          x: 3.5
+          y: 0.9
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: atrium_reception_desk
-      model: Office/SM_ReceptionStandB
+    - name: cafe_table_1
+      model: Office/SM_TableWorkingDouble
       pose:
         position:
-          x: 4.0
-          y: 12.0
-          z: 0.0
-        orientation:
-          w: 0.7071054825112363
-          x: 0.0
-          y: 0.0
-          z: 0.7071080798594735
-    - name: atrium_sofa_1
-      model: Office/SM_Sofa
-      pose:
-        position:
-          x: 3.0
+          x: 2.7
           y: 4.0
           z: 0.0
         orientation:
@@ -135,23 +68,11 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: atrium_sofa_2
-      model: Office/SM_Sofa
+    - name: cafe_table_2
+      model: Office/SM_TableWorkingDouble
       pose:
         position:
-          x: 7.0
-          y: 4.0
-          z: 0.0
-        orientation:
-          w: -3.673205103346574e-06
-          x: 0.0
-          y: 0.0
-          z: 0.9999999999932537
-    - name: atrium_coffee_table
-      model: Office/SM_TableCoffee
-      pose:
-        position:
-          x: 5.0
+          x: 6.7
           y: 4.0
           z: 0.0
         orientation:
@@ -159,48 +80,48 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: atrium_plant_1
-      model: Office/SM_Plant01
+    - name: cafe_table_3
+      model: Office/SM_TableWorkingDouble
       pose:
         position:
-          x: 1.5
-          y: 1.5
+          x: 2.7
+          y: 7.5
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: atrium_plant_2
-      model: Office/SM_Plant02
+    - name: cafe_table_4
+      model: Office/SM_TableWorkingDouble
       pose:
         position:
-          x: 10.5
-          y: 1.5
+          x: 6.7
+          y: 7.5
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: atrium_plant_3
-      model: Office/SM_Plant01
-      pose:
-        position:
-          x: 1.5
-          y: 22.0
-          z: 0.0
-        orientation:
-          w: 1.0
-          x: 0.0
-          y: 0.0
-          z: 0.0
-    - name: atrium_drinks_machine
+    - name: cafe_espresso_machine
       model: Office/SM_DrinksMachine
       pose:
         position:
           x: 1.2
-          y: 16.0
+          y: 0.9
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: cafe_plant_1
+      model: Office/SM_Plant01
+      pose:
+        position:
+          x: 1.0
+          y: 9.0
           z: 0.0
         orientation:
           w: 1.0
@@ -208,78 +129,160 @@ zones:
           y: 0.0
           z: 0.0
     dynamic: []
-- name: main_transit_hallway
-  description: Central Arterial Transit Hallway connecting all facility wings (48
-    dBA)
+- name: reception_lobby
+  description: Reception Lobby & Visitor Check-In (60 dBA)
+  material:
+  - Oak_Planks
+  - {}
+  corners:
+  - x: 0.0
+    y: 10.0
+  - x: 10.0
+    y: 10.0
+  - x: 10.0
+    y: 22.0
+  - x: 0.0
+    y: 22.0
+  walls:
+  - start:
+      x: 0.0
+      y: 22.0
+    end:
+      x: 10.0
+      y: 22.0
+  - start:
+      x: 0.0
+      y: 10.0
+    end:
+      x: 0.0
+      y: 22.0
+  - start:
+      x: 10.0
+      y: 13.0
+    end:
+      x: 10.0
+      y: 22.0
+  doors:
+  - name: door_atrium_hallway
+    start:
+      x: 10.0
+      y: 10.0
+    end:
+      x: 10.0
+      y: 13.0
+    kind: sliding
+    width: 0.1
+    height: 2.4
+  semantics:
+  - state: max_speed
+    value: 1.4
+  entities:
+    static:
+    - name: reception_desk
+      model: Office/SM_ReceptionTableStraight
+      pose:
+        position:
+          x: 5.6
+          y: 15.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: reception_couch_1
+      model: Office/SM_Sofa
+      pose:
+        position:
+          x: 3.0
+          y: 20.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: reception_couch_2
+      model: Office/SM_Sofa
+      pose:
+        position:
+          x: 7.0
+          y: 20.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: reception_plant_1
+      model: Office/SM_Plant02
+      pose:
+        position:
+          x: 1.0
+          y: 20.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: reception_plant_2
+      model: Office/SM_Plant03
+      pose:
+        position:
+          x: 9.0
+          y: 20.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    dynamic: []
+- name: main_arterial_hallway
+  description: Central Arterial Corridor connecting all sectors (48 dBA)
   material:
   - Concrete_Smooth
   - {}
   corners:
-  - x: 12.0
-    y: 5.0
-    z: 0.0
-  - x: 30.0
-    y: 5.0
-    z: 0.0
-  - x: 30.0
-    y: 9.0
-    z: 0.0
-  - x: 12.0
-    y: 9.0
-    z: 0.0
+  - x: 10.0
+    y: 10.0
+  - x: 24.0
+    y: 10.0
+  - x: 24.0
+    y: 13.0
+  - x: 10.0
+    y: 13.0
   walls:
   - start:
-      x: 12.0
-      y: 5.0
-      z: 0.0
+      x: 10.0
+      y: 10.0
     end:
-      x: 16.35
-      y: 5.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      x: 13.85
+      y: 10.0
   - start:
-      x: 17.65
-      y: 5.0
-      z: 0.0
+      x: 15.15
+      y: 10.0
     end:
-      x: 26.0
-      y: 5.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      x: 20.0
+      y: 10.0
   - start:
-      x: 16.0
-      y: 9.0
-      z: 0.0
+      x: 13.0
+      y: 13.0
     end:
-      x: 30.0
-      y: 9.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      x: 24.0
+      y: 13.0
   doors:
   - name: door_boardroom_bottleneck
     start:
-      x: 16.35
-      y: 5.0
-      z: 0.0
+      x: 13.85
+      y: 10.0
     end:
-      x: 17.65
-      y: 5.0
-      z: 0.0
+      x: 15.15
+      y: 10.0
     kind: swing
     width: 0.1
     height: 2.2
-    material:
-    - Oak_Planks
-    - {}
   semantics:
   - state: max_speed
     value: 1.0
@@ -289,32 +292,20 @@ zones:
       model: Office/SM_WaterCooler
       pose:
         position:
-          x: 20.0
-          y: 8.4
+          x: 18.0
+          y: 12.5
           z: 0.0
         orientation:
           w: -3.673205103346574e-06
           x: 0.0
           y: 0.0
           z: 0.9999999999932537
-    - name: hallway_plant_1
-      model: Office/SM_Plant03
-      pose:
-        position:
-          x: 25.0
-          y: 8.4
-          z: 0.0
-        orientation:
-          w: 1.0
-          x: 0.0
-          y: 0.0
-          z: 0.0
-    - name: hallway_marker_board
+    - name: hallway_notice_board
       model: Office/SM_MarkerBoard
       pose:
         position:
-          x: 14.0
-          y: 5.6
+          x: 12.0
+          y: 10.4
           z: 0.0
         orientation:
           w: 1.0
@@ -323,134 +314,72 @@ zones:
           z: 0.0
     dynamic: []
 - name: research_lab_wing
-  description: Research Lab Wing with Blind 90-Degree L-Corridor Corner (45 dBA)
+  description: Research Wing with Solid Acoustic Barrier & Blind 90-Degree Corner
+    (45 dBA)
   material:
   - Concrete_Smooth
   - {}
   corners:
-  - x: 12.0
-    y: 9.0
-    z: 0.0
-  - x: 30.0
-    y: 9.0
-    z: 0.0
-  - x: 30.0
-    y: 24.0
-    z: 0.0
-  - x: 12.0
-    y: 24.0
-    z: 0.0
+  - x: 10.0
+    y: 13.0
+  - x: 24.0
+    y: 13.0
+  - x: 24.0
+    y: 22.0
+  - x: 10.0
+    y: 22.0
   walls:
   - start:
-      x: 12.0
-      y: 9.0
-      z: 0.0
-    end:
-      x: 12.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 12.0
-      y: 24.0
-      z: 0.0
-    end:
-      x: 30.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 16.0
-      y: 9.0
-      z: 0.0
-    end:
-      x: 16.0
-      y: 18.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 16.0
-      y: 18.0
-      z: 0.0
-    end:
-      x: 30.0
-      y: 18.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 16.0
+      x: 10.0
       y: 22.0
-      z: 0.0
     end:
-      x: 30.0
+      x: 24.0
       y: 22.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
   - start:
-      x: 30.0
-      y: 9.0
-      z: 0.0
+      x: 13.0
+      y: 13.0
     end:
-      x: 30.0
+      x: 13.0
       y: 19.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
   - start:
-      x: 30.0
-      y: 21.0
-      z: 0.0
+      x: 13.0
+      y: 19.0
     end:
-      x: 30.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      x: 24.0
+      y: 19.0
+  - start:
+      x: 24.0
+      y: 13.0
+    end:
+      x: 24.0
+      y: 19.5
+  - start:
+      x: 24.0
+      y: 21.5
+    end:
+      x: 24.0
+      y: 22.0
   doors:
   - name: door_lab_fire_exit
     start:
-      x: 30.0
-      y: 19.0
-      z: 0.0
+      x: 24.0
+      y: 19.5
     end:
-      x: 30.0
-      y: 21.0
-      z: 0.0
+      x: 24.0
+      y: 21.5
     kind: swing
     width: 0.1
     height: 2.2
-    material:
-    - Aluminum_Anodized
-    - {}
   semantics:
   - state: max_speed
-    value: 0.8
+    value: 0.85
   entities:
     static:
-    - name: lab_file_cabinet_1
-      model: Office/SM_FileCabinet_01
+    - name: lab_server_rack_1
+      model: Office/SM_Rack
       pose:
         position:
-          x: 12.6
+          x: 18.0
           y: 14.0
           z: 0.0
         orientation:
@@ -458,12 +387,36 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: lab_file_cabinet_2
+    - name: lab_server_rack_2
+      model: Office/SM_Rack
+      pose:
+        position:
+          x: 20.0
+          y: 14.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: lab_cabinet_1
       model: Office/SM_FileCabinet_01
       pose:
         position:
-          x: 12.6
-          y: 16.0
+          x: 14.0
+          y: 18.2
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: lab_water_cooler
+      model: Office/SM_WaterCooler
+      pose:
+        position:
+          x: 10.8
+          y: 14.0
           z: 0.0
         orientation:
           w: 1.0
@@ -471,244 +424,346 @@ zones:
           y: 0.0
           z: 0.0
     - name: lab_corner_plant
-      model: Office/SM_Plant01
+      model: Office/SM_Plant02
       pose:
         position:
-          x: 12.6
-          y: 22.5
+          x: 10.8
+          y: 21.0
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: lab_server_rack_1
-      model: Office/SM_Rack
+    dynamic: []
+- name: executive_boardroom
+  description: Executive Boardroom Suite accessed via narrow doorway or perimeter
+    bypass (35 dBA)
+  material:
+  - Oak_Planks
+  - {}
+  corners:
+  - x: 10.0
+    y: 0.0
+  - x: 20.0
+    y: 0.0
+  - x: 20.0
+    y: 10.0
+  - x: 10.0
+    y: 10.0
+  walls:
+  - start:
+      x: 10.0
+      y: 0.0
+    end:
+      x: 20.0
+      y: 0.0
+  - start:
+      x: 20.0
+      y: 0.0
+    end:
+      x: 20.0
+      y: 3.5
+  - start:
+      x: 20.0
+      y: 5.5
+    end:
+      x: 20.0
+      y: 10.0
+  doors:
+  - name: door_boardroom_side_bypass
+    start:
+      x: 20.0
+      y: 3.5
+    end:
+      x: 20.0
+      y: 5.5
+    kind: swing
+    width: 0.1
+    height: 2.2
+  semantics:
+  - state: max_speed
+    value: 0.6
+  entities:
+    static:
+    - name: boardroom_conf_table
+      model: Office/SM_TableWorkingDouble
       pose:
         position:
-          x: 22.0
-          y: 17.4
+          x: 15.0
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: boardroom_chair_n1
+      model: Office/SM_ChairOffice
+      pose:
+        position:
+          x: 14.0
+          y: 6.0
+          z: 0.0
+        orientation:
+          w: 0.7071054825112363
+          x: 0.0
+          y: 0.0
+          z: -0.7071080798594735
+    - name: boardroom_chair_n2
+      model: Office/SM_ChairOffice
+      pose:
+        position:
+          x: 16.0
+          y: 6.0
+          z: 0.0
+        orientation:
+          w: 0.7071054825112363
+          x: 0.0
+          y: 0.0
+          z: -0.7071080798594735
+    - name: boardroom_chair_s1
+      model: Office/SM_ChairOffice
+      pose:
+        position:
+          x: 14.0
+          y: 3.0
           z: 0.0
         orientation:
           w: 0.7071054825112363
           x: 0.0
           y: 0.0
           z: 0.7071080798594735
-    - name: lab_water_cooler
-      model: Office/SM_WaterCooler
+    - name: boardroom_chair_s2
+      model: Office/SM_ChairOffice
       pose:
         position:
-          x: 28.0
-          y: 21.4
+          x: 16.0
+          y: 3.0
           z: 0.0
         orientation:
-          w: -3.673205103346574e-06
+          w: 0.7071054825112363
           x: 0.0
           y: 0.0
-          z: 0.9999999999932537
+          z: 0.7071080798594735
+    - name: boardroom_display
+      model: Office/SM_TVDisplay_small
+      pose:
+        position:
+          x: 10.4
+          y: 4.5
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: boardroom_plant
+      model: Office/SM_Plant01
+      pose:
+        position:
+          x: 10.8
+          y: 1.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
     dynamic: []
 - name: quiet_focus_bullpen
-  description: Quiet Executive Open-Plan Bullpen with Workstation Pods (32 dBA)
+  description: Quiet Focus Open-Plan Bullpen with Workstation Desk Clusters (32 dBA)
   material:
   - Oak_Planks
   - {}
   corners:
-  - x: 30.0
+  - x: 24.0
     y: 0.0
-    z: 0.0
-  - x: 42.0
+  - x: 36.0
     y: 0.0
-    z: 0.0
-  - x: 42.0
-    y: 24.0
-    z: 0.0
-  - x: 30.0
-    y: 24.0
-    z: 0.0
+  - x: 36.0
+    y: 22.0
+  - x: 24.0
+    y: 22.0
   walls:
   - start:
-      x: 42.0
+      x: 24.0
       y: 0.0
-      z: 0.0
     end:
-      x: 42.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 30.0
+      x: 36.0
       y: 0.0
-      z: 0.0
-    end:
-      x: 42.0
+  - start:
+      x: 36.0
       y: 0.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 30.0
-      y: 24.0
-      z: 0.0
     end:
-      x: 42.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      x: 36.0
+      y: 22.0
   - start:
-      x: 30.0
+      x: 24.0
+      y: 22.0
+    end:
+      x: 36.0
+      y: 22.0
+  - start:
+      x: 24.0
       y: 0.0
-      z: 0.0
     end:
-      x: 30.0
-      y: 5.5
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 30.0
-      y: 8.5
-      z: 0.0
-    end:
-      x: 30.0
-      y: 24.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
+      x: 24.0
+      y: 10.5
   doors:
   - name: door_bullpen_main_entrance
     start:
-      x: 30.0
-      y: 5.5
-      z: 0.0
+      x: 24.0
+      y: 10.5
     end:
-      x: 30.0
-      y: 8.5
-      z: 0.0
+      x: 24.0
+      y: 12.5
     kind: sliding
     width: 0.1
     height: 2.4
-    material:
-    - Aluminum_Anodized
-    - {}
   semantics:
   - state: max_speed
     value: 0.35
   entities:
     static:
-    - name: bullpen_desk_1
+    - name: pod_A_desk_1
       model: Office/SM_TableWorkingDouble
       pose:
         position:
-          x: 32.5
-          y: 8.0
+          x: 27.0
+          y: 5.0
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-    - name: bullpen_laptop_1
+          z: 0.0
+    - name: pod_A_laptop
       model: Office/SM_Laptop
       pose:
         position:
-          x: 32.5
-          y: 8.0
+          x: 27.0
+          y: 5.0
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: bullpen_desk_2
-      model: Office/SM_TableWorkingDouble
+    - name: pod_A_chair
+      model: Office/SM_ChairOffice
       pose:
         position:
-          x: 32.5
-          y: 14.0
+          x: 27.0
+          y: 3.2
           z: 0.0
         orientation:
           w: 0.7071054825112363
           x: 0.0
           y: 0.0
           z: 0.7071080798594735
-    - name: bullpen_monitor_2
+    - name: pod_B_desk_1
+      model: Office/SM_TableWorkingDouble
+      pose:
+        position:
+          x: 27.0
+          y: 15.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pod_B_monitor
       model: Office/SM_MonitorPC
       pose:
         position:
-          x: 32.5
-          y: 14.0
+          x: 27.0
+          y: 15.0
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: bullpen_desk_3
-      model: Office/SM_TableWorkingDouble
+    - name: pod_B_chair
+      model: Office/SM_ChairOffice
       pose:
         position:
-          x: 32.5
-          y: 20.0
+          x: 27.0
+          y: 13.2
           z: 0.0
         orientation:
           w: 0.7071054825112363
           x: 0.0
           y: 0.0
           z: 0.7071080798594735
-    - name: bullpen_laptop_3
+    - name: pod_C_desk_1
+      model: Office/SM_TableWorkingDouble
+      pose:
+        position:
+          x: 33.0
+          y: 5.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pod_C_laptop
       model: Office/SM_Laptop
       pose:
         position:
-          x: 32.5
-          y: 20.0
+          x: 33.0
+          y: 5.0
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    - name: bullpen_desk_4
-      model: Office/SM_TableWorkingDouble
+    - name: pod_C_chair
+      model: Office/SM_ChairOffice
       pose:
         position:
-          x: 39.5
-          y: 11.0
+          x: 33.0
+          y: 3.2
           z: 0.0
         orientation:
           w: 0.7071054825112363
           x: 0.0
           y: 0.0
           z: 0.7071080798594735
-    - name: bullpen_monitor_4
-      model: Office/SM_MonitorPC
-      pose:
-        position:
-          x: 39.5
-          y: 11.0
-          z: 0.0
-        orientation:
-          w: -3.673205103346574e-06
-          x: 0.0
-          y: 0.0
-          z: 0.9999999999932537
-    - name: bullpen_desk_5
+    - name: pod_D_desk_1
       model: Office/SM_TableWorkingDouble
       pose:
         position:
-          x: 39.5
-          y: 17.0
+          x: 33.0
+          y: 15.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pod_D_monitor
+      model: Office/SM_MonitorPC
+      pose:
+        position:
+          x: 33.0
+          y: 15.0
+          z: 0.0
+        orientation:
+          w: 1.0
+          x: 0.0
+          y: 0.0
+          z: 0.0
+    - name: pod_D_chair
+      model: Office/SM_ChairOffice
+      pose:
+        position:
+          x: 33.0
+          y: 13.2
           z: 0.0
         orientation:
           w: 0.7071054825112363
@@ -719,8 +774,8 @@ zones:
       model: Office/SM_Printer
       pose:
         position:
-          x: 41.2
-          y: 5.0
+          x: 35.0
+          y: 1.0
           z: 0.0
         orientation:
           w: -3.673205103346574e-06
@@ -731,8 +786,20 @@ zones:
       model: Office/SM_FileCabinet_01
       pose:
         position:
-          x: 41.2
-          y: 14.0
+          x: 35.0
+          y: 10.0
+          z: 0.0
+        orientation:
+          w: -3.673205103346574e-06
+          x: 0.0
+          y: 0.0
+          z: 0.9999999999932537
+    - name: bullpen_cabinet_2
+      model: Office/SM_FileCabinet_01
+      pose:
+        position:
+          x: 35.0
+          y: 11.0
           z: 0.0
         orientation:
           w: -3.673205103346574e-06
@@ -740,11 +807,11 @@ zones:
           y: 0.0
           z: 0.9999999999932537
     - name: bullpen_plant_1
-      model: Office/SM_Plant02
+      model: Office/SM_Plant03
       pose:
         position:
-          x: 31.0
-          y: 5.0
+          x: 25.0
+          y: 1.0
           z: 0.0
         orientation:
           w: 1.0
@@ -755,201 +822,12 @@ zones:
       model: Office/SM_Plant01
       pose:
         position:
-          x: 36.0
-          y: 23.0
+          x: 30.0
+          y: 21.0
           z: 0.0
         orientation:
           w: 1.0
           x: 0.0
           y: 0.0
           z: 0.0
-    dynamic: []
-- name: boardroom_suite
-  description: Executive Boardroom Suite accessed via Narrow Bottleneck Doorway (35
-    dBA)
-  material:
-  - Oak_Planks
-  - {}
-  corners:
-  - x: 12.0
-    y: 0.0
-    z: 0.0
-  - x: 26.0
-    y: 0.0
-    z: 0.0
-  - x: 26.0
-    y: 5.0
-    z: 0.0
-  - x: 12.0
-    y: 5.0
-    z: 0.0
-  walls:
-  - start:
-      x: 12.0
-      y: 0.0
-      z: 0.0
-    end:
-      x: 26.0
-      y: 0.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 12.0
-      y: 0.0
-      z: 0.0
-    end:
-      x: 12.0
-      y: 5.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 26.0
-      y: 0.0
-      z: 0.0
-    end:
-      x: 26.0
-      y: 1.5
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 26.0
-      y: 3.5
-      z: 0.0
-    end:
-      x: 26.0
-      y: 5.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  doors:
-  - name: door_boardroom_side_bypass
-    start:
-      x: 26.0
-      y: 1.5
-      z: 0.0
-    end:
-      x: 26.0
-      y: 3.5
-      z: 0.0
-    kind: swing
-    width: 0.1
-    height: 2.2
-    material:
-    - Oak_Planks
-    - {}
-  semantics:
-  - state: max_speed
-    value: 0.6
-  entities:
-    static:
-    - name: boardroom_conf_table
-      model: Office/SM_TableWorkingDouble
-      pose:
-        position:
-          x: 21.0
-          y: 1.8
-          z: 0.0
-        orientation:
-          w: 1.0
-          x: 0.0
-          y: 0.0
-          z: 0.0
-    - name: boardroom_display
-      model: Office/SM_TVDisplay_small
-      pose:
-        position:
-          x: 12.6
-          y: 2.5
-          z: 0.0
-        orientation:
-          w: 1.0
-          x: 0.0
-          y: 0.0
-          z: 0.0
-    - name: boardroom_plant
-      model: Office/SM_Plant03
-      pose:
-        position:
-          x: 13.0
-          y: 0.8
-          z: 0.0
-        orientation:
-          w: 1.0
-          x: 0.0
-          y: 0.0
-          z: 0.0
-    dynamic: []
-- name: perimeter_bypass_corridor
-  description: Perimeter Detour Bypass Corridor providing unobstructed transit around
-    bottleneck (45 dBA)
-  material:
-  - Concrete_Smooth
-  - {}
-  corners:
-  - x: 26.0
-    y: 0.0
-    z: 0.0
-  - x: 30.0
-    y: 0.0
-    z: 0.0
-  - x: 30.0
-    y: 5.0
-    z: 0.0
-  - x: 26.0
-    y: 5.0
-    z: 0.0
-  walls:
-  - start:
-      x: 26.0
-      y: 0.0
-      z: 0.0
-    end:
-      x: 30.0
-      y: 0.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  - start:
-      x: 30.0
-      y: 0.0
-      z: 0.0
-    end:
-      x: 30.0
-      y: 5.0
-      z: 0.0
-    material:
-      name: Plaster_Wall
-      domain: Common
-      _modifiers: null
-  doors: []
-  semantics:
-  - state: max_speed
-    value: 1.0
-  entities:
-    static:
-    - name: bypass_cabinet_1
-      model: Office/SM_FileCabinet_03
-      pose:
-        position:
-          x: 29.2
-          y: 1.5
-          z: 0.0
-        orientation:
-          w: -3.673205103346574e-06
-          x: 0.0
-          y: 0.0
-          z: 0.9999999999932537
     dynamic: []

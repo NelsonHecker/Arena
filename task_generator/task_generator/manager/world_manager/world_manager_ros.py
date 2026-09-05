@@ -22,7 +22,7 @@ import rclpy.qos
 import shapely
 import yaml
 from ament_index_python.packages import get_package_share_directory
-from arena_rclpy_mixins.Async import ClientWrapper
+from arena_rclpy_mixins.Async import ClientWrapper, LaunchHandle
 from arena_rclpy_mixins.shared import FrameNamespace
 from arena_runtime._node import NodeInterface
 from arena_simulation_setup.shared import Position
@@ -47,6 +47,8 @@ _DOOR_MASK_BUFFER_M = 0.2
 class MapServerHandler(NodeInterface):
     """Handler functions for the map server lifecycle."""
 
+    _map_server_launch_handle: LaunchHandle | None = None
+
     async def ensure_map_server(self):
         """Restart the map server if it is not active."""
 
@@ -61,16 +63,33 @@ class MapServerHandler(NodeInterface):
 
             self._logger.warn('shutting down map server...')
 
-            try:
-                await self.node.change_lifecycle_state_async(self.node.service_namespace('map_server'), lifecycle_msgs.msg.Transition.TRANSITION_DESTROY, timeout=wait_interval)
-            except TimeoutError:
-                self._logger.warn('map server unresponsive to destroy.')
-            else:
+            if self._map_server_launch_handle is not None:
+                try:
+                    await self._map_server_launch_handle.shutdown()
+                except Exception as exc:
+                    self._logger.warning(f'error shutting down map server launch: {exc}')
+                self._map_server_launch_handle = None
                 self._logger.warn('map server shut down.')
+            else:
+                try:
+                    await self.node.change_lifecycle_state_async(
+                        self.node.service_namespace('map_server'),
+                        lifecycle_msgs.msg.Transition.TRANSITION_ACTIVE_SHUTDOWN,
+                        timeout=5.0,
+                    )
+                except Exception:
+                    pass
 
             self._logger.warn('relaunching map server...')
 
-            await self.node.do_launch(launch.LaunchDescription([launch.actions.IncludeLaunchDescription(launch.launch_description_sources.PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('arena_bringup'), 'launch/utils/map_server.launch.py')))]))
+            desc = launch.LaunchDescription([
+                launch.actions.IncludeLaunchDescription(
+                    launch.launch_description_sources.PythonLaunchDescriptionSource(
+                        os.path.join(get_package_share_directory('arena_bringup'), 'launch/utils/map_server.launch.py')
+                    )
+                )
+            ])
+            self._map_server_launch_handle = await self.node.do_launch_tracked(desc)
 
         self._logger.info('map server launched.')
 
