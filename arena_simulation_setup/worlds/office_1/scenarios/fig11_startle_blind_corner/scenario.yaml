@@ -1,0 +1,28 @@
+robots:
+- name: jackal
+  start:
+  - 13.5
+  - 4.0
+  - 1.5708
+  phases:
+  - goto:
+    - 13.5
+    - 12.0
+    - 1.5708
+dynamic:
+- name: ped_blind_walker
+  model: arenian
+  pose:
+  - 22.0
+  - 11.5
+  - 3.1415
+  velocity: 1.1
+  waypoints:
+  - - 12.0
+    - 11.5
+    - 3.1415
+  - - 22.0
+    - 11.5
+    - 0.0
+static: []
+interactive: []

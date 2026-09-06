@@ -1,8 +1,8 @@
 robots:
 - name: jackal
-  start: [4.0, 27.65, 0.0]
+  start: [7.0, 27.65, 0.0]
   phases:
-  - goto: [4.0, 14.1, 3.1416]
+  - goto: [5.8, 14.1, 3.1416]
 dynamic:
 - name: ped_nurse_corridor
   model: arenian

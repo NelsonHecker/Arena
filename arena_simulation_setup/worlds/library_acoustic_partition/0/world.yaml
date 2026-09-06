@@ -40,10 +40,15 @@ zones:
   - {predicate: quiet, value: true}
   entities:
     static:
-    - name: reading_desk_c1_r1
+    - name: reading_desk_w_c1_r1
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 5.0, y: 6.0, z: 0.0}
+        position: {x: 4.9, y: 6.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c1_r1
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 5.7, y: 6.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c1_r1
       model: Hospital/SM_Chair_01a
@@ -53,12 +58,17 @@ zones:
     - name: chair_e_reading_desk_c1_r1
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 6.0, y: 6.0, z: 0.0}
+        position: {x: 6.6, y: 6.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c1_r2
+    - name: reading_desk_w_c1_r2
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 5.0, y: 10.0, z: 0.0}
+        position: {x: 4.9, y: 10.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c1_r2
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 5.7, y: 10.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c1_r2
       model: Hospital/SM_Chair_01a
@@ -68,12 +78,17 @@ zones:
     - name: chair_e_reading_desk_c1_r2
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 6.0, y: 10.0, z: 0.0}
+        position: {x: 6.6, y: 10.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c1_r3
+    - name: reading_desk_w_c1_r3
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 5.0, y: 14.0, z: 0.0}
+        position: {x: 4.9, y: 14.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c1_r3
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 5.7, y: 14.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c1_r3
       model: Hospital/SM_Chair_01a
@@ -83,27 +98,17 @@ zones:
     - name: chair_e_reading_desk_c1_r3
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 6.0, y: 14.0, z: 0.0}
+        position: {x: 6.6, y: 14.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c1_r4
+    - name: reading_desk_w_c1_r5
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 5.0, y: 18.0, z: 0.0}
-        orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
-    - name: chair_w_reading_desk_c1_r4
-      model: Hospital/SM_Chair_01a
-      pose:
-        position: {x: 4.0, y: 18.0, z: 0.0}
-        orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
-    - name: chair_e_reading_desk_c1_r4
-      model: Hospital/SM_Chair_01a
-      pose:
-        position: {x: 6.0, y: 18.0, z: 0.0}
-        orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c1_r5
+        position: {x: 4.9, y: 22.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c1_r5
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 5.0, y: 22.0, z: 0.0}
+        position: {x: 5.7, y: 22.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c1_r5
       model: Hospital/SM_Chair_01a
@@ -113,12 +118,17 @@ zones:
     - name: chair_e_reading_desk_c1_r5
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 6.0, y: 22.0, z: 0.0}
+        position: {x: 6.6, y: 22.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c1_r6
+    - name: reading_desk_w_c1_r6
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 5.0, y: 26.0, z: 0.0}
+        position: {x: 4.9, y: 26.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c1_r6
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 5.7, y: 26.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c1_r6
       model: Hospital/SM_Chair_01a
@@ -128,12 +138,17 @@ zones:
     - name: chair_e_reading_desk_c1_r6
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 6.0, y: 26.0, z: 0.0}
+        position: {x: 6.6, y: 26.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c1_r7
+    - name: reading_desk_w_c1_r7
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 5.0, y: 30.0, z: 0.0}
+        position: {x: 4.9, y: 30.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c1_r7
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 5.7, y: 30.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c1_r7
       model: Hospital/SM_Chair_01a
@@ -143,107 +158,122 @@ zones:
     - name: chair_e_reading_desk_c1_r7
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 6.0, y: 30.0, z: 0.0}
+        position: {x: 6.6, y: 30.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c2_r1
+    - name: reading_desk_w_c2_r1
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 11.0, y: 6.0, z: 0.0}
+        position: {x: 10.3, y: 6.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c2_r1
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 11.1, y: 6.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c2_r1
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 10.0, y: 6.0, z: 0.0}
+        position: {x: 9.4, y: 6.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
     - name: chair_e_reading_desk_c2_r1
       model: Hospital/SM_Chair_01a
       pose:
         position: {x: 12.0, y: 6.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c2_r2
+    - name: reading_desk_w_c2_r2
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 11.0, y: 10.0, z: 0.0}
+        position: {x: 10.3, y: 10.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c2_r2
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 11.1, y: 10.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c2_r2
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 10.0, y: 10.0, z: 0.0}
+        position: {x: 9.4, y: 10.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
     - name: chair_e_reading_desk_c2_r2
       model: Hospital/SM_Chair_01a
       pose:
         position: {x: 12.0, y: 10.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c2_r3
+    - name: reading_desk_w_c2_r3
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 11.0, y: 14.0, z: 0.0}
+        position: {x: 10.3, y: 14.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c2_r3
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 11.1, y: 14.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c2_r3
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 10.0, y: 14.0, z: 0.0}
+        position: {x: 9.4, y: 14.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
     - name: chair_e_reading_desk_c2_r3
       model: Hospital/SM_Chair_01a
       pose:
         position: {x: 12.0, y: 14.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c2_r4
+    - name: reading_desk_w_c2_r5
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 11.0, y: 18.0, z: 0.0}
-        orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
-    - name: chair_w_reading_desk_c2_r4
-      model: Hospital/SM_Chair_01a
-      pose:
-        position: {x: 10.0, y: 18.0, z: 0.0}
-        orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
-    - name: chair_e_reading_desk_c2_r4
-      model: Hospital/SM_Chair_01a
-      pose:
-        position: {x: 12.0, y: 18.0, z: 0.0}
-        orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c2_r5
+        position: {x: 10.3, y: 22.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c2_r5
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 11.0, y: 22.0, z: 0.0}
+        position: {x: 11.1, y: 22.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c2_r5
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 10.0, y: 22.0, z: 0.0}
+        position: {x: 9.4, y: 22.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
     - name: chair_e_reading_desk_c2_r5
       model: Hospital/SM_Chair_01a
       pose:
         position: {x: 12.0, y: 22.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c2_r6
+    - name: reading_desk_w_c2_r6
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 11.0, y: 26.0, z: 0.0}
+        position: {x: 10.3, y: 26.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c2_r6
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 11.1, y: 26.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c2_r6
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 10.0, y: 26.0, z: 0.0}
+        position: {x: 9.4, y: 26.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
     - name: chair_e_reading_desk_c2_r6
       model: Hospital/SM_Chair_01a
       pose:
         position: {x: 12.0, y: 26.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: -0.7071}
-    - name: reading_desk_c2_r7
+    - name: reading_desk_w_c2_r7
       model: Office/SM_SecretaryDeskA
       pose:
-        position: {x: 11.0, y: 30.0, z: 0.0}
+        position: {x: 10.3, y: 30.0, z: 0.0}
+        orientation: {w: 0.0, x: 0.0, y: 0.0, z: 1.0}
+    - name: reading_desk_e_c2_r7
+      model: Office/SM_SecretaryDeskA
+      pose:
+        position: {x: 11.1, y: 30.0, z: 0.0}
         orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}
     - name: chair_w_reading_desk_c2_r7
       model: Hospital/SM_Chair_01a
       pose:
-        position: {x: 10.0, y: 30.0, z: 0.0}
+        position: {x: 9.4, y: 30.0, z: 0.0}
         orientation: {w: 0.7071, x: 0.0, y: 0.0, z: 0.7071}
     - name: chair_e_reading_desk_c2_r7
       model: Hospital/SM_Chair_01a

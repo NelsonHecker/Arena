@@ -1,0 +1,71 @@
+robots:
+- name: jackal
+  start:
+  - 15.0
+  - 12.0
+  - 0.0
+  phases:
+  - goto:
+    - 39.5
+    - 12.0
+    - 0.0
+  - goto:
+    - 39.5
+    - 19.5
+    - 1.5708
+  - goto:
+    - 22.0
+    - 19.5
+    - 3.1415
+  - goto:
+    - 22.0
+    - 17.0
+    - -1.5708
+dynamic:
+- name: ped_chatting_1
+  model: arenian
+  pose:
+  - 26.2
+  - 14.0
+  - 0.0
+  velocity: 0.05
+  waypoints:
+  - - 26.2
+    - 14.1
+    - 0.0
+  - - 26.2
+    - 13.9
+    - 0.0
+  - - 26.2
+    - 16.0
+    - 1.5708
+- name: ped_chatting_2
+  model: arenian
+  pose:
+  - 26.8
+  - 14.0
+  - 3.1415
+  velocity: 0.05
+  waypoints:
+  - - 26.8
+    - 13.9
+    - 3.1415
+  - - 26.8
+    - 14.1
+    - 3.1415
+  - - 26.8
+    - 16.0
+    - 1.5708
+- name: mic_workstation
+  model: arenian
+  pose:
+  - 22.0
+  - 17.0
+  - 0.0
+  velocity: 0.0
+  waypoints:
+  - - 22.0
+    - 17.0
+    - 0.0
+static: []
+interactive: []

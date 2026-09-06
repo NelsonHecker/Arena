@@ -6,21 +6,25 @@ robots:
   - 0.0
   phases:
   - goto:
-    - 21.8
+    - 22.0
     - 11.5
     - 0.0
   - goto:
-    - 21.8
+    - 22.0
     - 4.5
     - -1.5708
   - goto:
-    - 18.5
+    - 18.0
     - 4.5
     - 3.1416
   - goto:
-    - 15.0
+    - 18.0
     - 7.5
     - 1.5708
+  - goto:
+    - 15.0
+    - 7.5
+    - 3.1416
 dynamic:
 - name: ped_hesitant_door
   model: arenian
@@ -48,18 +52,3 @@ dynamic:
     - 2.5
     - 1.5708
 static: []
-regions:
-  boardroom:
-    type: polygon
-    corners:
-    - - 10.0
-      - 0.0
-    - - 20.0
-      - 0.0
-    - - 20.0
-      - 10.0
-    - - 10.0
-      - 10.0
-    max_velocity: 0.6
-timeline: []
-conditions: []

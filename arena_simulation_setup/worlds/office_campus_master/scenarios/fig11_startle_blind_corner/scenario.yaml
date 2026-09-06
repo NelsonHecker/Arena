@@ -29,6 +29,3 @@ dynamic:
     - 12.0
     - -1.5708
 static: []
-regions: {}
-timeline: []
-conditions: []

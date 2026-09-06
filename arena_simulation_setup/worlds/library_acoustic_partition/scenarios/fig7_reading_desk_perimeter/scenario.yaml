@@ -36,49 +36,73 @@ dynamic:
   - [8.0, 22.0, 1.5708]
   - [8.0, 7.0, -1.5708]
 - name: mic_student_1
-  model: arenian
+  model: arenian_seated
+  pose: [6.6, 6.0, 3.1416]
+  velocity: 0.0
+  waypoints:
+  - [6.6, 6.0, 3.1416]
+- name: mic_student_2
+  model: arenian_seated
+  pose: [9.4, 6.0, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [9.4, 6.0, 0.0]
+- name: mic_student_3
+  model: arenian_seated
+  pose: [6.6, 10.0, 3.1416]
+  velocity: 0.0
+  waypoints:
+  - [6.6, 10.0, 3.1416]
+- name: mic_student_4
+  model: arenian_seated
+  pose: [9.4, 10.0, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [9.4, 10.0, 0.0]
+- name: mic_student_5
+  model: arenian_seated
+  pose: [6.6, 14.0, 3.1416]
+  velocity: 0.0
+  waypoints:
+  - [6.6, 14.0, 3.1416]
+- name: mic_student_6
+  model: arenian_seated
+  pose: [9.4, 14.0, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [9.4, 14.0, 0.0]
+- name: mic_student_7
+  model: arenian_seated
+  pose: [6.6, 22.0, 3.1416]
+  velocity: 0.0
+  waypoints:
+  - [6.6, 22.0, 3.1416]
+- name: mic_student_8
+  model: arenian_seated
+  pose: [9.4, 22.0, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [9.4, 22.0, 0.0]
+- name: mic_student_9
+  model: arenian_seated
   pose: [4.0, 6.0, 0.0]
   velocity: 0.0
   waypoints:
   - [4.0, 6.0, 0.0]
-- name: mic_student_2
-  model: arenian
-  pose: [12.0, 6.0, 3.1416]
+- name: mic_student_10
+  model: arenian_seated
+  pose: [4.0, 14.0, 0.0]
   velocity: 0.0
   waypoints:
-  - [12.0, 6.0, 3.1416]
-- name: mic_student_3
-  model: arenian
-  pose: [4.0, 10.0, 0.0]
+  - [4.0, 14.0, 0.0]
+- name: mic_student_11
+  model: arenian_seated
+  pose: [4.0, 22.0, 0.0]
   velocity: 0.0
   waypoints:
-  - [4.0, 10.0, 0.0]
-- name: mic_student_4
-  model: arenian
-  pose: [12.0, 10.0, 3.1416]
-  velocity: 0.0
-  waypoints:
-  - [12.0, 10.0, 3.1416]
-- name: mic_student_5
-  model: arenian
-  pose: [4.0, 18.0, 0.0]
-  velocity: 0.0
-  waypoints:
-  - [4.0, 18.0, 0.0]
-- name: mic_student_6
-  model: arenian
-  pose: [12.0, 18.0, 3.1416]
-  velocity: 0.0
-  waypoints:
-  - [12.0, 18.0, 3.1416]
-- name: mic_student_7
-  model: arenian
-  pose: [4.0, 26.0, 0.0]
-  velocity: 0.0
-  waypoints:
-  - [4.0, 26.0, 0.0]
-- name: mic_student_8
-  model: arenian
+  - [4.0, 22.0, 0.0]
+- name: mic_student_12
+  model: arenian_seated
   pose: [12.0, 26.0, 3.1416]
   velocity: 0.0
   waypoints:

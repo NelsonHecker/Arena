@@ -280,7 +280,7 @@ zones:
     end:
       x: 15.15
       y: 10.0
-    kind: swing
+    kind: sliding
     width: 0.1
     height: 2.2
   semantics:
@@ -367,7 +367,7 @@ zones:
     end:
       x: 24.0
       y: 21.5
-    kind: swing
+    kind: sliding
     width: 0.1
     height: 2.2
   semantics:
@@ -478,7 +478,7 @@ zones:
     end:
       x: 20.0
       y: 5.5
-    kind: swing
+    kind: sliding
     width: 0.1
     height: 2.2
   semantics:
@@ -830,4 +830,32 @@ zones:
           x: 0.0
           y: 0.0
           z: 0.0
+    dynamic: []
+- name: perimeter_bypass_corridor
+  description: North-South Bypass Corridor connecting Main Arterial to Boardroom east side
+  material:
+  - Oak_Planks
+  - {}
+  corners:
+  - x: 20.0
+    y: 0.0
+  - x: 24.0
+    y: 0.0
+  - x: 24.0
+    y: 10.0
+  - x: 20.0
+    y: 10.0
+  walls:
+  - start:
+      x: 20.0
+      y: 0.0
+    end:
+      x: 24.0
+      y: 0.0
+  doors: []
+  semantics:
+  - state: max_speed
+    value: 1.4
+  entities:
+    static: []
     dynamic: []
