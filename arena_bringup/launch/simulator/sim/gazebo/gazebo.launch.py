@@ -119,6 +119,8 @@ def generate_launch_description():
         os.path.dirname(robots_root),
         os.path.join(ss_root, "assets", "Common", "Human", "arenian", "arenian.sdf"),
         os.path.join(ss_root, "assets", "Common", "Human", "arenian"),
+        os.path.join(ss_root, "assets", "Common", "Human", "arenian_seated", "arenian_seated.sdf"),
+        os.path.join(ss_root, "assets", "Common", "Human", "arenian_seated"),
     ]
 
     deps_file = os.path.join(staging_path, 'deps')

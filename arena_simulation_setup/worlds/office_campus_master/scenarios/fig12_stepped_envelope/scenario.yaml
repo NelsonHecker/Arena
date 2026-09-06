@@ -27,47 +27,47 @@ robots:
     - 1.5708
 dynamic:
 - name: worker_pod_A
-  model: arenian
+  model: arenian_seated
   pose:
   - 27.0
-  - 6.4
-  - -1.5708
+  - 3.2
+  - 1.5708
   velocity: 0.0
   waypoints:
   - - 27.0
-    - 6.4
-    - -1.5708
+    - 3.2
+    - 1.5708
 - name: worker_pod_B
-  model: arenian
+  model: arenian_seated
   pose:
   - 27.0
-  - 16.4
-  - -1.5708
+  - 13.2
+  - 1.5708
   velocity: 0.0
   waypoints:
   - - 27.0
-    - 16.4
-    - -1.5708
+    - 13.2
+    - 1.5708
 - name: worker_pod_C
-  model: arenian
+  model: arenian_seated
   pose:
   - 33.0
-  - 6.4
-  - -1.5708
+  - 3.2
+  - 1.5708
   velocity: 0.0
   waypoints:
   - - 33.0
-    - 6.4
-    - -1.5708
+    - 3.2
+    - 1.5708
 - name: worker_pod_D
-  model: arenian
+  model: arenian_seated
   pose:
   - 33.0
-  - 16.4
-  - -1.5708
+  - 13.2
+  - 1.5708
   velocity: 0.0
   waypoints:
   - - 33.0
-    - 16.4
-    - -1.5708
+    - 13.2
+    - 1.5708
 static: []

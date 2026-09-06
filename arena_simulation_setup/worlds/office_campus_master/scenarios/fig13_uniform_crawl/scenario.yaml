@@ -27,7 +27,7 @@ robots:
     - 0.0
 dynamic:
 - name: mic_cafeteria
-  model: arenian
+  model: arenian_seated
   pose:
   - 5.0
   - 7.5
@@ -38,7 +38,7 @@ dynamic:
     - 7.5
     - 0.0
 - name: mic_bullpen_worker
-  model: arenian
+  model: arenian_seated
   pose:
   - 27.0
   - 16.4

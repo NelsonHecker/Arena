@@ -59,6 +59,17 @@ def stage(install_dir: str):
             continue
         handler.add_to_staging(str(view.path), ident.name)
 
+    from arena_simulation_setup.tree.assets.Human import HumanIdentifier
+    import asyncio
+
+    for human_name in ['arenian', 'arenian_seated']:
+        try:
+            h_ident = HumanIdentifier.parse(human_name)
+            h_view = asyncio.run(h_ident.resolve())
+            handler.add_to_staging(str(h_view.path), human_name)
+        except Exception as exc:
+            logging.warning('model staging: skipping human %s: %s', human_name, exc)
+
     colcon_deps_file = os.path.join(base_dir, '..', 'colcon-core', 'packages', PACKAGE_NAME)
     if os.path.isfile(colcon_deps_file):
         with open(colcon_deps_file) as f:

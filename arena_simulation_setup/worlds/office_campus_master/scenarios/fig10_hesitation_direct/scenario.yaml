@@ -55,7 +55,7 @@ dynamic:
     - 8.0
     - -1.5708
 - name: mic_boardroom
-  model: arenian
+  model: arenian_seated
   pose:
   - 15.0
   - 2.5

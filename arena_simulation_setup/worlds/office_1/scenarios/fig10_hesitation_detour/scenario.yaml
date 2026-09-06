@@ -57,7 +57,7 @@ dynamic:
     - 16.0
     - 1.5708
 - name: mic_workstation
-  model: arenian
+  model: arenian_seated
   pose:
   - 22.0
   - 17.0

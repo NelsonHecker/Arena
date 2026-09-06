@@ -23,48 +23,48 @@ robots:
     - 1.5708
 dynamic:
 - name: worker_desk_A
-  model: arenian
+  model: arenian_seated
   pose:
   - 25.4
-  - 18.0
-  - 0.0
+  - 18.5
+  - -1.5708
   velocity: 0.0
   waypoints:
   - - 25.4
-    - 18.0
-    - 0.0
+    - 18.5
+    - -1.5708
 - name: worker_desk_B
-  model: arenian
+  model: arenian_seated
   pose:
   - 25.4
-  - 21.0
-  - 0.0
+  - 20.5
+  - 1.5708
   velocity: 0.0
   waypoints:
   - - 25.4
-    - 21.0
-    - 0.0
+    - 20.5
+    - 1.5708
 - name: worker_desk_C
-  model: arenian
+  model: arenian_seated
   pose:
   - 32.7
-  - 18.0
-  - 3.1415
+  - 18.5
+  - -1.5708
   velocity: 0.0
   waypoints:
   - - 32.7
-    - 18.0
-    - 3.1415
+    - 18.5
+    - -1.5708
 - name: worker_desk_D
-  model: arenian
+  model: arenian_seated
   pose:
   - 32.7
-  - 21.0
-  - 3.1415
+  - 20.5
+  - 1.5708
   velocity: 0.0
   waypoints:
   - - 32.7
-    - 21.0
-    - 3.1415
+    - 20.5
+    - 1.5708
 static: []
 interactive: []

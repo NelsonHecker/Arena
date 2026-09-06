@@ -18,8 +18,8 @@ robots:
     - 14.5
     - 1.5708
   - goto:
-    - 36.0
-    - 17.0
+    - 36.10
+    - 19.50
     - 0.0
 dynamic:
 - name: ped_cafeteria
@@ -37,15 +37,15 @@ dynamic:
     - 6.0
     - 0.0
 - name: worker_quiet
-  model: arenian
+  model: arenian_seated
   pose:
-  - 36.0
-  - 18.0
+  - 36.10
+  - 18.50
   - -1.5708
   velocity: 0.0
   waypoints:
-  - - 36.0
-    - 18.0
+  - - 36.10
+    - 18.50
     - -1.5708
 static: []
 interactive: []

@@ -47,29 +47,29 @@ dynamic:
   - [48.0, 18.0, 1.5708]
   - [48.0, 8.0, -1.5708]
 - name: mic_worker_A
-  model: arenian
-  pose: [24.0, 18.0, 0.0]
+  model: arenian_seated
+  pose: [23.70, 18.50, -1.5708]
   velocity: 0.0
   waypoints:
-  - [24.0, 18.0, 0.0]
+  - [23.70, 18.50, -1.5708]
 - name: mic_worker_B
-  model: arenian
-  pose: [30.0, 18.0, 0.0]
+  model: arenian_seated
+  pose: [32.70, 18.50, -1.5708]
   velocity: 0.0
   waypoints:
-  - [30.0, 18.0, 0.0]
+  - [32.70, 18.50, -1.5708]
 - name: mic_worker_C
-  model: arenian
-  pose: [36.0, 22.0, 0.0]
+  model: arenian_seated
+  pose: [36.10, 23.50, -1.5708]
   velocity: 0.0
   waypoints:
-  - [36.0, 22.0, 0.0]
+  - [36.10, 23.50, -1.5708]
 - name: mic_worker_D
-  model: arenian
-  pose: [42.0, 22.0, 0.0]
+  model: arenian_seated
+  pose: [42.10, 23.50, -1.5708]
   velocity: 0.0
   waypoints:
-  - [42.0, 22.0, 0.0]
+  - [42.10, 23.50, -1.5708]
 static: []
 regions:
   reception:
