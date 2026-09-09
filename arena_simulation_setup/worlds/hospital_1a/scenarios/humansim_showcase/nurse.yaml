@@ -1,0 +1,74 @@
+name: nurse
+mode: behavior_tree
+extends: adult
+desired_velocity: {mean: 1.2, std: 0.1, clip_low: 0.8, clip_high: 1.6}
+
+perception:
+  vision_range: {mean: 6.0, std: 0.5, clip_low: 3.0, clip_high: 10.0}
+
+local_planner_params:
+  relaxation_time: {mean: 0.4, std: 0.05, clip_low: 0.2, clip_high: 0.8}
+  repulsion_strength: {mean: 2.0, std: 0.2, clip_low: 0.5, clip_high: 4.0}
+
+needs:
+  duty:
+    initial: {mean: 30.0, std: 5.0, clip_low: 10.0, clip_high: 50.0}
+    decay_rate: {mean: 1.0, std: 0.1}
+
+utility_weights:
+  duty: 1.0
+
+sequences:
+  leg_bed:
+    steps:
+      go:
+        kind: go_to
+        target: patient_bed_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      offer:
+        interaction: SERVICE
+        target: nurse_escort
+        offer: true
+        min_participants: 2
+        max_participants: 2
+        queueable: false
+        formation_spec: {type: line, anchor_kind: provider, params: {base_step: 0.8}}
+        patience: {mean: 20.0, std: 5.0, clip_low: 10.0, clip_high: 45.0}
+      ride:
+        kind: go_to
+        target: exam_chair_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      drop:
+        cancel: true
+        satisfies:
+          duty: 40.0
+    then: leg_exam
+    on_failure: leg_exam
+
+  leg_exam:
+    steps:
+      go:
+        kind: go_to
+        target: exam_chair_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      offer:
+        interaction: SERVICE
+        target: nurse_escort
+        offer: true
+        min_participants: 2
+        max_participants: 2
+        queueable: false
+        formation_spec: {type: line, anchor_kind: provider, params: {base_step: 0.8}}
+        patience: {mean: 20.0, std: 5.0, clip_low: 10.0, clip_high: 45.0}
+      ride:
+        kind: go_to
+        target: patient_bed_1
+        patience: {mean: 90.0, std: 15.0, clip_low: 45.0, clip_high: 180.0}
+      drop:
+        cancel: true
+        satisfies:
+          duty: 40.0
+    then: leg_bed
+    on_failure: leg_bed
+
+initial_sequence: leg_bed

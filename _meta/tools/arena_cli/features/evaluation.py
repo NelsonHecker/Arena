@@ -102,6 +102,14 @@ def kill(argv: list[str]) -> None:
     common._exec("ros2", "run", "arena_evaluation", "evaluation_cli", "kill", *argv)
 
 
+def blender(argv: list[str]) -> None:
+    """3D Blender visualization pipeline (build, render, hud)"""
+    import sys
+    from arena_blender_viz import cli as viz_cli
+
+    viz_cli.main(argv)
+
+
 COMMANDS: dict[str, Verb] = {
     v.name: v
     for v in [
@@ -119,5 +127,6 @@ COMMANDS: dict[str, Verb] = {
         make_verb("report", report, passthrough=True),
         make_verb("plot", plot, passthrough=True),
         make_verb("acoustic", acoustic, passthrough=True),
+        make_verb("blender", blender, passthrough=True),
     ]
 }

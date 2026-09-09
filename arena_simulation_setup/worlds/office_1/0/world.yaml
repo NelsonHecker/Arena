@@ -269,6 +269,7 @@ zones:
       y: 10.0
       z: 0.0
     kind: sliding
+    activation_distance: [1.2, 1.2]
     width: 0.1
     height: 2.0
     material:
@@ -3761,6 +3762,7 @@ zones:
       y: 14.0
       z: 0.0
     kind: sliding
+    activation_distance: [1.2, 1.2]
     width: 0.1
     height: 2.0
     material:
@@ -3776,6 +3778,7 @@ zones:
       y: 14.0
       z: 0.0
     kind: sliding
+    activation_distance: [1.2, 1.2]
     width: 0.1
     height: 2.0
     material:
@@ -5846,6 +5849,7 @@ zones:
       y: 14.0
       z: 0.0
     kind: sliding
+    activation_distance: [1.2, 1.2]
     width: 0.1
     height: 2.0
     material:
@@ -5861,6 +5865,7 @@ zones:
       y: 14.0
       z: 0.0
     kind: sliding
+    activation_distance: [1.2, 1.2]
     width: 0.1
     height: 2.0
     material:
@@ -6476,6 +6481,7 @@ zones:
       y: 14.0
       z: 0.0
     kind: sliding
+    activation_distance: [1.2, 1.2]
     width: 0.1
     height: 2.0
     material:

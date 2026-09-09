@@ -3,7 +3,7 @@ robots:
   start:
   - 22.0
   - 4.5
-  - 0.0
+  - 1.5708
   phases:
   - goto:
     - 36.15

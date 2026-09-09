@@ -1,14 +1,20 @@
 #include "task_generator_gui/task_generator_panel.hpp"
 #include "rviz_common/display_context.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
-
+#include "rclcpp/serialized_message.hpp"
 #include "rcl_interfaces/srv/set_parameters.hpp"
+#include "rclcpp/generic_subscription.hpp"
 
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
+
 namespace task_generator_gui
 {
+    static rclcpp::GenericSubscription::SharedPtr g_raw_episode_sub;
+    static rclcpp::GenericSubscription::SharedPtr g_raw_queue_sub;
+
     TaskGeneratorPanel::TaskGeneratorPanel(QWidget *parent) : Panel(parent)
     {
         root_layout = new QVBoxLayout(this);
@@ -21,6 +27,107 @@ namespace task_generator_gui
         node_ptr = getDisplayContext()->getRosNodeAbstraction().lock();
         node = node_ptr->get_raw_node();
         node->get_logger().set_level(rclcpp::Logger::Level::Warn);
+    }
+
+    static task_generator_msgs::msg::EpisodeRecord::SharedPtr parseEpisodeHeader(
+        const std::shared_ptr<rclcpp::SerializedMessage> &raw_msg)
+    {
+        if (!raw_msg) return nullptr;
+        const auto &rc_msg = raw_msg->get_rcl_serialized_message();
+        const uint8_t *data = rc_msg.buffer;
+        size_t size = rc_msg.buffer_length;
+        if (size < 8) return nullptr;
+
+        size_t offset = 4; // Skip 4-byte CDR encapsulation header
+        auto align = [&](size_t n) {
+            if (offset < 4) return;
+            size_t rel = offset - 4;
+            size_t rem = rel % n;
+            if (rem != 0) offset += (n - rem);
+        };
+
+        auto read_u32 = [&](uint32_t &val) -> bool {
+            align(4);
+            if (offset + 4 > size) return false;
+            std::memcpy(&val, data + offset, 4);
+            offset += 4;
+            return true;
+        };
+
+        auto read_i64 = [&](int64_t &val) -> bool {
+            align(8);
+            if (offset + 8 > size) return false;
+            std::memcpy(&val, data + offset, 8);
+            offset += 8;
+            return true;
+        };
+
+        auto read_f32 = [&](float &val) -> bool {
+            align(4);
+            if (offset + 4 > size) return false;
+            std::memcpy(&val, data + offset, 4);
+            offset += 4;
+            return true;
+        };
+
+        auto read_string = [&](std::string &str) -> bool {
+            uint32_t len = 0;
+            if (!read_u32(len)) return false;
+            if (len == 0) { str.clear(); return true; }
+            if (offset + len > size) return false;
+            str.assign(reinterpret_cast<const char*>(data + offset), len > 0 ? len - 1 : 0);
+            offset += len;
+            return true;
+        };
+
+        auto read_string_vec = [&](std::vector<std::string> &vec) -> bool {
+            uint32_t count = 0;
+            if (!read_u32(count) || count > 2048) return false;
+            vec.resize(count);
+            for (uint32_t i = 0; i < count; ++i) {
+                if (!read_string(vec[i])) return false;
+            }
+            return true;
+        };
+
+        auto rec = std::make_shared<task_generator_msgs::msg::EpisodeRecord>();
+        if (!read_u32(rec->episode_id)) return nullptr;
+        if (!read_string(rec->world)) return nullptr;
+        if (!read_i64(rec->seed)) return nullptr;
+        if (!read_string(rec->tm_robots)) return nullptr;
+        if (!read_string(rec->tm_obstacles)) return nullptr;
+        if (!read_string_vec(rec->tm_modules)) return nullptr;
+        if (!read_string_vec(rec->robots)) return nullptr;
+
+        // outcome_state (uint8)
+        if (offset >= size) return nullptr;
+        rec->outcome_state = data[offset++];
+
+        if (!read_string(rec->outcome_info)) return nullptr;
+        if (!read_string(rec->goal_uuid)) return nullptr;
+
+        // Read new float32 fields
+        read_f32(rec->goal_dist_start);
+        read_f32(rec->goal_dist_min);
+        read_f32(rec->path_length);
+
+        // start_time (builtin_interfaces/Time: int32 sec, uint32 nanosec)
+        int32_t sec = 0; uint32_t nanosec = 0;
+        align(4);
+        if (offset + 8 <= size) {
+            std::memcpy(&sec, data + offset, 4);
+            std::memcpy(&nanosec, data + offset + 4, 4);
+            rec->start_time.sec = sec;
+            rec->start_time.nanosec = nanosec;
+            offset += 8;
+        }
+
+        // integrity (bool)
+        if (offset < size) {
+            rec->integrity = (data[offset++] != 0);
+        }
+
+        return rec;
     }
 
     void TaskGeneratorPanel::load(const rviz_common::Config &config)
@@ -77,15 +184,19 @@ namespace task_generator_gui
                 });
         }
 
-        // Latched state/episode subscription deduped into history_buffer_.
+        // Latched state/episode subscription via safe generic subscription
         {
             rclcpp::QoS qos(rclcpp::KeepLast(20));
             qos.transient_local();
-            episode_sub = node->create_subscription<task_generator_msgs::msg::EpisodeRecord>(
+            g_raw_episode_sub = node->create_generic_subscription(
                 task_generator_node + "/state/episode",
+                "task_generator_msgs/msg/EpisodeRecord",
                 qos,
-                [this](const task_generator_msgs::msg::EpisodeRecord::SharedPtr msg)
+                [this](std::shared_ptr<rclcpp::SerializedMessage> raw_msg)
                 {
+                    auto msg = parseEpisodeHeader(raw_msg);
+                    if (!msg) return;
+
                     QMetaObject::invokeMethod(this, [this, msg]()
                     {
                         last_current_episode_ = msg;
@@ -93,7 +204,6 @@ namespace task_generator_gui
                         if (next_pending_ && msg->episode_id != next_pending_baseline_id_)
                             clearNextPending();
 
-                        // Dedup history by episode_id: replace existing entry or append.
                         bool found = false;
                         for (auto &entry : history_buffer_)
                         {
@@ -116,15 +226,19 @@ namespace task_generator_gui
                 });
         }
 
-        // Latched state/queue subscription populates widgets when a new queued record arrives.
+        // Latched state/queue subscription via safe generic subscription
         {
             rclcpp::QoS qos(rclcpp::KeepLast(1));
             qos.transient_local();
-            queue_sub = node->create_subscription<task_generator_msgs::msg::EpisodeRecord>(
+            g_raw_queue_sub = node->create_generic_subscription(
                 task_generator_node + "/state/queue",
+                "task_generator_msgs/msg/EpisodeRecord",
                 qos,
-                [this](const task_generator_msgs::msg::EpisodeRecord::SharedPtr msg)
+                [this](std::shared_ptr<rclcpp::SerializedMessage> raw_msg)
                 {
+                    auto msg = parseEpisodeHeader(raw_msg);
+                    if (!msg) return;
+
                     QMetaObject::invokeMethod(this, [this, msg]()
                     {
                         last_queued_episode_ = msg;

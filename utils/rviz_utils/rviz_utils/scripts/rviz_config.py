@@ -105,8 +105,16 @@ class ConfigFileGenerator(ArenaMixinNode):
                         name="rviz2",
                         namespace=self._TASKGEN_NODE,
                         arguments=['-d', config_file],
+                        prefix=[],
                         parameters=rviz_parameters,
                         output="screen",
+                        additional_env={
+                            'QT_X11_NO_MITSHM': '1',
+                            'XDG_RUNTIME_DIR': '/tmp/shared/runtime-arena',
+                            'OGRE_RTT_DISABLE_COPY': '1',
+                            'MESA_GL_VERSION_OVERRIDE': '4.5',
+                            'MESA_GLES_VERSION_OVERRIDE': '3.1',
+                        },
                     ),
                 ]
             )
@@ -125,7 +133,7 @@ class ConfigFileGenerator(ArenaMixinNode):
         self._rebuild_display_set()
 
     def _rebuild_display_set(self) -> None:
-        if self._viz_manifest is None:
+        if self._viz_manifest is None or not self._robots:
             return
 
         specs: list[DisplaySpec] = []
@@ -149,7 +157,15 @@ class ConfigFileGenerator(ArenaMixinNode):
             ))
 
         for entry in self._viz_manifest.entries:
-            robot = robots_by_ns.get(entry.robot_ns)
+            normalized_ns = entry.robot_ns.strip('/')
+            robot = next(
+                (
+                    r for r in self._robots
+                    if (r.ns and normalized_ns.endswith(r.ns.strip('/')))
+                    or (r.name and normalized_ns.endswith(r.name.strip('/')))
+                ),
+                None,
+            )
             if robot is None:
                 self.get_logger().warning(f"manifest entry for unknown robot ns {entry.robot_ns!r}, skipping")
                 continue

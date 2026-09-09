@@ -6,11 +6,11 @@ robots:
 dynamic:
 - name: ped_nurse_corridor
   model: arenian
-  pose: [10.0, 5.0, 1.5708]
+  pose: [9.4, 5.0, 1.5708]
   velocity: 0.55
   waypoints:
-  - [10.0, 26.0, 1.5708]
-  - [10.0, 5.0, -1.5708]
+  - [9.4, 26.0, 1.5708]
+  - [9.4, 5.0, -1.5708]
 - name: mic_patient_bed_1
   model: arenian_seated
   pose: [4.0, 14.1, 0.0]

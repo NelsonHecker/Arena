@@ -1,0 +1,72 @@
+robots:
+- name: jackal
+  start: [10.0, 1.5, 1.5708]
+  phases:
+  - goto: [15.0, 32.5, 1.5708]
+dynamic:
+- name: ped_nurse_south
+  model: arenian
+  pose: [10.4, 4.0, 1.5708]
+  velocity: 0.60
+  waypoints:
+  - [10.4, 14.0, 1.5708]
+  - [10.4, 4.0, -1.5708]
+- name: ped_doctor_junction
+  model: arenian
+  pose: [3.5, 14.1, 0.0]
+  velocity: 0.50
+  waypoints:
+  - [16.5, 14.1, 0.0]
+  - [3.5, 14.1, 3.1415]
+- name: ped_visitor_waiting
+  model: arenian
+  pose: [18.5, 8.0, 3.1415]
+  velocity: 0.45
+  waypoints:
+  - [11.0, 11.5, 3.1415]
+  - [18.5, 8.0, 0.0]
+- name: ped_nurse_north
+  model: arenian
+  pose: [9.6, 28.0, -1.5708]
+  velocity: 0.55
+  waypoints:
+  - [9.6, 16.0, -1.5708]
+  - [9.6, 28.0, 1.5708]
+- name: ped_pharmacy_egress
+  model: arenian
+  pose: [5.0, 27.65, 0.0]
+  velocity: 0.50
+  waypoints:
+  - [11.0, 27.65, 0.0]
+  - [5.0, 27.65, 3.1415]
+- name: ped_elder_slow
+  model: arenian
+  pose: [10.0, 18.0, 1.5708]
+  velocity: 0.35
+  waypoints:
+  - [10.0, 24.0, 1.5708]
+  - [10.0, 18.0, -1.5708]
+- name: mic_patient_bed_1
+  model: arenian
+  pose: [4.0, 14.1, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [4.0, 14.1, 0.0]
+- name: mic_patient_bed_2
+  model: arenian
+  pose: [4.0, 21.1, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [4.0, 21.1, 0.0]
+static: []
+regions:
+  patient_ward:
+    type: polygon
+    corners:
+    - [0.0, 10.1]
+    - [8.0, 10.1]
+    - [8.0, 25.1]
+    - [0.0, 25.1]
+    max_velocity: 0.35
+timeline: []
+conditions: []

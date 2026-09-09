@@ -1,0 +1,175 @@
+# Master Socio-Acoustic Hero Tour in hospital_1
+# Robot: jackal. Fast transit in non-quiet zones, slow acoustic-blend crawl
+# inside the quiet patient_ward and the quiet doctors_resting_room finale.
+# Scenario-only blocked door: a supply cart is parked at the patient_ward_door_1
+# mouth (hallway side); the route circumvents it by design, passing it on
+# the spine and entering via patient_ward_door_2. No world.yaml changes,
+# no timeline locks.
+
+robots:
+- name: jackal
+  base_frame: jackal/base_link
+  start: [6.0, 2.5, 0.0]             # reception, facing reception_door (2.0 m -> in activation range)
+  phases:
+  # 1. Exit reception through reception_door (center (8.0, 2.5)) onto the spine
+  - goto: [10.0, 2.5, 0.0]           # heading east through the door center
+
+  # 2. Northbound spine to the sub_hallway T-junction
+  - goto: [10.0, 11.3, 1.5708]
+
+  # 3. Eastbound sub_hallway leg (world max_speed 0.8)
+  - goto: [22.0, 11.3, 0.0]
+
+  # 4. Fast door in: north through waiting_to_sub_2 (span x 21.25-22.75) into waiting_area
+  - goto: [21.98, 7.5, 1.5708]
+
+  # 5. Fast door out: back south through the same door
+  - goto: [21.98, 11.3, -1.5708]
+
+  # 6. Westbound return to the junction
+  - goto: [10.0, 11.3, 3.1416]
+
+  # 7. Northbound spine, passing the prop-blocked door_1 without using it
+  - goto: [10.0, 21.1, 1.5708]
+
+  # 8. Quiet-zone entry west through patient_ward_door_2 (center (8.0, 21.1))
+  - goto: [8.0, 21.1, 3.1416]
+
+  # 9. Acoustic crawl to the bed_2 line, 1.6 m clear of the bed_2 mic
+  - goto: [5.6, 21.1, 3.1416]
+
+  # 10. Crawl north to the bed_1 line (1.6 m clear of the bed_1 mic)
+  - goto: [5.6, 14.1, 1.5708]
+
+  # 11. Quiet-zone exit: diagonal to door_2, then east through it (exit heading 0.0)
+  - goto: [8.0, 21.1, 0.0]
+
+  # 12. Spine north past laboratory_door to the doctors-door latitude
+  - goto: [10.0, 32.25, 1.5708]
+
+  # 13. Quiet finale: east through doctors_resting_room_door (center (12.0, 32.25)) to the final stop
+  - goto: [15.0, 32.25, 0.0]
+
+dynamic:
+
+# 1. Oncoming nurse southbound on the east spine lane, stops before the main entrance
+- name: ped_nurse_oncoming
+  model: arenian
+  pose: [11.0, 30.0, -1.5708]
+  velocity: 0.65
+  waypoint_mode: once
+  waypoints:
+  - [11.0, 12.0, -1.5708]
+  - [11.0, 2.0, -1.5708]
+
+# 2. Slow elder walking y 16-24 on the west spine lane (repeat)
+- name: ped_elder_slow
+  model: arenian
+  pose: [9.0, 16.0, 1.5708]
+  velocity: 0.40
+  waypoint_mode: repeat
+  waypoints:
+  - [9.0, 24.0, 1.5708]
+  - [9.0, 16.0, -1.5708]
+
+# 3. Staff crosser ping-ponging across sub_hallway between the nurse_resting_door
+#    mouth and the wc_waiting_door mouth (diagonal crossing)
+- name: ped_staff_crosser
+  model: arenian
+  pose: [14.98, 10.2, 0.46]
+  velocity: 0.50
+  waypoints:
+  - [19.97, 12.7, 0.46]
+  - [14.98, 10.2, -2.68]
+
+# 4-5. Seated mic observers at the patient beds (fig8-proven poses)
+- name: mic_patient_bed_1
+  model: arenian_seated
+  pose: [4.0, 14.1, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [4.0, 14.1, 0.0]
+- name: mic_patient_bed_2
+  model: arenian_seated
+  pose: [4.0, 21.1, 0.0]
+  velocity: 0.0
+  waypoints:
+  - [4.0, 21.1, 0.0]
+
+# 6. Seated observer in waiting_area near the robot's fast-door in/out path
+- name: mic_waiting_observer
+  model: arenian_seated
+  pose: [21.0, 8.2, 1.5708]
+  velocity: 0.0
+  waypoints:
+  - [21.0, 8.2, 1.5708]
+
+# Scenario-only blocked door: supply cart parked at the patient_ward_door_1 mouth
+# (hallway side, 0.14 m clear of the sliding panel plane). Visual-only model
+# (SDF has no <collision>): no laser return, no nav2 obstacle-layer entry;
+# humansim pedestrians still avoid its registered bounding box.
+static:
+- name: supply_cart_door_block
+  model: Hospital/SM_SupplyCart_01e
+  pose: [8.6, 14.1, 0.0]
+
+# Declarative per-zone acoustic caps (hero convention: type source + inert
+# config.max_velocity; an empty rate_profile spawns zero pedestrians)
+regions:
+  reception:
+    type: source
+    polygon:
+    - {x: 0.0, y: 0.0}
+    - {x: 8.0, y: 0.0}
+    - {x: 8.0, y: 5.0}
+    - {x: 0.0, y: 5.0}
+    config:
+      max_velocity: 1.00
+  central_hallway:
+    type: source
+    polygon:
+    - {x: 8.0, y: 0.0}
+    - {x: 12.0, y: 0.0}
+    - {x: 12.0, y: 34.2}
+    - {x: 8.0, y: 34.2}
+    config:
+      max_velocity: 1.00
+  sub_hallway:
+    type: source
+    polygon:
+    - {x: 12.0, y: 10.05}
+    - {x: 25.0, y: 10.05}
+    - {x: 25.0, y: 13.05}
+    - {x: 12.0, y: 13.05}
+    config:
+      max_velocity: 0.80
+  waiting_area:
+    type: source
+    polygon:
+    - {x: 18.5, y: 0.0}
+    - {x: 25.0, y: 0.0}
+    - {x: 25.0, y: 10.0}
+    - {x: 18.5, y: 10.0}
+    config:
+      max_velocity: 1.00
+  patient_ward:
+    type: source
+    polygon:
+    - {x: 0.0, y: 10.1}
+    - {x: 8.0, y: 10.1}
+    - {x: 8.0, y: 25.1}
+    - {x: 0.0, y: 25.1}
+    config:
+      max_velocity: 0.35
+  doctors_resting_room:
+    type: source
+    polygon:
+    - {x: 12.0, y: 30.2}
+    - {x: 18.0, y: 30.2}
+    - {x: 18.0, y: 34.2}
+    - {x: 12.0, y: 34.2}
+    config:
+      max_velocity: 0.35
+
+timeline: []
+conditions: []

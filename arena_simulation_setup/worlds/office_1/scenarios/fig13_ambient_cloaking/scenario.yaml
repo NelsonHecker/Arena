@@ -18,9 +18,9 @@ robots:
     - 14.5
     - 1.5708
   - goto:
-    - 36.10
-    - 19.50
-    - 0.0
+    - 30.0
+    - 24.0
+    - 1.5708
 dynamic:
 - name: ped_cafeteria
   model: arenian

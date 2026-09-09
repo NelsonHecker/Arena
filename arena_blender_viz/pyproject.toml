@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arena_blender_viz"
+version = "0.1.0"
+description = "Publication-quality Blender visualization pipeline for Arena Evaluation 3.0"
+readme = "README.md"
+authors = [{ name = "Arena Development Team" }]
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+    "polars>=0.20.0",
+    "trimesh>=4.0.0",
+    "pycollada>=0.9.0",
+    "numpy>=1.22.0",
+    "pillow>=9.0.0",
+]
+
+[project.scripts]
+arena-blender-viz = "arena_blender_viz.cli:main"

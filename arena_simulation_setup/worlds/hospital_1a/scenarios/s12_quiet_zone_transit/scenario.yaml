@@ -1,0 +1,68 @@
+robots:
+- start:
+  - 10.0
+  - 10.0
+  - 1.5708
+  phases:
+  - goto:
+    - 10.0
+    - 14.1
+    - 1.5708
+  - goto:
+    - 4.0
+    - 14.1
+    - 3.1416
+  - goto:
+    - 4.0
+    - 21.1
+    - 1.5708
+  - goto:
+    - 10.0
+    - 21.1
+    - 0.0
+  - goto:
+    - 10.0
+    - 25.0
+    - 1.5708
+dynamic:
+- name: nurse_1
+  model: arenian
+  pose:
+  - 3.0
+  - 18.0
+  - 0.0
+  velocity: 0.3
+  waypoints:
+  - - 5.0
+    - 18.0
+    - 0.0
+  - - 5.0
+    - 13.0
+    - -1.5708
+- name: patient_1
+  model: arenian
+  pose:
+  - 4.0
+  - 14.1
+  - 1.5708
+  velocity: 0.2
+  waypoints:
+  - - 4.0
+    - 21.1
+    - 1.5708
+static: []
+regions:
+  patient_ward:
+    polygon:
+    - - 0.0
+      - 10.1
+    - - 8.0
+      - 10.1
+    - - 8.0
+      - 25.1
+    - - 0.0
+      - 25.1
+    type: quiet_zone
+    max_speed: 0.5
+timeline: []
+conditions: []

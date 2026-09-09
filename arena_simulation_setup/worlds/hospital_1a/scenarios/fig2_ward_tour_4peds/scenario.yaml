@@ -1,0 +1,76 @@
+robots:
+- name: jackal
+  start:
+  - 3.0
+  - 1.0
+  - 0.0
+  phases:
+  - goto:
+    - 6.0
+    - 28.0
+    - 3.1415
+  - goto:
+    - 3.0
+    - 16.5
+    - -1.5708
+dynamic:
+- name: nurse_corridor_south
+  model: arenian
+  pose:
+  - 10.2
+  - 26.0
+  - -1.5708
+  velocity: 0.55
+  waypoints:
+  - - 10.2
+    - 12.0
+    - -1.5708
+  - - 10.2
+    - 26.0
+    - 1.5708
+- name: doctor_junction_crosser
+  model: arenian
+  pose:
+  - 8.2
+  - 14.1
+  - 0.0
+  velocity: 0.45
+  waypoints:
+  - - 11.8
+    - 14.1
+    - 0.0
+  - - 8.2
+    - 14.1
+    - 3.1415
+- name: pharmacy_door_crosser
+  model: arenian
+  pose:
+  - 11.8
+  - 26.5
+  - 3.1415
+  velocity: 0.45
+  waypoints:
+  - - 8.5
+    - 26.5
+    - 3.1415
+  - - 11.8
+    - 26.5
+    - 0.0
+- name: ward_corridor_nurse
+  model: arenian
+  pose:
+  - 9.8
+  - 16.0
+  - 1.5708
+  velocity: 0.5
+  waypoints:
+  - - 9.8
+    - 25.0
+    - 1.5708
+  - - 9.8
+    - 16.0
+    - -1.5708
+static: []
+regions: {}
+timeline: []
+conditions: []

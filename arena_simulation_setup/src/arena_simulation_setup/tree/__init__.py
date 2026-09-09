@@ -179,8 +179,17 @@ class PathResolverBase(ResolverBase[IdentifierT], abc.ABC, typing.Generic[Identi
     async def resolve(self, identifier: IdentifierT) -> Path | None:
         if identifier not in self._cache:
             for candidate in self._candidates(identifier.relpath()):
-                if (self.path / candidate).exists():
-                    self._cache[identifier] = self.path / candidate
+                candidate_path = self.path / candidate
+                if candidate_path.is_dir():
+                    try:
+                        if not any(f for f in candidate_path.iterdir() if not f.name.startswith('.')):
+                            continue
+                    except OSError:
+                        continue
+                    self._cache[identifier] = candidate_path
+                    break
+                elif candidate_path.exists():
+                    self._cache[identifier] = candidate_path
                     break
         return self._cache.get(identifier, None)
 

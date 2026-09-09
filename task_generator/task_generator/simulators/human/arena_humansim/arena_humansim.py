@@ -6,6 +6,8 @@ import math
 import traceback
 from collections.abc import Mapping, Sequence
 
+import rclpy
+import rclpy.time
 import yaml
 from arena_humansim_msgs.msg import (
     AgentState as AgentStateMsg,
@@ -93,7 +95,7 @@ from visualization_msgs.msg import MarkerArray
 
 from task_generator.constants import Constants
 from task_generator.constants.rng import stable_int
-from task_generator.shared import Door, DynamicObstacle, Obstacle, Pose, Position, Region, Robot, Wall
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Orientation, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human import BaseHumanSimulator
 from task_generator.simulators.human.arena_humansim import ArenaHumanDynamicObstacle, resolve_agent_type_path
 
@@ -219,12 +221,13 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._arena_pedestrians: Pedestrians = Pedestrians()
         self._arena_pedestrians.header.frame_id = "map"
         self._dirty_robots: dict[str, Robot] = {}
+        self._tracked_robots: dict[str, Robot] = {}
 
         # IDs managed by the bridge (scenario-defined agents)
         self._bridge_agent_ids: set[int] = set()
         # IDs of flow agents (source/sink) with a live actor in the simulator
         self._flow_agent_ids: set[int] = set()
-        # agent_id → human-readable name (scenario YAML name or flow source label)
+        # agent_id -> human-readable name (scenario YAML name or flow source label)
         self._agent_names: dict[int, str] = {}
 
         self._tick_loop_task: asyncio.Task | None = None
@@ -484,6 +487,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except asyncio.CancelledError:
             pass
         except Exception as e:
+            if not rclpy.ok():
+                return
             self._logger.error(f"Error in interpolation loop: {e}\n{traceback.format_exc()}")
 
     def _runtime_obstacle(
@@ -528,7 +533,7 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         return Pose2DMsg(x=x, y=y, theta=pose.orientation.to_yaw())
 
     def _seat_pose(self, object_pose: Pose, seat: Mapping[str, float]) -> Pose2DMsg:
-        """An object-local seat (``{x, y[, yaw]}``, the pose grammar) from the model annotation or the scenario, in the engine frame."""
+        """An object-local seat ({x, y[, yaw]}, the pose grammar) from the model annotation or the scenario, in the engine frame."""
         keys = set(seat)
         if not {"x", "y"} <= keys or not keys <= {"x", "y", "yaw"}:
             raise ValueError(f"seat must have keys x, y[, yaw], got {dict(seat)}")
@@ -591,6 +596,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except asyncio.CancelledError:
             pass
         except Exception as e:
+            if not rclpy.ok():
+                return
             self._logger.error(f"Error in pedestrian update loop: {e}\n{traceback.format_exc()}")
 
     async def _feedback_loop(self):
@@ -603,23 +610,45 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         except asyncio.CancelledError:
             pass
         except Exception as e:
+            if not rclpy.ok():
+                return
             self._logger.error(f"Error in feedback loop: {e}\n{traceback.format_exc()}")
 
     def _publish_world_state(self):
         """Publish robot and possessed pedestrian poses as AgentStates on world_state topic."""
         possessed = self.possessed_peds()
-        if not self._dirty_robots and not possessed:
+        active_robots = self._tracked_robots or self._dirty_robots
+        if not active_robots and not possessed:
             return
         msg = AgentStatesMsg()
         msg.header.stamp = self.node.sim_time.to_msg()
         msg.header.frame_id = "map"
-        for robot in self._dirty_robots.values():
+
+        for robot in list(active_robots.values()):
+            cur_pose = robot.pose
+            base_frame = robot.frame.raw()
+            if hasattr(robot, "model") and hasattr(robot.model, "resolve_sync"):
+                try:
+                    cfg = robot.model.resolve_sync()
+                    base_frame = robot.frame(cfg.model_params.base_frame).raw()
+                except Exception:
+                    pass
+            try:
+                t = self.node.tf_buffer.lookup_transform("map", base_frame, rclpy.time.Time())
+                tr = t.transform.translation
+                rot = Orientation.from_msg(t.transform.rotation)
+                cur_pose = Pose(Position(tr.x, tr.y), rot)
+                robot.pose = cur_pose
+            except Exception:
+                pass
+
             a = AgentStateMsg()
             a.agent_id = stable_int(robot.name) & 0x7FFFFFFF
             a.name = robot.name
-            a.pose = self._engine_pose(robot.pose)
+            a.pose = self._engine_pose(cur_pose)
             a.radius = 0.3
             msg.agents.append(a)
+
         name_to_aid = {agent_name: aid for aid, agent_name in self._agent_names.items()}
         for name, ped in possessed.items():
             a = AgentStateMsg()
@@ -644,7 +673,17 @@ class ArenaHumanSimulator(BaseHumanSimulator):
             yaw = agent.pose.theta
             x, y = self._from_engine(agent.pose.x, agent.pose.y)
 
-            gestures = [GestureMsg(slot=g.slot, at=Point(x=gx, y=gy, z=g.at.z), clip=g.clip, hand=g.hand, render_pose_override=g.render_pose_override) for g in agent.gestures for gx, gy in (self._from_engine(g.at.x, g.at.y),)]
+            gestures = [
+                GestureMsg(
+                    slot=g.slot,
+                    at=Point(x=gx, y=gy, z=g.at.z),
+                    clip=g.clip,
+                    hand=g.hand,
+                    render_pose_override=g.render_pose_override,
+                )
+                for g in agent.gestures
+                for gx, gy in (self._from_engine(g.at.x, g.at.y),)
+            ]
 
             # contact kinds (hug, handshake) draw on the formation slot, physics stays put
             override = next((g for g in gestures if g.slot == "body" and g.render_pose_override), None)
@@ -829,7 +868,8 @@ class ArenaHumanSimulator(BaseHumanSimulator):
                     with open(resolved / "annotation.yaml") as f:
                         annotation: dict = yaml.safe_load(f.read())
                     seats = list(annotation.get("seats") or [])
-                    (x_min, x_max), (y_min, y_max), (z_min, z_max) = annotation["bounding_box"]
+                    bbox = annotation.get("bounding_box", [[-0.5, 0.5], [-0.5, 0.5], [0.0, 1.0]])
+                    (x_min, x_max), (y_min, y_max), (z_min, z_max) = bbox
                     obstacle_type = annotation.get("name", "") or annotation.get("desc", "")
                     msg = ObstacleConfigMsg()
                     msg.name = obstacle.sim_path
@@ -1078,16 +1118,19 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         """Register robot poses: published to arena_humansim via world_state topic."""
         for robot in robots:
             self._dirty_robots[robot.name] = robot
+            self._tracked_robots[robot.name] = robot
         self._publish_world_state()
         return (True,) * len(robots)
 
     async def _remove_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
         for robot in robots:
             self._dirty_robots.pop(robot.name, None)
+            self._tracked_robots.pop(robot.name, None)
         return (True,) * len(robots)
 
     async def _move_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
         """Update tracked robot poses (sent to arena_humansim each tick)."""
         for robot in robots:
             self._dirty_robots[robot.name] = robot
+            self._tracked_robots[robot.name] = robot
         return (True,) * len(robots)

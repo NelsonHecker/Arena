@@ -1,5 +1,6 @@
 #include "task_generator_gui/auditory_panel.hpp"
 #include "rviz_common/display_context.hpp"
+#include "rclcpp/generic_subscription.hpp"
 
 #include <QJsonArray>
 
@@ -226,10 +227,11 @@ namespace task_generator_gui
         {
             rclcpp::QoS qos(rclcpp::KeepLast(1));
             qos.transient_local();
-            episode_sub = node->create_subscription<task_generator_msgs::msg::EpisodeRecord>(
+            episode_sub = node->create_generic_subscription(
                 task_generator_node + "/state/episode",
+                "task_generator_msgs/msg/EpisodeRecord",
                 qos,
-                [this](const task_generator_msgs::msg::EpisodeRecord::SharedPtr)
+                [this](std::shared_ptr<rclcpp::SerializedMessage>)
                 {
                     QMetaObject::invokeMethod(this, [this]()
                     {

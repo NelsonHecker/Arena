@@ -1,0 +1,118 @@
+robots:
+- name: jackal
+  base_frame: jackal/base_link
+  start: [5.0, 5.0, 0.98]          # Initial heading pointing toward first segment
+  phases:
+  - goto: [46.0, 19.5, 0.0]       # Final aisle cruise trajectory (dx=6.5, dy=5.0)
+
+
+dynamic:
+
+# 2. Main Hallway Oncoming Walker: Approaching from x=28.0 towards x=2.0 along north lane (y=12.6), stopping at west corridor end
+- name: ped_hallway_encounter
+  model: arenian
+  pose: [60.0, 12.6, 3.1415]
+  velocity: 0.25
+  waypoints:
+  - [2.0, 12.6, 3.1415]
+  - [60.0, 12.6, 3.1415]
+
+- name: ped_sidehallway_encounter
+  model: arenian
+  pose: [13.5, 1, 3.1415]
+  velocity: 0.25
+  waypoints:
+  - [13.5, 12, 3.1415]
+
+# 3. Office Crosser: Crossing quiet bullpen across central transverse aisle
+- name: ped_office_crosser
+  model: arenian
+  pose: [38.0, 15.0, 1.5708]
+  velocity: 0.40
+  waypoints:
+  - [38.0, 24.0, 1.5708]
+  - [38.0, 15.0, 1.5708]
+
+- name: ped_meeting_crosser
+  model: arenian
+  pose: [1.5, 12.0, 1.5708]
+  velocity: 0.40
+  waypoints:
+  - [22.5, 24.0, 1.5708]
+  - [1.5, 12.0, 1.5708]
+
+- name: ped_meeting_crosser2
+  model: arenian
+  pose: [30, 22.0, 1.5708]
+  velocity: 0.40
+  waypoints:
+  - [26.5, -2.0, 1.5708]
+  - [30, 22.0, 1.5708]
+
+
+
+
+
+
+
+
+# 4. Seated Observer in Meeting Room (Acoustic barrier observer)
+- name: mic_meet_chair_board
+  model: arenian_seated
+  pose: [6.50, 24.30, -2.36]
+  velocity: 0.0
+  waypoints:
+  - [6.50, 24.30, -2.36]
+
+# 5. Seated Observers in Quiet Bullpen / Workstations (Acoustic Disturbance Observers)
+- name: mic_worker_desk_A
+  model: arenian_seated
+  pose: [23.70, 18.50, -1.5708]
+  velocity: 0.0
+  waypoints:
+  - [23.70, 18.50, -1.5708]
+- name: mic_worker_desk_B
+  model: arenian_seated
+  pose: [32.70, 18.50, -1.5708]
+  velocity: 0.0
+  waypoints:
+  - [32.70, 18.50, -1.5708]
+- name: mic_worker_desk_D
+  model: arenian_seated
+  pose: [38.70, 18.50, -1.5708]
+  velocity: 0.0
+  waypoints:
+  - [38.70, 18.50, -1.5708]
+
+regions:
+  cafeteria_cloaking:
+    type: source
+    polygon:
+    - {x: 0.0, y: 0.0}
+    - {x: 12.0, y: 0.0}
+    - {x: 12.0, y: 10.0}
+    - {x: 0.0, y: 10.0}
+    config:
+      max_velocity: 1.50
+  hallway_cloaking:
+    type: source
+    polygon:
+    - {x: 0.0, y: 10.0}
+    - {x: 60.0, y: 10.0}
+    - {x: 60.0, y: 14.0}
+    - {x: 0.0, y: 14.0}
+    config:
+      max_velocity: 1.30
+  bullpen_cloaking:
+    type: source
+    polygon:
+    - {x: 18.0, y: 14.0}
+    - {x: 48.0, y: 14.0}
+    - {x: 48.0, y: 25.0}
+    - {x: 18.0, y: 25.0}
+    config:
+      max_velocity: 0.40
+
+static: []
+timeline: []
+conditions: []

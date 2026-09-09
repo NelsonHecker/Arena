@@ -98,7 +98,7 @@ protected:
 
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr microphone_listeners_sub;
     rclcpp::Subscription<task_generator_msgs::msg::SemanticSnapshot>::SharedPtr semantic_snapshot_sub;
-    rclcpp::Subscription<task_generator_msgs::msg::EpisodeRecord>::SharedPtr episode_sub;
+    rclcpp::SubscriptionBase::SharedPtr episode_sub;
     rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr param_events_sub;
     std::string microphone_listener_registry_;
 

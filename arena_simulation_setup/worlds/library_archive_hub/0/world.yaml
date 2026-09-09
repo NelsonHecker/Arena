@@ -60,10 +60,10 @@ zones:
           y: 10.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_bot_R_10.0
       model: Office/SM_BookcaseA
       pose:
@@ -84,10 +84,10 @@ zones:
           y: 11.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_bot_R_11.0
       model: Office/SM_BookcaseA
       pose:
@@ -108,10 +108,10 @@ zones:
           y: 12.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_bot_R_12.0
       model: Office/SM_BookcaseA
       pose:
@@ -132,10 +132,10 @@ zones:
           y: 13.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_bot_R_13.0
       model: Office/SM_BookcaseA
       pose:
@@ -156,10 +156,10 @@ zones:
           y: 14.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_bot_R_14.0
       model: Office/SM_BookcaseA
       pose:
@@ -180,10 +180,10 @@ zones:
           y: 15.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_bot_R_15.0
       model: Office/SM_BookcaseA
       pose:
@@ -204,10 +204,10 @@ zones:
           y: 16.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_bot_R_16.0
       model: Office/SM_BookcaseA
       pose:
@@ -228,10 +228,10 @@ zones:
           y: 22.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_top_R_22.0
       model: Office/SM_BookcaseA
       pose:
@@ -252,10 +252,10 @@ zones:
           y: 23.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_top_R_23.0
       model: Office/SM_BookcaseA
       pose:
@@ -276,10 +276,10 @@ zones:
           y: 24.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_top_R_24.0
       model: Office/SM_BookcaseA
       pose:
@@ -300,10 +300,10 @@ zones:
           y: 25.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_top_R_25.0
       model: Office/SM_BookcaseA
       pose:
@@ -324,10 +324,10 @@ zones:
           y: 26.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_top_R_26.0
       model: Office/SM_BookcaseA
       pose:
@@ -348,10 +348,10 @@ zones:
           y: 27.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_top_R_27.0
       model: Office/SM_BookcaseA
       pose:
@@ -372,10 +372,10 @@ zones:
           y: 28.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r1_top_R_28.0
       model: Office/SM_BookcaseA
       pose:
@@ -396,10 +396,10 @@ zones:
           y: 10.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_bot_R_10.0
       model: Office/SM_BookcaseA
       pose:
@@ -420,10 +420,10 @@ zones:
           y: 11.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_bot_R_11.0
       model: Office/SM_BookcaseA
       pose:
@@ -444,10 +444,10 @@ zones:
           y: 12.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_bot_R_12.0
       model: Office/SM_BookcaseA
       pose:
@@ -468,10 +468,10 @@ zones:
           y: 13.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_bot_R_13.0
       model: Office/SM_BookcaseA
       pose:
@@ -492,10 +492,10 @@ zones:
           y: 14.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_bot_R_14.0
       model: Office/SM_BookcaseA
       pose:
@@ -516,10 +516,10 @@ zones:
           y: 15.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_bot_R_15.0
       model: Office/SM_BookcaseA
       pose:
@@ -540,10 +540,10 @@ zones:
           y: 16.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_bot_R_16.0
       model: Office/SM_BookcaseA
       pose:
@@ -564,10 +564,10 @@ zones:
           y: 22.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_top_R_22.0
       model: Office/SM_BookcaseA
       pose:
@@ -588,10 +588,10 @@ zones:
           y: 23.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_top_R_23.0
       model: Office/SM_BookcaseA
       pose:
@@ -612,10 +612,10 @@ zones:
           y: 24.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_top_R_24.0
       model: Office/SM_BookcaseA
       pose:
@@ -636,10 +636,10 @@ zones:
           y: 25.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_top_R_25.0
       model: Office/SM_BookcaseA
       pose:
@@ -660,10 +660,10 @@ zones:
           y: 26.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_top_R_26.0
       model: Office/SM_BookcaseA
       pose:
@@ -684,10 +684,10 @@ zones:
           y: 27.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_top_R_27.0
       model: Office/SM_BookcaseA
       pose:
@@ -708,10 +708,10 @@ zones:
           y: 28.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r2_top_R_28.0
       model: Office/SM_BookcaseA
       pose:
@@ -732,10 +732,10 @@ zones:
           y: 10.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_bot_R_10.0
       model: Office/SM_BookcaseA
       pose:
@@ -756,10 +756,10 @@ zones:
           y: 11.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_bot_R_11.0
       model: Office/SM_BookcaseA
       pose:
@@ -780,10 +780,10 @@ zones:
           y: 12.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_bot_R_12.0
       model: Office/SM_BookcaseA
       pose:
@@ -804,10 +804,10 @@ zones:
           y: 13.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_bot_R_13.0
       model: Office/SM_BookcaseA
       pose:
@@ -828,10 +828,10 @@ zones:
           y: 14.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_bot_R_14.0
       model: Office/SM_BookcaseA
       pose:
@@ -852,10 +852,10 @@ zones:
           y: 15.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_bot_R_15.0
       model: Office/SM_BookcaseA
       pose:
@@ -876,10 +876,10 @@ zones:
           y: 16.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_bot_R_16.0
       model: Office/SM_BookcaseA
       pose:
@@ -900,10 +900,10 @@ zones:
           y: 22.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_top_R_22.0
       model: Office/SM_BookcaseA
       pose:
@@ -924,10 +924,10 @@ zones:
           y: 23.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_top_R_23.0
       model: Office/SM_BookcaseA
       pose:
@@ -948,10 +948,10 @@ zones:
           y: 24.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_top_R_24.0
       model: Office/SM_BookcaseA
       pose:
@@ -972,10 +972,10 @@ zones:
           y: 25.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_top_R_25.0
       model: Office/SM_BookcaseA
       pose:
@@ -996,10 +996,10 @@ zones:
           y: 26.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_top_R_26.0
       model: Office/SM_BookcaseA
       pose:
@@ -1020,10 +1020,10 @@ zones:
           y: 27.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_top_R_27.0
       model: Office/SM_BookcaseA
       pose:
@@ -1044,10 +1044,10 @@ zones:
           y: 28.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r3_top_R_28.0
       model: Office/SM_BookcaseA
       pose:
@@ -1068,10 +1068,10 @@ zones:
           y: 10.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_bot_R_10.0
       model: Office/SM_BookcaseA
       pose:
@@ -1092,10 +1092,10 @@ zones:
           y: 11.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_bot_R_11.0
       model: Office/SM_BookcaseA
       pose:
@@ -1116,10 +1116,10 @@ zones:
           y: 12.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_bot_R_12.0
       model: Office/SM_BookcaseA
       pose:
@@ -1140,10 +1140,10 @@ zones:
           y: 13.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_bot_R_13.0
       model: Office/SM_BookcaseA
       pose:
@@ -1164,10 +1164,10 @@ zones:
           y: 14.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_bot_R_14.0
       model: Office/SM_BookcaseA
       pose:
@@ -1188,10 +1188,10 @@ zones:
           y: 15.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_bot_R_15.0
       model: Office/SM_BookcaseA
       pose:
@@ -1212,10 +1212,10 @@ zones:
           y: 16.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_bot_R_16.0
       model: Office/SM_BookcaseA
       pose:
@@ -1236,10 +1236,10 @@ zones:
           y: 22.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_top_R_22.0
       model: Office/SM_BookcaseA
       pose:
@@ -1260,10 +1260,10 @@ zones:
           y: 23.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_top_R_23.0
       model: Office/SM_BookcaseA
       pose:
@@ -1284,10 +1284,10 @@ zones:
           y: 24.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_top_R_24.0
       model: Office/SM_BookcaseA
       pose:
@@ -1308,10 +1308,10 @@ zones:
           y: 25.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_top_R_25.0
       model: Office/SM_BookcaseA
       pose:
@@ -1332,10 +1332,10 @@ zones:
           y: 26.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_top_R_26.0
       model: Office/SM_BookcaseA
       pose:
@@ -1356,10 +1356,10 @@ zones:
           y: 27.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_top_R_27.0
       model: Office/SM_BookcaseA
       pose:
@@ -1380,10 +1380,10 @@ zones:
           y: 28.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r4_top_R_28.0
       model: Office/SM_BookcaseA
       pose:
@@ -1404,10 +1404,10 @@ zones:
           y: 10.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_bot_R_10.0
       model: Office/SM_BookcaseA
       pose:
@@ -1428,10 +1428,10 @@ zones:
           y: 11.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_bot_R_11.0
       model: Office/SM_BookcaseA
       pose:
@@ -1452,10 +1452,10 @@ zones:
           y: 12.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_bot_R_12.0
       model: Office/SM_BookcaseA
       pose:
@@ -1476,10 +1476,10 @@ zones:
           y: 13.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_bot_R_13.0
       model: Office/SM_BookcaseA
       pose:
@@ -1500,10 +1500,10 @@ zones:
           y: 14.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_bot_R_14.0
       model: Office/SM_BookcaseA
       pose:
@@ -1524,10 +1524,10 @@ zones:
           y: 15.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_bot_R_15.0
       model: Office/SM_BookcaseA
       pose:
@@ -1548,10 +1548,10 @@ zones:
           y: 16.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_bot_R_16.0
       model: Office/SM_BookcaseA
       pose:
@@ -1572,10 +1572,10 @@ zones:
           y: 22.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_top_R_22.0
       model: Office/SM_BookcaseA
       pose:
@@ -1596,10 +1596,10 @@ zones:
           y: 23.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_top_R_23.0
       model: Office/SM_BookcaseA
       pose:
@@ -1620,10 +1620,10 @@ zones:
           y: 24.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_top_R_24.0
       model: Office/SM_BookcaseA
       pose:
@@ -1644,10 +1644,10 @@ zones:
           y: 25.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_top_R_25.0
       model: Office/SM_BookcaseA
       pose:
@@ -1668,10 +1668,10 @@ zones:
           y: 26.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_top_R_26.0
       model: Office/SM_BookcaseA
       pose:
@@ -1692,10 +1692,10 @@ zones:
           y: 27.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_top_R_27.0
       model: Office/SM_BookcaseA
       pose:
@@ -1716,10 +1716,10 @@ zones:
           y: 28.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r5_top_R_28.0
       model: Office/SM_BookcaseA
       pose:
@@ -1740,10 +1740,10 @@ zones:
           y: 10.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_bot_R_10.0
       model: Office/SM_BookcaseA
       pose:
@@ -1764,10 +1764,10 @@ zones:
           y: 11.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_bot_R_11.0
       model: Office/SM_BookcaseA
       pose:
@@ -1788,10 +1788,10 @@ zones:
           y: 12.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_bot_R_12.0
       model: Office/SM_BookcaseA
       pose:
@@ -1812,10 +1812,10 @@ zones:
           y: 13.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_bot_R_13.0
       model: Office/SM_BookcaseA
       pose:
@@ -1836,10 +1836,10 @@ zones:
           y: 14.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_bot_R_14.0
       model: Office/SM_BookcaseA
       pose:
@@ -1860,10 +1860,10 @@ zones:
           y: 15.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_bot_R_15.0
       model: Office/SM_BookcaseA
       pose:
@@ -1884,10 +1884,10 @@ zones:
           y: 16.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_bot_R_16.0
       model: Office/SM_BookcaseA
       pose:
@@ -1908,10 +1908,10 @@ zones:
           y: 22.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_top_R_22.0
       model: Office/SM_BookcaseA
       pose:
@@ -1932,10 +1932,10 @@ zones:
           y: 23.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_top_R_23.0
       model: Office/SM_BookcaseA
       pose:
@@ -1956,10 +1956,10 @@ zones:
           y: 24.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_top_R_24.0
       model: Office/SM_BookcaseA
       pose:
@@ -1980,10 +1980,10 @@ zones:
           y: 25.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_top_R_25.0
       model: Office/SM_BookcaseA
       pose:
@@ -2004,10 +2004,10 @@ zones:
           y: 26.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_top_R_26.0
       model: Office/SM_BookcaseA
       pose:
@@ -2028,10 +2028,10 @@ zones:
           y: 27.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_top_R_27.0
       model: Office/SM_BookcaseA
       pose:
@@ -2052,10 +2052,10 @@ zones:
           y: 28.0
           z: 0.0
         orientation:
-          w: 1.0
+          w: 0.0
           x: 0.0
           y: 0.0
-          z: 0.0
+          z: 1.0
     - name: bookcase_r6_top_R_28.0
       model: Office/SM_BookcaseA
       pose:
