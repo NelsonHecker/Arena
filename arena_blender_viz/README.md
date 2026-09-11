@@ -63,6 +63,7 @@ arena-blender-viz build --world <world> [options]
 | `--output`, `-o` | `path` | `<world>.blend` | Destination `.blend` scene file. |
 | `--no-animate-doors` | `flag` | `False` | Disables dynamic sliding door animation keyframes (keeps doors open). |
 | `--no-animate-peds` | `flag` | `False` | Disables dynamic pedestrian animation keyframing. |
+| `--static` | `flag` | `False` | **Static-frame build.** Poses the robot, doors and pedestrians at a single instant and emits **no animation data at all**, so the `.blend` is directly editable in the GUI for composing a still image. Defaults to the worst-case acoustic frame; use `--frame`/`--time` to freeze elsewhere (falls back to the trajectory midpoint, then frame 1). Pedestrians are frozen mid-stride. Defaults the output name to `<world>_static.blend` so it does not overwrite the animated build. |
 | `--show-door-radius` | `flag` | `False` | Renders the $r = 1.2\,\text{m}$ automated door sensor activation radius cylinders. |
 | `--show-encounters` | `flag` | `False` | Renders personal space encounter discs ($r = 0.8\,\text{m}$) at human proxemic zones. |
 | `--show-energy-glow` | `flag` | `False` | Renders **side-by-side emission trails** flanking the trajectory: instantaneous power draw (viridis, left of travel) and acoustic emission level (inferno, right of travel). |
@@ -87,6 +88,26 @@ arena-blender-viz build \
   --output library_acoustic_plain.blend
 ```
 
+#### Example: Static frame for a still image
+
+Everything is posed at one instant and no animation data is written, so the
+`.blend` opens ready to edit (lighting, materials, camera) and render:
+
+```bash
+arena-blender-viz build \
+  --world office_1 \
+  --benchmark 20260909-183932-hero_grand_tour-graceful_hero \
+  --episode 005 \
+  --acoustic \
+  --static \
+  --time 29.7          # optional; freezes at the worst-case acoustic frame otherwise
+```
+
+The actors are posed from the same interpolated trajectories the animated build
+keys from, so **the frozen frame is identical to the animated build evaluated at
+that frame**. Unlike `--no-animate-peds`, pedestrians are kept and frozen
+mid-stride; combine the two for a clean architectural shot with no people.
+
 ---
 
 ### Command: `render`
@@ -101,9 +122,9 @@ arena-blender-viz render --blend <path.blend> --output <path.png> [options]
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `--blend` | `path` | **Required** | Path to target `.blend` file. |
-| `--output`, `-o` | `path` | **Required** | Destination rendered PNG image path. |
-| `--camera` | `str` | `Cam_TopDown_Full` | Camera preset to render from (see Camera Presets section). |
+| `--blend` | `path` | **Required** | Path to a `.blend` file, **or just its name** (`office_1_ep005_static`) to resolve against `--benchmark`/`--episode` and the data directories — see [Resolving `--blend` by name](#resolving---blend-by-name). |
+| `--output`, `-o` | `path` | Auto | Destination PNG. Defaults to `<blend_dir>/<blend>_<camera>.png`. With several (or all) cameras this names a **directory**, and each file is suffixed with its camera name. |
+| `--camera` | `str` | `Cam_TopDown_Full` | A camera preset, a comma-separated list of names, or `all` to render every camera found in the scene (see [Camera Presets](#4-camera-presets-reference)). |
 | `--frame` | `int` | Scene Default | Timeline frame index to render. Defaults to worst-case acoustic hotspot frame. |
 | `--resolution`, `-r` | `int int` | Scene Default | Direct render pixel dimensions (e.g. `--resolution 3840 2160`). |
 | `--dpi` | `int` | `None` | Target publication DPI scale relative to standard 300 DPI baseline (e.g. `--dpi 600` doubles resolution). |
@@ -129,6 +150,22 @@ arena-blender-viz render \
   --output render_library_hero.png
 ```
 
+#### Example: Render every camera in the scene
+
+```bash
+# Every camera object in the .blend — the built-in presets plus any you added
+# by hand in the GUI — rendered in a single Blender launch.
+arena-blender-viz render \
+  --blend library_acoustic_plain.blend \
+  --camera all \
+  --frame 1798 \
+  --output renders/          # each image lands in renders/<blend>_<camera>.png
+
+# A specific subset, also one launch:
+arena-blender-viz render --blend library_acoustic_plain.blend \
+  --camera Cam_TopDown_Full,Cam_3Quarter_Hero -o renders/
+```
+
 ---
 
 ### Command: `animate`
@@ -143,9 +180,9 @@ arena-blender-viz animate --blend <path.blend> --output <path.mp4> [options]
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `--blend` | `path` | **Required** | Path to target `.blend` file. |
-| `--output`, `-o` | `path` | **Required** | Destination MP4 path. Frames land in `<output>_frames/` next to it. |
-| `--camera` | `str` | `Cam_TopDown_Full` | Camera preset to render from. |
+| `--blend` | `path` | **Required** | Path to a `.blend` file, or just its name to resolve against `--benchmark`/`--episode` (see [Resolving `--blend` by name](#resolving---blend-by-name)). |
+| `--output`, `-o` | `path` | **Required** | Destination MP4 path. Frames land in `<output>_frames/` next to it. With several (or all) cameras one MP4 is written per camera, suffixed with its name. |
+| `--camera` | `str` | `Cam_TopDown_Full` | A camera preset, a comma-separated list of names, or `all` to render every camera found in the scene. |
 | `--start` / `--end` | `int` | `1` / `scene.frame_end` | Frame range. Frame $f$ maps to time $(f-1)/\text{fps}$, matching the acoustic MOVIE texture timeline (`frame_start=1`, `frame_offset=0`) exactly. |
 | `--stride` | `int` | `1` | Render every Nth frame. $>1$ gives a time-lapse preview. |
 | `--fps` | `float` | `30.0` | Output playback frame rate. |
@@ -166,6 +203,11 @@ arena-blender-viz animate --blend hospital_1_acoustic.blend --camera Cam_TopDown
 
 arena-blender-viz animate --blend hospital_1_acoustic.blend --camera Cam_TopDown_Full \
   --stride 1 --samples 256 --resolution 1920 810 -o hero.mp4
+
+# Every camera at once, one MP4 each (`hero_Cam_TopDown_Full.mp4`, ...).
+# One Blender launch, one .blend open, N frame sequences.
+arena-blender-viz animate --blend hospital_1_acoustic.blend --camera all \
+  --stride 10 --samples 32 --resolution 960 540 -o hero.mp4
 ```
 
 ---
@@ -250,7 +292,46 @@ Every generated Blender scene includes calibrated cameras positioned according t
 | `Cam_TopDown_Ward` | Orthographic | Auto-fit ($24 \times 18\,\text{m}$) | Targeted top-down framing focused on patient rooms and quiet study halls. |
 | `Cam_Corridor_EyeLevel` | Perspective | $35\,\text{mm}$ | First-person / human eye-level ($Z = 1.65\,\text{m}$) perspective looking down hallways. |
 
----
+### Selecting cameras
+
+`--camera` accepts three forms, on both `render` and `animate`:
+
+| Value | Effect |
+|---|---|
+| `Cam_TopDown_Full` | That one camera (default). |
+| `Cam_TopDown_Full,Cam_3Quarter_Hero` | Exactly those cameras. |
+| `all` (or `*`) | **Every camera in the `.blend`.** |
+
+`all` is resolved inside Blender, so it picks up cameras added by hand in the GUI — not just the presets above. This is why the names in an `all` run are only known once the file is open, and why the output paths are derived there.
+
+Every selection is rendered in **a single Blender launch**: opening the `.blend` and building the render state costs far more than the extra frames, so N cameras cost roughly one startup plus N renders rather than N startups.
+
+Output layout:
+
+- **One camera** — `--output` is the exact file, unchanged from previous versions. Omitted, it defaults to `<blend_dir>/<blend>_<camera>.png`.
+- **Several / all** — `--output` names a **directory** (or a filename, whose stem becomes a prefix). Files are written as `<blend>_<camera>.png`, so `--camera all -o renders/` gives `renders/library_acoustic_plain_Cam_TopDown_Full.png` and so on. For `animate`, one MP4 is written per camera and each frame sequence gets its own `frames/<camera>/` directory.
+
+### Resolving `--blend` by name
+
+`--blend` takes a full path, but a **bare name is usually enough** — `build` writes scenes to `<benchmark>/blender/`, so the benchmark already implies the directory:
+
+```bash
+arena blender render \
+  --camera all \
+  --benchmark 20260909-183932-hero_grand_tour-graceful_hero \
+  --episode episode_005 \
+  --blend office_1_ep005_static \
+  --dpi 400
+```
+
+Resolution order (first hit wins, and the chosen path is echoed back):
+
+1. An existing file — used as-is. A directory works too, if it holds exactly one `.blend`.
+2. `<benchmark>/blender/<name>[.blend]` — where `build` writes.
+3. `<benchmark>/<name>`, then the episode directory.
+4. `<data>/blender/<world>/<name>` and `<data>/benchmarks/*/blender/<name>`.
+
+The `.blend` suffix is optional, and an episode tag is filled in when absent: `--blend office_1 --episode 005` finds `office_1_ep005.blend` (falling back to `office_1_ep005_static.blend`). On a miss the error lists what was searched *and* the scenes sitting in the most likely directory, so a typo is usually self-correcting.
 
 ## 5. Shading & Scientific False-Color Fidelity
 
@@ -286,19 +367,43 @@ data/
 │   └── renders/                           # Publication renders and composited images
 └── blender_cache/
     └── glb/                               # Converted 3D GLB assets (Jackal, Arenian, furniture)
+                                           #   regenerated on demand — see "Derived assets" below
 
 arena_blender_viz/
 ├── arena_blender_viz/
 │   ├── cli.py                     # CLI entry point (build, render, animate, hud)
 │   ├── bundle_builder.py          # Extracts telemetry, resolves models, exports JSON bundle
 │   ├── world_parser.py            # Parses world.yaml (zones, walls, doors, entities)
-│   ├── model_converter.py         # Converts DAE/OBJ to GLB, cleans materials & transforms
+│   ├── model_converter.py         # Converts DAE/OBJ/BLEND to GLB, cleans materials & transforms
 │   ├── blender_scene_builder.py   # Headless Blender Python script assembling 3D scenes
 │   ├── video_renderer.py          # Animation frame-sequence rendering + MP4 muxing
 │   └── hud_generator.py           # Generates telemetry cards, colorbars, and composites
 ├── pyproject.toml                 # Package definition and dependencies
 └── README.md                      # This documentation
 ```
+
+### Derived assets
+
+Three families of GLB are consumed by the scene builder but correspond to no `model_id`, so
+`model_converter.py` derives them during `build`. They are cached with a version sidecar
+(`.walkver` / `.robotver`) and regenerate automatically when their source or the bake version
+changes — nothing has to be run by hand, and deleting the cache is safe.
+
+| Asset | Source | Produced by |
+|---|---|---|
+| `Common_arenian_idle.glb` | `_assets/default/Common/Human/arenian/clips/idle.dae` | `ModelConverter.get_human_phase_glbs()` |
+| `Common_arenian_walk_0..3.glb` | `…/arenian/clips/walk.dae`, sampled at 4 evenly spaced phases | `ModelConverter.get_human_phase_glbs()` |
+| `jackal_robot.glb` | `data/blender/robots_cache/jackal/robot.blend` | `ModelConverter.get_robot_glb()` |
+
+Notes:
+- Walk phases are baked **in place**: the clip's root-joint horizontal travel is pinned, because the
+  builder drives pedestrian position from telemetry and re-applies stride length itself
+  (`STRIDE_LEN = 1.151 m`). Leaving root motion in causes pedestrians to surge.
+- All five human GLBs share identical mesh topology, which is what lets the builder bake them into
+  `Walk_0..3` shape keys on the idle mesh.
+- `.blend` cannot be read by trimesh/pycollada, so `get_robot_glb()` is the one conversion that
+  shells out to Blender. A pre-existing `jackal_robot.glb` newer than the `.blend` and lacking a
+  sidecar is treated as hand-authored and left alone.
 
 ---
 
@@ -321,9 +426,44 @@ Colormap limits are **pinned per axis** and constant across every frame of an an
 
 The normal white architectural floor remains visible everywhere; the acoustic field is overlaid **only where the texture is non-black**. Camera rays mix between a white Principled BSDF and the color-true field emission using the texture luminance as the mask (RGBToBW → MixShader), so colored pixels stay physically accurate while black pixels show the plain floor.
 
-### Skylight sun
+### Multi-camera rendering (`--camera all`)
 
-Every scene now includes a soft `SkylightSun` (SUN, energy 2.5, 52° from zenith, −68° azimuth, 30° shadow angle) complementing the `ArchitecturalKeyLight`, plus a raised ambient world fill (0.16 → 0.25) for brighter, more readable scenes.
+`render` and `animate` accept `--camera all` (or `*`) to render **every camera object in the `.blend`** — resolved inside Blender, so hand-added GUI cameras are included, not just the presets. A comma-separated list selects a subset. All cameras render in **one Blender launch**: opening the `.blend` dominates, so N cameras cost one startup plus N renders.
+
+This replaced two blocks of duplicated `--python-expr` code (the still path and the frame path each carried their own copy of the Cycles device setup) with two template constants in `video_renderer.py` sharing `_GPU_CONFIG` and `_CAMERA_RESOLVE`.
+
+Two robustness fixes came with it:
+
+- **A failed render now fails.** Blender exits `0` even when `--python-expr` raises, so a missing camera or a render that never started used to print `[OK] Render saved` regardless. Background invocations now pass `--python-exit-code 1`, and the scripts raise on "no renderable camera".
+- **`--output` may be omitted** on `render` (it was `required=True` while a default path already existed in the code, unreachable). Defaults to `<blend_dir>/<blend>_<camera>.png`.
+
+Output paths are reported back from Blender as a **file name only** (`[RENDERED] <camera>\t<file>`), never a full path, so the `\\wsl.localhost\...` UNC forms `_windows_form` produces never have to be translated back into POSIX paths. `--hud` now composites onto every rendered image rather than just the first.
+
+### Lighting: suns, bounce fill, and AO
+
+Four sources, plus a per-zone downlight in each zone:
+
+| Light | Type | Energy | Direction |
+|---|---|---|---|
+| `ArchitecturalKeyLight` | SUN | 4.5 | from +X +Y, 32° from zenith |
+| `SkylightSun` | SUN | 2.5 | from −X +Y, 52° from zenith |
+| `BounceFillLight` | SUN, **shadowless** | 1.8 | from −Y, 45° elevation |
+| `ZenithFillLight` | AREA, `span × 1.1` at Z=11 | 220 | straight down |
+| `Light_<zone>` | AREA at Z=2.35 | 80 + 15·√(area) | straight down |
+| World background | — | 0.25 | uniform `(0.90, 0.93, 0.96)` |
+
+**Both suns sit on the +Y side**, so any wall whose normal faces −Y received no direct light from either and rendered as near-black. Ambient alone cannot fix this: the same geometry that shadows the wall also occludes the sky, so raising world strength lifts the midtones but leaves the dark tail where it is.
+
+Measured on `office_1_ep005` through `Cam_3Quarter_Hero`, over wall pixels isolated by an emission ID pass (wall→magenta, everything else→black), toggling only the fill light and the AO values on a single scene:
+
+| wall pixels | p1 | p5 | p25 | median | p75 | < 16/255 | < 32/255 | < 64/255 |
+|---|---|---|---|---|---|---|---|---|
+| before (no fill, AO 0.85) | 7 | 33 | 78 | 136 | 181 | 2.0% | 4.6% | **16.8%** |
+| after (fill + AO 0.35) | 43 | 79 | 147 | 167 | 193 | 0.0% | 0.2% | **2.8%** |
+
+The darkest wall pixels are ~6× brighter and the proportion below 64/255 drops six-fold, while the distribution stays tight enough to keep directional shading. The fill is deliberately `use_shadow = False` — a shadow-casting fill would be blocked by the very walls it exists to light.
+
+`Mat_Wall` also carried an over-strong ambient-occlusion term — its base colour is `Mix(A, ramp(AO), MULTIPLY, f)`, which scales albedo by `(1−f) + f·ramp(AO)`, so the old `f=0.85` with a `0.28` dark stop crushed occluded walls to **37% albedo** before any lighting was applied. Now `f=0.35` with a `0.62` dark stop. (`Mat_Floor` still carries the old `f=0.8` / `0.35` values — untouched, as acoustic builds replace it entirely.)
 
 ### Pedestrian walk-cycle fix
 

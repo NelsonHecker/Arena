@@ -1,30 +1,36 @@
+# Crowded End-to-End Traverse in office_1 (render scenario)
+# Robot: jackal drives one long diagonal from the cafeteria (5.0, 5.0) to the
+# far bullpen end (46.0, 19.5) through a crowd of walking pedestrians.
+# No seated peds. Existing walkers kept, corridor/cafeteria/bullpen crowd added.
+
 robots:
 - name: jackal
   base_frame: jackal/base_link
   start: [5.0, 5.0, 0.98]          # Initial heading pointing toward first segment
   phases:
-  - goto: [46.0, 19.5, 0.0]       # Final aisle cruise trajectory (dx=6.5, dy=5.0)
+  - goto: [46.0, 19.5, 0.0]       # single goal: one end of the map to the other (planner routes)
 
 
 dynamic:
 
-# 2. Main Hallway Oncoming Walker: Approaching from x=28.0 towards x=2.0 along north lane (y=12.6), stopping at west corridor end
+# Main Hallway walker on the north lane (y=12.6)
 - name: ped_hallway_encounter
   model: arenian
-  pose: [60.0, 12.6, 3.1415]
+  pose: [59.5, 12.6, 3.1415]
   velocity: 0.25
   waypoints:
   - [2.0, 12.6, 3.1415]
-  - [60.0, 12.6, 3.1415]
+  - [59.5, 12.6, 3.1415]
 
+# Side-hallway walker rising north into the main hallway at x=13.5
 - name: ped_sidehallway_encounter
   model: arenian
-  pose: [13.5, 1, 3.1415]
+  pose: [13.0, 1, 3.1415]
   velocity: 0.25
   waypoints:
   - [13.5, 12, 3.1415]
 
-# 3. Office Crosser: Crossing quiet bullpen across central transverse aisle
+# Office Crosser: Crossing quiet bullpen across central transverse aisle
 - name: ped_office_crosser
   model: arenian
   pose: [38.0, 15.0, 1.5708]
@@ -33,6 +39,7 @@ dynamic:
   - [38.0, 24.0, 1.5708]
   - [38.0, 15.0, 1.5708]
 
+# Meeting-room crosser: hallway west end -> meeting_room_big / bullpen
 - name: ped_meeting_crosser
   model: arenian
   pose: [1.5, 12.0, 1.5708]
@@ -41,48 +48,100 @@ dynamic:
   - [22.5, 24.0, 1.5708]
   - [1.5, 12.0, 1.5708]
 
+# Second diagonal crosser: bullpen -> reception south strip
 - name: ped_meeting_crosser2
   model: arenian
-  pose: [30, 22.0, 1.5708]
+  pose: [29.0, 23.0, 1.5708]
   velocity: 0.40
   waypoints:
   - [26.5, -2.0, 1.5708]
-  - [30, 22.0, 1.5708]
+  - [29.0, 23.0, 1.5708]
 
-
-
-
-
-
-
-
-# 4. Seated Observer in Meeting Room (Acoustic barrier observer)
-- name: mic_meet_chair_board
-  model: arenian_seated
-  pose: [6.50, 24.30, -2.36]
-  velocity: 0.0
+# --- Added corridor crowd: three more walking lanes, both directions ---
+- name: ped_hall_north_east
+  model: arenian
+  pose: [3.0, 13.2, 0.0]
+  velocity: 0.65
+  waypoint_mode: repeat
   waypoints:
-  - [6.50, 24.30, -2.36]
+  - [57.0, 13.2, 0.0]
+  - [3.0, 13.2, 3.1416]
+- name: ped_hall_south_west
+  model: arenian
+  pose: [57.0, 11.2, 3.1416]
+  velocity: 0.60
+  waypoint_mode: repeat
+  waypoints:
+  - [3.0, 11.2, 3.1416]
+  - [57.0, 11.2, 0.0]
+- name: ped_hall_south_east
+  model: arenian
+  pose: [3.0, 10.7, 0.0]
+  velocity: 0.55
+  waypoint_mode: repeat
+  waypoints:
+  - [57.0, 10.7, 0.0]
+  - [3.0, 10.7, 3.1416]
 
-# 5. Seated Observers in Quiet Bullpen / Workstations (Acoustic Disturbance Observers)
-- name: mic_worker_desk_A
-  model: arenian_seated
-  pose: [23.70, 18.50, -1.5708]
-  velocity: 0.0
+# --- Added cafeteria + bullpen crowd ---
+- name: ped_cafeteria_crosser_1
+  model: arenian
+  pose: [6.0, 4.0, 1.5708]
+  velocity: 0.45
+  waypoint_mode: repeat
   waypoints:
-  - [23.70, 18.50, -1.5708]
-- name: mic_worker_desk_B
-  model: arenian_seated
-  pose: [32.70, 18.50, -1.5708]
-  velocity: 0.0
+  - [6.0, 13.5, 1.5708]
+  - [6.0, 4.0, -1.5708]
+- name: ped_cafeteria_crosser_2
+  model: arenian
+  pose: [7.5, 18.0, -1.5708]
+  velocity: 0.45
+  waypoint_mode: repeat
   waypoints:
-  - [32.70, 18.50, -1.5708]
-- name: mic_worker_desk_D
-  model: arenian_seated
-  pose: [38.70, 18.50, -1.5708]
-  velocity: 0.0
+  - [7.5, 5.0, -1.5708]
+  - [7.5, 18.0, 1.5708]
+- name: ped_bullpen_walker
+  model: arenian
+  pose: [20.0, 14.6, 0.0]
+  velocity: 0.50
+  waypoint_mode: repeat
   waypoints:
-  - [38.70, 18.50, -1.5708]
+  - [46.0, 14.6, 0.0]
+  - [20.0, 14.6, 3.1416]
+
+# --- Meeting room 1 + executive office walkers ---
+- name: ped_meet1_walker_a
+  model: arenian
+  pose: [16.2, 4.5, 1.5708]
+  velocity: 0.45
+  waypoint_mode: repeat
+  waypoints:
+  - [16.2, 8.8, 1.5708]
+  - [16.2, 4.5, -1.5708]
+- name: ped_meet1_walker_b
+  model: arenian
+  pose: [16.8, 5.0, 1.5708]
+  velocity: 0.45
+  waypoint_mode: repeat
+  waypoints:
+  - [16.8, 8.8, 1.5708]
+  - [16.8, 5.0, -1.5708]
+- name: ped_exec1_walker
+  model: arenian
+  pose: [43.5, 4.5, 1.5708]
+  velocity: 0.45
+  waypoint_mode: repeat
+  waypoints:
+  - [43.5, 8.5, 1.5708]
+  - [43.5, 4.5, -1.5708]
+- name: ped_exec2_walker
+  model: arenian
+  pose: [53.5, 4.5, 1.5708]
+  velocity: 0.45
+  waypoint_mode: repeat
+  waypoints:
+  - [53.5, 8.5, 1.5708]
+  - [53.5, 4.5, -1.5708]
 
 regions:
   cafeteria_cloaking:

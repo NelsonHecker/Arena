@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -33,36 +34,56 @@ def _bool_flag(v: Any) -> bool:
     return str(v).strip().lower() not in ("false", "0", "no", "f", "off")
 
 
+def _blender_version(exe: Path) -> tuple[int, int, int] | None:
+    """Query `exe --version` and return (major, minor, patch), or None."""
+    try:
+        out = subprocess.run(
+            [str(exe), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        m = re.search(r"Blender\s+(\d+)\.(\d+)(?:\.(\d+))?", out.stdout or out.stderr)
+        if m:
+            return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0))
+    except Exception:
+        pass
+    return None
+
+
 def find_blender() -> Path:
     import shutil
 
-    # 0. Explicit override via environment variable
+    # 0. Explicit override via environment variable (highest priority)
     env_exe = os.environ.get("BLENDER_EXE")
     if env_exe:
         p = Path(env_exe)
         if p.is_file():
             return p
 
+    # Collect candidates in priority order.
+    candidates: list[Path] = []
+
     # 1. Platform-specific well-known path
     if BLENDER_EXE.is_file():
-        return BLENDER_EXE
+        candidates.append(BLENDER_EXE)
 
     # 2. Anywhere on PATH (covers /usr/bin/blender, snap, conda, etc.)
     p = shutil.which("blender")
     if p:
-        return Path(p)
+        candidates.append(Path(p))
 
     # 3. WSL2: Windows Blender mounted under /mnt/c  (the exe runs via WSL interop)
-    #    Glob all installed versions and pick the newest one.
+    #    Glob all installed versions, newest first.
     _wsl_base = Path("/mnt/c/Program Files/Blender Foundation")
     if _wsl_base.is_dir():
-        _wsl_hits = sorted(
-            _wsl_base.glob("Blender */blender.exe"),
-            key=lambda p: p.parent.name,
-            reverse=True,  # newest version first
+        candidates.extend(
+            sorted(
+                _wsl_base.glob("Blender */blender.exe"),
+                key=lambda p: p.parent.name,
+                reverse=True,  # newest version first
+            )
         )
-        if _wsl_hits:
-            return _wsl_hits[0]
 
     # 4. Common Linux / Docker install locations
     _linux_candidates = [
@@ -73,7 +94,30 @@ def find_blender() -> Path:
     ]
     for cand in _linux_candidates:
         if cand.is_file():
-            return cand
+            candidates.append(cand)
+
+    # Dedupe, preserving the priority order above.
+    _seen: set[str] = set()
+    _unique: list[Path] = []
+    for cand in candidates:
+        key = str(cand).lower()
+        if key not in _seen:
+            _seen.add(key)
+            _unique.append(cand)
+
+    # Prefer the highest Blender version across all candidates
+    # (e.g. /opt/blender/blender 5.2.x wins over /usr/bin/blender 4.0.x).
+    best: Path | None = None
+    best_ver: tuple[int, int, int] | None = None
+    for cand in _unique:
+        ver = _blender_version(cand)
+        if ver and (best_ver is None or ver > best_ver):
+            best, best_ver = cand, ver
+    if best:
+        return best
+    # Fall back to the first candidate if every --version query failed
+    if _unique:
+        return _unique[0]
 
     _searched = (
         ["$BLENDER_EXE (not set)", str(BLENDER_EXE), "PATH",
@@ -86,9 +130,101 @@ def find_blender() -> Path:
         + "\n\nOptions:\n"
         "  • WSL:    Blender installs to C:\\Program Files\\Blender Foundation and is "
         "auto-detected via /mnt/c/Program Files/Blender Foundation/Blender X.Y/blender.exe\n"
-        "  • Linux:  sudo apt install blender  (or place on PATH)\n"
+        "  • Linux:  extract an official blender-*-linux-x64 tarball to /opt/blender "
+        "(or place blender on PATH)\n"
         "  • Any:    set env var BLENDER_EXE=/full/path/to/blender"
     )
+
+
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".exr", ".tif", ".tiff", ".webp", ".bmp")
+
+# `--camera` values that mean "every camera in the .blend".
+_ALL_CAMERA_WORDS = ("all", "*")
+
+
+def parse_camera_spec(spec: str | None) -> list[str] | None:
+    """Parse a `--camera` value into names, or None for "every camera".
+
+    `all` / `*` selects every camera in the .blend -- including any added by
+    hand in the Blender GUI, not just the built-in presets. A comma-separated
+    list (or a single name) selects those cameras; several are rendered in one
+    Blender launch rather than one launch each.
+    """
+    s = (spec or "").strip()
+    if not s or s.lower() in _ALL_CAMERA_WORDS:
+        return None
+    return [n.strip() for n in s.split(",") if n.strip()] or None
+
+
+def _is_absolute_like(p: str) -> bool:
+    """True for POSIX paths, Windows drive paths (`C:/...`) and UNC paths.
+
+    The CLI also runs under WSL, where `Path("C:/x").is_absolute()` is False
+    even though the caller clearly meant an absolute Windows path.
+    """
+    return p.startswith(("/", "\\")) or (len(p) >= 2 and p[1] == ":")
+
+
+def resolve_render_targets(
+    blend_path: Path, output_arg: str | None, cameras: list[str] | None
+) -> tuple[Path, str]:
+    """Resolve `(output_dir, filename_pattern)` for a still render.
+
+    `cameras` is None for "every camera in the scene", else the requested names.
+    For a single named camera the pattern holds no `%s`, so `--output` keeps
+    meaning "exactly this file" as it always has. For several (or all) cameras
+    the pattern holds a `%s` that the Blender-side script substitutes with the
+    camera name -- the names in an "all" selection are only known once the
+    .blend is open.
+    """
+    single = cameras is not None and len(cameras) == 1
+
+    def _abs(p: str) -> Path:
+        return Path(p) if _is_absolute_like(p) else blend_path.parent / p
+
+    if output_arg:
+        if single:
+            base = _abs(str(output_arg))
+            return base.parent, base.name
+        if Path(str(output_arg)).suffix.lower() in _IMAGE_SUFFIXES:
+            base = _abs(str(output_arg))
+            return base.parent, f"{base.stem}_%s{base.suffix}"
+        # No image suffix: the argument names a destination directory.
+        return _abs(str(output_arg)), f"{blend_path.stem}_%s.png"
+
+    if single:
+        return blend_path.parent, f"{blend_path.stem}_{cameras[0]}.png"
+    return blend_path.parent, f"{blend_path.stem}_%s.png"
+
+
+def _map_telemetry_frame(target_frame: int | None, blend_path: Path) -> int | None:
+    """Map an episode telemetry row index onto a Blender animation frame.
+
+    The sibling `<blend>_bundle.json` records the robot trajectory the scene was
+    built from, so a telemetry frame index can be converted to the animation
+    frame that corresponds to the same instant.
+    """
+    if target_frame is None:
+        return None
+    bundle_cand = blend_path.parent / f"{blend_path.stem}_bundle.json"
+    if not bundle_cand.is_file():
+        return target_frame
+    try:
+        import json
+
+        bdata = json.loads(bundle_cand.read_text())
+        traj = bdata.get("telemetry", {}).get("robot_trajectory", [])
+        fps = bdata.get("options", {}).get("fps", 30)
+        if traj and target_frame < len(traj):
+            mapped = max(1, int(traj[target_frame]["t"] * fps))
+            print(
+                f"[*] Mapping telemetry frame {target_frame} "
+                f"(t={traj[target_frame]['t']}s) to animation frame {mapped}"
+            )
+            return mapped
+    except Exception:
+        pass
+    return target_frame
 
 
 def resolve_data_dir() -> Path:
@@ -136,26 +272,153 @@ def resolve_world_path(world_arg: str) -> Path:
     raise FileNotFoundError(f"Could not find world.yaml for '{world_arg}' across {search_roots}")
 
 
-def resolve_episode_dir(benchmark_arg: str, episode_arg: str | None = None) -> Path | None:
-    bench_p = Path(benchmark_arg)
-    if not bench_p.is_dir():
-        search_roots: list[Path] = []
-        if "ARENA_DATA_DIR" in os.environ:
-            search_roots.append(Path(os.environ["ARENA_DATA_DIR"]) / "benchmarks")
-        if "ARENA_WS_DIR" in os.environ:
-            search_roots.append(Path(os.environ["ARENA_WS_DIR"]) / "data" / "benchmarks")
-        search_roots.extend([
-            Path("/opt/arena_ws/data/benchmarks"),
-            Path("u:/data/benchmarks"),
-            Path("/data/benchmarks"),
-        ])
-        for root in search_roots:
-            cand = root / benchmark_arg
-            if cand.is_dir():
-                bench_p = cand
-                break
+def benchmark_search_roots() -> list[Path]:
+    """Directories that may contain `<benchmark run>` directories."""
+    roots: list[Path] = []
+    if "ARENA_DATA_DIR" in os.environ:
+        roots.append(Path(os.environ["ARENA_DATA_DIR"]) / "benchmarks")
+    if "ARENA_WS_DIR" in os.environ:
+        roots.append(Path(os.environ["ARENA_WS_DIR"]) / "data" / "benchmarks")
+    roots.extend([
+        Path("/opt/arena_ws/data/benchmarks"),
+        Path("u:/data/benchmarks"),
+        Path("/data/benchmarks"),
+    ])
+    return roots
 
-    if not bench_p.is_dir():
+
+def resolve_benchmark_dir(benchmark_arg: str) -> Path | None:
+    """Resolve a benchmark name or path to its directory, or None."""
+    bench_p = Path(benchmark_arg)
+    if bench_p.is_dir():
+        return bench_p
+    for root in benchmark_search_roots():
+        cand = root / benchmark_arg
+        if cand.is_dir():
+            return cand
+    return None
+
+
+def resolve_blend_path(
+    blend_arg: str,
+    benchmark_arg: str | None = None,
+    episode_arg: str | None = None,
+) -> Path:
+    """Resolve a `--blend` value to an existing .blend file.
+
+    Accepts an explicit path, or a bare stem like `office_1_ep005_static`. A
+    stem is looked up in the benchmark's `blender/` output directory -- where
+    `build` writes scenes -- and then across the data directories, so with a
+    `--benchmark`/`--episode` pair the name alone is enough.
+
+    `--blend office_1 --episode 005` also works: when the given name has no
+    `_ep<NNN>` tag of its own, the episode tag is appended and retried.
+    """
+    raw = str(blend_arg).strip()
+    p = Path(raw).expanduser()
+
+    if p.is_dir():
+        found = sorted(p.glob("*.blend"))
+        if len(found) == 1:
+            print(f"[*] Resolved --blend '{raw}' -> {found[0]}")
+            return found[0].resolve()
+        listing = "\n".join(f"    {f.name}" for f in found) or "    (none)"
+        raise FileNotFoundError(
+            f"'{raw}' is a directory holding {len(found)} .blend files; name one:\n{listing}"
+        )
+    if p.is_file():
+        return p.resolve()
+
+    names = [raw] if raw.lower().endswith(".blend") else [raw, f"{raw}.blend"]
+
+    if episode_arg is not None:
+        ep_tag = _episode_tag(episode_arg)
+        stems = [n[: -len(".blend")] if n.lower().endswith(".blend") else n for n in names]
+        for stem in stems:
+            if ep_tag not in stem:
+                names += [f"{stem}{ep_tag}{sfx}.blend" for sfx in ("", "_static")]
+
+    dirs = _blend_search_dirs(benchmark_arg, episode_arg)
+    for d in dirs:
+        for n in dict.fromkeys(names):  # dedupe, keep order
+            cand = d / n
+            if cand.is_file():
+                print(f"[*] Resolved --blend '{raw}' -> {cand}")
+                return cand.resolve()
+
+    # Name the siblings of whichever directory is most likely to hold the
+    # intended scene, rather than the union across every searched directory.
+    nearby_dir, nearby = None, []
+    for d in dirs:
+        found = sorted(f.name for f in d.glob("*.blend"))
+        if found:
+            nearby_dir, nearby = d, found
+            break
+
+    raise FileNotFoundError(
+        f"Could not find a .blend for '{raw}'.\n"
+        f"  Looked for: {', '.join(dict.fromkeys(names))}\n"
+        f"  In: {', '.join(str(d) for d in dirs) or '(no candidate directories)'}\n"
+        + (
+            f"  Available in {nearby_dir}:\n"
+            + "\n".join(f"    {n}" for n in nearby[:25])
+            + "\n" if nearby else ""
+        )
+        + "  Pass a full path, or a --benchmark/--episode pair to resolve by name."
+    )
+
+
+def _episode_tag(episode_arg: str) -> str:
+    """`005`, `episode_005` and `ep_005` all normalise to `_ep005`."""
+    try:
+        clean = str(episode_arg).lower().replace("episode_", "").replace("ep_", "").strip()
+        return f"_ep{int(clean):03d}"
+    except ValueError:
+        return f"_{episode_arg}"
+
+
+def _blend_search_dirs(
+    benchmark_arg: str | None, episode_arg: str | None
+) -> list[Path]:
+    """Directories to search for a named .blend, most specific first."""
+    dirs: list[Path] = []
+
+    def add(d: Path) -> None:
+        if d.is_dir() and d not in dirs:
+            dirs.append(d)
+
+    if benchmark_arg:
+        bench_p = resolve_benchmark_dir(benchmark_arg)
+        if bench_p is not None:
+            add(bench_p / "blender")  # where `build` writes scenes
+            add(bench_p)
+            if episode_arg:
+                ep_dir = resolve_episode_dir(str(bench_p), episode_arg)
+                if ep_dir is not None:
+                    add(ep_dir / "blender")
+                    add(ep_dir)
+
+    data_dir = resolve_data_dir()
+    blender_root = data_dir / "blender"
+    add(blender_root)
+    if blender_root.is_dir():
+        # data/blender/<world>/<world>.blend
+        for sub in sorted(blender_root.iterdir()):
+            add(sub)
+
+    bench_root = data_dir / "benchmarks"
+    if bench_root.is_dir():
+        # data/benchmarks/<run>/blender/<world>_ep<NNN>.blend
+        for sub in sorted(bench_root.iterdir()):
+            add(sub / "blender")
+
+    return dirs
+
+
+def resolve_episode_dir(benchmark_arg: str, episode_arg: str | None = None) -> Path | None:
+    bench_p = resolve_benchmark_dir(benchmark_arg)
+
+    if bench_p is None or not bench_p.is_dir():
         return None
 
     if episode_arg:
@@ -188,6 +451,11 @@ def cmd_build(args: argparse.Namespace) -> None:
 
     world_name = world_yaml.parent.parent.name if world_yaml.parent.name == "0" else world_yaml.parent.name
 
+    # A static build is a different artifact from the animated one, so give it its
+    # own default name rather than overwriting the animated .blend.
+    static_mode = bool(getattr(args, "static", False))
+    name_suffix = "_static" if static_mode else ""
+
     if args.output:
         out_blend = Path(args.output)
     else:
@@ -201,11 +469,11 @@ def cmd_build(args: argparse.Namespace) -> None:
                 ep_tag = f"_ep{int(ep_clean):03d}"
             except ValueError:
                 ep_tag = f"_{episode_dir.name}"
-            out_blend = blender_out_dir / f"{world_name}{ep_tag}.blend"
+            out_blend = blender_out_dir / f"{world_name}{ep_tag}{name_suffix}.blend"
         else:
             # Place in data/blender/<world_name>/<world_name>.blend
             blender_out_dir = data_dir / "blender" / world_name
-            out_blend = blender_out_dir / f"{world_name}.blend"
+            out_blend = blender_out_dir / f"{world_name}{name_suffix}.blend"
 
     out_blend.parent.mkdir(parents=True, exist_ok=True)
     bundle_json = out_blend.parent / f"{out_blend.stem}_bundle.json"
@@ -216,6 +484,13 @@ def cmd_build(args: argparse.Namespace) -> None:
         "show_door_radius": args.show_door_radius,
         "show_encounters": getattr(args, "show_encounters", False),
         "show_energy_glow": args.show_energy_glow,
+        "glow_metric": args.glow_metric,
+        "glow_strength": args.glow_strength,
+        "additive_start_dba": args.additive_start_dba,
+        "additive_full_dba": args.additive_full_dba,
+        "auto_texture": not args.no_auto_texture,
+        "fill_light_strength": args.fill_light_strength,
+        "floor_brightness": args.floor_brightness,
         "glow_energy_vmin": getattr(args, "glow_energy_vmin", None),
         "glow_energy_vmax": getattr(args, "glow_energy_vmax", None),
         "glow_acoustic_vmin": getattr(args, "glow_acoustic_vmin", None),
@@ -226,6 +501,7 @@ def cmd_build(args: argparse.Namespace) -> None:
         "frame": getattr(args, "frame", None),
         "time": getattr(args, "time", None),
         "scenario": getattr(args, "scenario", None),
+        "static": static_mode,
     }
 
     print(f"[*] Building scene bundle from {world_yaml}...")
@@ -248,13 +524,17 @@ def cmd_build(args: argparse.Namespace) -> None:
         str(blender_path),
         "--background",
         "--python",
-        _windows_form(scene_builder_script),
+        _windows_form(scene_builder_script, blender_path),
         "--",
-        _windows_form(bundle_json),
-        _windows_form(out_blend),
+        _windows_form(bundle_json, blender_path),
+        _windows_form(out_blend, blender_path),
     ]
 
-    res = subprocess.run(cmd)
+    # Unbuffered child stdout, so build progress streams live. Without this the
+    # output arrives in blocks and a slow stage looks like it hung on whichever
+    # line happened to flush last, which makes stalls very hard to localise.
+    env = dict(os.environ, PYTHONUNBUFFERED="1")
+    res = subprocess.run(cmd, env=env)
     if res.returncode == 0:
         print(f"[OK] Successfully created Blender scene: {out_blend}")
         print(f"    Open in Blender GUI: & '{blender_path}' '{out_blend}'")
@@ -264,177 +544,102 @@ def cmd_build(args: argparse.Namespace) -> None:
 
 
 def cmd_render(args: argparse.Namespace) -> None:
-    blend_path = Path(args.blend).resolve()
-    if not blend_path.is_file():
-        print(f"[!] Blend file not found: {blend_path}")
+    from .video_renderer import render_stills
+
+    try:
+        blend_path = resolve_blend_path(
+            args.blend,
+            getattr(args, "benchmark", None),
+            getattr(args, "episode", None),
+        )
+    except FileNotFoundError as e:
+        print(f"[!] {e}")
         sys.exit(1)
 
-    if args.output:
-        raw_out = str(args.output).replace("\\", "/")
-        if len(raw_out) >= 2 and raw_out[1] == ":":
-            out_png_posix = raw_out
-        elif raw_out.startswith("/"):
-            out_png_posix = raw_out
-        else:
-            # Relative path: put relative to blend file's parent or data/renders
-            out_png_posix = str((blend_path.parent / args.output).resolve()).replace("\\", "/")
-    else:
-        # Default render output in blend_path's parent directory
-        out_png_posix = str((blend_path.parent / f"{blend_path.stem}_{args.camera}.png").resolve()).replace("\\", "/")
+    cameras = parse_camera_spec(args.camera)
+    if cameras is None:
+        print("[*] Camera selection: every camera in the scene")
+    elif len(cameras) > 1:
+        print(f"[*] Camera selection: {', '.join(cameras)}")
 
-    Path(out_png_posix).parent.mkdir(parents=True, exist_ok=True)
-    blender_path = find_blender()
-    from .video_renderer import _windows_form
-    blend_arg_win = _windows_form(blend_path)
-    out_png_win = _windows_form(Path(out_png_posix))
+    out_dir, pattern = resolve_render_targets(blend_path, args.output, cameras)
+    target_frame = _map_telemetry_frame(args.frame, blend_path)
 
-    # Map telemetry frame to animation frame if bundle exists
-    target_frame = args.frame
-    if target_frame is not None:
-        bundle_cand = blend_path.parent / f"{blend_path.stem}_bundle.json"
-        if bundle_cand.is_file():
-            try:
-                import json
-                bdata = json.loads(bundle_cand.read_text())
-                traj = bdata.get("telemetry", {}).get("robot_trajectory", [])
-                fps = bdata.get("options", {}).get("fps", 30)
-                if traj and target_frame < len(traj):
-                    mapped = max(1, int(traj[target_frame]["t"] * fps))
-                    print(f"[*] Mapping telemetry frame {target_frame} (t={traj[target_frame]['t']}s) to animation frame {mapped}")
-                    target_frame = mapped
-            except Exception:
-                pass
+    rendered = render_stills(
+        blend_path=blend_path,
+        camera=args.camera,
+        out_dir=out_dir,
+        filename_pattern=pattern,
+        frame=target_frame,
+        resolution=getattr(args, "resolution", None),
+        percentage=getattr(args, "percentage", None),
+        samples=getattr(args, "samples", None),
+        dpi=getattr(args, "dpi", None),
+        blender_exe=find_blender(),
+    )
 
-    # GPU / CPU configuration and robust denoiser fallback
-    python_expr = f"""
-import bpy
-scene = bpy.context.scene
-scene.render.engine = 'CYCLES'
-scene.cycles.device = 'GPU'
+    if not rendered:
+        print("[!] Blender reported no rendered images")
+        sys.exit(1)
+    for cam_name, out_p in rendered:
+        print(f"[OK] Render saved ({cam_name}): {out_p}")
 
-try:
-    cprefs = bpy.context.preferences.addons['cycles'].preferences
-    has_gpu = False
-    for dev_type in ['OPTIX', 'CUDA', 'HIP']:
-        try:
-            cprefs.compute_device_type = dev_type
-            cprefs.get_devices()
-            devs = [d for d in cprefs.devices if d.type == dev_type]
-            if devs:
-                for d in devs:
-                    d.use = True
-                print(f'[GPU] Enabled {{dev_type}} successfully')
-                has_gpu = True
-                break
-        except Exception:
-            pass
-    if not has_gpu:
-        print('[CPU] Falling back to CPU render')
-        scene.cycles.device = 'CPU'
-except Exception as e:
-    print(f'[!] Compute device configuration note: {{e}}')
-    scene.cycles.device = 'CPU'
-
-# Ensure denoising does not crash if Blender build lacks OpenImageDenoiser
-try:
-    csettings = scene.cycles
-    denoiser_val = getattr(csettings, 'denoiser', None)
-    if not denoiser_val or denoiser_val not in ('OPENIMAGEDENOISE', 'OPTIX'):
-        csettings.use_denoising = False
-except Exception:
-    pass
-
-# Dynamic resolution, DPI, and sampling overrides
-{f"scene.render.resolution_x = {args.resolution[0]}" if getattr(args, "resolution", None) else ""}
-{f"scene.render.resolution_y = {args.resolution[1]}" if getattr(args, "resolution", None) else ""}
-{f"scene.render.resolution_percentage = {args.percentage}" if getattr(args, "percentage", None) else ""}
-{f"scene.cycles.samples = {args.samples}" if getattr(args, "samples", None) else ""}
-{f'''
-# DPI scaling relative to standard 300 DPI publication baseline
-dpi_scale = {args.dpi} / 300.0
-scene.render.resolution_x = int(scene.render.resolution_x * dpi_scale)
-scene.render.resolution_y = int(scene.render.resolution_y * dpi_scale)
-''' if getattr(args, "dpi", None) else ""}
-
-print(f"[Render Config] Resolution: {{scene.render.resolution_x}}x{{scene.render.resolution_y}} ({{scene.render.resolution_percentage}}%), Samples: {{scene.cycles.samples}}")
-
-cam = bpy.data.objects.get('{args.camera}')
-if cam:
-    scene.camera = cam
-
-{f"scene.frame_set({target_frame})" if target_frame is not None else "# Keep scene active frame (worst-case frame)"}
-
-scene.render.filepath = r'{out_png_win}'
-try:
-    bpy.ops.render.render(write_still=True)
-except Exception as e:
-    print(f'[!] Render failed with {{e}}. Retrying with denoising disabled...')
-    scene.cycles.use_denoising = False
-    bpy.ops.render.render(write_still=True)
-
-print('[OK] Render completed')
-"""
-
-    print(f"[*] Rendering camera '{args.camera}' to {out_png_posix}...")
-    cmd = [
-        str(blender_path),
-        "--background",
-        blend_arg_win,
-        "--python-expr",
-        python_expr,
-    ]
-    res = subprocess.run(cmd)
-    if res.returncode == 0:
-        print(f"[OK] Render saved: {out_png_posix}")
-    else:
-        sys.exit(res.returncode)
-
-    # Optional HUD overlay generation
+    # Optional HUD overlay generation, per rendered image
     if getattr(args, "hud", False):
         if not args.benchmark or not args.episode:
             print("[!] Note: --hud requires --benchmark and --episode to extract metrics. Skipping HUD.")
             return
 
         from .hud_generator import HUDGenerator
-        out_p = Path(out_png_posix)
+
         metrics = HUDGenerator.extract_metrics(args.benchmark, args.episode)
+        for _, out_p in rendered:
+            card_path = out_p.with_name(f"{out_p.stem}_hud_card.png")
+            cb_path = out_p.with_name(f"{out_p.stem}_colorbar.png")
+            comp_path = out_p.with_name(f"{out_p.stem}_with_hud.png")
 
-        card_path = out_p.with_name(f"{out_p.stem}_hud_card.png")
-        cb_path = out_p.with_name(f"{out_p.stem}_colorbar.png")
-        comp_path = out_p.with_name(f"{out_p.stem}_with_hud.png")
-
-        HUDGenerator.generate_colorbar(cb_path, vmin=metrics.get("vmin", 20.0), vmax=metrics.get("vmax", 100.0))
-        HUDGenerator.generate_hud_card(metrics, card_path)
-        HUDGenerator.composite_onto_image(
-            base_image_path=out_p,
-            out_image_path=comp_path,
-            hud_card_path=card_path,
-            colorbar_path=cb_path,
-            position=getattr(args, "hud_pos", "auto"),
-            hud_scale_width_pct=getattr(args, "hud_scale", 0.25),
-        )
-        print(f"[OK] Standalone HUD Card: {card_path}")
-        print(f"[OK] Standalone Colorbar: {cb_path}")
-        print(f"[OK] Publication Composite with HUD: {comp_path}")
+            HUDGenerator.generate_colorbar(cb_path, vmin=metrics.get("vmin", 20.0), vmax=metrics.get("vmax", 100.0))
+            HUDGenerator.generate_hud_card(metrics, card_path)
+            HUDGenerator.composite_onto_image(
+                base_image_path=out_p,
+                out_image_path=comp_path,
+                hud_card_path=card_path,
+                colorbar_path=cb_path,
+                position=getattr(args, "hud_pos", "auto"),
+                hud_scale_width_pct=getattr(args, "hud_scale", 0.25),
+            )
+            print(f"[OK] HUD Card: {card_path}")
+            print(f"[OK] Colorbar: {cb_path}")
+            print(f"[OK] Publication Composite with HUD: {comp_path}")
 
 
 def cmd_animate(args: argparse.Namespace) -> None:
     from .video_renderer import render_frames, mux_frames_mp4
 
-    blend_path = Path(args.blend).resolve()
-    if not blend_path.is_file():
-        print(f"[!] Blend file not found: {blend_path}")
+    try:
+        blend_path = resolve_blend_path(
+            args.blend,
+            getattr(args, "benchmark", None),
+            getattr(args, "episode", None),
+        )
+    except FileNotFoundError as e:
+        print(f"[!] {e}")
         sys.exit(1)
+
+    cameras = parse_camera_spec(args.camera)
+    if cameras is None:
+        print("[*] Camera selection: every camera in the scene")
+    elif len(cameras) > 1:
+        print(f"[*] Camera selection: {', '.join(cameras)}")
 
     out_mp4 = Path(args.output)
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
-    frames_dir = Path(args.frames_dir) if args.frames_dir else out_mp4.parent / f"{out_mp4.stem}_frames"
+    frames_root = Path(args.frames_dir) if args.frames_dir else out_mp4.parent / f"{out_mp4.stem}_frames"
 
-    print(f"[*] Rendering animation frames from {blend_path} (camera '{args.camera}')...")
-    render_frames(
+    rendered = render_frames(
         blend_path=blend_path,
         camera=args.camera,
-        frames_dir=frames_dir,
+        frames_dir=frames_root,
         start=args.start,
         end=args.end,
         stride=args.stride,
@@ -442,32 +647,28 @@ def cmd_animate(args: argparse.Namespace) -> None:
         percentage=args.percentage,
         samples=args.samples,
         only_missing=args.only_missing_frames,
+        blender_exe=find_blender(),
     )
+    if not rendered:
+        print("[!] Blender reported no rendered frame sequences")
+        sys.exit(1)
 
-    print(f"[*] Muxing frames to {out_mp4} at {args.fps} fps...")
-    mux_frames_mp4(frames_dir, out_mp4, fps=args.fps, crf=args.crf)
-    print(f"[OK] Animation saved: {out_mp4}")
+    # Several cameras get one MP4 each, suffixed with the camera name.
+    multi = len(rendered) > 1
+    for cam_name, frames_dir in rendered:
+        target = out_mp4.with_name(f"{out_mp4.stem}_{cam_name}{out_mp4.suffix}") if multi else out_mp4
+        print(f"[*] Muxing {cam_name} frames from {frames_dir} to {target} at {args.fps} fps...")
+        mux_frames_mp4(frames_dir, target, fps=args.fps, crf=args.crf)
+        print(f"[OK] Animation saved ({cam_name}): {target}")
 
 
 def cmd_hud(args: argparse.Namespace) -> None:
     from .hud_generator import HUDGenerator
     bench_p = Path(args.benchmark)
     if not bench_p.is_dir():
-        search_roots: list[Path] = []
-        if "ARENA_DATA_DIR" in os.environ:
-            search_roots.append(Path(os.environ["ARENA_DATA_DIR"]) / "benchmarks")
-        if "ARENA_WS_DIR" in os.environ:
-            search_roots.append(Path(os.environ["ARENA_WS_DIR"]) / "data" / "benchmarks")
-        search_roots.extend([
-            Path("/opt/arena_ws/data/benchmarks"),
-            Path("u:/data/benchmarks"),
-            Path("/data/benchmarks"),
-        ])
-        for root in search_roots:
-            cand = root / args.benchmark
-            if cand.is_dir():
-                bench_p = cand
-                break
+        resolved = resolve_benchmark_dir(args.benchmark)
+        if resolved is not None:
+            bench_p = resolved
 
     metrics = HUDGenerator.extract_metrics(bench_p, args.episode)
     if args.output:
@@ -518,10 +719,16 @@ def main(argv: list[str] | None = None) -> None:
     p_build.add_argument("--output", "-o", help="Output .blend file path")
     p_build.add_argument("--no-animate-doors", nargs="?", const=True, default=False, type=_bool_flag, help="Disable dynamic door sliding animation")
     p_build.add_argument("--no-animate-peds", nargs="?", const=True, default=False, type=_bool_flag, help="Disable dynamic pedestrian animation")
+    p_build.add_argument("--static", nargs="?", const=True, default=False, type=_bool_flag,
+                         help="Pose the world at a single instant and emit no animation data, so the .blend is directly editable and renderable as a still. Freezes at the worst-case acoustic frame unless --frame/--time is given.")
     p_build.add_argument("--show-door-radius", nargs="?", const=True, default=False, type=_bool_flag, help="Visualize door trigger activation radius (r=1.2m)")
     p_build.add_argument("--show-encounters", nargs="?", const=True, default=False, type=_bool_flag, help="Visualize personal space encounter disc overlays")
     p_build.add_argument("--show-energy-glow", nargs="?", const=True, default=False, type=_bool_flag,
-                         help="Enable side-by-side emission trails along the trajectory: instantaneous power draw (viridis, left of travel) and acoustic emission level (inferno, right of travel)")
+                         help="Make the trajectory ribbon itself the glow: an emissive strip coloured by --glow-metric, brightened to read as a light source")
+    p_build.add_argument("--glow-metric", choices=["acoustic", "power"], default="acoustic",
+                         help="Quantity colouring the glowing ribbon: acoustic dBA (default) or electrical power W")
+    p_build.add_argument("--glow-strength", type=float, default=None,
+                         help="Emission strength of the glowing ribbon (default: 3.0; the plain ribbon uses 1.5)")
     p_build.add_argument("--glow-energy-vmin", type=float, default=None, help="Power trail color-scale floor in W (default: 0)")
     p_build.add_argument("--glow-energy-vmax", type=float, default=None, help="Power trail color-scale ceiling in W (default: 300)")
     p_build.add_argument("--glow-acoustic-vmin", type=float, default=None, help="Acoustic trail color-scale floor in dBA (default: 40)")
@@ -533,6 +740,16 @@ def main(argv: list[str] | None = None) -> None:
         default="plain",
         help="Acoustic floor rendering mode: plain (accurate non-reflective matte picture), subtle (gentle warm glow), glow (high-visibility emission), additive (white architectural floor with the field overlaid only where non-black)",
     )
+    p_build.add_argument("--additive-start-dba", type=float, default=None,
+                         help="Additive floor only: acoustic level (dBA) at which the field starts showing over the white floor (default: 45)")
+    p_build.add_argument("--additive-full-dba", type=float, default=None,
+                         help="Additive floor only: acoustic level (dBA) at which the field is fully shown (default: 55)")
+    p_build.add_argument("--no-auto-texture", nargs="?", const=True, default=False, type=_bool_flag,
+                         help="Do not generate the acoustic texture when it is missing; build without the acoustic floor instead")
+    p_build.add_argument("--floor-brightness", type=float, default=None,
+                         help="Albedo of the quiet floor in additive mode (default: 0.25). Raise towards 0.85 for a bright white floor; lower for more field colour")
+    p_build.add_argument("--fill-light-strength", type=float, default=None,
+                         help="Shadowless bounce fill sun energy (default: 0.6; 0 disables). Raise it if walls facing away from the sun read black, lower it if the scene is washed out")
     p_build.add_argument("--trajectory-thickness", type=float, default=0.04, help="Trajectory tube radius in metres")
     p_build.add_argument("--frame", type=int, default=None, help="Episode telemetry frame index (e.g. 621) or Blender animation frame")
     p_build.add_argument("--time", type=float, default=None, help="Episode relative time in seconds (e.g. 84.65)")
@@ -540,13 +757,20 @@ def main(argv: list[str] | None = None) -> None:
 
     # Subcommand: render
     p_render = subparsers.add_parser("render", help="Render an image from a camera preset in a .blend file")
-    p_render.add_argument("--blend", required=True, help="Path to .blend file")
-    p_render.add_argument("--camera", default="Cam_TopDown_Full", help="Camera name (Cam_TopDown_Full, Cam_TopDown, Cam_TopDown_Ward, Cam_3Quarter_Hero, Cam_Corridor_EyeLevel)")
+    p_render.add_argument("--blend", required=True,
+                          help="Path to a .blend file, or just its name (e.g. office_1_ep005_static) "
+                               "to resolve it via --benchmark/--episode or the data directories")
+    p_render.add_argument("--camera", default="Cam_TopDown_Full",
+                          help="Camera name, a comma-separated list of names, or 'all' to render every camera "
+                               "found in the .blend. Presets: Cam_TopDown_Full, Cam_TopDown, Cam_TopDown_Ward, "
+                               "Cam_3Quarter_Hero, Cam_Corridor_EyeLevel")
     p_render.add_argument("--frame", type=int, default=None, help="Timeline frame to render (default: worst-case frame from scene)")
-    p_render.add_argument("--output", "-o", required=True, help="Output PNG image path")
+    p_render.add_argument("--output", "-o", default=None,
+                          help="Output PNG path. Omit to write next to the .blend. With --camera all (or several "
+                               "cameras) a directory is expected and a <blend>_<camera>.png suffix is added per camera")
     p_render.add_argument("--hud", nargs="?", const=True, default=False, type=_bool_flag, help="Generate and composite publication HUD card & colorbar onto the render")
-    p_render.add_argument("--benchmark", help="Benchmark run name or path (required for --hud)")
-    p_render.add_argument("--episode", help="Episode ID (required for --hud)")
+    p_render.add_argument("--benchmark", help="Benchmark run name or path. Also used to resolve a bare --blend name. Required for --hud")
+    p_render.add_argument("--episode", help="Episode ID (e.g. 005, episode_005). Also used to resolve a bare --blend name. Required for --hud")
     p_render.add_argument("--hud-pos", default="auto", choices=["auto", "top_left", "top_right", "bottom_left", "bottom_right"], help="Position of HUD overlay on rendered image (default: auto)")
     p_render.add_argument("--hud-scale", type=float, default=0.25, help="Width fraction of image for HUD card (default: 0.25)")
     p_render.add_argument("--resolution", "-r", nargs=2, type=int, metavar=("WIDTH", "HEIGHT"), help="Render image resolution in pixels (e.g. --resolution 3840 2160)")
@@ -556,9 +780,15 @@ def main(argv: list[str] | None = None) -> None:
 
     # Subcommand: animate
     p_animate = subparsers.add_parser("animate", help="Render an animation frame sequence and mux it to MP4")
-    p_animate.add_argument("--blend", required=True, help="Path to .blend file")
-    p_animate.add_argument("--camera", default="Cam_TopDown_Full", help="Camera name (default: Cam_TopDown_Full)")
-    p_animate.add_argument("--output", "-o", required=True, help="Output MP4 path")
+    p_animate.add_argument("--blend", required=True,
+                           help="Path to a .blend file, or just its name (e.g. office_1_ep005) "
+                                "to resolve it via --benchmark/--episode or the data directories")
+    p_animate.add_argument("--benchmark", help="Benchmark run name or path, used to resolve a bare --blend name")
+    p_animate.add_argument("--episode", help="Episode ID (e.g. 005, episode_005), used to resolve a bare --blend name")
+    p_animate.add_argument("--camera", default="Cam_TopDown_Full",
+                           help="Camera name, a comma-separated list of names, or 'all' to render every camera "
+                                "found in the .blend (default: Cam_TopDown_Full)")
+    p_animate.add_argument("--output", "-o", required=True, help="Output MP4 path. One MP4 is written per camera, each suffixed with the camera name")
     p_animate.add_argument("--start", type=int, default=None, help="First frame (default: 1)")
     p_animate.add_argument("--end", type=int, default=None, help="Last frame (default: scene.frame_end)")
     p_animate.add_argument("--stride", type=int, default=1, help="Render every Nth frame (default: 1; >1 gives a time-lapse preview)")
@@ -568,7 +798,7 @@ def main(argv: list[str] | None = None) -> None:
     p_animate.add_argument("--samples", "-s", type=int, default=None, help="Cycles render samples (e.g. 128, 256). Overrides scene default")
     p_animate.add_argument("--percentage", type=int, default=None, help="Render scale percentage (e.g. 100, 150, 200)")
     p_animate.add_argument("--crf", type=int, default=18, help="H.264 CRF quality for imageio-ffmpeg mux (default: 18)")
-    p_animate.add_argument("--frames-dir", help="Directory for PNG frame files (default: <output>_frames next to the MP4)")
+    p_animate.add_argument("--frames-dir", help="Directory for PNG frame files (default: <output>_frames next to the MP4). With several cameras each gets a <frames-dir>/<camera>/ subdirectory")
     p_animate.add_argument("--only-missing-frames", action="store_true",
                            help="Skip frames whose PNG already exists (resume interrupted render)")
 

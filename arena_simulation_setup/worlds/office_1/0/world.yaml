@@ -3805,26 +3805,50 @@ zones:
     - pose:
         position:
           x: 22.0
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_1
+          z: 0.0
+      name: office_desk_1_1_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 22.0
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_1_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
           x: 23.7
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_2
+          z: 0.0
+      name: office_desk_1_2_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 23.7
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_2_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -3901,14 +3925,26 @@ zones:
     - pose:
         position:
           x: 25.4
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_3
+          z: 0.0
+      name: office_desk_1_3_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 25.4
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_3_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -3985,14 +4021,26 @@ zones:
     - pose:
         position:
           x: 27.1
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_4
+          z: 0.0
+      name: office_desk_1_4_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 27.1
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_4_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4069,26 +4117,50 @@ zones:
     - pose:
         position:
           x: 31.0
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_5
+          z: 0.0
+      name: office_desk_1_5_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 31.0
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_5_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
           x: 32.7
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_6
+          z: 0.0
+      name: office_desk_1_6_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 32.7
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_6_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4165,14 +4237,26 @@ zones:
     - pose:
         position:
           x: 34.4
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_7
+          z: 0.0
+      name: office_desk_1_7_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 34.4
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_7_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4249,14 +4333,26 @@ zones:
     - pose:
         position:
           x: 36.1
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_8
+          z: 0.0
+      name: office_desk_1_8_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 36.1
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_8_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4333,26 +4429,50 @@ zones:
     - pose:
         position:
           x: 37.0
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_9
+          z: 0.0
+      name: office_desk_1_9_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 37.0
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_9_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
           x: 38.7
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_10
+          z: 0.0
+      name: office_desk_1_10_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 38.7
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_10_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4429,14 +4549,26 @@ zones:
     - pose:
         position:
           x: 40.4
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_11
+          z: 0.0
+      name: office_desk_1_11_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 40.4
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_11_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4513,14 +4645,26 @@ zones:
     - pose:
         position:
           x: 42.1
-          y: 17.0
+          y: 16.55
           z: 0.0
         orientation:
-          w: 0.7071054825112363
+          w: 1.0
           x: 0.0
           y: 0.0
-          z: 0.7071080798594735
-      name: office_desk_1_12
+          z: 0.0
+      name: office_desk_1_12_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 42.1
+          y: 17.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_1_12_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4597,26 +4741,50 @@ zones:
     - pose:
         position:
           x: 22.0
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_1
+          z: 0.0
+      name: office_desk_2_1_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 22.0
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_1_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
           x: 23.7
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_2
+          z: 0.0
+      name: office_desk_2_2_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 23.7
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_2_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4693,14 +4861,26 @@ zones:
     - pose:
         position:
           x: 25.4
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_3
+          z: 0.0
+      name: office_desk_2_3_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 25.4
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_3_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4777,14 +4957,26 @@ zones:
     - pose:
         position:
           x: 27.1
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_4
+          z: 0.0
+      name: office_desk_2_4_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 27.1
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_4_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4861,26 +5053,50 @@ zones:
     - pose:
         position:
           x: 31.0
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_5
+          z: 0.0
+      name: office_desk_2_5_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 31.0
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_5_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
           x: 32.7
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_6
+          z: 0.0
+      name: office_desk_2_6_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 32.7
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_6_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -4957,14 +5173,26 @@ zones:
     - pose:
         position:
           x: 34.4
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_7
+          z: 0.0
+      name: office_desk_2_7_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 34.4
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_7_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -5041,14 +5269,26 @@ zones:
     - pose:
         position:
           x: 36.1
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_8
+          z: 0.0
+      name: office_desk_2_8_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 36.1
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_8_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -5125,26 +5365,50 @@ zones:
     - pose:
         position:
           x: 37.0
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_9
+          z: 0.0
+      name: office_desk_2_9_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 37.0
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_9_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
           x: 38.7
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_10
+          z: 0.0
+      name: office_desk_2_10_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 38.7
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_10_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -5221,14 +5485,26 @@ zones:
     - pose:
         position:
           x: 40.4
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_11
+          z: 0.0
+      name: office_desk_2_11_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 40.4
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_11_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:
@@ -5305,14 +5581,26 @@ zones:
     - pose:
         position:
           x: 42.1
-          y: 22.0
+          y: 21.55
           z: 0.0
         orientation:
-          w: -0.7071071416749056
-          x: -0.0
+          w: 1.0
+          x: 0.0
           y: 0.0
-          z: 0.7071064206980056
-      name: office_desk_2_12
+          z: 0.0
+      name: office_desk_2_12_a
+      model: Office/SM_TableWorkingDouble
+    - pose:
+        position:
+          x: 42.1
+          y: 22.45
+          z: 0.0
+        orientation:
+          w: 0.0
+          x: 0.0
+          y: 0.0
+          z: 1.0
+      name: office_desk_2_12_b
       model: Office/SM_TableWorkingDouble
     - pose:
         position:

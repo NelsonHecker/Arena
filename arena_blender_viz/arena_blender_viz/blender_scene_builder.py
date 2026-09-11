@@ -15,11 +15,114 @@ import json
 import math
 import os
 import sys
+import time
 from pathlib import Path
 
 import bpy
 import numpy as np
 from mathutils import Matrix, Quaternion, Vector
+
+# -----------------------------------------------------------------------------
+# Stage timing
+# -----------------------------------------------------------------------------
+# Emits a per-stage wall-clock breakdown so build regressions are attributable.
+# Always flush: when Blender's stdout is redirected it is block-buffered, which
+# makes a slow stage look like it is "stuck" on whatever line happened to flush
+# last.  Every print in this file must therefore pass flush=True.
+_T0 = time.perf_counter()
+_TLAST = _T0
+
+
+def stage(label: str) -> None:
+    """Print elapsed time since the previous stage() call and since startup."""
+    global _TLAST
+    now = time.perf_counter()
+    print(
+        f"[TIMING] {label:<34} +{now - _TLAST:7.2f}s  (total {now - _T0:7.2f}s)",
+        flush=True,
+    )
+    _TLAST = now
+
+
+def scene_scale(tag: str) -> None:
+    """Report scene size, so timings can be read against the workload that produced them."""
+    n_verts = sum(len(m.vertices) for m in bpy.data.meshes)
+    print(
+        f"[TIMING] {tag:<34} objects={len(bpy.data.objects)} "
+        f"meshes={len(bpy.data.meshes)} verts={n_verts} actions={len(bpy.data.actions)}",
+        flush=True,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Bulk keyframe writing (Blender 5.x slotted actions)
+# -----------------------------------------------------------------------------
+# `Action.fcurves` was removed in Blender 5.x.  Curves now live in a channelbag
+# reached via action -> layer -> strip -> channelbag(slot).  Writing keyframe
+# points in bulk through `foreach_set` avoids one depsgraph tag per key and
+# measured 100x+ faster than `keyframe_insert` inside a per-frame loop.
+
+def new_channelbag(action_name: str, id_block, id_type: str, slot_name: str = "Slot"):
+    """Attach a fresh slotted action to `id_block`; return its fcurve channelbag.
+
+    `id_type` is "OBJECT" for objects and "KEY" for shape-key datablocks.
+    Assigning `action_slot` is mandatory -- without it the action is stored but
+    never evaluated, producing a silently static scene.
+    """
+    act = bpy.data.actions.new(action_name)
+    id_block.animation_data_create()
+    id_block.animation_data.action = act
+    slot = act.slots.new(id_type=id_type, name=slot_name)
+    id_block.animation_data.action_slot = slot
+    layer = act.layers.new("Layer")
+    strip = layer.strips.new(type="KEYFRAME")
+    return strip.channelbag(slot, ensure=True)
+
+
+_INTERP_ENUM = {"CONSTANT": 0, "LINEAR": 1, "BEZIER": 2}
+_HANDLE_ENUM = {"FREE": 0, "ALIGNED": 1, "VECTOR": 2, "AUTO": 3, "AUTO_CLAMPED": 4}
+
+
+def write_fcurves(channelbag, frames, curves, interpolation="LINEAR"):
+    """Bulk-write sampled animation curves.
+
+    frames  -- (N,) array of frame numbers, shared by every curve
+    curves  -- iterable of (data_path, array_index, values) with values shape (N,)
+
+    LINEAR suits curves carrying one sample per frame: sub-frame values are never
+    rendered, and it avoids per-key handle computation across millions of keys.
+    BEZIER reproduces exactly what keyframe_insert produces (BEZIER interpolation
+    with AUTO_CLAMPED handles) and is used where keys are sparse and the
+    in-between shape is visible.
+    """
+    n = len(frames)
+    buf = np.empty(n * 2, dtype=np.float64)
+    buf[0::2] = frames
+    interp = np.full(n, _INTERP_ENUM[interpolation], dtype=np.int32)
+    # Without explicit handle types, bezier handles stay FREE and the curve does
+    # not match the keyframe_insert default.
+    handles = (
+        np.full(n, _HANDLE_ENUM["AUTO_CLAMPED"], dtype=np.int32)
+        if interpolation == "BEZIER"
+        else None
+    )
+    for data_path, index, values in curves:
+        fc = channelbag.fcurves.new(data_path, index=index)
+        fc.keyframe_points.add(n)
+        buf[1::2] = values
+        fc.keyframe_points.foreach_set("co", buf)
+        fc.keyframe_points.foreach_set("interpolation", interp)
+        if handles is not None:
+            fc.keyframe_points.foreach_set("handle_left_type", handles)
+            fc.keyframe_points.foreach_set("handle_right_type", handles)
+        fc.update()
+
+
+# True when this script executes inside a *Windows* Blender (native or via
+# WSL interop). Under a native Linux Blender (e.g. the Docker container's
+# /opt/blender), POSIX paths are used as-is and every Windows/WSL path
+# workaround below is skipped.
+IS_WIN32 = sys.platform.startswith("win")
 
 # Read command line arguments passed after "--"
 argv = sys.argv
@@ -31,7 +134,7 @@ else:
     bundle_path = "scene_bundle.json"
     out_blend_path = "output.blend"
 
-print(f"[Arena Blender Viz] Loading bundle: {bundle_path}")
+print(f"[Arena Blender Viz] Loading bundle: {bundle_path}", flush=True)
 with open(bundle_path, "r", encoding="utf-8") as f:
     bundle = json.load(f)
 
@@ -68,7 +171,30 @@ for tl in door_timelines.values():
 
 scene.frame_start = 1
 scene.frame_end = max(10, int(round(max_sim_t * fps)))
-print(f"[Arena Blender Viz] Timeline configured: frames 1 to {scene.frame_end} ({max_sim_t:.1f}s at {fps} fps)")
+print(f"[Arena Blender Viz] Timeline configured: frames 1 to {scene.frame_end} ({max_sim_t:.1f}s at {fps} fps)", flush=True)
+
+# -----------------------------------------------------------------------------
+# Static build: pose every actor at one instant and emit no animation data
+# -----------------------------------------------------------------------------
+# The instant is the worst-case acoustic frame, which --frame/--time already
+# select via worst_case_frame in the bundle. Poses are computed against the full
+# telemetry-derived timeline below, so frame_start/frame_end are only narrowed at
+# the very end of the build (see section 12).
+static_mode = bool(options.get("static", False))
+static_target_frame = None
+if static_mode:
+    _wf = telemetry.get("worst_case_frame") or {}
+    if _wf.get("frame"):
+        static_target_frame, _why = int(_wf["frame"]), "worst-case acoustic frame"
+    elif robot_traj:
+        static_target_frame, _why = scene.frame_end // 2, "trajectory midpoint (no worst_case_frame)"
+    else:
+        static_target_frame, _why = 1, "frame 1 (no telemetry)"
+    static_target_frame = max(1, min(static_target_frame, scene.frame_end))
+    print(
+        f"[Arena Blender Viz] Static build: posing actors at frame {static_target_frame} ({_why})",
+        flush=True,
+    )
 
 # Collections
 def _to_windows_path(p: str) -> str:
@@ -77,9 +203,11 @@ def _to_windows_path(p: str) -> str:
     The Windows Blender's os.path.isfile does not see WSL POSIX paths, while
     bpy.ops.import_scene.gltf accepts them natively. Use this helper for
     isfile checks only; keep POSIX paths for imports.
+
+    No-op under a native Linux Blender (paths are already POSIX).
     """
     s = str(p)
-    if s.startswith("/") and not s.startswith(("//wsl", "//WSL")):
+    if IS_WIN32 and s.startswith("/") and not s.startswith(("//wsl", "//WSL")):
         return "\\\\wsl.localhost\\Ubuntu" + s.replace("/", "\\")
     return s
 
@@ -111,6 +239,8 @@ col_lighting = get_or_create_collection("Lighting")
 col_prefabs = get_or_create_collection("Templates_Hidden")
 col_prefabs.hide_render = True
 col_prefabs.hide_viewport = True
+
+stage("1 scene reset")
 
 # -----------------------------------------------------------------------------
 # 2. Materials
@@ -168,20 +298,23 @@ def create_ao_wall_material(name="Mat_Wall"):
     bsdf.inputs["Base Color"].default_value = (0.95, 0.95, 0.94, 1.0)
     bsdf.inputs["Roughness"].default_value = 0.70
 
-    # Ambient Occlusion node for dark contact crevice lines at corners and floor base
+    # Ambient Occlusion node for dark contact crevice lines at corners and floor base.
+    # Kept deliberately gentle: the MULTIPLY mix scales albedo by
+    # (1-f) + f*ramp(AO), so the old f=0.85 with a 0.28 dark stop crushed
+    # occluded walls to 37% albedo on top of already-low incident light.
     ao_node = nodes.new("ShaderNodeAmbientOcclusion")
     ao_node.inputs["Distance"].default_value = 0.8
 
     ramp = nodes.new("ShaderNodeValToRGB")
     ramp.color_ramp.elements[0].position = 0.0
-    ramp.color_ramp.elements[0].color = (0.28, 0.28, 0.30, 1.0)
+    ramp.color_ramp.elements[0].color = (0.62, 0.63, 0.66, 1.0)
     ramp.color_ramp.elements[1].position = 0.85
     ramp.color_ramp.elements[1].color = (0.95, 0.95, 0.94, 1.0)
 
     mix_color = nodes.new("ShaderNodeMix")
     mix_color.data_type = 'RGBA'
     mix_color.blend_type = 'MULTIPLY'
-    mix_color.inputs["Factor"].default_value = 0.85
+    mix_color.inputs["Factor"].default_value = 0.35
     mix_color.inputs[6].default_value = (0.95, 0.95, 0.94, 1.0)
 
     links.new(ao_node.outputs["AO"], ramp.inputs["Fac"])
@@ -245,6 +378,21 @@ mat_desk_oak = create_procedural_wood_material("Mat_Desk_Oak", base_color=(0.78,
 mat_plant_leaf = create_pbr_material("Mat_Plant_Leaf", color=(0.12, 0.38, 0.10, 1.0), roughness=0.4)
 mat_reception_wood = create_procedural_wood_material("Mat_Reception_Wood", base_color=(0.25, 0.25, 0.27, 1.0), roughness=0.25, grain_scale=6.0)
 
+# Prop palette for models whose source asset carries no texture (see
+# _assign_prop_material below). Kept deliberately small and low-saturation so
+# re-materialled props sit quietly inside the architectural lighting.
+mat_prop_electronics = create_pbr_material("Mat_Prop_Electronics", color=(0.055, 0.058, 0.068, 1.0), roughness=0.32)
+mat_prop_cardboard = create_pbr_material("Mat_Prop_Cardboard", color=(0.55, 0.40, 0.26, 1.0), roughness=0.85)
+mat_prop_metal = create_pbr_material("Mat_Prop_Metal", color=(0.55, 0.57, 0.60, 1.0), roughness=0.35, metallic=0.9)
+mat_prop_wood = create_procedural_wood_material("Mat_Prop_Wood", base_color=(0.55, 0.40, 0.26, 1.0), roughness=0.40, grain_scale=8.0)
+mat_prop_fabric = create_pbr_material("Mat_Prop_Fabric", color=(0.30, 0.32, 0.36, 1.0), roughness=0.85)
+# Sanitary ware is legitimately white; the point is to shade it so the form reads
+# instead of blowing out to a featureless silhouette.
+mat_prop_sanitary = create_pbr_material("Mat_Prop_Sanitary", color=(0.87, 0.88, 0.88, 1.0), roughness=0.18)
+mat_prop_neutral = create_pbr_material("Mat_Prop_Neutral", color=(0.62, 0.61, 0.59, 1.0), roughness=0.55)
+
+stage("2 materials")
+
 # -----------------------------------------------------------------------------
 # 3. Floors & Acoustic Propagation Overlay
 # -----------------------------------------------------------------------------
@@ -253,15 +401,134 @@ span_x = max(max_x - min_x, 1.0)
 span_y = max(max_y - min_y, 1.0)
 
 acoustic_png = acoustic_overlay.get("png_path")
-# /opt/arena_ws is a symlink to /home/nelson/arena_ws; Blender's WSL path
-# mapping resolves /home but not /opt (nor the symlink through UNC), so
-# normalize before any existence check or image load.
 if acoustic_png:
-    acoustic_png = str(acoustic_png).replace("/opt/arena_ws", "/home/nelson/arena_ws")
+    acoustic_png = str(acoustic_png)
+    if IS_WIN32:
+        # /opt/arena_ws is a symlink to /home/nelson/arena_ws; Blender's WSL
+        # path mapping resolves /home but not /opt (nor the symlink through
+        # UNC), so normalize before any existence check or image load.
+        acoustic_png = acoustic_png.replace("/opt/arena_ws", "/home/nelson/arena_ws")
 
 mat_acoustic = None
+
+# Extent the acoustic texture is mapped onto. bundle_builder takes this from
+# the texture's own manifest when one exists, falling back to world bounds.
+_tb = acoustic_overlay.get("bounds")
+if _tb and len(_tb) >= 4:
+    tex_min_x, tex_min_y, tex_max_x, tex_max_y = (float(v) for v in _tb[:4])
+else:
+    tex_min_x, tex_min_y, tex_max_x, tex_max_y = min_x, min_y, max_x, max_y
+tex_span_x = max(tex_max_x - tex_min_x, 1e-6)
+tex_span_y = max(tex_max_y - tex_min_y, 1e-6)
+print(
+    f"[Arena Blender Viz] Acoustic field mapped over x {tex_min_x:.2f}..{tex_max_x:.2f}  "
+    f"y {tex_min_y:.2f}..{tex_max_y:.2f}  (source: "
+    f"{acoustic_overlay.get('bounds_source', 'world')})",
+    flush=True,
+)
+# Additive floor ramp, in dBA. Defaults sit around the field's typical level
+# (measured median 47.3 dBA on hospital_1_ep000) so a white plan shows through
+# and only genuinely loud regions light up. Overridable per build with
+# --additive-start-dba / --additive-full-dba.
+# The ramp must sit where the field actually lives, or the floor shows nothing.
+# The original mask saturated at texture luminance ~0.12; these defaults
+# reproduce that reach (full colour by 32 dBA) but over a wider span, so the
+# boundary fades instead of stepping. Raising START past ~30 dBA puts the whole
+# ramp above most of the field and the floor goes bare -- which is exactly what
+# happened when these were 30/45.
+_ADDITIVE_START_DBA = 20.0
+_ADDITIVE_FULL_DBA = 32.0
+
+# Shadowless bounce fill (see the lighting section). Raised to 1.8 when it was
+# introduced to stop -Y walls reading black; that also washed the scene out and
+# fought the acoustic floor, so it now defaults low and is tunable. Set
+# --fill-light-strength 0 to disable it entirely.
+_FILL_LIGHT_DEFAULT_W = 0.6
+
+# Albedo of the "white" floor in additive mode. The scene is lit hard enough
+# that a white floor glares and swallows the field colour, so the quiet floor is
+# deliberately dim. Raise towards 0.85 for the old bright architectural look.
+_FLOOR_BRIGHTNESS = 0.25
+
+# Fallback colour-scale limits, used only when the texture manifest does not
+# supply its own (it normally does -- see bundle_builder).
+_FIELD_VMIN_DBA = 20.0
+_FIELD_VMAX_DBA = 60.0
+
+# Colormap anchor tables (sampled from matplotlib). Declared before the
+# acoustic shader because the additive floor ramp converts a dBA threshold
+# into a texture luminance at material-build time.
+INFERNO_ANCHORS = (
+    (0.0015, 0.0005, 0.0139),
+    (0.0140, 0.0112, 0.0719),
+    (0.0423, 0.0281, 0.1411),
+    (0.0820, 0.0433, 0.2153),
+    (0.1358, 0.0469, 0.2998),
+    (0.1904, 0.0393, 0.3614),
+    (0.2450, 0.0371, 0.4000),
+    (0.2972, 0.0475, 0.4205),
+    (0.3540, 0.0669, 0.4309),
+    (0.4039, 0.0856, 0.4332),
+    (0.4537, 0.1038, 0.4305),
+    (0.5035, 0.1216, 0.4234),
+    (0.5596, 0.1413, 0.4101),
+    (0.6093, 0.1595, 0.3936),
+    (0.6585, 0.1790, 0.3727),
+    (0.7065, 0.2007, 0.3478),
+    (0.7584, 0.2291, 0.3153),
+    (0.8019, 0.2587, 0.2831),
+    (0.8420, 0.2929, 0.2486),
+    (0.8780, 0.3321, 0.2123),
+    (0.9130, 0.3816, 0.1698),
+    (0.9387, 0.4301, 0.1304),
+    (0.9591, 0.4820, 0.0895),
+    (0.9742, 0.5368, 0.0484),
+    (0.9846, 0.6011, 0.0236),
+    (0.9879, 0.6603, 0.0517),
+    (0.9856, 0.7208, 0.1122),
+    (0.9775, 0.7823, 0.1859),
+    (0.9625, 0.8515, 0.2855),
+    (0.9487, 0.9105, 0.3953),
+    (0.9517, 0.9606, 0.5242),
+    (0.9884, 0.9984, 0.6449),
+)
+
+
+# Viridis anchors (sampled from matplotlib) for the electrical power trail;
+# distinct from inferno so the two side-by-side trails never read as one scale.
+
+def _lut_rgb(val: float, v_min: float, v_max: float, anchors: tuple) -> tuple[float, float, float, float]:
+    """Map a value through an embedded matplotlib colormap anchor table (pinned limits)."""
+    norm = max(0.0, min(1.0, (val - v_min) / (v_max - v_min)))
+    pos = norm * (len(anchors) - 1)
+    i = int(pos)
+    f = pos - i
+    if i >= len(anchors) - 1:
+        r, g, b = anchors[-1]
+    else:
+        (r0, g0, b0), (r1, g1, b1) = anchors[i], anchors[i + 1]
+        r = r0 + f * (r1 - r0)
+        g = g0 + f * (g1 - g0)
+        b = b0 + f * (b1 - b0)
+    return (r, g, b, 1.0)
+
+
+def _dba_to_luminance(dba: float, v_min: float, v_max: float) -> float:
+    """Rec.709 luminance of the inferno colour at `dba` on a [v_min, v_max] scale.
+
+    Lets the additive floor ramp be specified in dBA -- the unit the field is
+    actually measured in -- while the shader can only threshold the texture's
+    luminance, which the colormap makes a non-linear function of level.
+    """
+    r, g, b, _ = _lut_rgb(dba, v_min, v_max, INFERNO_ANCHORS)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
 if acoustic_png and _path_exists(acoustic_png):
-    print(f"[Arena Blender Viz] Setting up acoustic propagation floor: {acoustic_png}")
+
+
+
+    print(f"[Arena Blender Viz] Setting up acoustic propagation floor: {acoustic_png}", flush=True)
     mat_acoustic = bpy.data.materials.new("Mat_Acoustic_Field")
     mat_acoustic.use_nodes = True
     nodes = mat_acoustic.node_tree.nodes
@@ -273,20 +540,21 @@ if acoustic_png and _path_exists(acoustic_png):
     # Image texture
     tex_node = nodes.new("ShaderNodeTexImage")
     clean_png = str(acoustic_png)
-    # /opt/arena_ws is a symlink to /home/nelson/arena_ws; Blender's WSL path
-    # mapping resolves /home but not /opt, so normalize before loading.
-    clean_png = clean_png.replace("/opt/arena_ws", "/home/nelson/arena_ws")
-    if clean_png.startswith("//wsl.localhost/"):
-        clean_png = "\\\\" + clean_png[2:].replace("/", "\\")
-    # normpath only for already-Windows-style paths; POSIX /home forms must
-    # stay POSIX so Blender's WSL path mapping resolves them (normpath would
-    # turn them into root-relative '\home\...' paths the loader cannot read).
-    if "\\" in clean_png or (len(clean_png) > 1 and clean_png[1] == ":"):
-        clean_png = os.path.normpath(clean_png)
-    if not os.path.isfile(clean_png):
-        alt = clean_png.replace(r"\\wsl.localhost\Ubuntu\home\nelson\arena_ws", "U:").replace(r"\\wsl.localhost\ubuntu\home\nelson\arena_ws", "U:")
-        if os.path.isfile(alt):
-            clean_png = alt
+    if IS_WIN32:
+        # /opt/arena_ws is a symlink to /home/nelson/arena_ws; Blender's WSL
+        # path mapping resolves /home but not /opt, so normalize before loading.
+        clean_png = clean_png.replace("/opt/arena_ws", "/home/nelson/arena_ws")
+        if clean_png.startswith("//wsl.localhost/"):
+            clean_png = "\\\\" + clean_png[2:].replace("/", "\\")
+        # normpath only for already-Windows-style paths; POSIX /home forms must
+        # stay POSIX so Blender's WSL path mapping resolves them (normpath would
+        # turn them into root-relative '\home\...' paths the loader cannot read).
+        if "\\" in clean_png or (len(clean_png) > 1 and clean_png[1] == ":"):
+            clean_png = os.path.normpath(clean_png)
+        if not os.path.isfile(clean_png):
+            alt = clean_png.replace(r"\\wsl.localhost\Ubuntu\home\nelson\arena_ws", "U:").replace(r"\\wsl.localhost\ubuntu\home\nelson\arena_ws", "U:")
+            if os.path.isfile(alt):
+                clean_png = alt
     # bpy.data.images.load does not apply Blender's WSL path mapping, so pass
     # the explicit UNC form (POSIX /home is kept for isfile checks and gltf
     # imports, which do map it).
@@ -300,7 +568,7 @@ if acoustic_png and _path_exists(acoustic_png):
         tex_node.image_user.frame_offset = 0
         tex_node.image_user.use_auto_refresh = True
         tex_node.image_user.use_cyclic = False
-        print(f"[Arena Blender Viz] Dynamic acoustic MP4 movie texture linked: {clean_png} (duration={max_f}, auto_refresh=True)")
+        print(f"[Arena Blender Viz] Dynamic acoustic MP4 movie texture linked: {clean_png} (duration={max_f}, auto_refresh=True)", flush=True)
     else:
         try:
             tex_node.image.pack()
@@ -311,14 +579,19 @@ if acoustic_png and _path_exists(acoustic_png):
     # Texture Coordinate (Object coordinates)
     texcoord = nodes.new("ShaderNodeTexCoord")
 
-    # Exact Normalized Mapping: (x - min_x) / span_x, (y - min_y) / span_y
+    # Exact Normalized Mapping: (x - tex_min_x) / tex_span_x, similarly for y.
+    # Uses the TEXTURE's extent, not the map's: the solver grid runs half a cell
+    # past the map on every side, so mapping with world bounds stretches the
+    # field and shifts it (episode_000: ~2% and 0.25 m). Camera framing and the
+    # zenith light still use the world extent -- only the field mapping is
+    # tied to the texture.
     sub_node = nodes.new("ShaderNodeVectorMath")
     sub_node.operation = 'SUBTRACT'
-    sub_node.inputs[1].default_value = (min_x, min_y, 0.0)
+    sub_node.inputs[1].default_value = (tex_min_x, tex_min_y, 0.0)
 
     mul_node = nodes.new("ShaderNodeVectorMath")
     mul_node.operation = 'MULTIPLY'
-    mul_node.inputs[1].default_value = (1.0 / span_x, 1.0 / span_y, 1.0)
+    mul_node.inputs[1].default_value = (1.0 / tex_span_x, 1.0 / tex_span_y, 1.0)
 
     links.new(texcoord.outputs["Object"], sub_node.inputs[0])
     links.new(sub_node.outputs["Vector"], mul_node.inputs[0])
@@ -339,12 +612,18 @@ if acoustic_png and _path_exists(acoustic_png):
 
     em_indirect = nodes.new("ShaderNodeEmission")
     acoustic_mode = str(options.get("acoustic_mode", "plain")).lower()
-    print(f"[Arena Blender Viz] Acoustic floor mode: '{acoustic_mode}'")
+    print(f"[Arena Blender Viz] Acoustic floor mode: '{acoustic_mode}'", flush=True)
 
     if acoustic_mode == "subtle":
         em_indirect.inputs["Strength"].default_value = 1.4
     elif acoustic_mode == "glow":
         em_indirect.inputs["Strength"].default_value = 2.2
+    elif acoustic_mode == "additive":
+        # Additive keeps the white architectural floor, so the raw inferno
+        # field colour is lifted to fill that white with hue. The same
+        # near-black inferno values also drive the indirect GI that washes the
+        # wall bases, so the wall glow is dialled down here.
+        em_indirect.inputs["Strength"].default_value = 0.8
     else:  # plain / matte
         em_indirect.inputs["Strength"].default_value = 1.0
 
@@ -354,25 +633,95 @@ if acoustic_png and _path_exists(acoustic_png):
     mix_light = nodes.new("ShaderNodeMixShader")
 
     if acoustic_mode == "additive":
-        # Additive overlay: normal white architectural floor everywhere; the
-        # acoustic field is shown only where the texture is non-black. Camera
-        # rays mix between the plain floor BSDF and the color-true field
-        # emission using the texture luminance as the mask.
-        floor_bsdf = nodes.new("ShaderNodeBsdfPrincipled")
-        floor_bsdf.inputs["Base Color"].default_value = (0.85, 0.85, 0.85, 1.0)
-        floor_bsdf.inputs["Roughness"].default_value = 0.9
+        # Additive: the white architectural floor stays, TINTED by the acoustic
+        # field. The heatmap drives the floor's albedo and fades to white where
+        # the field is quiet, so the floor is visibly coloured without the field
+        # having to out-shine the floor.
+        #
+        # Why albedo and not an added emission: adding colour to a lit white
+        # floor cannot produce saturated colour. The floor renders near 0.9, and
+        # inferno orange (0.85, 0.40, 0.15) added at any strength clamps to
+        # white -- measured on episode_000, the field pixels came out
+        # (255,255,167), a faint yellow, with only the dark quiet fringe
+        # surviving as colour. Multiplying the floor's own colour has no such
+        # ceiling: loud areas are genuinely orange, and the lighting still
+        # shades them like an architectural floor.
+        #
+        # The ramp is in dBA and converted through the colormap below, so the
+        # thresholds mean the same thing whatever the episode's vmin/vmax are.
+        vmin = float(acoustic_overlay.get("vmin") or _FIELD_VMIN_DBA)
+        vmax = float(acoustic_overlay.get("vmax") or _FIELD_VMAX_DBA)
+        start_dba = float(options.get("additive_start_dba") or _ADDITIVE_START_DBA)
+        full_dba = float(options.get("additive_full_dba") or _ADDITIVE_FULL_DBA)
+        if full_dba <= start_dba:
+            full_dba = start_dba + 10.0
+        FLOOR_BLACK = _dba_to_luminance(start_dba, vmin, vmax)
+        FLOOR_FULL = _dba_to_luminance(full_dba, vmin, vmax)
+        if FLOOR_FULL <= FLOOR_BLACK:
+            FLOOR_FULL = FLOOR_BLACK + 0.05
+        floor_level = float(options.get("floor_brightness")
+                            if options.get("floor_brightness") is not None
+                            else _FLOOR_BRIGHTNESS)
+        print(
+            f"[Arena Blender Viz] Additive floor: white floor below {start_dba:.0f} dBA "
+            f"(albedo {floor_level:.2f}), field EMISSION above, full at {full_dba:.0f} dBA "
+            f"(vmin/vmax {vmin:.0f}/{vmax:.0f})",
+            flush=True,
+        )
 
+        # Fully matte, no specular, and deliberately dim. The scene carries two
+        # suns, a 220 W zenith panel and a downlight per zone, so a white floor
+        # (0.85 albedo) renders blown out and glares -- measured at mean RGB
+        # (231,232,233), 73% of floor pixels near-white, with the field's colour
+        # invisible against it. Dropping the albedo leaves the acoustic emission
+        # as the brightest thing on the floor, which is the point of the mode.
+        # --floor-brightness tunes it; 0.85 restores the old architectural white.
+        floor_bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+        floor_bsdf.inputs["Base Color"].default_value = (floor_level,) * 3 + (1.0,)
+        floor_bsdf.inputs["Roughness"].default_value = 1.0
+        for _sock in ("Specular IOR Level", "Specular"):
+            if _sock in floor_bsdf.inputs:
+                floor_bsdf.inputs[_sock].default_value = 0.0
+                break
+
+        # ramp = clamp((lum - FLOOR_BLACK) / (FLOOR_FULL - FLOOR_BLACK), 0, 1)
         bw_node = nodes.new("ShaderNodeRGBToBW")
         links.new(tex_node.outputs["Color"], bw_node.inputs["Color"])
 
-        mix_add = nodes.new("ShaderNodeMixShader")
-        links.new(bw_node.outputs["Val"], mix_add.inputs["Fac"])
-        links.new(floor_bsdf.outputs["BSDF"], mix_add.inputs[1])  # black pixels -> white floor
-        links.new(em_cam.outputs["Emission"], mix_add.inputs[2])  # colored pixels -> field emission
+        sub_lum = nodes.new("ShaderNodeMath")
+        sub_lum.operation = 'SUBTRACT'
+        sub_lum.inputs[1].default_value = FLOOR_BLACK
+        links.new(bw_node.outputs["Val"], sub_lum.inputs[0])
+
+        norm_lum = nodes.new("ShaderNodeMath")
+        norm_lum.operation = 'MULTIPLY'
+        norm_lum.inputs[1].default_value = 1.0 / (FLOOR_FULL - FLOOR_BLACK)
+        links.new(sub_lum.outputs["Value"], norm_lum.inputs[0])
+
+        mask_node = nodes.new("ShaderNodeClamp")
+        mask_node.clamp_type = 'MINMAX'
+        mask_node.inputs["Min"].default_value = 0.0
+        mask_node.inputs["Max"].default_value = 1.0
+        links.new(norm_lum.outputs["Value"], mask_node.inputs["Value"])
+
+        # Camera rays: quiet floor stays the white architectural BSDF, loud
+        # floor shows the field as EMISSION -- the pixel *is* the heatmap colour
+        # and no lighting touches it, which is the only way the colour stays
+        # saturated on a floor this brightly lit.
+        #
+        # An albedo tint (base colour = mix(white, heatmap, ramp)) was tried here
+        # and is strictly worse: the colour is multiplied by the scene lighting,
+        # and a pale-yellow albedo lit at ~3x renders white. Emission, as here,
+        # is what `plain` mode does and it is why plain reads and this did not.
+        mix_floor = nodes.new("ShaderNodeMixShader")
+        links.new(mask_node.outputs["Result"], mix_floor.inputs["Fac"])
+        links.new(floor_bsdf.outputs["BSDF"], mix_floor.inputs[1])   # quiet -> white floor
+        links.new(em_cam.outputs["Emission"], mix_floor.inputs[2])   # loud -> heatmap colour
 
         links.new(light_path.outputs["Is Camera Ray"], mix_light.inputs["Fac"])
-        links.new(em_indirect.outputs["Emission"], mix_light.inputs[1])  # Non-camera rays
-        links.new(mix_add.outputs["Shader"], mix_light.inputs[2])        # Camera rays
+        links.new(em_indirect.outputs["Emission"], mix_light.inputs[1])  # non-camera rays
+        links.new(mix_floor.outputs["Shader"], mix_light.inputs[2])      # camera rays
+
     else:
         links.new(light_path.outputs["Is Camera Ray"], mix_light.inputs["Fac"])
         links.new(em_indirect.outputs["Emission"], mix_light.inputs[1])  # Non-camera rays
@@ -380,6 +729,8 @@ if acoustic_png and _path_exists(acoustic_png):
 
     links.new(mix_light.outputs["Shader"], out_node.inputs["Surface"])
 
+
+stage("3a acoustic shader (material only)")
 
 # Default Architectural Slate Floor with Ambient Occlusion contact darkening
 def create_architectural_floor_material(name="Mat_Floor"):
@@ -438,6 +789,8 @@ for zone in world_data.get("zones", []):
         obj.data.materials.append(mat_acoustic)
     else:
         obj.data.materials.append(mat_default_floor)
+
+stage("3 floors")
 
 # -----------------------------------------------------------------------------
 # 4. Extruded Walls
@@ -558,6 +911,8 @@ for zone in world_data.get("zones", []):
                 col_walls.objects.link(w_obj)
                 wall_idx += 1
 
+stage("4 walls")
+
 # -----------------------------------------------------------------------------
 # 5. Sliding Doors & Dynamic Keyframing
 # -----------------------------------------------------------------------------
@@ -627,19 +982,39 @@ for zone in world_data.get("zones", []):
             worst_frame = telemetry.get("worst_case_frame")
             if worst_frame and worst_frame.get("t") is not None:
                 target_t = float(worst_frame["t"])
+            if static_mode:
+                # Freeze on the timeline state at the chosen instant. The entry
+                # touched here becomes the door's permanent resting position.
+                target_t = static_target_frame / fps
             closest_entry = min(timeline, key=lambda e: abs(e["t"] - target_t))
             init_prog = float(closest_entry.get("progress", 0.0))
 
             # Set initial resting position to active timeframe state
             d_obj.location = closed_loc + slide_vec * init_prog
 
-            # Keyframe all timeline entries
-            for entry in timeline:
-                t_sec = entry["t"]
-                prog = float(entry.get("progress", 0.0))
-                frame = max(1, int(t_sec * fps))
-                d_obj.location = closed_loc + slide_vec * prog
-                d_obj.keyframe_insert(data_path="location", frame=frame)
+            if static_mode:
+                pass  # static build: pose set above, no action created
+            else:
+                # Bulk-write the whole timeline. These timelines are sampled at
+                # roughly the frame rate (one door carries 2,269 entries here), so a
+                # keyframe_insert call per entry dominated this stage. keyframe_insert
+                # *replaces* a key at an already-keyed frame, so collapse duplicate
+                # frames keeping the last value.
+                by_frame = {}
+                for entry in timeline:
+                    frame = max(1, int(entry["t"] * fps))
+                    by_frame[frame] = closed_loc + slide_vec * float(entry.get("progress", 0.0))
+                ordered = sorted(by_frame)
+                door_frames = np.array(ordered, dtype=np.float64)
+                door_locs = np.array([tuple(by_frame[f]) for f in ordered], dtype=np.float64)
+                # BEZIER + AUTO_CLAMPED matches keyframe_insert exactly; these keys are
+                # sparse enough that the in-between shape is visible.
+                write_fcurves(
+                    new_channelbag(f"{d_obj.name}_action", d_obj, "OBJECT"),
+                    door_frames,
+                    [(f"location", i, door_locs[:, i]) for i in range(3)],
+                    interpolation="BEZIER",
+                )
         elif default_door_open:
             # Main corridor doors retract 85% open so the threshold is open and visible.
             # Narrow stall / restroom doors (<1.0m) stay closed in static view to keep cubicles neat.
@@ -663,13 +1038,108 @@ for zone in world_data.get("zones", []):
 
         door_idx += 1
 
+stage("5 doors")
+
 # -----------------------------------------------------------------------------
 # 6. Furniture Models Import (.glb)
 # -----------------------------------------------------------------------------
-print(f"[Arena Blender Viz] Importing {len(model_glbs)} unique furniture models...")
+print(f"[Arena Blender Viz] Importing {len(model_glbs)} unique furniture models...", flush=True)
 
 loaded_prefabs = {}
 placed_bookcases = {}
+
+# Verify each model path once. The entity loop below references the same handful
+# of models hundreds of times, and os.path.isfile is a syscall every call.
+model_glb_ok = {
+    m_id: bool(p) and os.path.isfile(p) for m_id, p in model_glbs.items()
+}
+
+
+# -----------------------------------------------------------------------------
+# Untextured-asset repair
+# -----------------------------------------------------------------------------
+# Most Office/Hospital source .dae assets ship an empty <library_images/> with a
+# lambert diffuse of 1 1 1 -- SM_Printer, SM_BoxPortableB, SM_MonitorPC,
+# SM_TableCoffee, SM_FileCabinet_01 among them. The .png sitting beside those
+# assets is a preview thumbnail (the folders also hold *_thumb/_topdown), not a
+# texture, so the GLB imports as plain white and the prop reads as "missing a
+# texture" against the light architectural floor.
+#
+# Pure BLACK source materials are deliberately left alone: they are rarer, and
+# dark equipment is a plausible authoring intent rather than a defect.
+
+_PROP_MATERIAL_RULES = (
+    # (substring of model_id, material); first match wins
+    ("monitor", mat_prop_electronics),
+    ("tvdisplay", mat_prop_electronics),
+    ("laptop", mat_prop_electronics),
+    ("keyboard", mat_prop_electronics),
+    ("mousepad", mat_prop_electronics),
+    ("smartphone", mat_prop_electronics),
+    ("phone", mat_prop_electronics),
+    ("printer", mat_prop_electronics),
+    ("box", mat_prop_cardboard),
+    ("filecabinet", mat_prop_metal),
+    ("cupboard", mat_prop_metal),
+    ("rack", mat_prop_metal),
+    ("markerboard", mat_prop_metal),
+    ("mirror", mat_prop_metal),
+    ("extinguisher", mat_prop_metal),
+    ("table", mat_prop_wood),
+    ("armchair", mat_prop_fabric),
+    ("chair", mat_prop_fabric),
+    ("toilet", mat_prop_sanitary),
+    ("washbasin", mat_prop_sanitary),
+    ("trashcan", mat_prop_sanitary),
+    ("handdryer", mat_prop_sanitary),
+)
+
+
+def _is_untextured_white_material(mat) -> bool:
+    """True for an imported material that is plain white with no image texture."""
+    if mat is None or not mat.use_nodes:
+        return False
+    for node in mat.node_tree.nodes:
+        if node.type == "TEX_IMAGE" and node.image:
+            return False
+    for node in mat.node_tree.nodes:
+        if node.type == "BSDF_PRINCIPLED":
+            base = node.inputs["Base Color"]
+            if base.is_linked:
+                return False
+            r, g, b = base.default_value[:3]
+            return r > 0.97 and g > 0.97 and b > 0.97
+    return False
+
+
+def assign_prop_material(obj, m_id_lower: str) -> str | None:
+    """Re-material an untextured prop; return the material name, or None if untouched.
+
+    Textured props are left completely alone. Untextured ones get the curated
+    material for their category, falling back to a neutral so that no prop can
+    render as a featureless white silhouette.
+    """
+    current = obj.material_slots[0].material if obj.material_slots else None
+    if current is not None and not _is_untextured_white_material(current):
+        return None
+
+    # Match on the glTF mesh node name as well as the model id: the node name
+    # comes straight from the source asset, whereas the model id can be a
+    # fuzzy-matched alias that says nothing about what the prop actually is
+    # (model id X resolving to SM_BoxPortableB, say).
+    haystack = f"{m_id_lower} {obj.name.lower()}"
+    chosen = mat_prop_neutral
+    for token, mat in _PROP_MATERIAL_RULES:
+        if token in haystack:
+            chosen = mat
+            break
+
+    if obj.material_slots:
+        obj.material_slots[0].material = chosen
+    else:
+        obj.data.materials.append(chosen)
+    return chosen.name
+
 for zone in world_data.get("zones", []):
     z_name = zone["name"]
     zone_furniture_col = get_or_create_collection(f"Furn_{z_name}", col_furniture)
@@ -677,7 +1147,7 @@ for zone in world_data.get("zones", []):
     for ent in zone.get("static_entities", []):
         m_id = ent.get("model_id", "")
         glb_path = model_glbs.get(m_id)
-        if not glb_path or not os.path.isfile(glb_path):
+        if not model_glb_ok.get(m_id):
             continue
 
         # Import or duplicate from prefab
@@ -726,6 +1196,10 @@ for zone in world_data.get("zones", []):
                         o.material_slots[0].material = mat_reception_wood
                     else:
                         o.data.materials.append(mat_reception_wood)
+                else:
+                    # Everything else keeps its imported material -- unless that
+                    # material is untextured white, which most Office props are.
+                    assign_prop_material(o, m_id_lower)
 
             loaded_prefabs[glb_path] = root_empty
 
@@ -767,14 +1241,20 @@ for zone in world_data.get("zones", []):
 
         zone_furniture_col.objects.link(instance)
 
-        # Also copy child meshes for direct rendering at target position
+        # Linked duplicates: same mesh datablock, independent transform.
+        # Copying the mesh here (dupe.data = child.data.copy()) gave every placed
+        # entity its own datablock, so all of them were serialised on save -- a
+        # 151-entity world produced a 631 MB .blend. Furniture is static, so
+        # sharing the mesh renders identically at a fraction of the size.
         for child in prefab_root.children:
             dupe = child.copy()
-            dupe.data = child.data.copy()
+            dupe.data = child.data
             dupe.parent = instance
             dupe.hide_render = False
             dupe.hide_viewport = False
             zone_furniture_col.objects.link(dupe)
+
+stage("6 furniture (import+instantiate)")
 
 # -----------------------------------------------------------------------------
 # 7. Robot Trajectory Ribbon & Animation
@@ -792,44 +1272,11 @@ _GLOW_ENERGY_VMIN_W = 0.0
 _GLOW_ENERGY_VMAX_W = 300.0
 _GLOW_ACOUSTIC_VMIN_DBA = 40.0
 _GLOW_ACOUSTIC_VMAX_DBA = 65.0
-INFERNO_ANCHORS = (
-    (0.0015, 0.0005, 0.0139),
-    (0.0140, 0.0112, 0.0719),
-    (0.0423, 0.0281, 0.1411),
-    (0.0820, 0.0433, 0.2153),
-    (0.1358, 0.0469, 0.2998),
-    (0.1904, 0.0393, 0.3614),
-    (0.2450, 0.0371, 0.4000),
-    (0.2972, 0.0475, 0.4205),
-    (0.3540, 0.0669, 0.4309),
-    (0.4039, 0.0856, 0.4332),
-    (0.4537, 0.1038, 0.4305),
-    (0.5035, 0.1216, 0.4234),
-    (0.5596, 0.1413, 0.4101),
-    (0.6093, 0.1595, 0.3936),
-    (0.6585, 0.1790, 0.3727),
-    (0.7065, 0.2007, 0.3478),
-    (0.7584, 0.2291, 0.3153),
-    (0.8019, 0.2587, 0.2831),
-    (0.8420, 0.2929, 0.2486),
-    (0.8780, 0.3321, 0.2123),
-    (0.9130, 0.3816, 0.1698),
-    (0.9387, 0.4301, 0.1304),
-    (0.9591, 0.4820, 0.0895),
-    (0.9742, 0.5368, 0.0484),
-    (0.9846, 0.6011, 0.0236),
-    (0.9879, 0.6603, 0.0517),
-    (0.9856, 0.7208, 0.1122),
-    (0.9775, 0.7823, 0.1859),
-    (0.9625, 0.8515, 0.2855),
-    (0.9487, 0.9105, 0.3953),
-    (0.9517, 0.9606, 0.5242),
-    (0.9884, 0.9984, 0.6449),
-)
 
-
-# Viridis anchors (sampled from matplotlib) for the electrical power trail;
-# distinct from inferno so the two side-by-side trails never read as one scale.
+# Emission strength for the ribbon when --show-energy-glow is on. The plain
+# ribbon sits at 1.5; this lifts it so it reads as a light source rather than a
+# painted stripe.
+_GLOW_STRENGTH = 3.0
 VIRIDIS_ANCHORS = (
     (0.2670, 0.0049, 0.3294),
     (0.2770, 0.0503, 0.3757),
@@ -866,35 +1313,31 @@ VIRIDIS_ANCHORS = (
 )
 
 
-def _lut_rgb(val: float, v_min: float, v_max: float, anchors: tuple) -> tuple[float, float, float, float]:
-    """Map a value through an embedded matplotlib colormap anchor table (pinned limits)."""
-    norm = max(0.0, min(1.0, (val - v_min) / (v_max - v_min)))
-    pos = norm * (len(anchors) - 1)
-    i = int(pos)
-    f = pos - i
-    if i >= len(anchors) - 1:
-        r, g, b = anchors[-1]
-    else:
-        (r0, g0, b0), (r1, g1, b1) = anchors[i], anchors[i + 1]
-        r = r0 + f * (r1 - r0)
-        g = g0 + f * (g1 - g0)
-        b = b0 + f * (b1 - b0)
-    return (r, g, b, 1.0)
-
-
 if robot_traj:
-    print(f"[Arena Blender Viz] Building acoustic false-color emissive trajectory ribbon ({len(robot_traj)} points)...")
+    # Which quantity colours the ribbon. `--glow-metric power` swaps the
+    # acoustic ramp for the electrical-power one; acoustic stays the default so
+    # existing figures are byte-identical unless the flag is passed.
+    glow_metric = str(options.get("glow_metric", "acoustic")).lower()
+    metric_key = "power_w" if glow_metric == "power" else "acoustic_dba"
+    print(f"[Arena Blender Viz] Building false-color emissive trajectory ribbon "
+          f"({len(robot_traj)} points, metric={glow_metric})...", flush=True)
     thick = options.get("trajectory_thickness", 0.08)
     half_w = max(0.04, thick / 2.0)
     z_lift = 0.08
 
-    # Extract acoustic levels (or fallback to power / velocity)
-    acoustics = [float(pt.get("acoustic_dba", 0.0) or 0.0) for pt in robot_traj]
-    min_db = min(acoustics) if acoustics else 40.0
-    max_db = max(acoustics) if acoustics else 80.0
-    if max_db - min_db < 1e-3:
-        min_db = 40.0
-        max_db = 85.0
+    # Pinned colour limits: explicit options win, else the data range, else the
+    # documented defaults (0-300 W / 40-65 dBA).
+    _m_lo = options.get("glow_energy_vmin" if metric_key == "power_w" else "glow_acoustic_vmin")
+    _m_hi = options.get("glow_energy_vmax" if metric_key == "power_w" else "glow_acoustic_vmax")
+    _defaults = (0.0, 300.0) if metric_key == "power_w" else (40.0, 65.0)
+    if _m_lo is None or _m_hi is None or float(_m_hi) <= float(_m_lo):
+        _vals = [float(pt.get(metric_key) or 0.0) for pt in robot_traj]
+        _lo, _hi = (min(_vals), max(_vals)) if _vals else _defaults
+        if _hi - _lo < 1e-3:
+            _lo, _hi = _defaults
+    else:
+        _lo, _hi = float(_m_lo), float(_m_hi)
+    min_db, max_db = _lo, _hi
 
     # Color ramp: Smooth Turbo / Plasma palette: Blue (quiet) -> Cyan -> Green -> Yellow -> Orange -> Deep Red (loud)
     def acoustic_to_rgb(val: float, v_min: float, v_max: float) -> tuple[float, float, float, float]:
@@ -932,35 +1375,74 @@ if robot_traj:
     faces = []
     pt_colors = []
 
-    for i in range(len(robot_traj)):
-        pt = robot_traj[i]
+    # --- Stationary-point dedupe -------------------------------------------
+    # A telemetry frame where the robot barely moved produces a degenerate
+    # segment. At 30 Hz even 3 mm/s falls under the old 1e-4 m test, and the
+    # strip then fell back to a hardcoded (0,1) normal -- a direction unrelated
+    # to travel -- so the ribbon twisted 90 degrees at every such point (38 of
+    # them in hospital_1_ep000). Drop those points entirely: they carry no
+    # geometry, and dropping them also removes the coplanar quad overlap that
+    # made the ribbon z-fight.
+    MIN_STEP = max(1e-3, half_w * 0.05)
+    keep = [0]
+    for i in range(1, len(robot_traj)):
+        dx = robot_traj[i]["x"] - robot_traj[keep[-1]]["x"]
+        dy = robot_traj[i]["y"] - robot_traj[keep[-1]]["y"]
+        if math.hypot(dx, dy) >= MIN_STEP:
+            keep.append(i)
+    if keep[-1] != len(robot_traj) - 1:
+        keep.append(len(robot_traj) - 1)
+    pts = [robot_traj[i] for i in keep]
+    dropped = len(robot_traj) - len(pts)
+
+    # --- Mitered offset normals --------------------------------------------
+    # An offset polyline must miter: the offset direction at a joint is the
+    # normalised sum of the two adjacent segment normals, not either one alone.
+    # Using a single segment's normal makes the two edges cross at corners
+    # (44 folded edges before this change).
+    n = len(pts)
+    seg_n = []
+    for i in range(n):
+        if i < n - 1:
+            dx = pts[i + 1]["x"] - pts[i]["x"]
+            dy = pts[i + 1]["y"] - pts[i]["y"]
+        else:
+            dx = pts[i]["x"] - pts[i - 1]["x"]
+            dy = pts[i]["y"] - pts[i - 1]["y"]
+        L = math.hypot(dx, dy)
+        seg_n.append((-dy / L, dx / L) if L > 1e-9 else (0.0, 0.0))
+
+    normals = []
+    for i in range(n):
+        a = seg_n[max(i - 1, 0)]
+        b = seg_n[min(i + 1, n - 1)]
+        sx, sy = a[0] + b[0], a[1] + b[1]
+        L = math.hypot(sx, sy)
+        if L < 1e-9:
+            # Exact 180-degree reversal: the two segments cancel. Fall back to
+            # the incoming normal rather than an arbitrary axis.
+            normals.append(a if (a[0] or a[1]) else (0.0, 1.0))
+        else:
+            mx, my = sx / L, sy / L
+            # Miter length compensation: without it the strip pinches on the
+            # inside of a corner. Clamped so a hairpin cannot explode the width.
+            cos_half = math.hypot(a[0] + b[0], a[1] + b[1]) / 2.0
+            scale = 1.0 / max(cos_half, 0.25)
+            normals.append((mx * scale, my * scale))
+
+    for i in range(n):
+        pt = pts[i]
         curr_x, curr_y = pt["x"], pt["y"]
-        # Compute forward heading tangent
-        if i < len(robot_traj) - 1:
-            next_pt = robot_traj[i + 1]
-            dx = next_pt["x"] - curr_x
-            dy = next_pt["y"] - curr_y
-        elif i > 0:
-            prev_pt = robot_traj[i - 1]
-            dx = curr_x - prev_pt["x"]
-            dy = curr_y - prev_pt["y"]
+        nx, ny = normals[i]
+
+        verts.append((curr_x + nx * half_w, curr_y + ny * half_w, z_lift))
+        verts.append((curr_x - nx * half_w, curr_y - ny * half_w, z_lift))
+
+        val = float(pt.get(metric_key) or min_db)
+        if metric_key == "power_w":
+            col = _lut_rgb(val, min_db, max_db, VIRIDIS_ANCHORS)
         else:
-            dx, dy = 1.0, 0.0
-
-        length = math.hypot(dx, dy)
-        if length > 1e-4:
-            nx = -dy / length
-            ny = dx / length
-        else:
-            nx, ny = 0.0, 1.0
-
-        v_left = (curr_x + nx * half_w, curr_y + ny * half_w, z_lift)
-        v_right = (curr_x - nx * half_w, curr_y - ny * half_w, z_lift)
-
-        verts.append(v_left)
-        verts.append(v_right)
-
-        col = acoustic_to_rgb(pt.get("acoustic_dba", min_db), min_db, max_db)
+            col = acoustic_to_rgb(val, min_db, max_db)
         pt_colors.append(col)
         pt_colors.append(col)
 
@@ -969,14 +1451,19 @@ if robot_traj:
             idx = 2 * i
             faces.append((idx - 2, idx - 1, idx + 1, idx))
 
+    if dropped:
+        print(f"[Arena Blender Viz] Ribbon: dropped {dropped} stationary point(s), "
+              f"{n} remain (min step {MIN_STEP:.4f} m)", flush=True)
+
     mesh_data = bpy.data.meshes.new("robot_trajectory_mesh")
     mesh_data.from_pydata(verts, [], faces)
     mesh_data.update()
 
-    # Apply Vertex Color layer
+    # Apply Vertex Color layer (bulk write instead of per-vertex assignment)
     color_attr = mesh_data.color_attributes.new(name="Col", type="FLOAT_COLOR", domain="POINT")
-    for v_idx, c in enumerate(pt_colors):
-        color_attr.data[v_idx].color = c
+    color_attr.data.foreach_set(
+        "color", np.asarray(pt_colors, dtype=np.float32).ravel()
+    )
 
     curve_obj = bpy.data.objects.new("robot_trajectory", mesh_data)
     col_trajectories.objects.link(curve_obj)
@@ -1000,124 +1487,65 @@ if robot_traj:
     links.new(em.outputs["Emission"], out.inputs["Surface"])
     curve_obj.data.materials.append(mat_traj)
 
-# Side-by-side emission trails (--show-energy-glow): instantaneous electrical
-# power draw (viridis, left of travel direction) and acoustic emission level
-# (inferno, right of travel direction), flanking the crisp trajectory ribbon.
-# Colormap limits are pinned per axis (GEMINI.md section 12) and configurable
-# via --glow-energy-vmin/vmax and --glow-acoustic-vmin/vmax at build time.
+# --show-energy-glow: the trajectory ribbon IS the glow.
+#
+# This used to build two flanking lanes (viridis power on the left, inferno
+# acoustic on the right). They read as two unrelated bands rather than a glow,
+# and they inherited the ribbon's offset-normal bug multiplicatively, so they
+# were removed. The glow is now the ribbon itself: one emissive strip coloured
+# by --glow-metric (default acoustic), brightened so it reads as a light source.
 if robot_traj and options.get("show_energy_glow", False):
-    energy_vmin = float(options.get("glow_energy_vmin", _GLOW_ENERGY_VMIN_W))
-    energy_vmax = float(options.get("glow_energy_vmax", _GLOW_ENERGY_VMAX_W))
-    acoustic_vmin = float(options.get("glow_acoustic_vmin", _GLOW_ACOUSTIC_VMIN_DBA))
-    acoustic_vmax = float(options.get("glow_acoustic_vmax", _GLOW_ACOUSTIC_VMAX_DBA))
-    if energy_vmax <= energy_vmin:
-        energy_vmax = energy_vmin + 100.0
-    if acoustic_vmax <= acoustic_vmin:
-        acoustic_vmax = acoustic_vmin + 20.0
+    traj_mat = bpy.data.materials.get("Mat_Trajectory_Acoustic")
+    if traj_mat and traj_mat.use_nodes:
+        for _n in traj_mat.node_tree.nodes:
+            if _n.type == "EMISSION":
+                _n.inputs["Strength"].default_value = float(
+                    options.get("glow_strength") or _GLOW_STRENGTH
+                )
     print(
-        f"[Arena Blender Viz] Building side-by-side emission trails: "
-        f"power viridis {energy_vmin:.0f}-{energy_vmax:.0f} W (left), "
-        f"acoustic inferno {acoustic_vmin:.0f}-{acoustic_vmax:.0f} dBA (right)..."
+        f"[Arena Blender Viz] Energy glow: trajectory ribbon coloured by "
+        f"'{glow_metric}' ({min_db:.0f}-{max_db:.0f}), emission strength "
+        f"{float(options.get('glow_strength') or _GLOW_STRENGTH):.1f}",
+        flush=True,
     )
 
-    strip_half_w = max(0.10, thick * 1.2)
-    lane_offset = half_w + strip_half_w
-    glow_z = z_lift - 0.02
-
-    def _build_emission_strip(obj_name, mesh_name, mat_name, value_key, anchors, vmin, vmax, lane, strength):
-        verts = []
-        faces = []
-        colors = []
-
-        for i in range(len(robot_traj)):
-            pt = robot_traj[i]
-            curr_x, curr_y = pt["x"], pt["y"]
-            if i < len(robot_traj) - 1:
-                dx = robot_traj[i + 1]["x"] - curr_x
-                dy = robot_traj[i + 1]["y"] - curr_y
-            elif i > 0:
-                dx = curr_x - robot_traj[i - 1]["x"]
-                dy = curr_y - robot_traj[i - 1]["y"]
-            else:
-                dx, dy = 1.0, 0.0
-
-            length = math.hypot(dx, dy)
-            if length > 1e-4:
-                nx, ny = -dy / length, dx / length
-            else:
-                nx, ny = 0.0, 1.0
-
-            # Lane center offset from the path; strip spans lane +/- strip_half_w
-            verts.append((curr_x + nx * (lane + strip_half_w), curr_y + ny * (lane + strip_half_w), glow_z))
-            verts.append((curr_x + nx * (lane - strip_half_w), curr_y + ny * (lane - strip_half_w), glow_z))
-
-            val = float(pt.get(value_key, vmin) or vmin)
-            col = _lut_rgb(val, vmin, vmax, anchors)
-            colors.append(col)
-            colors.append(col)
-
-            if i > 0:
-                idx = 2 * i
-                faces.append((idx - 2, idx - 1, idx + 1, idx))
-
-        mesh = bpy.data.meshes.new(mesh_name)
-        mesh.from_pydata(verts, [], faces)
-        mesh.update()
-
-        attr = mesh.color_attributes.new(name="Col", type="FLOAT_COLOR", domain="POINT")
-        for v_idx, c in enumerate(colors):
-            attr.data[v_idx].color = c
-
-        obj = bpy.data.objects.new(obj_name, mesh)
-        col_trajectories.objects.link(obj)
-
-        mat = bpy.data.materials.new(mat_name)
-        mat.use_nodes = True
-        m_nodes = mat.node_tree.nodes
-        m_links = mat.node_tree.links
-        m_nodes.clear()
-        m_vcol = m_nodes.new("ShaderNodeVertexColor")
-        m_vcol.layer_name = "Col"
-        m_em = m_nodes.new("ShaderNodeEmission")
-        m_em.inputs["Strength"].default_value = strength
-        m_out = m_nodes.new("ShaderNodeOutputMaterial")
-        m_links.new(m_vcol.outputs["Color"], m_em.inputs["Color"])
-        m_links.new(m_em.outputs["Emission"], m_out.inputs["Surface"])
-        obj.data.materials.append(mat)
-
-    # Power: left of travel direction (negative normal lane)
-    _build_emission_strip(
-        "trajectory_energy_glow", "trajectory_energy_glow_mesh", "Mat_Trajectory_Energy",
-        "power_w", VIRIDIS_ANCHORS, energy_vmin, energy_vmax, -lane_offset, 1.2,
-    )
-    # Acoustics: right of travel direction (positive normal lane)
-    _build_emission_strip(
-        "trajectory_acoustic_glow", "trajectory_acoustic_glow_mesh", "Mat_Trajectory_AcousticGlow",
-        "acoustic_dba", INFERNO_ANCHORS, acoustic_vmin, acoustic_vmax, lane_offset, 1.2,
-    )
-
+# Robot actor: loaded and keyframed independently of the energy-glow trails, so
+# the Jackal is present in every build. This block used to sit inside the
+# `show_energy_glow` guard above, which defaults to False and therefore silently
+# dropped the robot from the saved .blend.
+if robot_traj:
     # Load authentic Jackal UGV robot model or high-contrast procedural robot
     worst_frame = telemetry.get("worst_case_frame")
     jackal_glb = model_glbs.get("robot/jackal")
-    if not jackal_glb or not os.path.isfile(jackal_glb):
+    if not jackal_glb or not _path_exists(jackal_glb):
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        cand = os.path.normpath(os.path.join(base_dir, ".cache", "glb", "jackal_robot.glb"))
-        if os.path.isfile(cand):
-            jackal_glb = cand
+        for cand in (
+            Path("/opt/arena_ws/data/blender_cache/glb/jackal_robot.glb"),
+            Path(bundle_path).parent / ".cache" / "glb" / "jackal_robot.glb",
+            Path(base_dir) / ".cache" / "glb" / "jackal_robot.glb",
+        ):
+            if _path_exists(str(cand)):
+                jackal_glb = str(cand)
+                break
 
     robot_obj = None
-    if jackal_glb and os.path.isfile(jackal_glb):
-        print(f"[Arena Blender Viz] Loading authentic Clearpath Jackal UGV model: {jackal_glb}")
+    if jackal_glb and _path_exists(jackal_glb):
+        print(f"[Arena Blender Viz] Loading authentic Clearpath Jackal UGV model: {jackal_glb}", flush=True)
         try:
             bpy.ops.import_scene.gltf(filepath=jackal_glb)
-            imported_objs = [o for o in bpy.context.selected_objects]
+            imported_objs = list(bpy.context.selected_objects)
             robot_root = bpy.data.objects.new("Robot_Jackal", None)
             col_actors.objects.link(robot_root)
             for io in imported_objs:
                 io.parent = robot_root
+                # The glTF importer links into the scene root; re-home the
+                # imported meshes into Actors and clear every other collection
+                # so only the "Actors" collection governs their visibility.
+                for c in list(io.users_collection):
+                    c.objects.unlink(io)
                 col_actors.objects.link(io)
-                if io.name in scene.collection.objects:
-                    scene.collection.objects.unlink(io)
+                io.hide_render = False
+                io.hide_viewport = False
             robot_obj = robot_root
         except Exception as e:
             print(f"[!] Failed to import jackal glb: {e}")
@@ -1126,22 +1554,24 @@ if robot_traj and options.get("show_energy_glow", False):
         bpy.ops.mesh.primitive_cube_add(size=0.45, location=(0, 0, 0.18))
         robot_obj = bpy.context.active_object
         robot_obj.name = "Robot_Jackal"
+        for c in list(robot_obj.users_collection):
+            c.objects.unlink(robot_obj)
         col_actors.objects.link(robot_obj)
-        scene.collection.objects.unlink(robot_obj)
         mat_robot = create_pbr_material("Mat_Robot_Jackal", color=(1.0, 0.72, 0.0, 1.0), roughness=0.3)
         robot_obj.data.materials.append(mat_robot)
+        print("[Arena Blender Viz] Jackal GLB unavailable; using procedural cube stand-in.", flush=True)
 
     # Initial resting pose: position directly at worst-case acoustic source hotspot if present
     if worst_frame and worst_frame.get("robot_x") is not None:
         rx = worst_frame["robot_x"]
         ry = worst_frame["robot_y"]
         ryaw = worst_frame.get("robot_yaw", 0.0)
-        print(f"[Arena Blender Viz] Setting robot to worst acoustic frame pose: ({rx:.2f}, {ry:.2f}, yaw={ryaw:.2f})")
+        print(f"[Arena Blender Viz] Setting robot to worst acoustic frame pose: ({rx:.2f}, {ry:.2f}, yaw={ryaw:.2f})", flush=True)
         robot_obj.location = (rx, ry, 0.0)
         robot_obj.rotation_euler = (0.0, 0.0, ryaw)
-    elif robot_traj:
+    else:
         robot_obj.location = (robot_traj[0]["x"], robot_traj[0]["y"], 0.0)
-        robot_obj.rotation_euler = (0.0, 0.0, robot_traj[0]["yaw"])
+        robot_obj.rotation_euler = (0.0, 0.0, robot_traj[0].get("yaw", 0.0))
 
     # Keyframe robot position and yaw along recorded simulation trajectory with unwrapped heading
     r_ts = np.array([pt["t"] for pt in robot_traj])
@@ -1149,31 +1579,49 @@ if robot_traj and options.get("show_energy_glow", False):
     r_ys = np.array([pt["y"] for pt in robot_traj])
     r_yaws = np.unwrap(np.array([pt.get("yaw", 0.0) for pt in robot_traj]))
 
-    target_frames = list(range(1, scene.frame_end + 1))
-    target_times = np.array([(f - 1) / fps for f in target_frames])
+    frames_arr = np.arange(1, scene.frame_end + 1, dtype=np.float64)
+    target_times = (frames_arr - 1.0) / fps
     r_interp_xs = np.interp(target_times, r_ts, r_xs)
     r_interp_ys = np.interp(target_times, r_ts, r_ys)
     r_interp_yaws = np.interp(target_times, r_ts, r_yaws)
 
-    for i, frame in enumerate(target_frames):
-        robot_obj.location = (float(r_interp_xs[i]), float(r_interp_ys[i]), 0.0)
-        robot_obj.rotation_euler = (0.0, 0.0, float(r_interp_yaws[i]))
-        robot_obj.keyframe_insert(data_path="location", frame=frame)
-        robot_obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+    if static_mode:
+        # Pose at the frozen instant; indexing the same interpolated arrays the
+        # animated build keys from guarantees the still matches that frame.
+        idx = int(min(max(static_target_frame, 1), len(frames_arr))) - 1
+        robot_obj.location = (float(r_interp_xs[idx]), float(r_interp_ys[idx]), 0.0)
+        robot_obj.rotation_euler = (0.0, 0.0, float(r_interp_yaws[idx]))
+    else:
+        # Bulk keyframe write (see write_fcurves): robot_obj is an Empty, so its
+        # rotation mode is the default XYZ and rotation_euler is the right channel.
+        write_fcurves(
+            new_channelbag(f"{robot_obj.name}_action", robot_obj, "OBJECT"),
+            frames_arr,
+            [
+                ("location", 0, r_interp_xs),
+                ("location", 1, r_interp_ys),
+                ("location", 2, np.zeros_like(r_interp_xs)),
+                ("rotation_euler", 0, np.zeros_like(r_interp_yaws)),
+                ("rotation_euler", 1, np.zeros_like(r_interp_yaws)),
+                ("rotation_euler", 2, r_interp_yaws),
+            ],
+        )
 
     # Activate the worst-case acoustic timeline frame by default
     if worst_frame and worst_frame.get("frame"):
         wf_idx = worst_frame["frame"]
         scene.frame_set(wf_idx)
-        print(f"[Arena Blender Viz] Activated timeline frame {wf_idx} (worst acoustic emission frame)")
+        print(f"[Arena Blender Viz] Activated timeline frame {wf_idx} (worst acoustic emission frame)", flush=True)
 
+
+stage("7 robot ribbon + animation")
 
 # -----------------------------------------------------------------------------
 # 8. Dynamic Pedestrians & Encounter Discs (Skinned Animation & Walking Strides)
 # -----------------------------------------------------------------------------
 peds_frames = telemetry.get("pedestrians", [])
 if peds_frames and options.get("animate_peds", True):
-    print(f"[Arena Blender Viz] Animating dynamic pedestrians across {len(peds_frames)} frames...")
+    print(f"[Arena Blender Viz] Animating dynamic pedestrians across {len(peds_frames)} frames...", flush=True)
     # Gather pedestrian IDs
     ped_ids = sorted(list({p["id"] for fr in peds_frames for p in fr.get("peds", [])}), key=str)
 
@@ -1248,7 +1696,7 @@ if peds_frames and options.get("animate_peds", True):
 
             # Build multi-phase walking shape keys on human prefab
             if has_walk_glbs:
-                print(f"[Arena Blender Viz] Building 4-phase walking shape keys on human prefab...")
+                print(f"[Arena Blender Viz] Building 4-phase walking shape keys on human prefab...", flush=True)
                 for w_idx, w_path in enumerate(walk_glbs):
                     bpy.ops.import_scene.gltf(filepath=w_path)
                     w_objs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
@@ -1256,15 +1704,20 @@ if peds_frames and options.get("animate_peds", True):
                         if not io.data.shape_keys:
                             io.shape_key_add(name="Idle")
                         sk = io.shape_key_add(name=f"Walk_{w_idx}")
-                        coords = [c for v in wo.data.vertices for c in v.co]
+                        # Read the phase coordinates straight into a numpy buffer.
+                        # A Python nested comprehension here extracts ~1.7M floats
+                        # across the four phases and showed up as ~1s of build time.
+                        n_co = len(wo.data.vertices) * 3
+                        coords = np.empty(n_co, dtype=np.float32)
+                        wo.data.vertices.foreach_get("co", coords)
                         sk.data.foreach_set("co", coords)
                     for wo in w_objs:
                         bpy.data.objects.remove(wo, do_unlink=True)
-                print(f"[Arena Blender Viz] Successfully loaded {len(walk_glbs)} walk phases onto human prefab.")
+                print(f"[Arena Blender Viz] Successfully loaded {len(walk_glbs)} walk phases onto human prefab.", flush=True)
 
             loaded_prefabs[idle_glb] = root_empty
         human_prefab = loaded_prefabs[idle_glb]
-        print(f"[Arena Blender Viz] Loaded 3D pedestrian standing prefab from: {idle_glb}")
+        print(f"[Arena Blender Viz] Loaded 3D pedestrian standing prefab from: {idle_glb}", flush=True)
 
     # Also build seated prefab if available
     seated_prefab = None
@@ -1286,7 +1739,9 @@ if peds_frames and options.get("animate_peds", True):
                 col_prefabs.objects.link(o)
             loaded_prefabs[seated_glb] = root_s_empty
         seated_prefab = loaded_prefabs[seated_glb]
-        print(f"[Arena Blender Viz] Loaded 3D pedestrian seated prefab from: {seated_glb}")
+        print(f"[Arena Blender Viz] Loaded 3D pedestrian seated prefab from: {seated_glb}", flush=True)
+
+    stage("8a ped prefab import (+walk shape keys)")
 
     ped_model_map = telemetry.get("pedestrian_models", {})
     ped_objs = {}
@@ -1300,6 +1755,11 @@ if peds_frames and options.get("animate_peds", True):
             # Instantiate 3D realistic human mesh (seated or standing)
             p_root = bpy.data.objects.new(f"Pedestrian_{pid}", None)
             col_actors.objects.link(p_root)
+            # NOTE: unlike furniture, pedestrians must own their mesh data.
+            # The walk cycle is driven by shape-key *values*, and shape keys live
+            # on the mesh datablock -- sharing them (dupe.data = child.data) would
+            # make every pedestrian march in lockstep. Counts are small (tens), so
+            # the private copies are cheap.
             for child in active_prefab.children:
                 dupe = child.copy()
                 dupe.data = child.data.copy()
@@ -1322,6 +1782,8 @@ if peds_frames and options.get("animate_peds", True):
 
         ped_objs[pid] = p_obj
 
+    stage("8b ped instancing")
+
     # Keyframe pedestrian movements and stride animations
     # Group trajectories by pedestrian ID for clean, continuous interpolation
     from collections import defaultdict
@@ -1331,8 +1793,8 @@ if peds_frames and options.get("animate_peds", True):
         for p in fr.get("peds", []):
             ped_raw_trajs[p["id"]].append((t_curr, p["x"], p["y"], p.get("yaw", 0.0)))
 
-    target_frames = list(range(1, scene.frame_end + 1))
-    target_times = np.array([(f - 1) / fps for f in target_frames])
+    frames_arr = np.arange(1, scene.frame_end + 1, dtype=np.float64)
+    target_times = (frames_arr - 1.0) / fps
 
     for pid in ped_ids:
         if pid not in ped_objs:
@@ -1361,21 +1823,25 @@ if peds_frames and options.get("animate_peds", True):
             # Stationary observer / patron: stay motionless at starting anchor in natural Idle stance
             p_obj.location = (float(raw_xs[0]), float(raw_ys[0]), z_pos)
             p_obj.rotation_euler = (0.0, 0.0, float(raw_yaws[0]))
-            p_obj.keyframe_insert(data_path="location", frame=1)
-            p_obj.keyframe_insert(data_path="rotation_euler", frame=1)
-            p_obj.keyframe_insert(data_path="location", frame=scene.frame_end)
-            p_obj.keyframe_insert(data_path="rotation_euler", frame=scene.frame_end)
+            if static_mode:
+                # Pose is set; walk shape keys already default to 0.0 (idle).
+                pass
+            else:
+                p_obj.keyframe_insert(data_path="location", frame=1)
+                p_obj.keyframe_insert(data_path="rotation_euler", frame=1)
+                p_obj.keyframe_insert(data_path="location", frame=scene.frame_end)
+                p_obj.keyframe_insert(data_path="rotation_euler", frame=scene.frame_end)
 
-            if human_prefab and p_obj.children:
-                for child in p_obj.children:
-                    if child.data and child.data.shape_keys:
-                        kb = child.data.shape_keys.key_blocks
-                        for k in range(4):
-                            k_name = f"Walk_{k}"
-                            if k_name in kb:
-                                kb[k_name].value = 0.0
-                                kb[k_name].keyframe_insert(data_path="value", frame=1)
-                                kb[k_name].keyframe_insert(data_path="value", frame=scene.frame_end)
+                if human_prefab and p_obj.children:
+                    for child in p_obj.children:
+                        if child.data and child.data.shape_keys:
+                            kb = child.data.shape_keys.key_blocks
+                            for k in range(4):
+                                k_name = f"Walk_{k}"
+                                if k_name in kb:
+                                    kb[k_name].value = 0.0
+                                    kb[k_name].keyframe_insert(data_path="value", frame=1)
+                                    kb[k_name].keyframe_insert(data_path="value", frame=scene.frame_end)
         else:
             # Active walking pedestrian: interpolate continuous, smooth trajectory and stride cycle
             interp_xs = np.interp(target_times, raw_ts, raw_xs)
@@ -1383,39 +1849,83 @@ if peds_frames and options.get("animate_peds", True):
             interp_yaws = np.interp(target_times, raw_ts, raw_yaws)
             interp_s = np.interp(target_times, raw_ts, cum_dists)
 
-            # Pre-collect shape key blocks if human prefab
-            mesh_children_kb = []
-            if human_prefab and p_obj.children:
+            n_frames = len(frames_arr)
+
+            if static_mode:
+                # Freeze mid-stride: same arrays the animated build keys from, so
+                # the pose matches that frame exactly (including the stride blend).
+                _idx = int(min(max(static_target_frame, 1), n_frames)) - 1
+                p_obj.location = (float(interp_xs[_idx]), float(interp_ys[_idx]), z_pos)
+                p_obj.rotation_euler = (0.0, 0.0, float(interp_yaws[_idx]))
+
+                _s = float(interp_s[_idx])
+                _pv = ((_s / 1.151) % 1.0) * 4.0
+                _i0 = int(_pv) % 4
+                _i1 = (_i0 + 1) % 4
+                _w1 = _pv - int(_pv)
+                _w0 = 1.0 - _w1
                 for child in p_obj.children:
                     if child.data and child.data.shape_keys:
-                        mesh_children_kb.append(child.data.shape_keys.key_blocks)
-
-            # 1.151m per full 4-phase stride cycle
-            STRIDE_LEN = 1.151
-
-            for i, frame in enumerate(target_frames):
-                p_obj.location = (float(interp_xs[i]), float(interp_ys[i]), z_pos)
-                p_obj.rotation_euler = (0.0, 0.0, float(interp_yaws[i]))
-                p_obj.keyframe_insert(data_path="location", frame=frame)
-                p_obj.keyframe_insert(data_path="rotation_euler", frame=frame)
-
-                if mesh_children_kb:
-                    s_val = float(interp_s[i])
-                    phi = (s_val / STRIDE_LEN) % 1.0
-                    p_val = phi * 4.0
-                    idx0 = int(p_val) % 4
-                    idx1 = (idx0 + 1) % 4
-                    w1 = float(p_val - int(p_val))
-                    w0 = float(1.0 - w1)
-
-                    for kb in mesh_children_kb:
+                        kb = child.data.shape_keys.key_blocks
                         for k in range(4):
                             k_name = f"Walk_{k}"
                             if k_name in kb:
-                                val = w0 if k == idx0 else (w1 if k == idx1 else 0.0)
-                                kb[k_name].value = val
-                                kb[k_name].keyframe_insert(data_path="value", frame=frame)
+                                kb[k_name].value = (
+                                    _w0 if k == _i0 else (_w1 if k == _i1 else 0.0)
+                                )
+                continue
 
+            # Bulk keyframe the root transform in one pass.
+            write_fcurves(
+                new_channelbag(f"{p_obj.name}_action", p_obj, "OBJECT"),
+                frames_arr,
+                [
+                    ("location", 0, interp_xs),
+                    ("location", 1, interp_ys),
+                    ("location", 2, np.full(n_frames, z_pos)),
+                    ("rotation_euler", 0, np.zeros(n_frames)),
+                    ("rotation_euler", 1, np.zeros(n_frames)),
+                    ("rotation_euler", 2, interp_yaws),
+                ],
+            )
+
+            if not (human_prefab and p_obj.children):
+                continue
+
+            # Stride-phase blend weights, vectorised. 1.151m per full 4-phase
+            # cycle; each frame blends the two adjacent walk phases. interp_s is
+            # non-negative, so truncation and floor agree.
+            STRIDE_LEN = 1.151
+            p_val = ((interp_s / STRIDE_LEN) % 1.0) * 4.0
+            idx0 = p_val.astype(np.int64) % 4
+            idx1 = (idx0 + 1) % 4
+            w1 = p_val - np.floor(p_val)
+            w0 = 1.0 - w1
+            walk_vals = np.zeros((n_frames, 4), dtype=np.float64)
+            for k in range(4):
+                walk_vals[:, k] = np.where(k == idx0, w0, np.where(k == idx1, w1, 0.0))
+
+            # Each skinned child owns its shape keys, so each needs its own action
+            # on the shape-key datablock (id_type "KEY").
+            for child in p_obj.children:
+                shape_keys = child.data.shape_keys if child.data else None
+                if not shape_keys:
+                    continue
+                kb = shape_keys.key_blocks
+                curves = [
+                    (f'key_blocks["Walk_{k}"].value', 0, walk_vals[:, k])
+                    for k in range(4)
+                    if f"Walk_{k}" in kb
+                ]
+                if curves:
+                    write_fcurves(
+                        new_channelbag(f"{child.name}_shapekeys", shape_keys, "KEY", "ShapeKey"),
+                        frames_arr,
+                        curves,
+                    )
+
+
+    stage("8c ped keyframing")
 
 # Encounters Discs (r = 1.2m) - optional overlay
 encounters = telemetry.get("encounters", [])
@@ -1429,6 +1939,8 @@ if encounters and options.get("show_encounters", False):
         enc_obj.data.materials.append(mat_enc)
         col_overlays.objects.link(enc_obj)
         scene.collection.objects.unlink(enc_obj)
+
+stage("8 pedestrians")
 
 # -----------------------------------------------------------------------------
 # 9. Camera Presets (Auto-scaled to World Bounds with Aspect Ratio Padding)
@@ -1450,7 +1962,7 @@ aspect = res_x / res_y  # e.g. 2148 / 1400 ≈ 1.534
 #   ortho_scale = max(span_x * margin, span_y * margin * aspect)
 margin = 1.35
 auto_ortho_scale = max(span_x * margin, span_y * margin * aspect)
-print(f"[Arena Blender Viz] Camera auto-scale: span_x={span_x:.1f}m, span_y={span_y:.1f}m, ortho_scale={auto_ortho_scale:.2f}")
+print(f"[Arena Blender Viz] Camera auto-scale: span_x={span_x:.1f}m, span_y={span_y:.1f}m, ortho_scale={auto_ortho_scale:.2f}", flush=True)
 
 def add_camera(name, location, rotation, cam_type="PERSP", lens=35, ortho_scale=30.0, is_active=False):
     cam_data = bpy.data.cameras.new(name)
@@ -1513,6 +2025,8 @@ add_camera(
     lens=40,
 )
 
+stage("9 cameras")
+
 # -----------------------------------------------------------------------------
 # 10. Lighting (High-Contrast Architectural Lighting — Soft Depth Shadows & Clear Corners)
 # -----------------------------------------------------------------------------
@@ -1547,6 +2061,29 @@ sky_obj = bpy.data.objects.new("SkylightSun", sky_data)
 # 52 degrees from zenith, -68 degrees azimuth
 sky_obj.rotation_euler = (math.radians(-52), math.radians(-68), 0)
 col_lighting.objects.link(sky_obj)
+
+# 2c. Shadowless Bounce Fill (from the opposite azimuth to both suns)
+#     Both suns sit on the +Y side (key from +X+Y, sky from -X+Y), so every
+#     wall whose normal faces -Y receives no direct light from either and reads
+#     as pure black. Ambient world light cannot rescue those surfaces: the same
+#     geometry that shadows them also occludes the sky, so raising world
+#     strength lifts the midtones but leaves the black tail untouched
+#     (measured: 7.6% of wall pixels < 16/255 at world 0.25, still 7.3% at
+#     0.85). A shadowless fill is what reaches occluded surfaces -- it drops
+#     that to 3.0% while keeping directional contrast. Shadowless is the point:
+#     a shadow-casting fill would be blocked by the very walls it must light.
+_FILL_LIGHT_W = float(options.get("fill_light_strength")
+                      if options.get("fill_light_strength") is not None
+                      else _FILL_LIGHT_DEFAULT_W)
+fill_data = bpy.data.lights.new("BounceFillLight", type="SUN")
+fill_data.energy = _FILL_LIGHT_W
+fill_data.angle = math.radians(45)  # Very soft, diffuse bounce character
+fill_data.color = (0.93, 0.95, 1.0)
+fill_data.use_shadow = False  # Deliberate: fills geometry the suns cannot reach
+fill_obj = bpy.data.objects.new("BounceFillLight", fill_data)
+# 45 degrees elevation, from -Y: travel direction (0, +0.707, -0.707)
+fill_obj.rotation_euler = (math.radians(-45), 0, math.radians(180))
+col_lighting.objects.link(fill_obj)
 
 # 3. Soft Zenith Area Fill Light (fills room interiors from above)
 zen_data = bpy.data.lights.new("ZenithFillLight", type="AREA")
@@ -1586,6 +2123,8 @@ for z in world_data.get("zones", []):
     l_obj.rotation_euler = (0, 0, 0)
     col_lighting.objects.link(l_obj)
 
+stage("10 lighting")
+
 # -----------------------------------------------------------------------------
 # 11. Render Settings (Cycles GPU, 300 DPI ICRA Format)
 # -----------------------------------------------------------------------------
@@ -1617,6 +2156,8 @@ scene.render.resolution_percentage = 100
 if acoustic_overlay and acoustic_overlay.get("png_path"):
     scene.view_settings.view_transform = "Standard"
 
+stage("11 render settings (incl. Cycles device init)")
+
 # -----------------------------------------------------------------------------
 # 12. Save Scene
 # -----------------------------------------------------------------------------
@@ -1625,7 +2166,38 @@ worst_frame = telemetry.get("worst_case_frame")
 if worst_frame and worst_frame.get("frame"):
     scene.frame_set(int(worst_frame["frame"]))
 
+# Static builds collapse the timeline onto the frozen frame. Doing this last keeps
+# the pose arrays (built from the full timeline above) intact, and it pins the
+# acoustic MOVIE texture -- which is frame-driven -- to the matching frame.
+if static_mode:
+    scene.frame_start = static_target_frame
+    scene.frame_end = static_target_frame
+    scene.frame_set(static_target_frame)
+    n_actions = len(bpy.data.actions)
+    print(
+        f"[Arena Blender Viz] Static build: timeline pinned to frame {static_target_frame} "
+        f"(actions in file: {n_actions})",
+        flush=True,
+    )
+
 out_blend = Path(out_blend_path).resolve()
 out_blend.parent.mkdir(parents=True, exist_ok=True)
-bpy.ops.wm.save_as_mainfile(filepath=str(out_blend))
-print(f"[Arena Blender Viz] Successfully saved Blender scene to: {out_blend}")
+
+# Build output is a generated artifact: skip Blender's .blend1 backup (a full
+# duplicate write of a multi-hundred-MB file) and compress, since the geometry
+# is highly repetitive.
+try:
+    bpy.context.preferences.filepaths.save_version = 0
+except Exception:
+    pass
+bpy.ops.wm.save_as_mainfile(filepath=str(out_blend), compress=True)
+print(f"[Arena Blender Viz] Successfully saved Blender scene to: {out_blend}", flush=True)
+stage("12 save")
+
+scene_scale("FINAL")
+if os.path.isfile(out_blend):
+    print(
+        f"[Arena Blender Viz] .blend size: {os.path.getsize(out_blend) / 1e6:.1f} MB",
+        flush=True,
+    )
+print(f"[Arena Blender Viz] Total build time: {time.perf_counter() - _T0:.1f}s", flush=True)

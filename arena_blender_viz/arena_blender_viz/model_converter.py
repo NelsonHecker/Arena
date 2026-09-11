@@ -30,7 +30,17 @@ logger = logging.getLogger(__name__)
 _COLLADA_NS = "{http://www.collada.org/2005/11/COLLADASchema}"
 # Bump when the seated pose-bake math changes: seated GLBs carry a matching
 # sidecar (<glb>.posever) so stale bind-pose caches regenerate automatically.
-_POSE_BAKE_VERSION = 1
+_POSE_BAKE_VERSION = 2
+# Bump when the walk-cycle phase bake changes; the phase GLBs carry a
+# <glb>.walkver sidecar for the same reason.
+_WALK_BAKE_VERSION = 4
+# Number of evenly spaced poses sampled from the walk clip. The scene builder
+# blends between adjacent phases, so this must match its stride-cycle logic.
+_WALK_PHASE_COUNT = 4
+# Human whose idle/walk phase GLBs the scene builder consumes by name.
+_HUMAN_PHASE_MODEL = "Common/Human/arenian"
+# Bump when the robot .blend -> GLB export settings change.
+_ROBOT_GLB_VERSION = 1
 
 
 def _dae_root(dae_path: Path) -> ET.Element:
@@ -245,12 +255,67 @@ def _compose_chain(chain: list[str], local: dict[str, list[Any]],
     return m
 
 
-def _bake_pose_vertices(dae_path: Path, clip_dae_path: Path) -> np.ndarray | None:
-    """Skin the mesh positions at the clip's last frame (seated pose).
+def _clip_sample_index(times: np.ndarray, phase: float | None) -> int:
+    """Index of the clip sample at normalised `phase` (None -> final sample).
+
+    Indexing by time rather than by position keeps channels with differing
+    sample counts in agreement, which matters for walk clips.
+    """
+    if phase is None:
+        return len(times) - 1
+    if len(times) <= 1:
+        return 0
+    target = min(max(phase, 0.0), 1.0) * float(times[-1])
+    return int(np.argmin(np.abs(times - target)))
+
+
+def _root_joint_horizontal_pin(
+    channels: dict[str, tuple[np.ndarray, np.ndarray]],
+    joint_names: list[str],
+) -> str | None:
+    """Find the joint that travels horizontally (the root).
+
+    Locomotion clips bake the body's forward travel into the root joint. The
+    scene builder drives pedestrian position from telemetry instead, so the
+    stride poses must be in-place; this identifies what to pin. The pin value
+    itself is the root's bind-pose horizontal translation (computed by the
+    caller): pinning to a clip's phase-0 sample would bake in whatever offset
+    that clip was authored with, and idle and walk clips do not share one.
+    """
+    best: str | None = None
+    best_range = 0.0
+    for jname in joint_names:
+        chan = channels.get(jname)
+        if chan is None:
+            continue
+        travel = chan[1][:, :3, 3]
+        rng = float(np.ptp(travel[:, :2], axis=0).sum())
+        if rng > best_range:
+            best, best_range = jname, rng
+    if best is None or best_range < 1e-6:
+        return None
+    return best
+
+
+def _bake_pose_vertices(
+    dae_path: Path,
+    clip_dae_path: Path,
+    phase: float | None = None,
+    pin_root_horizontal: bool = False,
+) -> np.ndarray | None:
+    """Skin the mesh positions at a point in the clip.
 
     Gazebo-actor semantics: every clip channel replaces the matching joint's
     local node transform; joints without a channel keep their bind transform.
     Returns deformed shared positions (n, 3), or None when anything is off.
+
+    `phase` is normalised clip time in [0, 1] (0.0 = first sample, 1.0 = last).
+    The default, None, samples the final key -- the seated "settled" pose.
+
+    `pin_root_horizontal` freezes the root joint's horizontal translation at its
+    bind-pose value, turning a travelling locomotion clip into an in-place
+    cycle shared by every baked pose. The walk phases and the idle basis need
+    this; the seated pose does not.
     """
     try:
         skin = _read_skin_controller(dae_path)
@@ -276,12 +341,34 @@ def _bake_pose_vertices(dae_path: Path, clip_dae_path: Path) -> np.ndarray | Non
                 f"(kept at bind pose): {unanimated[:6]}"
             )
 
-        # Sample each channel at its final key (settled seated idle pose).
+        # Sample each channel at the requested point in the clip. phase=None keeps
+        # the original behaviour of taking the final key (settled seated pose).
+        pin_joint: str | None = None
+        pin_xy: np.ndarray | None = None
+        if pin_root_horizontal:
+            pin_joint = _root_joint_horizontal_pin(channels, joint_names)
+            if pin_joint is not None:
+                # Pin to the root's bind-pose horizontal translation, not the
+                # clip's phase-0 sample. Clips can be authored far off the
+                # origin (arenian's idle clip sits ~1.9 m to the side), and the
+                # idle basis and the walk shape keys must share one root frame:
+                # the scene builder blends them by vertex position, so a root
+                # mismatch becomes a sideways body shift during the stride.
+                chain, _ = tree[pin_joint]
+                bind_world = _compose_chain(chain, local_by_sid, {})
+                pin_xy = bind_world[:3, 3][:2].copy()
+
         replacements: dict[str, np.ndarray] = {}
         for jname in joint_names:
             chan = channels.get(jname)
-            if chan is not None:
-                replacements[jname] = chan[1][-1]
+            if chan is None:
+                continue
+            times, mats = chan
+            mat = mats[_clip_sample_index(times, phase)]
+            if jname == pin_joint and pin_xy is not None:
+                mat = mat.copy()
+                mat[:3, 3][:2] = pin_xy
+            replacements[jname] = mat
 
         world: dict[str, np.ndarray] = {}
         for jname in joint_names:
@@ -369,6 +456,64 @@ def _resolve_default_cache_dir() -> Path:
 
 DEFAULT_ASSETS_DIR = _resolve_default_assets_dir()
 DEFAULT_CACHE_DIR = _resolve_default_cache_dir()
+
+
+# Runs inside a background Blender opened on the robot .blend. Exports the whole
+# scene to a single GLB; animations are dropped because the scene builder drives
+# the robot from the trajectory, not from baked robot animation.
+_ROBOT_EXPORT_EXPR = (
+    "import sys, bpy;"
+    "out = sys.argv[sys.argv.index('--') + 1];"
+    "bpy.ops.export_scene.gltf("
+    "filepath=out, export_format='GLB', use_selection=False,"
+    "export_apply=True, export_yup=True, export_animations=False)"
+)
+
+
+def _export_blend_to_glb(blend_path: Path, out_glb: Path) -> bool:
+    """Export a .blend to GLB via background Blender. False on any failure.
+
+    `.blend` is Blender's own format, so unlike every other conversion in this
+    module it cannot be read with trimesh/pycollada — it needs the real thing.
+    `find_blender` lives in cli.py, which imports this package's builder, so it
+    is imported lazily here to avoid a circular import.
+    """
+    import subprocess
+
+    from .cli import find_blender
+    from .video_renderer import _windows_form
+
+    try:
+        blender = find_blender()
+    except Exception as e:
+        logger.error(f"Cannot convert {blend_path.name}: Blender not found ({e})")
+        return False
+
+    out_glb.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        str(blender),
+        "--background",
+        "--factory-startup",
+        _windows_form(blend_path, blender),
+        "--python-expr",
+        _ROBOT_EXPORT_EXPR,
+        "--",
+        _windows_form(out_glb, blender),
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    except Exception as e:
+        logger.error(f"Blender export failed for {blend_path.name}: {e}")
+        return False
+
+    if res.returncode != 0 or not out_glb.is_file():
+        tail = (res.stderr or res.stdout or "")[-500:]
+        logger.error(
+            f"Blender export failed for {blend_path.name} "
+            f"(rc={res.returncode}): {tail}"
+        )
+        return False
+    return True
 
 
 class ModelConverter:
@@ -527,12 +672,15 @@ class ModelConverter:
         out_glb_path: Path,
         model_id: str,
         pose_clip: Path | None = None,
+        pose_phase: float | None = None,
+        pin_root_horizontal: bool = False,
     ) -> Path | None:
         """Convert a skinned Collada mesh (like arenian) with textures into glTF/GLB.
 
-        When pose_clip is given (seated variants), the mesh is skinned at the
-        clip's final frame instead of its bind pose, so the exported GLB shows
-        the character in the clip's end pose (sitting).
+        When pose_clip is given, the mesh is skinned at `pose_phase` within that
+        clip instead of its bind pose. `pose_phase=None` uses the clip's final
+        frame (the seated variants); a value in [0, 1] samples that point of the
+        clip, which is how the walk-cycle phases are produced.
         """
         try:
             import collada
@@ -544,17 +692,20 @@ class ModelConverter:
             geom = col.geometries[0]
             tex_dir = dae_path.parent / "textures"
 
-            # Bake pose clip's final frame onto the shared mesh positions.
+            # Bake the pose clip onto the shared mesh positions.
             deformed: np.ndarray | None = None
             if pose_clip is not None:
-                deformed = _bake_pose_vertices(dae_path, pose_clip)
+                deformed = _bake_pose_vertices(
+                    dae_path, pose_clip, phase=pose_phase, pin_root_horizontal=pin_root_horizontal
+                )
+                where = "last frame" if pose_phase is None else f"phase {pose_phase:.2f}"
                 if deformed is None:
                     logger.warning(
-                        f"Seated pose bake unavailable for {model_id} — exporting bind pose"
+                        f"Pose bake unavailable for {model_id} — exporting bind pose"
                     )
                 else:
                     logger.info(
-                        f"Baked seated pose (last frame of {pose_clip.name}) "
+                        f"Baked pose ({where} of {pose_clip.name}) "
                         f"into {model_id} -> {out_glb_path.name}"
                     )
 
@@ -618,8 +769,16 @@ class ModelConverter:
 
             rot = trimesh.transformations.rotation_matrix(np.radians(-90), [1, 0, 0])
             scene.apply_transform(rot)
-            min_z = scene.bounds[0][2]
-            trans = trimesh.transformations.translation_matrix([0, 0, -min_z])
+            # Center the character horizontally on the origin. The DAE frame
+            # already puts the feet near the ground plane, and grounding by the
+            # minimum only (the previous behaviour) shifted the scene sideways
+            # until its leftmost extent touched Z=0 — leaving the body offset
+            # from its placement point, so turning pedestrians swept a circle
+            # around the origin instead of pivoting in place.
+            lo, hi = scene.bounds
+            trans = trimesh.transformations.translation_matrix(
+                [-(lo[0] + hi[0]) / 2.0, 0.0, -(lo[2] + hi[2]) / 2.0]
+            )
             scene.apply_transform(trans)
 
             out_glb_path.parent.mkdir(parents=True, exist_ok=True)
@@ -689,3 +848,121 @@ class ModelConverter:
             if glb is not None:
                 res[mid] = str(glb.resolve()).replace("\\", "/")
         return res
+
+    # -------------------------------------------------------------------------
+    # Derived assets
+    # -------------------------------------------------------------------------
+    # The scene builder consumes three families of GLB that no model_id maps to
+    # directly:
+    #   <robot>_robot.glb                the robot actor
+    #   Common_arenian_idle.glb          pedestrian rest pose
+    #   Common_arenian_walk_0..3.glb     pedestrian stride-cycle phases
+    # These used to be produced by throwaway scripts that lived outside the repo
+    # and were lost, which silently degraded builds to a cube robot and to
+    # pedestrians with no stride. They are derived here so a clean checkout
+    # regenerates them on the next build.
+
+    def _robots_cache_dir(self) -> Path | None:
+        """`<data>/blender/robots_cache`, derived from the GLB cache location.
+
+        The GLB cache is `<data>/blender_cache/glb`, so the robot cache is its
+        sibling. Returns None for the legacy in-package cache layout, where this
+        derivation would escape into the source tree.
+        """
+        cand = Path(self.cache_dir).parent.parent / "blender" / "robots_cache"
+        return cand if cand.is_dir() else None
+
+    def get_human_phase_glbs(self, model_id: str = _HUMAN_PHASE_MODEL) -> dict[str, Path]:
+        """Bake the pedestrian idle pose and walk-cycle phase GLBs.
+
+        Returns {"idle": Path, "walk_0": Path, ...}; empty when the arenian asset
+        or its clips are unavailable. Callers must treat these as optional: the
+        scene builder degrades to a stride-less pedestrian, not a failure.
+        """
+        domain, model_name, asset_dir = self.resolve_asset_dir(model_id)
+        if asset_dir is None:
+            logger.warning(f"Walk-phase bake: no asset directory for {model_id}")
+            return {}
+
+        # model_name still carries its sub-path ("Human/arenian"), so the asset
+        # directory's own name is what the mesh and output files are keyed on.
+        leaf = asset_dir.name
+        base = asset_dir / "meshes" / f"{leaf}.dae"
+        walk_clip = asset_dir / "clips" / "walk.dae"
+        idle_clip = asset_dir / "clips" / "idle.dae"
+        if not base.is_file() or not walk_clip.is_file():
+            logger.warning(f"Walk-phase bake: missing mesh or walk clip under {asset_dir}")
+            return {}
+
+        # phase=None reproduces the original last-key sampling for the idle pose.
+        wanted: list[tuple[str, Path, float | None]] = [("walk_%d" % i, walk_clip, i / _WALK_PHASE_COUNT)
+                                                        for i in range(_WALK_PHASE_COUNT)]
+        if idle_clip.is_file():
+            wanted.append(("idle", idle_clip, None))
+
+        out: dict[str, Path] = {}
+        for tag, clip, phase in wanted:
+            glb = Path(self.cache_dir) / f"{domain}_{leaf}_{tag}.glb"
+            sidecar = Path(str(glb) + ".walkver")
+            newest_src = max(base.stat().st_mtime, clip.stat().st_mtime)
+            fresh = (
+                glb.is_file()
+                and glb.stat().st_mtime >= newest_src
+                and sidecar.is_file()
+                and sidecar.read_text().strip() == str(_WALK_BAKE_VERSION)
+            )
+            if not fresh:
+                made = self._convert_skinned_collada(
+                    base,
+                    glb,
+                    f"{model_id}_{tag}",
+                    pose_clip=clip,
+                    pose_phase=phase,
+                    # Clips bake the root's horizontal travel (walk: forward
+                    # motion; idle: an authoring offset) into the root joint.
+                    # The builder re-applies position via telemetry and blends
+                    # phases by vertex position, so every baked pose pins its
+                    # root to the shared bind-pose frame and stays in place.
+                    pin_root_horizontal=True,
+                )
+                if made is None:
+                    logger.warning(f"Walk-phase bake failed for '{tag}'")
+                    continue
+                sidecar.write_text(str(_WALK_BAKE_VERSION))
+            out[tag] = glb
+
+        logger.info(f"Pedestrian phase GLBs ready: {sorted(out)}")
+        return out
+
+    def get_robot_glb(self, robot: str = "jackal") -> Path | None:
+        """Convert `<data>/blender/robots_cache/<robot>/robot.blend` to a cached GLB.
+
+        `.blend` can only be read by Blender itself, so this is the one
+        conversion that shells out. An existing GLB that is newer than the
+        .blend and carries no sidecar is treated as hand-authored and kept, so a
+        curated asset is never clobbered by the generator.
+        """
+        robots_dir = self._robots_cache_dir()
+        if robots_dir is None:
+            logger.warning("Robot cache not found (expected <data>/blender/robots_cache)")
+            return None
+        src = robots_dir / robot / "robot.blend"
+        if not src.is_file():
+            logger.warning(f"No robot.blend for '{robot}' under {robots_dir}")
+            return None
+
+        out = Path(self.cache_dir) / f"{robot}_robot.glb"
+        sidecar = Path(str(out) + ".robotver")
+        if out.is_file() and out.stat().st_mtime >= src.stat().st_mtime:
+            if not sidecar.is_file():
+                logger.info(f"Using existing hand-authored robot asset {out.name}")
+                return out
+            if sidecar.read_text().strip() == str(_ROBOT_GLB_VERSION):
+                return out
+
+        if not _export_blend_to_glb(src, out):
+            # Fall back to whatever is already there rather than losing the asset.
+            return out if out.is_file() else None
+        sidecar.write_text(str(_ROBOT_GLB_VERSION))
+        logger.info(f"Converted robot '{robot}' -> {out.name}")
+        return out
