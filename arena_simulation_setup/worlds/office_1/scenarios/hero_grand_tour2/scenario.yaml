@@ -38,7 +38,7 @@ dynamic:
 
 # 4. Seated Observer in Meeting Room (Acoustic barrier observer)
 - name: mic_meet_chair_board
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose: [6.50, 24.30, -2.36]
   velocity: 0.0
   waypoints:
@@ -46,19 +46,19 @@ dynamic:
 
 # 5. Seated Observers in Quiet Bullpen / Workstations (Acoustic Disturbance Observers)
 - name: mic_worker_desk_A
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose: [23.70, 18.50, -1.5708]
   velocity: 0.0
   waypoints:
   - [23.70, 18.50, -1.5708]
 - name: mic_worker_desk_B
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose: [32.70, 18.50, -1.5708]
   velocity: 0.0
   waypoints:
   - [32.70, 18.50, -1.5708]
 - name: mic_worker_desk_D
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose: [38.70, 18.50, -1.5708]
   velocity: 0.0
   waypoints:

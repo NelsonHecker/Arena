@@ -11,7 +11,7 @@ robots:
     - 1.5708
 dynamic:
 - name: worker_pod_A
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 27.0
   - 3.2
@@ -22,7 +22,7 @@ dynamic:
     - 3.2
     - 1.5708
 - name: worker_pod_B
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 27.0
   - 13.2
@@ -33,7 +33,7 @@ dynamic:
     - 13.2
     - 1.5708
 - name: worker_pod_C
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 33.0
   - 3.2
@@ -44,7 +44,7 @@ dynamic:
     - 3.2
     - 1.5708
 - name: worker_pod_D
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 33.0
   - 13.2

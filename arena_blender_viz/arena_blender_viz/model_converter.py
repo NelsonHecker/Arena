@@ -1,14 +1,6 @@
 """
 model_converter.py: Resolves Arena model assets and caches them as GLB meshes.
 Converts Collada (.dae) models with textures into fast-loading glTF/GLB binaries.
-
-Skinned human models ("arenian" & co.) keep their character pose in animation
-*clips* (e.g. ``arenian_seated/clips/sitting.dae``) while the skinned mesh DAEs
-are bound in a plain standing pose. Converters that only export bind-pose
-geometry therefore render seated characters standing. For model folders whose
-name contains "seated", the conversion bakes the *last frame* of the idle
-sitting clip onto the skinned mesh (gazebo-actor semantics: a clip channel
-replaces the joint's node transform), producing a genuinely seated static GLB.
 """
 from __future__ import annotations
 
@@ -28,9 +20,6 @@ logger = logging.getLogger(__name__)
 
 # Namespace of every COLLADA document this converter handles.
 _COLLADA_NS = "{http://www.collada.org/2005/11/COLLADASchema}"
-# Bump when the seated pose-bake math changes: seated GLBs carry a matching
-# sidecar (<glb>.posever) so stale bind-pose caches regenerate automatically.
-_POSE_BAKE_VERSION = 2
 # Bump when the walk-cycle phase bake changes; the phase GLBs carry a
 # <glb>.walkver sidecar for the same reason.
 _WALK_BAKE_VERSION = 4
@@ -607,37 +596,12 @@ class ModelConverter:
             logger.warning(f"No 3D mesh found for {model_id} in {asset_dir}")
             return self._create_placeholder_glb(model_id, asset_dir, glb_cache_path)
 
-        # Seated human variants (e.g. arenian_seated) bind their mesh in a plain
-        # standing pose; the seated posture lives in clips/sitting.dae. Bake the
-        # clip's final frame into the exported geometry so the cached GLB is a
-        # genuinely seated character.
-        pose_clip: Path | None = None
-        if "seated" in model_name.lower():
-            clip_cand = asset_dir / "clips" / "sitting.dae"
-            if clip_cand.is_file():
-                pose_clip = clip_cand
-            else:
-                logger.warning(
-                    f"Model {model_id} looks seated but has no clips/sitting.dae — "
-                    "exporting bind pose (character will render standing)"
-                )
-
-        # Check if cache is valid (source older than cached glb). Seated bakes
-        # additionally require the clip and a matching pose-bake version sidecar:
-        # bind-pose caches produced before pose baking must regenerate.
-        cache_valid = glb_cache_path.exists()
-        if cache_valid:
-            cache_valid = glb_cache_path.stat().st_mtime >= source_mesh.stat().st_mtime
-        if cache_valid and pose_clip is not None:
-            sidecar = Path(str(glb_cache_path) + ".posever")
-            cache_valid = (
-                sidecar.is_file()
-                and sidecar.read_text().strip() == str(_POSE_BAKE_VERSION)
-                and glb_cache_path.stat().st_mtime >= pose_clip.stat().st_mtime
-            )
+        # Check if cache is valid (source older than cached glb).
+        cache_valid = glb_cache_path.exists() and (glb_cache_path.stat().st_mtime >= source_mesh.stat().st_mtime)
         if cache_valid:
             self._conversion_cache[model_id] = glb_cache_path
             return glb_cache_path
+
 
         # If source is already .glb, copy or symlink
         if source_mesh.suffix.lower() == ".glb":
@@ -684,7 +648,8 @@ class ModelConverter:
         """
         try:
             import collada
-            from PIL import Image
+            from PIL import Image, ImageFile
+            ImageFile.LOAD_TRUNCATED_IMAGES = True
 
             col = collada.Collada(str(dae_path))
             if not col.geometries:
@@ -785,10 +750,9 @@ class ModelConverter:
             scene.export(str(out_glb_path))
             if pose_clip is not None:
                 Path(str(out_glb_path) + ".posever").write_text(str(_POSE_BAKE_VERSION))
-                # Legacy nested cache layout (<Category>_<Sub>/<Model>.glb, e.g.
-                # Common_Human/arenian_seated.glb) is still consulted as a
-                # fallback by older scene builders — refresh it so no stale
-                # standing copy can be picked up.
+                # Legacy nested cache layout (<Category>_<Sub>/<Model>.glb)
+                # is still consulted as a fallback by older scene builders — refresh it
+                # so no stale standing copy can be picked up.
                 if "/" in model_id:
                     nested_dir = out_glb_path.parent / "_".join(model_id.split("/")[:-1])
                     nested_dir.mkdir(parents=True, exist_ok=True)

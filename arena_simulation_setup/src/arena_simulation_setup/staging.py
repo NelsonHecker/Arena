@@ -62,7 +62,7 @@ def stage(install_dir: str):
     from arena_simulation_setup.tree.assets.Human import HumanIdentifier
     import asyncio
 
-    for human_name in ['arenian', 'arenian_seated']:
+    for human_name in ['arenian']:
         try:
             h_ident = HumanIdentifier.parse(human_name)
             h_view = asyncio.run(h_ident.resolve())

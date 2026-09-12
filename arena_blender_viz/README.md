@@ -409,9 +409,6 @@ Notes:
 
 ## 7. Added Functionality & Fixes
 
-### Seated arenian pose bake (2026-09-09)
-
-`arenian_seated` (and any `*_seated` human) binds its skinned mesh in a plain **standing** pose — the seated posture lives only in the `clips/sitting.dae` animation (the model's SDF maps it as the "idle" clip). Exporting bind-pose geometry therefore produced a standing character wherever a seated observer was placed. `model_converter.py` now detects seated model folders and **bakes the clip's final frame onto the skin** (gazebo-actor semantics: each clip channel replaces the matching joint's node transform), so `Common_arenian_seated.glb` is a genuinely seated, textured static mesh (~1.22 m tall). Seated bakes are gated on the model name containing `"seated"`; any other skinned model (standing arenian, workers, …) keeps the unchanged bind-pose conversion. Baked GLBs carry a `<glb>.posever` sidecar, so caches produced before pose baking regenerate automatically; the legacy nested cache copy (`Common_Human/arenian_seated.glb`) is refreshed in the same pass.
 
 ### Side-by-side emission trails (`--show-energy-glow`)
 

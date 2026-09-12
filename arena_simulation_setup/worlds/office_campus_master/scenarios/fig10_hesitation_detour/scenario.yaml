@@ -41,7 +41,7 @@ dynamic:
     - 9.7
     - -1.5708
 - name: mic_boardroom
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 15.0
   - 2.5

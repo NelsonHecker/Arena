@@ -15,13 +15,13 @@ dynamic:
   - [9.4, 26.0, 1.5708]
   - [9.4, 5.0, -1.5708]
 - name: mic_patient_bed_1
-  model: arenian_seated
+  model: Hospital/nurse_female_caucasian_young
   pose: [4.0, 14.1, 0.0]
   velocity: 0.0
   waypoints:
   - [4.0, 14.1, 0.0]
 - name: mic_patient_bed_2
-  model: arenian_seated
+  model: Hospital/nurse_female_caucasian_young
   pose: [4.0, 21.1, 0.0]
   velocity: 0.0
   waypoints:

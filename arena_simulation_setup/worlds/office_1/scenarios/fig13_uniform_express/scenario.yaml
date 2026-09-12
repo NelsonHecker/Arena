@@ -37,7 +37,7 @@ dynamic:
     - 6.0
     - 0.0
 - name: worker_quiet
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 36.10
   - 18.50

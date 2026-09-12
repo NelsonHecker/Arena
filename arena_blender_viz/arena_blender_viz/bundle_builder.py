@@ -117,7 +117,7 @@ class BundleBuilder:
             if entity.model_id
         ]
         # Ensure pedestrian human models are always converted and available
-        for h_id in ["Common/Human/arenian", "Common/Human/arenian_seated", "arenian", "arenian_seated"]:
+        for h_id in ["Common/Human/arenian", "arenian"]:
             if h_id not in all_model_ids:
                 all_model_ids.append(h_id)
 
@@ -146,7 +146,7 @@ class BundleBuilder:
         pedestrians: list[dict[str, Any]] = []
         encounters: list[dict[str, Any]] = []
         worst_case_frame: dict[str, Any] | None = None
-        pedestrian_models: dict[str, str] = {}  # pid str -> model name, e.g. "2": "arenian_seated"
+        pedestrian_models: dict[str, str] = {}  # pid str -> model name, e.g. "2": "nurse_female_caucasian_young"
 
         # Resolve scenario YAML if present
         scenario_yaml_path: Path | None = None
@@ -209,7 +209,7 @@ class BundleBuilder:
                         sy = float(pos[1]) if len(pos) > 1 else 0.0
                         syaw = float(pos[2]) if len(pos) > 2 else 0.0
                         pid_key = f"static_{s_idx}"
-                        pedestrian_models[pid_key] = m_name or "arenian_seated"
+                        pedestrian_models[pid_key] = m_name or "arenian"
                         if m_name and m_name not in all_model_ids:
                             all_model_ids.append(m_name)
                         scenario_static_peds.append({

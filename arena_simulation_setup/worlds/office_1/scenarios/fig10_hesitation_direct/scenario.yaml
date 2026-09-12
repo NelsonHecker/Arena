@@ -57,7 +57,7 @@ dynamic:
     - 16.0
     - 1.5708
 - name: mic_workstation
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 22.0
   - 17.0

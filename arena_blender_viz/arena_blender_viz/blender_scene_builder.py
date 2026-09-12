@@ -1656,22 +1656,6 @@ if peds_frames and options.get("animate_peds", True):
             or str(cache_glb_dir / "Common_arenian.glb")
         )
 
-    seated_glb = str(cache_glb_dir / "Common_arenian_seated.glb")
-    if not _path_exists(seated_glb):
-        for cand_s in [
-            cache_glb_dir / "Common_Human" / "arenian_seated.glb",
-            cache_glb_dir / "arenian_seated.glb",
-        ]:
-            if _path_exists(str(cand_s)):
-                seated_glb = str(cand_s)
-                break
-        if not _path_exists(seated_glb):
-            seated_glb = (
-                model_glbs.get("Common/Human/arenian_seated")
-                or model_glbs.get("arenian_seated")
-                or model_glbs.get("Common_arenian_seated")
-                or ""
-            )
 
     walk_glbs = [str(cache_glb_dir / f"Common_arenian_walk_{i}.glb") for i in range(4)]
     has_walk_glbs = all(_path_exists(w) for w in walk_glbs)
@@ -1719,37 +1703,12 @@ if peds_frames and options.get("animate_peds", True):
         human_prefab = loaded_prefabs[idle_glb]
         print(f"[Arena Blender Viz] Loaded 3D pedestrian standing prefab from: {idle_glb}", flush=True)
 
-    # Also build seated prefab if available
-    seated_prefab = None
-    if seated_glb and os.path.isfile(seated_glb):
-        if seated_glb not in loaded_prefabs:
-            bpy.ops.import_scene.gltf(filepath=seated_glb)
-            imported_s_objs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
-            root_s_empty = bpy.data.objects.new("Prefab_Human_Arenian_Seated", None)
-            root_s_empty.location = (0.0, 0.0, -1000.0)
-            root_s_empty.hide_render = True
-            root_s_empty.hide_viewport = True
-            col_prefabs.objects.link(root_s_empty)
-            for o in imported_s_objs:
-                o.parent = root_s_empty
-                o.hide_render = True
-                o.hide_viewport = True
-                for c in list(o.users_collection):
-                    c.objects.unlink(o)
-                col_prefabs.objects.link(o)
-            loaded_prefabs[seated_glb] = root_s_empty
-        seated_prefab = loaded_prefabs[seated_glb]
-        print(f"[Arena Blender Viz] Loaded 3D pedestrian seated prefab from: {seated_glb}", flush=True)
-
     stage("8a ped prefab import (+walk shape keys)")
 
     ped_model_map = telemetry.get("pedestrian_models", {})
     ped_objs = {}
     for pid in ped_ids:
-        # Determine if this pedestrian is seated
-        req_model = ped_model_map.get(str(pid), "")
-        is_seated = "seated" in req_model or "sitting" in req_model
-        active_prefab = seated_prefab if (is_seated and seated_prefab) else human_prefab
+        active_prefab = human_prefab
 
         if active_prefab:
             # Instantiate 3D realistic human mesh (seated or standing)

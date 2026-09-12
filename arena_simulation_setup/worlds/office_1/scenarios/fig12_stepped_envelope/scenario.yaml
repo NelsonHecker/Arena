@@ -23,7 +23,7 @@ robots:
     - 1.5708
 dynamic:
 - name: worker_desk_A
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 25.4
   - 18.5
@@ -34,7 +34,7 @@ dynamic:
     - 18.5
     - -1.5708
 - name: worker_desk_B
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 25.4
   - 20.5
@@ -45,7 +45,7 @@ dynamic:
     - 20.5
     - 1.5708
 - name: worker_desk_C
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 32.7
   - 18.5
@@ -56,7 +56,7 @@ dynamic:
     - 18.5
     - -1.5708
 - name: worker_desk_D
-  model: arenian_seated
+  model: Office/office_female_caucasian_young
   pose:
   - 32.7
   - 20.5
