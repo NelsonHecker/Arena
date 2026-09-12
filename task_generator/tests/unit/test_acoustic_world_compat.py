@@ -39,15 +39,8 @@ def test_current_multilevel_world_schema_builds_rooms_and_portals():
     assert len(scene.zones) == len(rooms) > 1
     assert scene.zone_at_xy(-1e-10, 0.0).name == "reception"
     assert graph.portals
-    assert any(
-        portal.connects("central_hallway", "reception")
-        for portal in graph.portals
-    )
-    opening = next(
-        portal
-        for portal in graph.portals
-        if portal.connects("central_hallway", "sub_hallway")
-    )
+    assert any(portal.connects("central_hallway", "reception") for portal in graph.portals)
+    opening = next(portal for portal in graph.portals if portal.connects("central_hallway", "sub_hallway"))
     assert opening.portal_kind == "opening"
     route = graph.find_portal_route(
         "operating_room",
@@ -64,27 +57,30 @@ def test_current_multilevel_world_schema_builds_rooms_and_portals():
         "waiting_area",
     )
     assert route.hop_count == 3
-    assert graph.find_portal_route(
-        "operating_room",
-        "waiting_area",
-        source_xy=(13.69, 18.00),
-        listener_xy=(23.95, 6.81),
-        max_portals=2,
-    ) is None
+    assert (
+        graph.find_portal_route(
+            "operating_room",
+            "waiting_area",
+            source_xy=(13.69, 18.00),
+            listener_xy=(23.95, 6.81),
+            max_portals=2,
+        )
+        is None
+    )
 
     doors_only = AcousticWorldGraph.from_world(
         world,
         rooms,
         derive_opening_portals=False,
     )
-    assert not any(
-        portal.connects("central_hallway", "sub_hallway")
-        for portal in doors_only.portals
+    assert not any(portal.connects("central_hallway", "sub_hallway") for portal in doors_only.portals)
+    assert (
+        doors_only.find_portal_route(
+            "operating_room",
+            "waiting_area",
+            source_xy=(13.69, 18.00),
+            listener_xy=(23.95, 6.81),
+            max_portals=12,
+        )
+        is None
     )
-    assert doors_only.find_portal_route(
-        "operating_room",
-        "waiting_area",
-        source_xy=(13.69, 18.00),
-        listener_xy=(23.95, 6.81),
-        max_portals=12,
-    ) is None

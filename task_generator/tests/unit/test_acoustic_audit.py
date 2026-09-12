@@ -6,10 +6,7 @@ from task_generator.auditory.acoustic_audit import audit_world
 
 
 def test_audit_reports_coverage_and_portal_connectivity() -> None:
-    root = (
-        Path(get_package_share_directory("arena_simulation_setup"))
-        / "worlds"
-    )
+    root = Path(get_package_share_directory("arena_simulation_setup")) / "worlds"
     airport = audit_world("airport", worlds_root=root, stride_cells=10)
     hospital = audit_world(
         "hospital_1",

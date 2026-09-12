@@ -88,6 +88,7 @@ def _make_heard_sound_event():
     event.occluded = False
     return event
 
+
 def _make_robot_fleet(robot_name: str, namespace: str):
     from task_generator_msgs.msg import RobotDescriptor, RobotFleet, RobotState
 
@@ -102,6 +103,7 @@ def _make_robot_fleet(robot_name: str, namespace: str):
     state.descriptor = robot
     fleet.robots.append(state)
     return fleet
+
 
 def test_sound_event_round_trips_to_heard_sound_event(rclpy_context):
     import rclpy
@@ -124,7 +126,6 @@ def test_sound_event_round_trips_to_heard_sound_event(rclpy_context):
     robot_fleet_topic = f"/test/{suffix}/state/robots"
     world_topic = f"/test/{suffix}/state/world"
 
-    
     propagation = SoundPropagationNode(
         parameter_overrides=[
             Parameter("sound_events_topic", Parameter.Type.STRING, sound_topic),
@@ -136,10 +137,7 @@ def test_sound_event_round_trips_to_heard_sound_event(rclpy_context):
             Parameter("ped_hearing", Parameter.Type.BOOL, True),
         ],
     )
-    assert (
-        propagation._world_subscription.qos_profile.durability
-        == DurabilityPolicy.TRANSIENT_LOCAL
-    )
+    assert propagation._world_subscription.qos_profile.durability == DurabilityPolicy.TRANSIENT_LOCAL
 
     emitter = rclpy.create_node(f"sound_event_emitter_{suffix}")
     consumer = rclpy.create_node(f"heard_sound_consumer_{suffix}")
@@ -172,8 +170,7 @@ def test_sound_event_round_trips_to_heard_sound_event(rclpy_context):
         _spin_until(
             rclpy,
             [emitter, propagation, consumer],
-            lambda: propagation.count_subscribers(heard_topic) > 0
-            and emitter.count_subscribers(sound_topic) > 0,
+            lambda: propagation.count_subscribers(heard_topic) > 0 and emitter.count_subscribers(sound_topic) > 0,
         )
 
         publisher.publish(_make_sound_event())
@@ -213,9 +210,7 @@ def test_sound_event_round_trips_to_heard_sound_event(rclpy_context):
         shifted_map.info.origin.orientation.w = 1.0
         propagation._map = shifted_map
         propagation._authored_map_origin = (-0.25, -0.25)
-        assert runtime_acoustic_offset(
-            propagation._map, propagation._authored_map_origin
-        ) == pytest.approx((5.0, 4.95))
+        assert runtime_acoustic_offset(propagation._map, propagation._authored_map_origin) == pytest.approx((5.0, 4.95))
         assert propagation._world_to_grid(Point(x=5.0, y=4.95)) == (5, 5)
     finally:
         emitter.destroy_node()
@@ -253,13 +248,9 @@ def test_robot_only_policy_excludes_pedestrian_listeners(rclpy_context):
     event.source_agent_id = 1
 
     try:
-        assert set(propagation._listeners_for_event(event)) == {
-            "robot:jackal"
-        }
+        assert set(propagation._listeners_for_event(event)) == {"robot:jackal"}
 
-        propagation.set_parameters([
-            Parameter("ped_hearing", Parameter.Type.BOOL, True)
-        ])
+        propagation.set_parameters([Parameter("ped_hearing", Parameter.Type.BOOL, True)])
         assert set(propagation._listeners_for_event(event)) == {
             "agent:2",
             "robot:jackal",
@@ -294,9 +285,7 @@ def test_spawn_microphone_assigns_zone_and_next_index(rclpy_context):
         zones=(
             AcousticZone(
                 name="reception",
-                polygon=Polygon(
-                    [(0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0)]
-                ),
+                polygon=Polygon([(0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0)]),
                 floor_material_id="default",
             ),
         ),
@@ -327,9 +316,7 @@ def test_spawn_microphone_assigns_zone_and_next_index(rclpy_context):
         assert response.success is True
         assert response.zone == "reception"
         assert response.listener_id == "microphone1"
-        position, frame = propagation._spawned_microphones[
-            response.listener_id
-        ]
+        position, frame = propagation._spawned_microphones[response.listener_id]
         assert (position.x, position.y, position.z) == (2.0, 3.0, 1.5)
         assert frame == "map"
 
@@ -362,9 +349,7 @@ def test_spawn_microphone_assigns_zone_and_next_index(rclpy_context):
         )
         assert attached.success is True
         assert attached.listener_id == "microphone3"
-        local_position, attached_frame = propagation._spawned_microphones[
-            attached.listener_id
-        ]
+        local_position, attached_frame = propagation._spawned_microphones[attached.listener_id]
         assert attached_frame == "robot/base_link"
         assert (local_position.x, local_position.y) == (1.0, 2.0)
         resolved = propagation._all_microphone_positions()[attached.listener_id]
@@ -410,9 +395,7 @@ def test_spawn_microphone_assigns_zone_and_next_index(rclpy_context):
             RemoveMicrophone.Response(),
         )
         assert authored_removal.success is False
-        assert authored_removal.error_msg == (
-            "world-authored microphones cannot be removed"
-        )
+        assert authored_removal.error_msg == ("world-authored microphones cannot be removed")
 
         propagation._map = None
         request.position.header.frame_id = "rviz_map"
@@ -423,9 +406,7 @@ def test_spawn_microphone_assigns_zone_and_next_index(rclpy_context):
         )
         assert without_map.success is True
         assert without_map.listener_id == "microphone7"
-        marker_position, marker_frame = propagation._microphone_marker_poses()[
-            without_map.listener_id
-        ]
+        marker_position, marker_frame = propagation._microphone_marker_poses()[without_map.listener_id]
         assert marker_frame == "rviz_map"
         assert marker_position.x == 4.0
 
@@ -482,22 +463,26 @@ def test_propagation_runtime_toggle_stops_continuous_outputs(rclpy_context):
     propagation._map.info.origin.orientation.w = 1.0
 
     try:
-        selection_results = propagation.set_parameters([
-            Parameter(
-                "active_microphone_id",
-                Parameter.Type.STRING,
-                "microphone1",
-            ),
-        ])
+        selection_results = propagation.set_parameters(
+            [
+                Parameter(
+                    "active_microphone_id",
+                    Parameter.Type.STRING,
+                    "microphone1",
+                ),
+            ]
+        )
         assert selection_results[0].successful is True
         assert set(propagation._microphone_positions()) == {"microphone1"}
         assert propagation._last_continuous_outputs[key].active is True
         assert propagation._last_continuous_outputs[excluded_key].active is False
         assert propagation._last_continuous_outputs[robot_key].active is True
 
-        results = propagation.set_parameters([
-            Parameter("enable_propagation", Parameter.Type.BOOL, False),
-        ])
+        results = propagation.set_parameters(
+            [
+                Parameter("enable_propagation", Parameter.Type.BOOL, False),
+            ]
+        )
         assert results[0].successful is True
         assert propagation.get_parameter("enable_propagation").value is False
         stopped = propagation._last_continuous_outputs[key]
@@ -549,21 +534,20 @@ def test_viewport_camera_registers_selectable_microphones(rclpy_context):
             "microphone:viewport:down_projection",
             "microphone:viewport:projective_center",
         }
-        projective_center = propagation._microphone_positions()[
-            "microphone:viewport:projective_center"
-        ]
+        projective_center = propagation._microphone_positions()["microphone:viewport:projective_center"]
         assert (
             projective_center.x,
             projective_center.y,
             projective_center.z,
         ) == (3.0, 4.0, 8.0)
-        assert propagation._listener_height(
-            "microphone:viewport:projective_center",
-            projective_center,
-        ) == 8.0
-        down_projection = propagation._all_microphone_positions()[
-            "microphone:viewport:down_projection"
-        ]
+        assert (
+            propagation._listener_height(
+                "microphone:viewport:projective_center",
+                projective_center,
+            )
+            == 8.0
+        )
+        down_projection = propagation._all_microphone_positions()["microphone:viewport:down_projection"]
         assert (
             down_projection.x,
             down_projection.y,
@@ -599,18 +583,13 @@ def test_propagation_reconciles_robot_odom_subscriptions(rclpy_context):
         first = dict(propagation._odom_subs)
         assert ("robot1", f"/test/{suffix}/robot1/odom") in first
         assert "robot1_mic" in propagation._robot_microphones
-        robot_mic_position, robot_mic_frame = (
-            propagation._robot_microphones["robot1_mic"]
-        )
+        robot_mic_position, robot_mic_frame = propagation._robot_microphones["robot1_mic"]
         assert robot_mic_position.z == 0.35
         assert robot_mic_frame == "robot1/base_link"
 
         propagation._cb_robot_fleet(fleet)
         assert propagation._odom_subs.keys() == first.keys()
-        assert all(
-            propagation._odom_subs[key] is subscription
-            for key, subscription in first.items()
-        )
+        assert all(propagation._odom_subs[key] is subscription for key, subscription in first.items())
 
         propagation._robots["robot:robot1"] = (Point(), "map")
         propagation._cb_robot_fleet(RobotFleet())
@@ -706,8 +685,7 @@ def test_auditory_round_trip_greeting_reaches_robot_marker(rclpy_context):
         _spin_until(
             rclpy,
             [emitter, propagation, hearing, consumer],
-            lambda: fleet_pub.get_subscription_count() >= 2
-            and sound_pub.get_subscription_count() >= 1,
+            lambda: fleet_pub.get_subscription_count() >= 2 and sound_pub.get_subscription_count() >= 1,
             timeout_sec=5.0,
         )
 
@@ -716,8 +694,7 @@ def test_auditory_round_trip_greeting_reaches_robot_marker(rclpy_context):
         _spin_until(
             rclpy,
             [emitter, propagation, hearing, consumer],
-            lambda: "robot1" in hearing._robot_names
-            and odom_pub.get_subscription_count() >= 1,
+            lambda: "robot1" in hearing._robot_names and odom_pub.get_subscription_count() >= 1,
             timeout_sec=5.0,
         )
         assert hearing._robot_frames["robot1"] == "robot1/base_link"
@@ -855,7 +832,7 @@ def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
             Parameter("only_when_moving", Parameter.Type.BOOL, True),
             Parameter("publish_period_sec", Parameter.Type.DOUBLE, 10.0),
             Parameter("audio_device", Parameter.Type.STRING, "none"),
-        ]
+        ],
     )
     consumer = rclpy.create_node(f"motor_marker_consumer_{suffix}")
     received: list[MarkerArray] = []
@@ -865,9 +842,7 @@ def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
         received.append,
         transient_event_qos(depth=10),
     )
-    motor._cb_robot_fleet(
-        _make_robot_fleet("robot1", f"{namespace}/robot1")
-    )
+    motor._cb_robot_fleet(_make_robot_fleet("robot1", f"{namespace}/robot1"))
     odom = Odometry()
     odom.pose.pose.position.x = 2.0
     odom.pose.pose.position.y = 3.0
@@ -887,26 +862,15 @@ def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
         _spin_until(
             rclpy,
             [motor, consumer],
-            lambda: (
-                motor._marker_pubs["robot1"].get_subscription_count() > 0
-            ),
+            lambda: motor._marker_pubs["robot1"].get_subscription_count() > 0,
         )
         motor._publish_robot_sounds()
         _spin_until(
             rclpy,
             [motor, consumer],
-            lambda: any(
-                marker.action == Marker.ADD
-                for message in received
-                for marker in message.markers
-            ),
+            lambda: any(marker.action == Marker.ADD for message in received for marker in message.markers),
         )
-        added = [
-            marker
-            for message in received
-            for marker in message.markers
-            if marker.action == Marker.ADD
-        ]
+        added = [marker for message in received for marker in message.markers if marker.action == Marker.ADD]
         assert len(added) == 2
         assert {marker.type for marker in added} == {
             Marker.TRIANGLE_LIST,
@@ -914,16 +878,8 @@ def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
         }
         assert all(marker.header.frame_id == "robot1/base_link" for marker in added)
         assert all(len(marker.points) > 12 for marker in added)
-        assert max(
-            abs(point.x)
-            for marker in added
-            for point in marker.points
-        ) <= 1.25
-        assert all(
-            (marker.color.r, marker.color.g, marker.color.b)
-            == pytest.approx((1.0, 0.55, 0.05))
-            for marker in added
-        )
+        assert max(abs(point.x) for marker in added for point in marker.points) <= 1.25
+        assert all((marker.color.r, marker.color.g, marker.color.b) == pytest.approx((1.0, 0.55, 0.05)) for marker in added)
 
         received.clear()
         motor._last_speed["robot1"] = 0.0
@@ -931,18 +887,9 @@ def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
         _spin_until(
             rclpy,
             [motor, consumer],
-            lambda: any(
-                marker.action == Marker.DELETE
-                for message in received
-                for marker in message.markers
-            ),
+            lambda: any(marker.action == Marker.DELETE for message in received for marker in message.markers),
         )
-        deleted = [
-            marker
-            for message in received
-            for marker in message.markers
-            if marker.action == Marker.DELETE
-        ]
+        deleted = [marker for message in received for marker in message.markers if marker.action == Marker.DELETE]
         assert len(deleted) == 2
 
         # In-place rotation also drives the motors even when linear velocity
@@ -956,32 +903,26 @@ def test_motor_sound_publishes_cone_and_clears_it(rclpy_context):
         _spin_until(
             rclpy,
             [motor, consumer],
-            lambda: any(
-                marker.action == Marker.ADD
-                for message in received
-                for marker in message.markers
-            ),
+            lambda: any(marker.action == Marker.ADD for message in received for marker in message.markers),
         )
 
         # Disabling the source at runtime clears its marker and leaves the
         # robot available as a listener.
         received.clear()
-        motor.set_parameters([
-            Parameter(
-                "enable_robot_sound",
-                Parameter.Type.BOOL,
-                False,
-            )
-        ])
+        motor.set_parameters(
+            [
+                Parameter(
+                    "enable_robot_sound",
+                    Parameter.Type.BOOL,
+                    False,
+                )
+            ]
+        )
         motor._publish_robot_sounds()
         _spin_until(
             rclpy,
             [motor, consumer],
-            lambda: any(
-                marker.action == Marker.DELETE
-                for message in received
-                for marker in message.markers
-            ),
+            lambda: any(marker.action == Marker.DELETE for message in received for marker in message.markers),
         )
         assert motor._robots["robot1"].moving is False
     finally:
@@ -1039,10 +980,7 @@ def test_human_sound_node_publishes_footstep_and_cone(rclpy_context):
         _spin_until(
             rclpy,
             [producer, consumer],
-            lambda: (
-                producer._sound_publisher.get_subscription_count() > 0
-                and producer._marker_publisher.get_subscription_count() > 0
-            ),
+            lambda: producer._sound_publisher.get_subscription_count() > 0 and producer._marker_publisher.get_subscription_count() > 0,
         )
         producer._on_pedestrians(pedestrians)
         _spin_until(
@@ -1105,10 +1043,7 @@ def test_sound_propagation_uses_base_frame_when_listener_frame_is_empty(
 
     try:
         propagation._cb_robot_fleet(_make_robot_fleet("robot1", f"{ns}/robot1"))
-        assert (
-            propagation._robot_base_frames["robot:robot1"]
-            == "robot1/base_link"
-        )
+        assert propagation._robot_base_frames["robot:robot1"] == "robot1/base_link"
     finally:
         propagation.destroy_node()
 
@@ -1138,10 +1073,7 @@ def test_sound_propagation_resolves_relative_listener_frame_override(
 
     try:
         propagation._cb_robot_fleet(_make_robot_fleet("robot1", f"{ns}/robot1"))
-        assert (
-            propagation._robot_base_frames["robot:robot1"]
-            == "robot1/oakd_rgb_camera_optical_frame"
-        )
+        assert propagation._robot_base_frames["robot:robot1"] == "robot1/oakd_rgb_camera_optical_frame"
     finally:
         propagation.destroy_node()
 
@@ -1178,12 +1110,8 @@ def test_static_audio_uses_authored_source_height(rclpy_context):
     heard_state.source_model = "static_audio_source"
     heard_state.source_position.z = source_height
 
-    assert SoundPropagationNode._source_height(sound_event) == pytest.approx(
-        source_height
-    )
-    assert SoundPlaybackNode._source_height(heard_state) == pytest.approx(
-        source_height
-    )
+    assert SoundPropagationNode._source_height(sound_event) == pytest.approx(source_height)
+    assert SoundPlaybackNode._source_height(heard_state) == pytest.approx(source_height)
 
 
 def test_propagation_visualizer_splits_pedestrian_and_robot_markers(
@@ -1233,10 +1161,7 @@ def test_propagation_visualizer_splits_pedestrian_and_robot_markers(
         _spin_until(
             rclpy,
             [visualizer, consumer],
-            lambda: (
-                visualizer._pedestrian_publisher.get_subscription_count() > 0
-                and visualizer._robot_publisher.get_subscription_count() > 0
-            ),
+            lambda: visualizer._pedestrian_publisher.get_subscription_count() > 0 and visualizer._robot_publisher.get_subscription_count() > 0,
         )
         not_ready_event = _make_heard_sound_event()
         not_ready_event.listener_id = "agent:3"
@@ -1269,6 +1194,7 @@ def test_propagation_visualizer_splits_pedestrian_and_robot_markers(
         robot_event.portal_hop_count = 2
         robot_event.portal_route_loss_db = 3.5
         from geometry_msgs.msg import Point
+
         robot_event.portal_positions = [
             Point(x=0.25, y=0.0, z=1.0),
             Point(x=0.75, y=0.0, z=1.0),
@@ -1282,23 +1208,11 @@ def test_propagation_visualizer_splits_pedestrian_and_robot_markers(
         robot_color = robot_markers[-1].markers[0].color
         assert robot_color.r == pytest.approx(0.65)
         assert robot_color.b == pytest.approx(1.0)
-        path = next(
-            marker
-            for marker in robot_markers[-1].markers
-            if marker.ns == "robot_sound_propagation_path"
-        )
+        path = next(marker for marker in robot_markers[-1].markers if marker.ns == "robot_sound_propagation_path")
         assert len(path.points) == 4
-        portals = [
-            marker
-            for marker in robot_markers[-1].markers
-            if marker.ns == "robot_acoustic_portal"
-        ]
+        portals = [marker for marker in robot_markers[-1].markers if marker.ns == "robot_acoustic_portal"]
         assert len(portals) == 2
-        text = next(
-            marker
-            for marker in robot_markers[-1].markers
-            if marker.ns == "robot_sound_propagation_backend"
-        )
+        text = next(marker for marker in robot_markers[-1].markers if marker.ns == "robot_sound_propagation_backend")
         assert "2 portal(s)" in text.text
         assert "3.5 dB" in text.text
 
@@ -1312,22 +1226,11 @@ def test_propagation_visualizer_splits_pedestrian_and_robot_markers(
             [visualizer, consumer],
             lambda: len(robot_markers) >= 2,
         )
-        latest_path = next(
-            marker
-            for marker in robot_markers[-1].markers
-            if marker.ns == "robot_sound_propagation_path"
-        )
+        latest_path = next(marker for marker in robot_markers[-1].markers if marker.ns == "robot_sound_propagation_path")
         assert latest_path.id == previous_path_id
         assert latest_path.points[0].x == pytest.approx(2.0)
         assert len(latest_path.points) == 2
-        stale_portals = [
-            marker
-            for marker in robot_markers[-1].markers
-            if (
-                marker.ns == "robot_acoustic_portal"
-                and marker.action == marker.DELETE
-            )
-        ]
+        stale_portals = [marker for marker in robot_markers[-1].markers if (marker.ns == "robot_acoustic_portal" and marker.action == marker.DELETE)]
         assert len(stale_portals) == 2
     finally:
         consumer.destroy_node()
