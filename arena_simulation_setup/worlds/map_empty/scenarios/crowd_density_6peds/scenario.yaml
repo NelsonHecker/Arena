@@ -1,0 +1,52 @@
+robots:
+- name: jackal
+  start: [4.0, 21.0, -0.71]
+  phases:
+  - goto: [26.0, 2.0, -0.71]
+dynamic:
+- name: ped_cross_northwest
+  model: arenian
+  pose: [7.5, 14.0, 1.5708]
+  velocity: 0.55
+  waypoints:
+  - [7.5, 21.5, 1.5708]
+  - [7.5, 14.0, -1.5708]
+- name: ped_cross_midwest
+  model: arenian
+  pose: [11.0, 20.0, -1.5708]
+  velocity: 0.60
+  waypoints:
+  - [11.0, 10.0, -1.5708]
+  - [11.0, 20.0, 1.5708]
+- name: ped_cross_center
+  model: arenian
+  pose: [15.0, 6.0, 1.5708]
+  velocity: 0.55
+  waypoints:
+  - [15.0, 18.0, 1.5708]
+  - [15.0, 6.0, -1.5708]
+- name: ped_cross_mideast
+  model: arenian
+  pose: [19.0, 14.0, -1.5708]
+  velocity: 0.60
+  waypoints:
+  - [19.0, 4.0, -1.5708]
+  - [19.0, 14.0, 1.5708]
+- name: ped_cross_southeast
+  model: arenian
+  pose: [23.0, 2.0, 1.5708]
+  velocity: 0.55
+  waypoints:
+  - [23.0, 11.0, 1.5708]
+  - [23.0, 2.0, -1.5708]
+- name: ped_headon_counter
+  model: arenian
+  pose: [24.0, 3.5, 2.43]
+  velocity: 0.50
+  waypoints:
+  - [6.0, 19.5, 2.43]
+  - [24.0, 3.5, -0.71]
+static: []
+regions: {}
+timeline: []
+conditions: []
