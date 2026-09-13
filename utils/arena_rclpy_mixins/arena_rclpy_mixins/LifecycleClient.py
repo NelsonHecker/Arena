@@ -149,7 +149,7 @@ class AsyncLifecycleClient(AsyncNode):
             **kwargs,
         )
         start_time = self.wall_time
-        probe_timeout = min(timeout, 2.0) if timeout is not None else 2.0
+        probe_timeout = min(timeout, 5.0) if timeout is not None else 5.0
         try:
             while True:
                 try:

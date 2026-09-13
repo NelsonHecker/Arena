@@ -52,7 +52,7 @@ class MapServerHandler(NodeInterface):
     async def ensure_map_server(self):
         """Restart the map server if it is not active."""
 
-        wait_interval = 15.0
+        wait_interval = 30.0
 
         while not await self.node.wait_for_lifecycle_state_async(
             self.node.service_namespace('map_server'),
