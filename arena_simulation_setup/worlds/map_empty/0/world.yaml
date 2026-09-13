@@ -55,17 +55,6 @@ zones:
         kind: "sliding"
         material: ["Aluminum_Anodized", {"tint": "rgba(0,255,255,0.2)"}]
 
-    elevators:
-      - name: "elevator_ground"
-        position: [31.0, 5.0, 0.0]
-        size: [2.0, 2.0, 2.0]
-        door_side: "-x"
-        destination: "0.elevator_top"
-      - name: "elevator_top"
-        position: [31.0, 18.0, 0.0]
-        size: [2.0, 2.0, 2.0]
-        door_side: "-x"
-        destination: "0.elevator_ground"
     entities:
       static:
       - name: table_0

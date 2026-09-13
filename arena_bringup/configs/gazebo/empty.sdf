@@ -45,7 +45,7 @@
 
     <physics name="physics" type="ignored">
       <max_step_size>0.0333</max_step_size> <!-- minimum 30 steps per second -->
-      <real_time_update_rate>0</real_time_update_rate>
+      <real_time_factor>0</real_time_factor> <!-- 0 = unthrottled pacing in Gazebo Sim 8 -->
     </physics>
 
     <!-- Shadowless rig: four directional lights from each side, downward-biased, for even

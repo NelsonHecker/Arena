@@ -315,7 +315,7 @@ class GazeboSimulator(BaseSim):
     # gz create CLI ack timeout (ms), kept generous so a slow server-side ack
     # under heavy load is not mistaken for a spawn failure, which would leak an
     # untracked orphan model.
-    _SPAWN_TIMEOUT_MS = 60000
+    _SPAWN_TIMEOUT_MS = 180000
 
     def __init__(self, *args: object, namespace: Namespace, **kwargs: object) -> None:
         super().__init__(*args, namespace=namespace, **kwargs)
@@ -1065,18 +1065,22 @@ class GazeboSimulator(BaseSim):
         self._service_spawn_entity = self.node.create_client_wrapper(
             SpawnEntity,
             "/world/default/create",
+            timeout=180.0,
         )
         self._service_delete_entity = self.node.create_client_wrapper(
             DeleteEntity,
             "/world/default/remove",
+            timeout=180.0,
         )
         self._service_set_entity_pose = self.node.create_client_wrapper(
             SetEntityPose,
             "/world/default/set_pose",
+            timeout=180.0,
         )
         self._service_control_world = self.node.create_client_wrapper(
             ControlWorld,
             "/world/default/control",
+            timeout=180.0,
         )
         self._logger.info("Waiting for gazebo services...")
         services = (
