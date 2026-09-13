@@ -156,7 +156,7 @@ export -f _arena_compose_file arena_docker_compose arena_compose_build arena_gpu
 
 arena_podman_env(){
     arena_podman || return 0
-    local info sock rootless mode ctl
+    local info sock rootless ctl
     info=$(podman info --format '{{.Host.RemoteSocket.Path}} {{.Host.Security.Rootless}}') || return 1
     read -r sock rootless <<< "$info"
     sock=${sock#unix://}
@@ -168,8 +168,7 @@ arena_podman_env(){
         echo "arena: podman API socket $sock is not running, run: $ctl enable --now podman.socket" >&2
         return 1
     fi
-    mode=host
-    [ "$rootless" = true ] && mode=keep-id
-    grep -q '^ARENA_DOCKER_SOCK=' "$ARENA_ENV_FILE" || echo "ARENA_DOCKER_SOCK=$sock" >> "$ARENA_ENV_FILE"
-    grep -q '^ARENA_USERNS_MODE=' "$ARENA_ENV_FILE" || echo "ARENA_USERNS_MODE=$mode" >> "$ARENA_ENV_FILE"
+    ARENA_USERNS_MODE=host
+    [ "$rootless" = true ] && ARENA_USERNS_MODE=keep-id
+    export ARENA_DOCKER_SOCK=$sock ARENA_USERNS_MODE
 }
