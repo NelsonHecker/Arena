@@ -626,11 +626,17 @@ class ArenaHumanSimulator(BaseHumanSimulator):
 
         for robot in list(active_robots.values()):
             cur_pose = robot.pose
-            base_frame = robot.frame.raw()
-            if hasattr(robot, "model") and hasattr(robot.model, "resolve_sync"):
+            base_frame = getattr(robot, "_cached_base_frame", None)
+            if base_frame is None:
+                base_frame = robot.frame.raw()
+                if hasattr(robot, "model") and hasattr(robot.model, "resolve_sync"):
+                    try:
+                        cfg = robot.model.resolve_sync()
+                        base_frame = robot.frame(cfg.model_params.base_frame).raw()
+                    except Exception:
+                        pass
                 try:
-                    cfg = robot.model.resolve_sync()
-                    base_frame = robot.frame(cfg.model_params.base_frame).raw()
+                    robot._cached_base_frame = base_frame
                 except Exception:
                     pass
             try:

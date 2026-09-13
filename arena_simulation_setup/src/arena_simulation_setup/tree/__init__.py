@@ -728,12 +728,22 @@ class Identifier(IdentifierProtocol[T], Parseable, Serializable, Idempotent, typ
         return self._run_sync(self.probe())
 
     async def resolve(self, **kwargs: object) -> T:
+        if not kwargs and hasattr(self, "_resolved_cache"):
+            return self._resolved_cache
         path = await self.resolve_path()
-        return await asyncio.to_thread(self.load, path, **kwargs)
+        res = await asyncio.to_thread(self.load, path, **kwargs)
+        if not kwargs:
+            self._resolved_cache = res
+        return res
 
     def resolve_sync(self, **kwargs: object) -> T:
         """Synchronously load the asset referenced by this identifier."""
-        return self._run_sync(self.resolve(**kwargs))
+        if not kwargs and hasattr(self, "_resolved_cache"):
+            return self._resolved_cache
+        res = self._run_sync(self.resolve(**kwargs))
+        if not kwargs:
+            self._resolved_cache = res
+        return res
 
     @staticmethod
     def _run_sync(coro: typing.Coroutine[typing.Any, typing.Any, ResultT]) -> ResultT:
