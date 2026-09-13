@@ -17,13 +17,20 @@ class TM_Robots(TaskMode):
         _ctx (TaskContext): Shared task context.
     """
 
+    _last_reset: int = 0
     _start_poses: dict[str, Pose]
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        self._last_reset = getattr(getattr(self.node, "sim_time", None), "sec", 0)
+        self._start_poses = {}
 
     @property
     def start_poses(self) -> dict[str, Pose]:
         return self._start_poses
 
     async def reset(self) -> None:
+        self._last_reset = self.node.sim_time.sec
         self._start_poses = {}
 
     async def teardown(self) -> None:

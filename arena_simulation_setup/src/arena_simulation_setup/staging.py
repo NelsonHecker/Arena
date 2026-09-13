@@ -65,7 +65,7 @@ def stage(install_dir: str):
     for human_name in ['arenian']:
         try:
             h_ident = HumanIdentifier.parse(human_name)
-            h_view = asyncio.run(h_ident.resolve())
+            h_view = h_ident.resolve_sync()
             handler.add_to_staging(str(h_view.path), human_name)
         except Exception as exc:
             logging.warning('model staging: skipping human %s: %s', human_name, exc)

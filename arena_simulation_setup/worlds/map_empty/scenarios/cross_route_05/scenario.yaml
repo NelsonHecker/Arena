@@ -1,0 +1,8 @@
+robots:
+  - name: jackal
+    start: [3.5, 19.5, -0.578]
+    phases:
+      - goto: [26.5, 4.5, -0.578]
+regions: {}
+static: []
+dynamic: []
