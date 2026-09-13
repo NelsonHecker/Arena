@@ -42,6 +42,8 @@ services:
       - ARENA_IMAGE_TAG
       - ARENA_PROJECT_NAME
       - ARENA_ROS_DISTRO
+      - ARENA_DOCKER_SOCK
+      - ARENA_USERNS_MODE
       - HOST_UID
       - HOST_GID
       - HOST_ARENA_WS_DIR
