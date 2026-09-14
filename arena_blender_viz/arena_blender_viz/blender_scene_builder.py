@@ -1643,103 +1643,95 @@ if peds_frames and options.get("animate_peds", True):
             Path("/opt/arena_ws/src/Arena/arena_blender_viz/.cache/glb"),
             Path("u:/src/Arena/arena_blender_viz/.cache/glb"),
         ]:
-            if _path_exists(str(cand / "Common_arenian_idle.glb")) or _path_exists(str(cand / "Common_arenian_walk_0.glb")):
+            if _path_exists(str(cand / "Common_arenian_rigged.glb")) or _path_exists(str(cand / "Common_arenian_idle.glb")):
                 cache_glb_dir = cand
                 break
 
-    idle_glb = str(cache_glb_dir / "Common_arenian_idle.glb")
-    if not _path_exists(idle_glb):
-        idle_glb = (
-            model_glbs.get("Common/Human/arenian")
-            or model_glbs.get("arenian")
-            or model_glbs.get("Common_arenian")
-            or str(cache_glb_dir / "Common_arenian.glb")
-        )
-
-
-    walk_glbs = [str(cache_glb_dir / f"Common_arenian_walk_{i}.glb") for i in range(4)]
-    has_walk_glbs = all(_path_exists(w) for w in walk_glbs)
-
-    human_prefab = None
-    if idle_glb and os.path.isfile(idle_glb):
-        if idle_glb not in loaded_prefabs:
-            bpy.ops.import_scene.gltf(filepath=idle_glb)
-            imported_objs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
-            root_empty = bpy.data.objects.new("Prefab_Human_Arenian", None)
-            root_empty.location = (0.0, 0.0, -1000.0)
-            root_empty.hide_render = True
-            root_empty.hide_viewport = True
-            col_prefabs.objects.link(root_empty)
-            for o in imported_objs:
-                o.parent = root_empty
-                o.hide_render = True
-                o.hide_viewport = True
-                for c in list(o.users_collection):
-                    c.objects.unlink(o)
-                col_prefabs.objects.link(o)
-
-            # Build multi-phase walking shape keys on human prefab
-            if has_walk_glbs:
-                print(f"[Arena Blender Viz] Building 4-phase walking shape keys on human prefab...", flush=True)
-                for w_idx, w_path in enumerate(walk_glbs):
-                    bpy.ops.import_scene.gltf(filepath=w_path)
-                    w_objs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
-                    for io, wo in zip(imported_objs, w_objs):
-                        if not io.data.shape_keys:
-                            io.shape_key_add(name="Idle")
-                        sk = io.shape_key_add(name=f"Walk_{w_idx}")
-                        # Read the phase coordinates straight into a numpy buffer.
-                        # A Python nested comprehension here extracts ~1.7M floats
-                        # across the four phases and showed up as ~1s of build time.
-                        n_co = len(wo.data.vertices) * 3
-                        coords = np.empty(n_co, dtype=np.float32)
-                        wo.data.vertices.foreach_get("co", coords)
-                        sk.data.foreach_set("co", coords)
-                    for wo in w_objs:
-                        bpy.data.objects.remove(wo, do_unlink=True)
-                print(f"[Arena Blender Viz] Successfully loaded {len(walk_glbs)} walk phases onto human prefab.", flush=True)
-
-            loaded_prefabs[idle_glb] = root_empty
-        human_prefab = loaded_prefabs[idle_glb]
-        print(f"[Arena Blender Viz] Loaded 3D pedestrian standing prefab from: {idle_glb}", flush=True)
-
-    stage("8a ped prefab import (+walk shape keys)")
+    stage("8a ped prefab import (native rigged glTF)")
 
     ped_model_map = telemetry.get("pedestrian_models", {})
+    default_rigged_glb = (
+        model_glbs.get("pedestrian/default")
+        or model_glbs.get("pedestrian/Common/Human/arenian")
+        or model_glbs.get("pedestrian/arenian")
+        or str(cache_glb_dir / "Common_arenian_rigged.glb")
+    )
+
     ped_objs = {}
+    ped_armatures = {}
+
     for pid in ped_ids:
-        active_prefab = human_prefab
+        m_name = ped_model_map.get(pid) or ped_model_map.get(str(pid))
+        rigged_glb = None
+        if m_name:
+            rigged_glb = model_glbs.get(f"pedestrian/{m_name}") or model_glbs.get(m_name)
+            if not rigged_glb or not _path_exists(rigged_glb):
+                leaf = m_name.split("/")[-1]
+                if cache_glb_dir.is_dir():
+                    for cand in cache_glb_dir.glob(f"*{leaf}*rigged.glb"):
+                        rigged_glb = str(cand)
+                        break
 
-        if active_prefab:
-            # Instantiate 3D realistic human mesh (seated or standing)
-            p_root = bpy.data.objects.new(f"Pedestrian_{pid}", None)
-            col_actors.objects.link(p_root)
-            # NOTE: unlike furniture, pedestrians must own their mesh data.
-            # The walk cycle is driven by shape-key *values*, and shape keys live
-            # on the mesh datablock -- sharing them (dupe.data = child.data) would
-            # make every pedestrian march in lockstep. Counts are small (tens), so
-            # the private copies are cheap.
-            for child in active_prefab.children:
-                dupe = child.copy()
-                dupe.data = child.data.copy()
-                dupe.parent = p_root
-                dupe.hide_render = False
-                dupe.hide_viewport = False
-                col_actors.objects.link(dupe)
-            p_obj = p_root
-            p_obj["is_seated"] = bool(active_prefab == seated_prefab)
+        if not rigged_glb or not _path_exists(rigged_glb):
+            rigged_glb = default_rigged_glb
+
+        # Root empty for trajectory transforms
+        p_root = bpy.data.objects.new(f"Pedestrian_{pid}", None)
+        col_actors.objects.link(p_root)
+
+        if rigged_glb and _path_exists(rigged_glb):
+            existing_objs = set(bpy.data.objects)
+            existing_actions = set(bpy.data.actions)
+            bpy.ops.import_scene.gltf(filepath=str(rigged_glb))
+            new_objs = [o for o in bpy.data.objects if o not in existing_objs]
+            new_actions = [a for a in bpy.data.actions if a not in existing_actions]
+
+            arm_obj = next((o for o in new_objs if o.type == "ARMATURE"), None)
+            mesh_objs = [o for o in new_objs if o.type == "MESH" and o.name != "Icosphere"]
+
+            for o in new_objs:
+                if o.name == "Icosphere" and o.type == "MESH":
+                    bpy.data.objects.remove(o, do_unlink=True)
+
+            if arm_obj:
+                leaf_name = m_name.split("/")[-1] if m_name else "human"
+                arm_obj.name = f"Armature_{pid}_{leaf_name}"
+                for mo in mesh_objs:
+                    mo.name = f"Mesh_{pid}_{leaf_name}_{mo.name.split('_')[-1]}"
+                    for mod in mo.modifiers:
+                        if mod.type == "ARMATURE":
+                            mod.object = arm_obj
+                    for mat in mo.data.materials:
+                        if mat:
+                            mat.blend_method = "HASHED"
+
+                arm_obj.parent = p_root
+                arm_obj.location = (0.0, 0.0, 0.0)
+                arm_obj.rotation_euler = (0.0, 0.0, 0.0)
+                arm_obj.scale = (1.0, 1.0, 1.0)
+
+                for o in [arm_obj] + mesh_objs:
+                    for c in list(o.users_collection):
+                        c.objects.unlink(o)
+                    col_actors.objects.link(o)
+
+                ped_armatures[pid] = (arm_obj, new_actions)
+                print(f"[Arena Blender Viz] Loaded clean rigged pedestrian {pid} ({leaf_name}) from {rigged_glb}", flush=True)
+            else:
+                print(f"[!] Warning: No armature in rigged GLB {rigged_glb}; using proxy.", flush=True)
         else:
-            # Fallback cylinder proxy
+            # Fallback proxy cylinder
             bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=1.7, location=(0, 0, 0.85))
-            p_obj = bpy.context.active_object
-            p_obj.name = f"Pedestrian_{pid}"
-            col_actors.objects.link(p_obj)
-            scene.collection.objects.unlink(p_obj)
+            cyl = bpy.context.active_object
+            cyl.name = f"Mesh_Ped_{pid}"
+            cyl.parent = p_root
+            for c in list(cyl.users_collection):
+                c.objects.unlink(cyl)
+            col_actors.objects.link(cyl)
             mat_ped = create_pbr_material(f"Mat_Ped_{pid}", color=(0.85, 0.45, 0.2, 1.0), roughness=0.6)
-            p_obj.data.materials.append(mat_ped)
-            p_obj["is_seated"] = False
+            cyl.data.materials.append(mat_ped)
 
-        ped_objs[pid] = p_obj
+        ped_objs[pid] = p_root
 
     stage("8b ped instancing")
 
@@ -1776,31 +1768,40 @@ if peds_frames and options.get("animate_peds", True):
             cum_dists = np.array([0.0])
         total_dist = cum_dists[-1]
 
-        z_pos = 0.0 if human_prefab else 0.85
+        z_pos = 0.0
+
+        arm_info = ped_armatures.get(pid)
+        arm_obj = arm_info[0] if arm_info else None
+        arm_actions = arm_info[1] if arm_info else []
+
+        walk_act = None
+        idle_act = None
+        for act in arm_actions + list(bpy.data.actions):
+            if not walk_act and (act.name == "Walk" or act.name.startswith("Walk.")):
+                walk_act = act
+            if not idle_act and (act.name == "Idle" or act.name.startswith("Idle.")):
+                idle_act = act
 
         if total_dist < 0.3:
             # Stationary observer / patron: stay motionless at starting anchor in natural Idle stance
             p_obj.location = (float(raw_xs[0]), float(raw_ys[0]), z_pos)
             p_obj.rotation_euler = (0.0, 0.0, float(raw_yaws[0]))
-            if static_mode:
-                # Pose is set; walk shape keys already default to 0.0 (idle).
-                pass
-            else:
+            if not static_mode:
                 p_obj.keyframe_insert(data_path="location", frame=1)
                 p_obj.keyframe_insert(data_path="rotation_euler", frame=1)
                 p_obj.keyframe_insert(data_path="location", frame=scene.frame_end)
                 p_obj.keyframe_insert(data_path="rotation_euler", frame=scene.frame_end)
 
-                if human_prefab and p_obj.children:
-                    for child in p_obj.children:
-                        if child.data and child.data.shape_keys:
-                            kb = child.data.shape_keys.key_blocks
-                            for k in range(4):
-                                k_name = f"Walk_{k}"
-                                if k_name in kb:
-                                    kb[k_name].value = 0.0
-                                    kb[k_name].keyframe_insert(data_path="value", frame=1)
-                                    kb[k_name].keyframe_insert(data_path="value", frame=scene.frame_end)
+            if arm_obj and idle_act:
+                if not arm_obj.animation_data:
+                    arm_obj.animation_data_create()
+                arm_obj.animation_data.action = None
+                total_frames = max(100, scene.frame_end - scene.frame_start + 20)
+                t_idle = arm_obj.animation_data.nla_tracks.new()
+                t_idle.name = "Track_Idle"
+                s_idle = t_idle.strips.new("Idle", scene.frame_start, idle_act)
+                c_len_i = max(0.1, idle_act.frame_range[1] - idle_act.frame_range[0])
+                s_idle.repeat = math.ceil(total_frames / c_len_i) + 2
         else:
             # Active walking pedestrian: interpolate continuous, smooth trajectory and stride cycle
             interp_xs = np.interp(target_times, raw_ts, raw_xs)
@@ -1811,77 +1812,75 @@ if peds_frames and options.get("animate_peds", True):
             n_frames = len(frames_arr)
 
             if static_mode:
-                # Freeze mid-stride: same arrays the animated build keys from, so
-                # the pose matches that frame exactly (including the stride blend).
+                # Freeze mid-stride at static target frame
                 _idx = int(min(max(static_target_frame, 1), n_frames)) - 1
                 p_obj.location = (float(interp_xs[_idx]), float(interp_ys[_idx]), z_pos)
                 p_obj.rotation_euler = (0.0, 0.0, float(interp_yaws[_idx]))
+            else:
+                # Bulk keyframe the root transform in one pass
+                write_fcurves(
+                    new_channelbag(f"{p_obj.name}_action", p_obj, "OBJECT"),
+                    frames_arr,
+                    [
+                        ("location", 0, interp_xs),
+                        ("location", 1, interp_ys),
+                        ("location", 2, np.full(n_frames, z_pos)),
+                        ("rotation_euler", 0, np.zeros(n_frames)),
+                        ("rotation_euler", 1, np.zeros(n_frames)),
+                        ("rotation_euler", 2, interp_yaws),
+                    ],
+                )
 
-                _s = float(interp_s[_idx])
-                _pv = ((_s / 1.151) % 1.0) * 4.0
-                _i0 = int(_pv) % 4
-                _i1 = (_i0 + 1) % 4
-                _w1 = _pv - int(_pv)
-                _w0 = 1.0 - _w1
-                for child in p_obj.children:
-                    if child.data and child.data.shape_keys:
-                        kb = child.data.shape_keys.key_blocks
-                        for k in range(4):
-                            k_name = f"Walk_{k}"
-                            if k_name in kb:
-                                kb[k_name].value = (
-                                    _w0 if k == _i0 else (_w1 if k == _i1 else 0.0)
-                                )
-                continue
+            if arm_obj:
+                if not arm_obj.animation_data:
+                    arm_obj.animation_data_create()
+                arm_obj.animation_data.action = None
 
-            # Bulk keyframe the root transform in one pass.
-            write_fcurves(
-                new_channelbag(f"{p_obj.name}_action", p_obj, "OBJECT"),
-                frames_arr,
-                [
-                    ("location", 0, interp_xs),
-                    ("location", 1, interp_ys),
-                    ("location", 2, np.full(n_frames, z_pos)),
-                    ("rotation_euler", 0, np.zeros(n_frames)),
-                    ("rotation_euler", 1, np.zeros(n_frames)),
-                    ("rotation_euler", 2, interp_yaws),
-                ],
-            )
+                total_frames = max(100, scene.frame_end - scene.frame_start + 20)
 
-            if not (human_prefab and p_obj.children):
-                continue
+                # Base Idle track (continuous background pose)
+                if idle_act:
+                    t_idle = arm_obj.animation_data.nla_tracks.new()
+                    t_idle.name = "Track_Idle"
+                    s_idle = t_idle.strips.new("Idle", scene.frame_start, idle_act)
+                    c_len_i = max(0.1, idle_act.frame_range[1] - idle_act.frame_range[0])
+                    s_idle.repeat = math.ceil(total_frames / c_len_i) + 2
 
-            # Stride-phase blend weights, vectorised. 1.151m per full 4-phase
-            # cycle; each frame blends the two adjacent walk phases. interp_s is
-            # non-negative, so truncation and floor agree.
-            STRIDE_LEN = 1.151
-            p_val = ((interp_s / STRIDE_LEN) % 1.0) * 4.0
-            idx0 = p_val.astype(np.int64) % 4
-            idx1 = (idx0 + 1) % 4
-            w1 = p_val - np.floor(p_val)
-            w0 = 1.0 - w1
-            walk_vals = np.zeros((n_frames, 4), dtype=np.float64)
-            for k in range(4):
-                walk_vals[:, k] = np.where(k == idx0, w0, np.where(k == idx1, w1, 0.0))
+                # Walk track (replaces idle when moving)
+                if walk_act:
+                    t_walk = arm_obj.animation_data.nla_tracks.new()
+                    t_walk.name = "Track_Walk"
+                    s_walk = t_walk.strips.new("Walk", scene.frame_start, walk_act)
+                    c_len_w = max(0.1, walk_act.frame_range[1] - walk_act.frame_range[0])
+                    s_walk.repeat = math.ceil(total_frames / c_len_w) + 2
+                    s_walk.blend_type = "REPLACE"
 
-            # Each skinned child owns its shape keys, so each needs its own action
-            # on the shape-key datablock (id_type "KEY").
-            for child in p_obj.children:
-                shape_keys = child.data.shape_keys if child.data else None
-                if not shape_keys:
-                    continue
-                kb = shape_keys.key_blocks
-                curves = [
-                    (f'key_blocks["Walk_{k}"].value', 0, walk_vals[:, k])
-                    for k in range(4)
-                    if f"Walk_{k}" in kb
-                ]
-                if curves:
-                    write_fcurves(
-                        new_channelbag(f"{child.name}_shapekeys", shape_keys, "KEY", "ShapeKey"),
-                        frames_arr,
-                        curves,
-                    )
+                    # Velocity modulation: blend to Idle if pedestrian pauses along trajectory
+                    step_fr = max(1, int(fps // 4))
+                    sample_indices = list(range(0, n_frames, step_fr))
+                    if sample_indices[-1] != n_frames - 1:
+                        sample_indices.append(n_frames - 1)
+
+                    speeds = []
+                    for idx in sample_indices:
+                        if idx == 0:
+                            v = 0.0 if n_frames == 1 else (np.sqrt((interp_xs[1] - interp_xs[0]) ** 2 + (interp_ys[1] - interp_ys[0]) ** 2) * fps)
+                        else:
+                            v = np.sqrt((interp_xs[idx] - interp_xs[idx - 1]) ** 2 + (interp_ys[idx] - interp_ys[idx - 1]) ** 2) * fps
+                        speeds.append(v)
+
+                    has_pauses = any(s < 0.05 for s in speeds) and any(s >= 0.05 for s in speeds)
+                    if has_pauses:
+                        if static_mode:
+                            curr_spd = float(np.interp(static_target_frame, sample_indices, speeds))
+                            s_walk.influence = 1.0 if curr_spd >= 0.05 else 0.0
+                        else:
+                            for idx, spd in zip(sample_indices, speeds):
+                                inf = 1.0 if spd >= 0.05 else 0.0
+                                s_walk.influence = inf
+                                s_walk.keyframe_insert("influence", frame=int(frames_arr[idx]))
+                    else:
+                        s_walk.influence = 1.0
 
 
     stage("8c ped keyframing")

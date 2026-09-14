@@ -59,6 +59,8 @@ _CM_CALL_TIMEOUT = 10.0
 _CM_REFUSAL_GRACE_S = 20.0
 _CM_SWITCH_TIMEOUT = 60.0
 _CM_SWITCH_TIMED_OUT = "timed out"
+_CM_STARTUP_DEADLINE_S = 45.0
+
 
 _TELEPORT_TOLERANCE = 0.3
 _TELEPORT_SETTLE_TIMEOUT = 2.0
@@ -618,7 +620,11 @@ class RobotManager(NodeInterface):
         launch_description.add_action(launch.actions.GroupAction(adapter_actions))
 
         async with self.node.unpause_window():
-            await self.node.await_sim_step()
+            try:
+                async with asyncio.timeout(15.0):
+                    await self.node.await_sim_step()
+            except TimeoutError:
+                self._logger.warning(f"robot {self.name!r}: await_sim_step timed out after 15s during launch (sim clock may be paused)")
             self._launch_handle = await self.node.do_launch_tracked(launch_description)
             ready_timeout = self.node.conf.Robot.READY_TIMEOUT.value
             await asyncio.gather(*(a.await_ready(self, node_paths, ready_timeout) for a in self._adapter_instances))
@@ -638,8 +644,13 @@ class RobotManager(NodeInterface):
             while True:
                 states = await cm.states()
                 if states is None:
+                    if time.monotonic() - started > _CM_STARTUP_DEADLINE_S:
+                        raise TimeoutError(
+                            f"robot {self.name!r}: controller_manager did not respond within {_CM_STARTUP_DEADLINE_S}s (simulator may have crashed or paused)"
+                        )
                     await asyncio.sleep(_CONTROLLER_POLL)
                     continue
+
                 step = next_transition(expected, states)
                 if step is None:
                     return

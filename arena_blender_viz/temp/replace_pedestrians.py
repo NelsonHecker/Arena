@@ -101,12 +101,12 @@ def ensure_rigged_glb(model_id: str, cache_dir: Path) -> Path | None:
             logger.info(f"Using fallback rigged GLB for {model_id} -> {fallback.name}")
             return fallback
 
-    # Try building on-the-fly
+    # Try building on-the-fly via arena_blender_viz.model_converter
     try:
-        from temp.rigged_glb_builder import convert_human_to_rigged_glb
+        from arena_blender_viz.model_converter import convert_human_to_rigged_glb
     except ImportError:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-        from temp.rigged_glb_builder import convert_human_to_rigged_glb
+        from arena_blender_viz.model_converter import convert_human_to_rigged_glb
 
     assets_root = Path("u:/src/Arena/_assets/default")
     asset_dir_cands = [
@@ -225,15 +225,21 @@ def _run_inside_blender(args_list: list[str]):
         is_moving = displacement > 0.15
         print(f"  Pedestrian {pid} displacement = {displacement:.3f}m -> {'WALKING' if is_moving else 'IDLE'}", flush=True)
 
-        # 2. Remove old child meshes and old shape key actions
-        old_children = list(p_root.children)
-        for child in old_children:
+        # 2. Remove old child armatures, child meshes, and old shape key actions
+        for child in list(p_root.children):
             if child.data and hasattr(child.data, "shape_keys") and child.data.shape_keys:
                 sk = child.data.shape_keys
                 if sk.animation_data and sk.animation_data.action:
                     old_act = sk.animation_data.action
                     bpy.data.actions.remove(old_act)
+            for grand_child in list(child.children):
+                bpy.data.objects.remove(grand_child, do_unlink=True)
             bpy.data.objects.remove(child, do_unlink=True)
+
+        # Also remove any orphaned meshes/armatures previously associated with this pid
+        for o in list(bpy.data.objects):
+            if o.name.startswith(f"Mesh_{pid}_") or o.name.startswith(f"Armature_{pid}_"):
+                bpy.data.objects.remove(o, do_unlink=True)
 
         # 3. Import Rigged glTF 2.0
         # Remember objects before import to accurately isolate newly imported objects

@@ -51,13 +51,27 @@ def _prune_dead_ament_prefixes() -> None:
 def _select_render_engine() -> str:
     """ogre2 renders PBR materials but needs a real GL device; ogre1 is the software-safe fallback.
     Forced-software GL (LIBGL_ALWAYS_SOFTWARE) segfaults ogre2's GL3Plus backend, so it pins ogre1."""
+    override = os.environ.get("ARENA_GZ_RENDER_ENGINE")
+    if override in ("ogre", "ogre2"):
+        return override
     if os.environ.get("LIBGL_ALWAYS_SOFTWARE", "0").lower() in ("1", "true"):
+        return "ogre"
+    dri_dir = "/dev/dri"
+    if os.path.isdir(dri_dir):
+        try:
+            render_devs = [os.path.join(dri_dir, f) for f in os.listdir(dri_dir) if f.startswith("renderD") or f.startswith("card")]
+            if not render_devs or not any(os.access(dev, os.R_OK | os.W_OK) for dev in render_devs):
+                return "ogre"
+        except Exception:
+            return "ogre"
+    else:
         return "ogre"
     try:
         subprocess.run(["nvidia-smi"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
     except Exception:
         return "ogre"
     return "ogre2"
+
 
 
 def generate_launch_description():

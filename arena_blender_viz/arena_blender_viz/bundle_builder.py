@@ -124,21 +124,16 @@ class BundleBuilder:
         converter = ModelConverter()
         model_glb_map = converter.batch_convert_models(all_model_ids)
 
-        # Pedestrian stride cycle. The scene builder consumes Common_arenian_idle
-        # plus Common_arenian_walk_0..3 by fixed name, and no model_id maps to
-        # those, so they are derived here. Without them the builder silently
-        # produces pedestrians with no walk animation.
+        # Build clean native rigged glTF 2.0 binary for default pedestrian (Arenian)
         try:
-            phases = converter.get_human_phase_glbs()
-            for tag, path in phases.items():
-                model_glb_map[f"human/phase/{tag}"] = str(path).replace("\\", "/")
-            if len(phases) < 5:
-                print(
-                    f"[!] Only {len(phases)}/5 pedestrian phase GLBs available "
-                    f"({sorted(phases)}); walk animation will be limited"
-                )
+            default_rigged = converter.get_rigged_human_glb("Common/Human/arenian")
+            if default_rigged and default_rigged.is_file():
+                r_str = str(default_rigged).replace("\\", "/")
+                model_glb_map["pedestrian/default"] = r_str
+                model_glb_map["pedestrian/Common/Human/arenian"] = r_str
+                model_glb_map["pedestrian/arenian"] = r_str
         except Exception as e:
-            print(f"[!] Walk-cycle generation failed ({e}); pedestrians will not stride")
+            print(f"[!] Rigged pedestrian generation failed ({e})")
 
         # 3. Telemetry and Scenario Entities (optional)
         robot_trajectory: list[dict[str, Any]] = []
@@ -220,6 +215,14 @@ class BundleBuilder:
                         })
 
                 print(f"[Arena Blender Viz] Loaded scenario pedestrian mapping from {scenario_yaml_path.name}: {pedestrian_models}")
+                for m_name in set(pedestrian_models.values()):
+                    if m_name and f"pedestrian/{m_name}" not in model_glb_map:
+                        try:
+                            rigged_p = converter.get_rigged_human_glb(m_name)
+                            if rigged_p and rigged_p.is_file():
+                                model_glb_map[f"pedestrian/{m_name}"] = str(rigged_p).replace("\\", "/")
+                        except Exception as pe:
+                            print(f"[!] Failed to convert rigged pedestrian {m_name}: {pe}")
             except Exception as e:
                 print(f"[!] Warning reading scenario {scenario_yaml_path}: {e}")
 
