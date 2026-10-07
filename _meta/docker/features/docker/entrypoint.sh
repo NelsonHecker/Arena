@@ -16,7 +16,7 @@ if [ ! -f /.built ]; then
             arena registry add docker
             echo "Running initial setup..."
             arena update
-            rm -rf build/arena_models install/arena_models
+            rm -rf build/arena_assets install/arena_assets
             BUILD_ALL=1 arena build || true
             sudo touch /.built
             echo 'Initial setup complete.'

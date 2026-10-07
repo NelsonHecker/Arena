@@ -1,2 +1,16 @@
+[project]
+name = "arena_viz"
+version = "0.0.0"
+dependencies = [
+    "attrs",
+]
+dynamic = ["description", "license", "maintainers"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.uv]
+package = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

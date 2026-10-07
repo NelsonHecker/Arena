@@ -10,7 +10,7 @@ import sys
 import time
 
 _CHILD = pathlib.Path(__file__).with_name("_teardown_child.py")
-_NOISE = ("Traceback", "context is not valid", "context is invalid", "never retrieved")
+_NOISE = ("Traceback", "context is not valid", "context is invalid", "never retrieved", "terminate called", "Fatal Python error")
 
 
 def _env() -> dict[str, str]:
@@ -21,8 +21,8 @@ def _run(mode: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([sys.executable, str(_CHILD), mode], env=_env(), capture_output=True, text=True, timeout=30, check=False)
 
 
-def test_async_main_sigint_is_quiet():
-    proc = subprocess.Popen([sys.executable, str(_CHILD), "async_storm"], env=_env(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+def _sigint_is_quiet(mode: str) -> None:
+    proc = subprocess.Popen([sys.executable, str(_CHILD), mode], env=_env(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert proc.stdout is not None
     deadline = time.monotonic() + 20.0
     while proc.stdout.readline().strip() != "READY":
@@ -32,6 +32,14 @@ def test_async_main_sigint_is_quiet():
     _, stderr = proc.communicate(timeout=20)
     assert proc.returncode == 0, stderr
     assert not any(marker in stderr for marker in _NOISE), stderr
+
+
+def test_async_main_sigint_is_quiet():
+    _sigint_is_quiet("async_storm")
+
+
+def test_spin_node_on_events_executor_sigint_is_quiet():
+    _sigint_is_quiet("sync_events")
 
 
 def test_async_main_reports_loop_stall():
@@ -50,6 +58,12 @@ def test_async_main_reports_loop_stall():
 def test_watchdog_deadline_exits_process():
     proc = _run("watchdog_deadline")
     assert proc.returncode == 7, proc.stderr
+
+
+def test_async_main_exits_on_failing_async_callback():
+    proc = _run("callback_failure")
+    assert proc.returncode == 1, proc.stderr
+    assert "callback failed" in proc.stderr
 
 
 def test_spin_context_swallows_after_shutdown():

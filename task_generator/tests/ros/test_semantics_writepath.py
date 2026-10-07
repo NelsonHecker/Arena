@@ -209,6 +209,7 @@ def _timeline_stub(entries: list, seed: int = 7) -> tuple[object, object, list[i
     fired: list[int] = []
     stub = type("Stub", (), {})()
     stub._zone_overrides = {}
+    stub._sound_levels = {}
     stub._fire_timeline_entry = lambda idx, entry: fired.append(idx)
     TaskGenerator.register_timeline(stub, entries, seed)
     return stub, TaskGenerator, fired
@@ -240,6 +241,22 @@ def test_timeline_every_fires_each_period() -> None:
     cls._evaluate_timeline(stub, 5.0)
     assert fired == [0]
     cls._evaluate_timeline(stub, 10.0)
+    assert fired == [0, 0]
+
+
+def test_timeline_every_first_fires_at_offset() -> None:
+    from arena_simulation_setup.tree.World.Scenario import TimelineEntry
+
+    entry = TimelineEntry(set=[{"entity": "a", "field": "x", "value": "1"}], every=6.0, offset=2.0)
+    stub, cls, fired = _timeline_stub([entry])
+    cls._evaluate_timeline(stub, 0.0)
+    cls._evaluate_timeline(stub, 1.9)
+    assert fired == []
+    cls._evaluate_timeline(stub, 2.0)
+    assert fired == [0]
+    cls._evaluate_timeline(stub, 7.9)
+    assert fired == [0]
+    cls._evaluate_timeline(stub, 8.0)
     assert fired == [0, 0]
 
 
@@ -277,10 +294,12 @@ def test_reset_timeline_clears_state() -> None:
 
     entry = TimelineEntry(set=[{"entity": "a", "field": "x", "value": "1"}], at=1.0)
     stub, cls, _fired = _timeline_stub([entry])
+    TaskGenerator.register_sound_levels(stub, {"env_0/alarm_sound": 88.0})
     TaskGenerator.reset_timeline(stub)
     assert stub._timeline == []
     assert stub._timeline_state == []
     assert stub._timeline_t0 is None
+    assert stub._sound_levels == {}
 
 
 # ---------------------------------------------------------------------------

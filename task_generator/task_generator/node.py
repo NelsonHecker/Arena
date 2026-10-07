@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import json
 import random
+import threading
 import traceback
 import typing
 import uuid
@@ -28,6 +29,7 @@ import tf2_ros
 from arena_rclpy_mixins import ArenaMixinNode
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
+from arena_rclpy_mixins.Time import Time
 from arena_robots.Sensor import SensorType
 from arena_runtime.sim import BaseSim, SimulatorRegistry
 from arena_simulation_setup.tree.World.Scenario import EpisodeCondition, TimelineEntry
@@ -37,13 +39,18 @@ from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterValue
 from rcl_interfaces.msg import Parameter as RclParameter
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.exceptions import InvalidHandle
+from rclpy.impl.implementation_singleton import rclpy_implementation
 from rclpy.lifecycle import TransitionCallbackReturn
 from rclpy.parameter import Parameter
 from std_msgs.msg import Bool, Int16, String
 from task_generator_msgs.msg import AdapterDisplay, AdapterEntry, AdapterVizManifest
 
 from task_generator.constants import Constants
-from task_generator.constants.runtime import Configuration
+from task_generator.constants.runtime import Configuration, migrate_deprecated_params
+from task_generator.interactive import MarkerHub
+from task_generator.interactive.colors import RobotColors
+from task_generator.interactive.entities import EntityHandles
 from task_generator.manager.environment_manager import EnvironmentManager
 from task_generator.manager.realizer import Realizer
 from task_generator.manager.robot_manager import RobotsManager
@@ -51,6 +58,7 @@ from task_generator.manager.world_manager.world_manager_ros import (
     WorldManagerROS as WorldManager,
 )
 from task_generator.shared import Orientation, Pose, Position
+from task_generator.simulators.auditory import AuditorySimulatorRegistry, BaseAuditorySimulator
 from task_generator.simulators.human import BaseHumanSimulator, HumanSimulatorRegistry
 from task_generator.tasks import identifier_to_available, identifier_to_available_async
 from task_generator.tasks.obstacles import ObstacleKind
@@ -65,6 +73,7 @@ if typing.TYPE_CHECKING:
     from arena_runtime.sim._semantics import SemanticChange, SemanticEntitySnapshot
 
     from task_generator.shared import SemanticCfg
+    from task_generator.tasks.robots.adapters import AdapterDisplayHint
 
 _LATCHED = rclpy.qos.QoSProfile(
     depth=1,
@@ -97,6 +106,7 @@ class EpisodeRecord:
     goal_dist_min: float = 0.0
     path_length: float = 0.0
     integrity: bool = True
+    start_time: Time = attrs.Factory(Time)
 
 
 @attrs.define
@@ -135,6 +145,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     _world_manager: WorldManager
     _human_simulator: BaseHumanSimulator
+    _auditory_simulator: BaseAuditorySimulator
     _environment_manager: EnvironmentManager
     _robots_manager: RobotsManager | None = None
     _simulator: BaseSim
@@ -154,6 +165,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     def __init__(self):
         super().__init__("task_generator", automatically_declare_parameters_from_overrides=True)
+        migrate_deprecated_params(self)
         self.conf = Configuration(self)
 
         self._namespace = Namespace(self.get_namespace())
@@ -175,14 +187,14 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._prespawn_offset = (0.0, 0.0)
 
         self._declare_mutable_param(
-            "auto_reset",
+            "task.episode.auto_reset",
             True,
             ParameterDescriptor(
                 description=("true = standalone: node auto-advances episodes. false = managed: external controller drives resets."),
             ),
         )
         self._declare_mutable_param(
-            "fail_on_collision",
+            "task.episode.fail_on_collision",
             False,
             ParameterDescriptor(
                 description=("true = abort the episode as FAILED when the robot footprint contacts a wall, static obstacle, or pedestrian."),
@@ -210,15 +222,21 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._goal_progress = GoalProgressTracker()
 
         self._reset_lock: asyncio.Lock = asyncio.Lock()
+        self.markers = MarkerHub(self, self.service_namespace("markers"), self._reset_lock)
+        self._entities = EntityHandles(self)
+        self.robot_colors = RobotColors()
         self._start_time = self.time
         self._task: Task | None = None
 
         self._staged_obstacles_params: dict[str, ParameterValue] = {}
         self._staged_robots_params: dict[str, ParameterValue] = {}
+        self._staged_human_params: dict[str, ParameterValue] = {}
+        self._human_params: dict[str, ParameterValue] = {}
 
         # M2 semantics write path: inert-zone field overrides, bare->realized entity
         # name map, and the scenario timeline evaluated on sim time.
         self._zone_overrides: dict[tuple[str, str], object] = {}
+        self._sound_levels: dict[str, float] = {}
         self._semantic_names: dict[str, str] = {}
         self._timeline: list[TimelineEntry] = []
         self._timeline_state: list[dict[str, object]] = []
@@ -292,7 +310,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             10,
         )
 
-        self._heartbeat_timer = self.wall_timer(1.0, self._cb_heartbeat_tick)
+        self._heartbeat_stop = threading.Event()
+        threading.Thread(target=self._heartbeat_loop, name="heartbeat", daemon=True).start()
 
         self._arena_seen = False
         self._arena_watchdog_timer = self.wall_timer(1.0, self._cb_arena_watchdog)
@@ -349,6 +368,11 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             "console_port": 20103 + offset,
         }
 
+    def _heartbeat_loop(self) -> None:
+        while not self._heartbeat_stop.wait(1.0) and rclpy.ok():
+            with contextlib.suppress(rclpy_implementation.RCLError, InvalidHandle):
+                self._cb_heartbeat_tick()
+
     def _cb_heartbeat_tick(self) -> None:
         msg = arena_runtime_msgs.msg.Heartbeat()
         msg.fqn = self.get_fully_qualified_name()
@@ -364,14 +388,14 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             return
         self.get_logger().error("/arena/state/envs publisher gone, self-shutting down")
         self._arena_watchdog_timer.cancel()
-        self._heartbeat_timer.cancel()
+        self._heartbeat_stop.set()
         rclpy.try_shutdown()
 
     def _cb_shutdown_request(self, msg: arena_runtime_msgs.msg.ShutdownRequest) -> None:
         if msg.env_id != self._env_id:
             return
         self.get_logger().info(f"shutdown request received (reason={msg.reason!r}); shutting down")
-        self._heartbeat_timer.cancel()
+        self._heartbeat_stop.set()
         rclpy.try_shutdown()
 
     async def setup(self) -> None:
@@ -380,24 +404,28 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             await self._arena_hold_client.ensure()
             await self._arena_unpause_window_client.ensure()
 
-            await self._set_up_managers()
+            await self.hold("setup")
+            try:
+                await self._set_up_managers()
 
-            tm_modules = self.conf.TaskMode.TM_MODULES.value
-            tm_modules.add(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
-            tm_modules.add(Constants.TaskMode.TM_Module.RVIZ_UI)
+                tm_modules = self.conf.TaskMode.TM_MODULES.value
+                tm_modules.add(Constants.TaskMode.TM_Module.CLEAR_FORBIDDEN_ZONES)
+                tm_modules.add(Constants.TaskMode.TM_Module.RVIZ_UI)
 
-            self._task = await Task.create(
-                node=self,
-                environment_manager=self._environment_manager,
-                robots_manager=self._robots_manager,
-                world_manager=self._world_manager,
-                modules=list(tm_modules),
-            )
+                self._task = await Task.create(
+                    node=self,
+                    environment_manager=self._environment_manager,
+                    robots_manager=self._robots_manager,
+                    world_manager=self._world_manager,
+                    modules=list(tm_modules),
+                )
 
-            await self._world_manager.sync()
-            if flag_enabled(self, "debug", "map_server"):
-                await self._world_manager.require_map_server()
-            await self._robots_manager.launch_pending()
+                await self._world_manager.sync()
+                if flag_enabled(self, "debug", "map_server") or self._auditory_simulator.requires_map_server:
+                    await self._world_manager.require_map_server()
+                await self._robots_manager.launch_pending()
+            finally:
+                await self.release("setup")
             self._publish_viz_manifest()
 
             self.rosparam[bool].set("initialized", True)
@@ -415,7 +443,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         def _start() -> None:
             self._check_status_task = asyncio.create_task(self._termination_watcher())
-            if self.rosparam[bool].get_unsafe("auto_reset"):
+            if self.rosparam[bool].get_unsafe("task.episode.auto_reset"):
                 self._spawn_episode()
 
         self.event_loop.call_soon_threadsafe(_start)
@@ -430,15 +458,15 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         return TransitionCallbackReturn.SUCCESS
 
     def on_cleanup(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
-        self._heartbeat_timer.cancel()
+        self._heartbeat_stop.set()
         return TransitionCallbackReturn.SUCCESS
 
     def on_shutdown(self, state: rclpy.lifecycle.State) -> TransitionCallbackReturn:
-        self._heartbeat_timer.cancel()
+        self._heartbeat_stop.set()
         return TransitionCallbackReturn.SUCCESS
 
     async def teardown(self) -> None:
-        self._heartbeat_timer.cancel()
+        self._heartbeat_stop.set()
         for t in (self._tick_loop_task, self._check_status_task, self._episode_task):
             if t is not None and not t.done():
                 t.cancel()
@@ -492,6 +520,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             env_id=self._env_id,
         )
         self._simulator.set_semantics_callback(self._on_semantics_changed)
+        self._logger.info("Setting up auditory simulator")
+        self._auditory_simulator = await AuditorySimulatorRegistry.get(
+            self.conf.Arena.AUDITORY.value,
+            node=self,
+            namespace=self._namespace,
+        )
+
         self._logger.info("Setting up human simulator")
         self._human_simulator = await HumanSimulatorRegistry.get(
             self.conf.Arena.HUMAN.value,
@@ -499,6 +534,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             namespace=self._namespace,
             simulator=self._simulator,
             realizer=realizer,
+            auditory=self._auditory_simulator,
         )
 
         self._logger.info("Setting up environment manager")
@@ -559,6 +595,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.goal_dist_min = record.goal_dist_min
         msg.path_length = record.path_length
         msg.integrity = record.integrity
+        msg.start_time = record.start_time.to_msg()
         msg.conditions = json.dumps([c.serialize() for c in self._episode_conditions])
         return msg
 
@@ -566,6 +603,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg = self._record_to_msg(self._episodes.current)
         msg.obstacles_params = self._params_for_mode(self._episodes.current.tm_obstacles)
         msg.robots_params = self._params_for_mode(self._episodes.current.tm_robots)
+        msg.human_params = [RclParameter(name=k, value=v) for k, v in self._human_params.items()]
         self._pub_state_episode.publish(msg)
 
     def _semantic_entity_state_msg(self, snap: "SemanticEntitySnapshot") -> task_generator_msgs.msg.SemanticEntityState:
@@ -665,7 +703,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.stamp = self.sim_time.to_msg()
         msg.env_id = self._env_id
         msg.world = self._world_manager.loaded_world
-        entities = [self._semantic_entity_state_msg(s) for s in self._simulator.semantics_snapshot()]
+        snapshots = self._simulator.semantics_snapshot()
+        self._world_manager.publish_world_markers(snapshots)
+        entities = [self._semantic_entity_state_msg(s) for s in snapshots]
         entities.extend(self._zone_semantic_states())
         msg.entities = entities
         self._pub_state_semantics.publish(msg)
@@ -752,17 +792,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             return False
         return True
 
-    def _cb_set_semantic(
+    async def _cb_set_semantic(
         self,
         request: task_generator_msgs.srv.SetSemantic.Request,
         response: task_generator_msgs.srv.SetSemantic.Response,
     ) -> task_generator_msgs.srv.SetSemantic.Response:
         """External untrusted write: full validation, structured error_msg, no bare-name resolution."""
-
-        async def _apply() -> str:
-            return self._apply_semantic_checked(request.entity, request.field, request.value)
-
-        reason = self.wait_for(_apply())
+        reason = self._apply_semantic_checked(request.entity, request.field, request.value)
         response.success = not reason
         response.error_msg = reason
         return response
@@ -779,7 +815,13 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 return self._stringify_float(snap.continuous[field])
             if field in snap.predicates:
                 return "true" if snap.predicates[field] else "false"
+            if field == "volume_db" and realized in self._sound_levels:
+                return self._stringify_float(self._sound_levels[realized])
         return self._zone_field_value(realized, field)
+
+    def register_sound_levels(self, levels: dict[str, float]) -> None:
+        """Asset level of each episode sound, read as its volume_db while its semantics carry none."""
+        self._sound_levels = dict(levels)
 
     # SCENARIO TIMELINE
 
@@ -790,7 +832,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._timeline_t0 = None
         self._timeline_state = []
         for idx, entry in enumerate(self._timeline):
-            nxt = (entry.offset + entry.every) if (entry.every is not None and entry.every > 0.0) else float("inf")
+            if entry.every is not None and entry.every > 0.0:
+                nxt = entry.offset if entry.offset > 0.0 else entry.every
+            else:
+                nxt = float("inf")
             self._timeline_state.append(
                 {"fired": False, "next": nxt, "prev": False, "rng": random.Random(f"{seed}:{idx}")},
             )
@@ -802,6 +847,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         self._timeline_t0 = None
         self._episode_conditions = []
         self._zone_overrides.clear()
+        self._sound_levels.clear()
         self._semantics_dirty = True
 
     def register_conditions(self, conditions: "Sequence[EpisodeCondition]") -> None:
@@ -892,7 +938,6 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         }
 
         env_ns = self.get_namespace()
-        auditory_ns = self.get_fully_qualified_name()
 
         env_displays: list[AdapterDisplay] = [
             AdapterDisplay(
@@ -912,7 +957,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 topic_must_exist=False,
             ),
         ]
-        latched = StyleSpec(extra={"rviz": {"Reliability Policy": "Reliable", "Durability Policy": "Transient Local"}}).to_json()
+        latched = StyleSpec(latched=True).to_json()
         human_sim = self.conf.Arena.HUMAN.value
         if human_sim not in (Constants.HumanSimulator.DUMMY, Constants.HumanSimulator.NONE):
             env_displays.append(
@@ -965,36 +1010,33 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     )
                 )
 
-        for name, topic in (
-            (
-                "Microphones",
-                f"{auditory_ns}/microphone_markers",
-            ),
-            (
-                "Environment Audio Sources",
-                f"{auditory_ns}/environment_audio_source_markers",
-            ),
-            (
-                "Pedestrian Heard Sound",
-                f"{auditory_ns}/pedestrian_sound_propagation_markers",
-            ),
-            (
-                "Robot Heard Sound",
-                f"{auditory_ns}/robot_sound_propagation_markers",
-            ),
-        ):
-            env_displays.append(
-                AdapterDisplay(
-                    name=name,
-                    topic=topic,
-                    topic_type="visualization_msgs/MarkerArray",
-                    kind=DisplayKind.MARKER_ARRAY,
-                    style_json=(latched if name == "Microphones" else StyleSpec(enabled=True).to_json()),
-                    topic_must_exist=False,
-                    group="Sound Propagation",
-                )
+        env_displays.append(
+            AdapterDisplay(
+                name="Handles",
+                topic=str(self.markers.namespace),
+                topic_type="visualization_msgs/InteractiveMarkerUpdate",
+                kind=DisplayKind.INTERACTIVE_MARKERS,
+                style_json=StyleSpec().to_json(),
+                topic_must_exist=False,
+                group="Interaction",
             )
+        )
+
+        env_displays.append(
+            AdapterDisplay(
+                name="World",
+                topic=f"{env_ns}/world_markers",
+                topic_type="visualization_msgs/MarkerArray",
+                kind=DisplayKind.MARKER_ARRAY,
+                style_json=StyleSpec(latched=True, enabled=False).to_json(),
+                topic_must_exist=False,
+                group="Static",
+            )
+        )
+
+        env_displays.extend(self._auditory_simulator.displays())
         entries: list[AdapterEntry] = []
+        self.robot_colors.retain(self._robots_manager.managers)
         for mgr in self._robots_manager.managers.values():
             ns_value = str(mgr.namespace)
             robot_value = mgr.name
@@ -1023,27 +1065,24 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                         displays=sensor_displays,
                     )
                 )
-            entries.append(
-                AdapterEntry(
-                    robot_ns=ns_value,
-                    adapter_kind="_auditory",
-                    displays=[
-                        AdapterDisplay(
-                            name="Motor Sound",
-                            topic=(f"{auditory_ns}/{robot_value}/motor_sound_markers"),
-                            topic_type="visualization_msgs/MarkerArray",
-                            kind=DisplayKind.MARKER_ARRAY,
-                            style_json=StyleSpec(enabled=True).to_json(),
-                            topic_must_exist=False,
-                        )
-                    ],
+            if auditory_displays := self._auditory_simulator.robot_displays(robot_value, hearing=self.conf.Robot.HEARING.value != 'none'):
+                entries.append(
+                    AdapterEntry(
+                        robot_ns=ns_value,
+                        adapter_kind="_auditory",
+                        displays=list(auditory_displays),
+                    )
                 )
-            )
 
             for adapter in mgr._adapter_instances:
 
                 def _subst(s: str, ns_value: str = ns_value, robot_value: str = robot_value) -> str:
                     return s.replace("{ns}", ns_value).replace("{robot}", robot_value)
+
+                def _style(hint: "AdapterDisplayHint", robot_value: str = robot_value) -> str:
+                    if not hint.robot_colored:
+                        return _subst(hint.style_json)
+                    return attrs.evolve(StyleSpec.from_json(_subst(hint.style_json)), color=self.robot_colors.rgb(robot_value)).to_json()
 
                 displays = [
                     AdapterDisplay(
@@ -1051,7 +1090,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                         topic=_subst(hint.topic),
                         topic_type=hint.topic_type,
                         kind=hint.kind,
-                        style_json=_subst(hint.style_json),
+                        style_json=_style(hint),
                         topic_must_exist=hint.topic_must_exist,
                     )
                     for hint in adapter.displays
@@ -1125,6 +1164,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
         msg.integrity = True
         msg.obstacles_params = [RclParameter(name=k, value=v) for k, v in obstacles_map.items()]
         msg.robots_params = [RclParameter(name=k, value=v) for k, v in robots_map.items()]
+        msg.human_params = [RclParameter(name=k, value=v) for k, v in (self._human_params | self._staged_human_params).items()]
         self._pub_state_queue.publish(msg)
 
     async def _build_next_record(self, world: str, seed: int) -> None:
@@ -1153,9 +1193,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             tm_modules = current_modules if overrides.keep_modules else overrides.tm_modules
 
         if tm_robots and tm_robots != current_robots:
-            self.rosparam[str].set("tm_robots", tm_robots)
+            self.rosparam[str].set("task.robots", tm_robots)
         if tm_obstacles and tm_obstacles != current_obstacles:
-            self.rosparam[str].set("tm_obstacles", tm_obstacles)
+            self.rosparam[str].set("task.obstacles", tm_obstacles)
 
         self._episodes.current = EpisodeRecord(
             episode_id=new_id,
@@ -1172,6 +1212,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
     async def _run_reset_cycle(self) -> None:
         async with self._reset_lock:
+            self.markers.clear()
+            self._entities.clear()
             self._start_time = self.sim_time
             self.get_logger().info("resetting")
             self._pub_state_resetting.publish(Bool(data=True))
@@ -1192,6 +1234,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
             self._pub_state_world.publish(String(data=record.world))
 
+            # This is the first instant at which the reset world, robot and
+            # pedestrians are all committed. Dataset export clips audio to it.
+            record.start_time = self.sim_time
             record.outcome_state = task_generator_msgs.action.RunEpisode.Result.RUNNING
             self._publish_episode_state()
 
@@ -1230,6 +1275,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 manager.name,
                 (pose.position.x, pose.position.y),
                 (goal.position.x, goal.position.y),
+                self.sim_time.to_seconds(),
             )
         best = self._goal_progress.least_progress()
         if best is None:
@@ -1248,6 +1294,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                 if fut is None or fut.done():
                     continue
                 self._sample_goal_progress()
+                stall_limit = self.conf.Robot.NO_PROGRESS_TIMEOUT.value
+                if self._goal_progress.longest_stall(self.sim_time.to_seconds(), self.conf.Robot.GOAL_TOLERANCE_RADIUS.value) > stall_limit:
+                    self.fail_episode("no progress")
+                    continue
                 if not await self._task.is_done:
                     continue
                 if self._task.abort_reason is not None:
@@ -1411,6 +1461,18 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
                     return response
                 validated_modules.append(mod_str)
 
+        namespaces = sorted(Constants.HUMAN_PARAM_NAMESPACES.values())
+        for p in request.human_params:
+            namespace, _, leaf = p.name.partition(".")
+            if namespace == Constants.HUMAN_PARAM_RESERVED:
+                response.success = False
+                response.error_msg = f"human_params: {p.name!r} is reserved, no universal params are defined. Namespaces: {', '.join(namespaces)}"
+                return response
+            if namespace not in namespaces or not leaf:
+                response.success = False
+                response.error_msg = f"human_params: {p.name!r} has no known namespace. Namespaces: {', '.join(namespaces)}"
+                return response
+
         existing = self._episodes.pending_overrides or TaskModeOverrides(keep_modules=True)
         if request.tm_robots:
             if request.tm_robots != existing.tm_robots:
@@ -1432,6 +1494,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             self._staged_obstacles_params[p.name] = p.value
         for p in request.robots_params:
             self._staged_robots_params[p.name] = p.value
+        for p in request.human_params:
+            self._staged_human_params[p.name] = p.value
 
         mid_episode = self._episodes.action_in_flight and self._episodes.current.episode_id > 0
         if mid_episode:
@@ -1484,6 +1548,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             if not result.successful:
                 log.warning(f"staged params {list(merged)} rejected: {result.reason}")
 
+    async def _apply_staged_human_params(self) -> None:
+        staged = [RclParameter(name=k, value=v) for k, v in self._staged_human_params.items()]
+        self._staged_human_params.clear()
+        for p in await self._environment_manager.configure_humans(staged):
+            self._human_params[p.name] = p.value
+
     async def _cb_get_task_modes(
         self,
         request: task_generator_msgs.srv.GetTaskModes.Request,
@@ -1515,9 +1585,10 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     ) -> task_generator_msgs.srv.SpawnStatic.Response:
         try:
             pose = self._pose_from_request(request.pose) if request.use_pose else None
-            entity_id = await self._task.tm_obstacles.extend(ObstacleKind.STATIC, request.model, pose)
+            obstacle = await self._task.tm_obstacles.extend(ObstacleKind.STATIC, request.model, pose)
+            self._entities.add(obstacle)
             self._flip_integrity()
-            response.id = entity_id
+            response.id = obstacle.sim_path
             response.success = True
         except Exception as e:
             response.success = False
@@ -1531,9 +1602,9 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
     ) -> task_generator_msgs.srv.SpawnDynamic.Response:
         try:
             pose = self._pose_from_request(request.pose) if request.use_pose else None
-            entity_id = await self._task.tm_obstacles.extend(ObstacleKind.DYNAMIC, request.model, pose)
+            obstacle = await self._task.tm_obstacles.extend(ObstacleKind.DYNAMIC, request.model, pose)
             self._flip_integrity()
-            response.id = entity_id
+            response.id = obstacle.sim_path
             response.success = True
         except Exception as e:
             response.success = False
@@ -1559,6 +1630,39 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             self._robots_manager.publish_queue()
             self._flip_integrity()
             response.name = name_out
+            response.success = True
+        except Exception as e:
+            response.success = False
+            response.error_msg = str(e)
+        return response
+
+    async def _cb_move_entity(
+        self,
+        request: task_generator_msgs.srv.MoveEntity.Request,
+        response: task_generator_msgs.srv.MoveEntity.Response,
+    ) -> task_generator_msgs.srv.MoveEntity.Response:
+        if not self.rosparam[bool].get("initialized", False):
+            response.success = False
+            response.error_msg = "task generator not initialized"
+            return response
+        if request.pose.header.frame_id not in ("map", ""):
+            response.success = False
+            response.error_msg = f"pose must be in the map frame, got {request.pose.header.frame_id!r}"
+            return response
+        try:
+            manager = self._robots_manager.managers.get(request.entity)
+            if manager is not None:
+                local = self._realizer.ezilear(Pose.from_msg(request.pose.pose))
+                async with self._reset_lock:
+                    await manager.move(local)
+            else:
+                try:
+                    await self.markers.move(request.entity, request.pose.pose)
+                except KeyError:
+                    response.success = False
+                    response.error_msg = f"unknown entity {request.entity!r}"
+                    return response
+            self._flip_integrity()
             response.success = True
         except Exception as e:
             response.success = False
@@ -1614,8 +1718,8 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             )
         return CancelResponse.ACCEPT
 
-    def _execute_callback(self, goal_handle: object) -> task_generator_msgs.action.RunEpisode.Result:
-        return self.wait_for(
+    async def _execute_callback(self, goal_handle: object) -> task_generator_msgs.action.RunEpisode.Result:
+        return await self.loop_future(
             self._run_episode(
                 world=goal_handle.request.world,
                 seed=goal_handle.request.seed,
@@ -1728,7 +1832,7 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
 
         service_driven = outcome_state == task_generator_msgs.action.RunEpisode.Result.SKIPPED and outcome_info == "reset"
         fatal = outcome_state == task_generator_msgs.action.RunEpisode.Result.FATAL
-        if respawn and rclpy.ok() and not fatal and (service_driven or self.rosparam[bool].get_unsafe("auto_reset")):
+        if respawn and rclpy.ok() and not fatal and (service_driven or self.rosparam[bool].get_unsafe("task.episode.auto_reset")):
             self._spawn_episode()
 
         return result
@@ -1862,6 +1966,12 @@ class TaskGenerator(ArenaMixinNode, SafeCallbackNode, rclpy.lifecycle.LifecycleN
             task_generator_msgs.srv.SpawnRobot,
             self.service_namespace("runtime", "spawn_robot"),
             self._cb_spawn_robot,
+        )
+
+        self.create_service(
+            task_generator_msgs.srv.MoveEntity,
+            self.service_namespace("runtime", "move"),
+            self._cb_move_entity,
         )
 
         self.create_service(

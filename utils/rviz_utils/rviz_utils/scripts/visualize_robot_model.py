@@ -8,6 +8,7 @@ import yaml
 from task_generator_msgs.msg import RobotFleet
 from geometry_msgs.msg import Point, Vector3
 from nav_msgs.msg import Odometry
+from arena_rclpy_mixins.lazy import LazyPublisher
 from rclpy.node import Node
 from std_msgs.msg import ColorRGBA
 from std_srvs.srv import Empty
@@ -61,7 +62,7 @@ class VisualizeRobotModel(Node):
             self.robot_models[robot.model] = markers_for_model
 
             # Create publisher for each robot
-            self.publisher_map[robot.name] = self.create_publisher(MarkerArray, os.path.join(robot.ns, "visualize", "model"), 10)
+            self.publisher_map[robot.name] = LazyPublisher(self.create_publisher(MarkerArray, os.path.join(robot.ns, "visualize", "model"), 10))
 
             # Create subscriber for each robot's odometry
             self.subscribers.append(self.create_subscription(Odometry, os.path.join(robot.ns, robot_odom_topic), lambda msg, args=(robot.model, robot.name): self.publish_model(msg, args), 10))
@@ -70,6 +71,8 @@ class VisualizeRobotModel(Node):
 
     def publish_model(self, data: Odometry, args: tuple[str, str]) -> None:
         robot_model, name = args
+        if not self.publisher_map[name].wanted:
+            return
 
         try:
             markers = self.robot_models[robot_model]
@@ -83,7 +86,7 @@ class VisualizeRobotModel(Node):
             marker.pose = data.pose.pose
 
         try:
-            self.publisher_map[name].publish(MarkerArray(markers=markers))
+            self.publisher_map[name].publish(lambda: MarkerArray(markers=markers))
         except Exception:
             self.get_logger().error(traceback.format_exc())
             self.get_logger().error(f"Error - publishing markers {name}")

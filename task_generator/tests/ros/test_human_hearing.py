@@ -14,6 +14,8 @@ def _ros_gate():
     pytest.importorskip("arena_people_msgs.msg")
     pytest.importorskip("task_generator_msgs.msg")
     pytest.importorskip("arena_runtime_msgs.srv")
+    pytest.importorskip("arena_auditory_msgs.msg")
+    pytest.importorskip("arena_auditory")
 
 
 def _spin_in_background(rclpy, node, stop: threading.Event) -> threading.Thread:
@@ -26,28 +28,31 @@ def _spin_in_background(rclpy, node, stop: threading.Event) -> threading.Thread:
     return thread
 
 
-def _heard_state(listener_id: str, sound_type: str, audible: bool):
-    from task_generator_msgs.msg import ContinuousHeardSoundState
+def _heard_state(listener_id: str, sound_type: str, audible: bool, *, source_id: str = "environment:alarm_0", active: bool = True):
+    from arena_auditory_msgs.msg import ContinuousHeardSoundState
 
     msg = ContinuousHeardSoundState()
-    msg.listener_id = listener_id
-    msg.sound_type = sound_type
-    msg.active = True
-    msg.audible = audible
+    msg.reception.listener_id = listener_id
+    msg.source.id = source_id
+    msg.source.kind = sound_type
+    msg.source.active = active
+    msg.reception.audible = audible
     return msg
 
 
-def test_heard_sounds_drive_notify_stimulus_edge_triggered(rclpy_context):
+def _stimuli(messages: list, expected: int) -> list[tuple[int, str, float]]:
     import rclpy
+    from arena_auditory_msgs.msg import ContinuousHeardSoundState
     from arena_rclpy_mixins.Async import AsyncNode
+    from arena_rclpy_mixins.qos import best_effort
     from arena_rclpy_mixins.ServiceNamespace import ServiceNamespace
     from arena_rclpy_mixins.shared import Namespace
     from arena_runtime.sim.dummy_simulator import DummySimulator
-    from task_generator.auditory.qos_profiles import continuous_audio_qos
     from task_generator.manager.realizer import Realizer
-    from task_generator.simulators.human import TOPIC_CONTINUOUS_HEARD_SOUNDS
+    from task_generator.simulators.auditory.arena import CONTINUOUS_QOS_DEPTH, ArenaAuditorySimulator
     from task_generator.simulators.human.noop import NoopHumanSimulator
-    from task_generator_msgs.msg import ContinuousHeardSoundState
+
+    from arena_auditory.api import CONTINUOUS_HEARD_SOUNDS
 
     class _Node(ServiceNamespace, AsyncNode):
         pass
@@ -70,21 +75,22 @@ def test_heard_sounds_drive_notify_stimulus_edge_triggered(rclpy_context):
         try:
             realizer = Realizer(Realizer._Configuration(x=0.0, y=0.0, prefix=""))
             simulator = DummySimulator(node=node, namespace=ns, realizer=realizer)
-            human = _Recording(node=node, namespace=ns, simulator=simulator, realizer=realizer)
-            topic = str(node.service_namespace(TOPIC_CONTINUOUS_HEARD_SOUNDS))
-            publisher = node.create_publisher(ContinuousHeardSoundState, topic, continuous_audio_qos())
+            auditory = ArenaAuditorySimulator(node=node, namespace=ns)
+            human = _Recording(node=node, namespace=ns, simulator=simulator, realizer=realizer, auditory=auditory)
+            topic = str(node.service_namespace(CONTINUOUS_HEARD_SOUNDS))
+            publisher = node.create_publisher(ContinuousHeardSoundState, topic, best_effort(CONTINUOUS_QOS_DEPTH))
 
             deadline = time.monotonic() + 5.0
             while publisher.get_subscription_count() == 0:
                 assert time.monotonic() < deadline, "subscription never matched"
                 await asyncio.sleep(0.02)
 
-            for audible in (True, True, False):
-                publisher.publish(_heard_state("agent:3", "alarm", audible))
+            for msg in messages:
+                publisher.publish(msg)
                 await asyncio.sleep(0.1)
 
             deadline = time.monotonic() + 5.0
-            while len(human.calls) < 2:
+            while len(human.calls) < expected:
                 assert time.monotonic() < deadline, f"calls so far: {human.calls}"
                 await asyncio.sleep(0.02)
             await asyncio.sleep(0.2)
@@ -94,4 +100,33 @@ def test_heard_sounds_drive_notify_stimulus_edge_triggered(rclpy_context):
             thread.join(timeout=1.0)
             node.destroy_node()
 
-    assert asyncio.run(main()) == [(3, "alarm", 1.0), (3, "alarm", 0.0)]
+    return asyncio.run(main())
+
+
+def test_heard_sounds_drive_notify_stimulus_edge_triggered(rclpy_context):
+    messages = [_heard_state("agent:3", "alarm", audible) for audible in (True, True, False)]
+    assert _stimuli(messages, 2) == [(3, "alarm", 1.0), (3, "alarm", 0.0)]
+
+
+def test_inactive_sources_are_not_heard(rclpy_context):
+    messages = [
+        _heard_state("agent:3", "alarm", True, active=False),
+        _heard_state("agent:3", "alarm", True, active=True),
+        _heard_state("agent:3", "alarm", True, active=False),
+    ]
+    assert _stimuli(messages, 2) == [(3, "alarm", 1.0), (3, "alarm", 0.0)]
+
+
+def test_two_sources_of_one_type_hold_the_stimulus_until_both_fall_silent(rclpy_context):
+    messages = [
+        _heard_state("agent:3", "alarm", audible, source_id=source)
+        for source, audible in (
+            ("environment:alarm_a", True),
+            ("environment:alarm_b", True),
+            ("environment:alarm_a", False),
+            ("environment:alarm_a", True),
+            ("environment:alarm_b", False),
+            ("environment:alarm_a", False),
+        )
+    ]
+    assert _stimuli(messages, 2) == [(3, "alarm", 1.0), (3, "alarm", 0.0)]

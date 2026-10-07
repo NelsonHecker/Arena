@@ -1,6 +1,9 @@
+import importlib.util
 import itertools
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -8,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, LogInfo, OpaqueFunction, SetEnvironmentVariable
+from launch.actions import ExecuteProcess, LogInfo, OpaqueFunction, SetEnvironmentVariable
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -242,19 +245,24 @@ def generate_launch_description():
                 gz_args += " --headless-rendering"
         else:
             gz_args += f" --gui-config {_render_gui_config(engine)}"
-        include = IncludeLaunchDescription(
-            PathJoinSubstitution([
-                FindPackageShare('ros_gz_sim'),
-                'launch',
-                'gz_sim.launch.py',
-            ]),
-            launch_arguments={
-                "gz_version": "8",
-                "gz_args": gz_args,
-                "physics-engine": "gz-physics-dartsim",
-            }.items(),
+        gz_launch_path = os.path.join(get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py')
+        gz_launch_spec = importlib.util.spec_from_file_location('ros_gz_sim_gz_sim_launch', gz_launch_path)
+        gz_launch = importlib.util.module_from_spec(gz_launch_spec)
+        gz_launch_spec.loader.exec_module(gz_launch)
+        model_paths, plugin_paths = gz_launch.GazeboRosPaths.get_paths()
+        gz_env = {
+            'GZ_SIM_SYSTEM_PLUGIN_PATH': os.pathsep.join(
+                [os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', ''), os.environ.get('LD_LIBRARY_PATH', ''), plugin_paths]
+            ),
+            'GZ_SIM_RESOURCE_PATH': os.pathsep.join([os.environ.get('GZ_SIM_RESOURCE_PATH', ''), model_paths]),
+        }
+        gz_server = ExecuteProcess(
+            cmd=['ruby', shutil.which('gz'), 'sim', *shlex.split(gz_args), '--force-version', '8'],
+            name='gazebo',
+            output='screen',
+            additional_env=gz_env,
         )
-        return [LogInfo(msg=f"gazebo render engine: {engine} (ogre2 = PBR/textures, needs GPU)"), include]
+        return [LogInfo(msg=f"gazebo render engine: {engine} (ogre2 = PBR/textures, needs GPU)"), gz_server]
 
     gazebo = OpaqueFunction(function=_launch_gazebo)
 

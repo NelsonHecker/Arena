@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import copy
 import itertools
 import math
 import os
@@ -11,27 +12,28 @@ from collections.abc import Iterable, Mapping, Sequence
 import attrs
 import rclpy.publisher
 import rclpy.qos
+import rclpy.time
+import tf2_ros
 from ament_index_python.packages import get_package_share_directory
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_people_msgs.srv import MovePedestrians
-from arena_rclpy_mixins.Async import ClientWrapper
+from arena_rclpy_mixins.lazy import LazyPublisher
 from arena_rclpy_mixins.registry import AsyncFactoryRegistry as Registry
 from arena_rclpy_mixins.shared import Namespace
 from arena_runtime._node import NodeInterface
+from arena_runtime.lockstep import register_channels
 from arena_runtime.sim import BaseSim
-from arena_runtime_msgs.msg import LockstepChannel, LockstepRegistration
-from arena_runtime_msgs.srv import LockstepRegister
+from arena_runtime_msgs.msg import LockstepChannel
 from arena_simulation_setup.tree.assets.Human import HumanIdentifier
 from arena_simulation_setup.utils.models import ModelType
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
-from task_generator_msgs.msg import ContinuousHeardSoundState
+from rcl_interfaces.msg import Parameter as ParameterMsg
 from visualization_msgs.msg import MarkerArray
 
-from task_generator.auditory.qos_profiles import continuous_audio_qos
 from task_generator.constants import Constants
 from task_generator.manager.realizer import Realizer
-from task_generator.shared import Door, DynamicObstacle, Obstacle, Orientation, Pose, Region, Robot, Wall
+from task_generator.shared import Door, DynamicObstacle, Obstacle, Orientation, Pose, Position, Region, Robot, Wall
 from task_generator.simulators.human.animation_mananager import AnimationManager
 from task_generator.simulators.human.gestures import Channel, GestureLayer, GestureRequest
 from task_generator.simulators.human.possession import PossessionTable
@@ -39,10 +41,11 @@ from task_generator.simulators.human.utils import (
     KnownObstacle,
     KnownObstacles,
     ObstacleLayer,
-    stimulus_edge,
 )
 
-TOPIC_CONTINUOUS_HEARD_SOUNDS = "continuous_heard_sounds"
+if typing.TYPE_CHECKING:
+    from task_generator.simulators.auditory import BaseAuditorySimulator
+    from task_generator.simulators.auditory.arena import PedestrianHearing
 
 PED_RADIUS = 0.3
 
@@ -54,9 +57,49 @@ _STREAM_QOS = rclpy.qos.QoSProfile(
 )
 
 
+@attrs.define
+class TrackedRobot:
+    """A robot's map-frame pose and velocity, followed through its base frame in TF."""
+
+    robot: Robot
+    tf_frame: str | None
+    pose: Pose
+    velocity: tuple[float, float] = (0.0, 0.0)
+    stamp: float | None = None
+
+    def place(self, pose: Pose) -> None:
+        """Teleport to pose, at rest until TF reports the next one."""
+        self.pose = copy.deepcopy(pose)
+        self.velocity = (0.0, 0.0)
+        self.stamp = None
+
+    def refresh(self, tf_buffer: tf2_ros.Buffer) -> None:
+        """Update pose and finite-difference velocity from the map->base TF."""
+        if self.tf_frame is None:
+            return
+        try:
+            t = tf_buffer.lookup_transform('map', self.tf_frame, rclpy.time.Time())
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            return
+        stamp = t.header.stamp.sec + t.header.stamp.nanosec * 1e-9
+        if self.stamp is not None and stamp <= self.stamp:
+            return
+        position = Position(x=t.transform.translation.x, y=t.transform.translation.y)
+        if self.stamp is not None:
+            dt = stamp - self.stamp
+            self.velocity = (
+                (position.x - self.pose.position.x) / dt,
+                (position.y - self.pose.position.y) / dt,
+            )
+        self.pose = Pose(position, Orientation.from_msg(t.transform.rotation))
+        self.stamp = stamp
+
+
 class BaseHumanSimulator(NodeInterface, abc.ABC):
+    PARAM_NAMESPACE: typing.ClassVar[str | None] = None
+
     _arena_peds_publisher: rclpy.publisher.Publisher
-    _marker_publisher: rclpy.publisher.Publisher
+    _marker_publisher: LazyPublisher[MarkerArray]
     _static_marker_publisher: rclpy.publisher.Publisher
     _known_obstacles: KnownObstacles
     _known_walls: KnownObstacles[Wall]
@@ -70,7 +113,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         task modes specific to their simulator (e.g. TM_Prompt).
         """
 
-    def __init__(self, *args: object, namespace: Namespace, simulator: BaseSim, realizer: Realizer, **kwargs: object) -> None:
+    def __init__(self, *args: object, namespace: Namespace, simulator: BaseSim, realizer: Realizer, auditory: BaseAuditorySimulator, **kwargs: object) -> None:
         """
         Initialize human simulator.
 
@@ -78,6 +121,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             namespace: global namespace
             simulator: Simulator instance
             realizer: per-env Realizer (used to stamp sim_path on runtime-spawned obstacles)
+            auditory: auditory simulator, the source of pedestrian hearing
         """
         super().__init__(*args, **kwargs)
         self._register_task_modes()
@@ -90,18 +134,21 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._known_doors = KnownObstacles[Door]()
         self._wall_counter = itertools.count()
         self._known_regions: dict[str, Region] = {}
+        self._robots: dict[str, TrackedRobot] = {}
         self._warned_unresolved_models: set[str] = set()
         self._ped_model_uris: dict[str, str] = {}
         self._arena_peds_publisher = self.node.create_publisher(Pedestrians, self._namespace("arena_peds"), 10)
-        self._marker_publisher = self.node.create_publisher(
-            MarkerArray,
-            self._namespace("pedestrian_markers", "extra"),
-            rclpy.qos.QoSProfile(
-                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
-                durability=rclpy.qos.DurabilityPolicy.VOLATILE,
-                history=rclpy.qos.HistoryPolicy.KEEP_LAST,
-                depth=10,
-            ),
+        self._marker_publisher = LazyPublisher(
+            self.node.create_publisher(
+                MarkerArray,
+                self._namespace("pedestrian_markers", "extra"),
+                rclpy.qos.QoSProfile(
+                    reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+                    durability=rclpy.qos.DurabilityPolicy.VOLATILE,
+                    history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+                    depth=10,
+                ),
+            )
         )
         self._static_marker_publisher = self.node.create_publisher(
             MarkerArray,
@@ -145,42 +192,13 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             self._cb_human_move,
         )
 
-        self._heard: dict[tuple[int, str], bool] = {}
-        self.node.create_subscription(
-            ContinuousHeardSoundState,
-            self.node.service_namespace(TOPIC_CONTINUOUS_HEARD_SOUNDS),
-            self._on_heard_sound,
-            continuous_audio_qos(),
-        )
-
-        self._lockstep_register_client: ClientWrapper = self.node.create_client_wrapper(
-            LockstepRegister,
-            "/arena/sim_lifecycle/lockstep/register",
-        )
+        self._hearing: PedestrianHearing | None = auditory.pedestrian_hearing(self)
 
         self._simulator.attach_human_simulator(self)
 
-    _LOCKSTEP_REGISTER_TIMEOUT: typing.ClassVar[float] = 3.0
-
     async def _register_lockstep_channels(self, channels: Sequence[LockstepChannel]) -> None:
-        """Fire-once, best-effort registration of this adapter's lockstep channels
-        (the service may be absent this session)."""
-        if not await self._lockstep_register_client.ensure(timeout_sec=self._LOCKSTEP_REGISTER_TIMEOUT):
-            self._logger.info("lockstep register service not available, skipping channel registration")
-            return
-        request = LockstepRegister.Request()
-        request.registration = LockstepRegistration(
-            caller=self.node.get_fully_qualified_name(),
-            env=str(self._namespace),
-            channels=list(channels),
-        )
-        try:
-            response = await self._lockstep_register_client.call_timeout(request)
-        except Exception as e:
-            self._logger.warning(f"lockstep channel registration call failed: {e}")
-            return
-        if response is not None and not response.success:
-            self._logger.warning(f"lockstep channel registration failed: {response.error_msg}")
+        """Fire-once, best-effort registration of this adapter's lockstep channels in its env."""
+        await register_channels(self.node, channels, env=str(self._namespace))
 
     def publish_arena_peds(self, msg: Pedestrians) -> None:
         """Stamp the header, substitute possessed peds, fill bare-name joint_state for peds missing one, then publish."""
@@ -226,7 +244,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
 
     def publish_markers(self, markers: MarkerArray) -> None:
         """Publish a transient debug-overlay MarkerArray on `pedestrian_markers/extra`."""
-        self._marker_publisher.publish(markers)
+        self._marker_publisher.publish(lambda: markers)
 
     def publish_static_markers(self, markers: MarkerArray) -> None:
         """Publish a latched MarkerArray on `pedestrian_markers/static` (TRANSIENT_LOCAL, late subscribers catch up)."""
@@ -258,18 +276,6 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
                 self._ped_positions_xy[name] = (x, y)
         results = await self.relay_pedestrian_update(peds_msg)
         return all(results)
-
-    # hearing
-
-    async def _on_heard_sound(self, msg: ContinuousHeardSoundState) -> None:
-        if not msg.listener_id.startswith("agent:"):
-            return
-        agent_id = int(msg.listener_id.partition(":")[2])
-        audible = bool(msg.audible)
-        key = (agent_id, msg.sound_type)
-        if stimulus_edge(self._heard.get(key), audible):
-            await self.notify_stimulus(agent_id, msg.sound_type, 1.0 if audible else 0.0)
-        self._heard[key] = audible
 
     # possession
 
@@ -615,7 +621,8 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         """
         self._logger.debug("unusing obstacles")
         self._close_stream_gate()
-        self._heard.clear()
+        if self._hearing is not None:
+            self._hearing.clear()
 
         obstacle_names = [name for name, known in self._known_obstacles.items() if not isinstance(known.obstacle, DynamicObstacle) and known.layer == ObstacleLayer.UNUSED]
 
@@ -725,6 +732,18 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
             self._known_regions[region.name] = region
         return await self._add_regions_impl(regions)
 
+    async def configure(self, params: Sequence[ParameterMsg]) -> list[ParameterMsg]:
+        """Hand the params under this backend's namespace to it at the episode boundary and return the accepted ones."""
+        prefix = f"{self.PARAM_NAMESPACE}."
+        own = sorted((p for p in params if self.PARAM_NAMESPACE is not None and p.name.startswith(prefix)), key=lambda p: p.name)
+        if len(own) < len(params):
+            self._logger.info(f"skipping human params of other backends: {[p.name for p in params if p not in own]}")
+        accepted = await self._configure_impl([ParameterMsg(name=p.name.removeprefix(prefix), value=p.value) for p in own])
+        return [p for p in own if p.name.removeprefix(prefix) in accepted]
+
+    async def _configure_impl(self, params: Sequence[ParameterMsg]) -> set[str]:
+        return set()
+
     async def remove_all_regions(self) -> bool:
         """Remove all tracked regions."""
         regions = tuple(self._known_regions.values())
@@ -806,7 +825,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f"spawning {len(robots)} robots")
         return await self._sim_then_impl(
             self._simulator.robot_spawn,
-            self._spawn_robot_impl,
+            self._track_robots,
             robots,
         )
 
@@ -825,7 +844,7 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f"removing {len(robots)} robots")
         return await self._sim_then_impl(
             self._simulator.robot_delete,
-            self._remove_robot_impl,
+            self._untrack_robots,
             robots,
         )
 
@@ -844,9 +863,38 @@ class BaseHumanSimulator(NodeInterface, abc.ABC):
         self._logger.debug(f"moving {len(robots)} robots")
         return await self._sim_then_impl(
             self._simulator.robot_move,
-            self._move_robot_impl,
+            self._place_robots,
             robots,
         )
+
+    async def _track_robots(self, robots: Sequence[Robot]) -> Sequence[bool]:
+        for robot in robots:
+            tf_frame: str | None = None
+            try:
+                view = await robot.model.resolve()
+                tf_frame = robot.frame(view.model_params.base_frame).raw()
+            except Exception as e:
+                self._logger.warning(f"robot {robot.name!r}: base frame unresolved ({e}), using spawn pose only")
+            self._robots[robot.name] = TrackedRobot(robot=robot, tf_frame=tf_frame, pose=copy.deepcopy(robot.pose))
+        return await self._spawn_robot_impl(robots)
+
+    async def _untrack_robots(self, robots: Sequence[Robot]) -> Sequence[bool]:
+        for robot in robots:
+            self._robots.pop(robot.name, None)
+        return await self._remove_robot_impl(robots)
+
+    async def _place_robots(self, robots: Sequence[Robot]) -> Sequence[bool]:
+        for robot in robots:
+            tracked = self._robots.get(robot.name)
+            if tracked is not None:
+                tracked.place(robot.pose)
+        return await self._move_robot_impl(robots)
+
+    def tracked_robots(self) -> list[TrackedRobot]:
+        """Spawned robots in spawn order, pose and velocity refreshed from TF."""
+        for tracked in self._robots.values():
+            tracked.refresh(self.node.tf_buffer)
+        return list(self._robots.values())
 
     # impl
 

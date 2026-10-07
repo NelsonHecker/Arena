@@ -30,12 +30,6 @@ repositories:
     url: https://github.com/voshch/ament_cmake_venv_uv
     version: jazzy
 
-  # internal management
-  deps/arena_models:
-    type: git
-    url: https://github.com/voshch/arena-models
-    version: master@5fdaf1d
-
   # AAAAAAAA WHY IS #118 NOT VENDORED
   deps/topic_based_hardware_interfaces:
     type: git

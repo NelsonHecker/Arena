@@ -3,7 +3,6 @@ project(task_generator_msgs)
 
 find_package(ament_cmake_auto REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
@@ -23,13 +22,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   msg/RobotState.msg
   msg/SemanticEntityState.msg
   msg/SemanticSnapshot.msg
-  msg/AcousticPath.msg
-  msg/ContinuousAudioSourceState.msg
-  msg/ContinuousHeardSoundState.msg
-  msg/HeardSoundEvent.msg
-  msg/SoundEvent.msg
   srv/DespawnRobot.srv
   srv/GetTaskModes.srv
+  srv/MoveEntity.srv
   srv/Pause.srv
   srv/QueryDynamicObstacles.srv
   srv/QueryEnvironments.srv
@@ -40,17 +35,13 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   srv/QueryTaskModes.srv
   srv/QueryWorlds.srv
   srv/QueueEpisode.srv
-  srv/RemoveSound.srv
-  srv/RemoveMicrophone.srv
   srv/ResetEpisode.srv
   srv/SetSemantic.srv
-  srv/SpawnSound.srv
   srv/SpawnDynamic.srv
-  srv/SpawnMicrophone.srv
   srv/SpawnRobot.srv
   srv/SpawnStatic.srv
   action/RunEpisode.action
-  DEPENDENCIES std_msgs geometry_msgs diagnostic_msgs builtin_interfaces rcl_interfaces
+  DEPENDENCIES geometry_msgs diagnostic_msgs builtin_interfaces rcl_interfaces
 )
 
 ament_export_dependencies(rosidl_default_runtime)

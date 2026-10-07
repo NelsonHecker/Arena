@@ -29,9 +29,10 @@ human-sim `_*_impl` methods:
 | `spawn_world(walls, doors, collision_walls=())` | spawn world geometry in both sim and human-sim layers. `collision_walls` register in the human-sim layer only (avoidance), never spawned visually |
 | `unuse_obstacles()` | call `_remove_obstacles_impl`, then flip all `INUSE` layers to `UNUSED` |
 | `remove_obstacles(purge)` | remove all obstacles at or below `purge` layer from both layers. `WORLD` survives unless `purge >= WORLD` |
-| `spawn_robot(robots)` | spawn in physics sim, then call `_spawn_robot_impl` |
-| `remove_robot(robots)` | remove from physics sim, then call `_remove_robot_impl` |
-| `move_robot(robots)` | move in physics sim, then call `_move_robot_impl` |
+| `spawn_robot(robots)` | spawn in physics sim, start tracking the robot, then call `_spawn_robot_impl` |
+| `remove_robot(robots)` | remove from physics sim, stop tracking, then call `_remove_robot_impl` |
+| `move_robot(robots)` | move in physics sim, set the tracked pose at rest, then call `_move_robot_impl` |
+| `tracked_robots()` | every spawned robot as a `TrackedRobot`: map-frame pose from the `map` to base-frame TF and the velocity between its last two TF stamps |
 | `notify_stimulus(agent_id, stimulus, intensity)` | stimulus seam, no-op by default, fed edge-triggered from `continuous_heard_sounds` for `agent:<id>` listeners |
 
 ### `HumanSimulator` Protocol surface
@@ -44,6 +45,7 @@ specialized teleport semantics (e.g. resetting an internal agent list).
 | --- | --- |
 | `pedestrian_discs()` | `() -> Iterable[tuple[str, tuple[float, float], float]]` (sync, reads `_ped_positions_xy`, radius is `PED_RADIUS`) |
 | `pedestrian_teleport(destinations)` | `(Mapping[str, tuple[float, float]]) -> bool` (async, dispatches via `relay_pedestrian_update`) |
+| `configure(params)` | `(Sequence[rcl_interfaces.msg.Parameter]) -> list[Parameter]` (async). It runs at every episode reset with `QueueEpisode.human_params`. It strips the prefix from the names under `PARAM_NAMESPACE`, sorts them, and hands them to `_configure_impl`, also when there are none. It returns the accepted ones. |
 
 ### Abstract `_impl` methods
 
@@ -75,7 +77,7 @@ The filled field feeds the ROS4HRI skeleton in rviz through `hri_producer` and t
 
 `Pedestrian.gestures` (`arena_people_msgs/Gesture[]`: `slot` in `head|arm|arm_l|arm_r|body`, `at` world-frame
 point for the aimed slots, `clip` name on `body`, `hand` on `arm`) are attention channels, not poses. Backends
-only forward them (arena_humansim copies `AgentState.gestures` one to one, the possession stream carries them
+only forward them (arena_humansim copies `AgentGestures` per owner one to one, the possession stream carries them
 as-is), and `publish_arena_peds` hands them per ped to the [`GestureLayer`](gestures/__init__.py) as a
 `GestureRequest` (a `Channel(slot, at, clip, hand)` per entry, ped pose, moving flag). The layer resolves each
 aimed target into the ped frame once per clip, asks the slot's generator for frames (`head` -> `look`,
@@ -97,8 +99,9 @@ env level (`<env_ns>/`) and shared by every backend:
 | Topic | Producer | QoS | Role |
 | --- | --- | --- | --- |
 | `arena_peds` | each backend (`publish_arena_peds`) | reliable, volatile | Pedestrian state feed (positions/velocities/joint_state). `joint_state` carries bare semantic joint names filled by `GaitGenerator` unless the backend overrides it (non-empty = upstream wins). |
-| `humans/bodies/tracked`, `humans/persons/*`, `humans/bodies/<id>/joint_states` | `hri_producer` node | per REP-155 | **Canonical** ROS4HRI projection of `arena_peds`: id lists, per-person engagement, per-body joint states, per-body URDF on param `human_description_<id>`, TF `body_<id>`. |
-| `pedestrian_markers/extra` | base class (`publish_markers`) | best-effort, volatile | Backend-internal debug overlay (e.g. arena_humansim forwards its planner viz). Off by default. |
+| `humans/bodies/tracked`, `humans/persons/*`, `humans/bodies/<id>/joint_states` | `hri_producer` node | per REP-155 | **Canonical** ROS4HRI projection of `arena_peds`: id lists, per-person engagement, per-body joint states, per-body URDF on param `human_description_<id>`. |
+| `humans/tf` | `hri_producer` node and its `robot_state_publisher` pool | reliable, volatile | TF `body_<id>` and the joint frames, kept off the env `/tf` and published only while subscribed. |
+| `pedestrian_markers/extra` | base class (`publish_markers`) | best-effort, volatile | Backend-internal debug overlay (e.g. arena_humansim forwards its module markers and retargets `arena_humansim_viz_node` here with the env offset). Off by default. The arena_humansim adapter subscribes to the engine's `viz` only while this topic has a subscriber, so an unwatched env costs the engine no marker work. |
 | `pedestrian_markers/static` | base class (`publish_static_markers`) | reliable, transient-local, depth 1 | Latched static scene as one combined topic. |
 | `pedestrian_markers/static_*` | adapter | reliable, transient-local, depth 1 | Latched static scene split per bucket (`/static_walls`, `/static_objects`, ...). |
 
@@ -275,8 +278,8 @@ clear stale markers.
 ## Arena adapter (`human:=arena`)
 
 `ArenaHumanSimulator` feeds possession back to the engine: a loop at the
-possession stream rate (20 Hz) publishes every possessed ped (plus dirty
-robot poses) on the engine's `world_state` topic, pose and world-frame
+possession stream rate (20 Hz) publishes every possessed ped and every
+tracked robot on the engine's `world_state` topic, pose and world-frame
 velocity both. Possessed peds that are known engine agents go out under
 the engine's own agent id, so the engine keeps its internal copy in full
 sync: pose slaved to the feed, velocity carried through so neighboring
@@ -285,6 +288,20 @@ fresh, and the agent resumes from right there when possession ends. Ids
 the engine does not recognize become transient external obstacles in its
 force pool instead. Either way the crowd sees and avoids a possessed ped,
 walking or parked.
+
+`PARAM_NAMESPACE` is `humansim`, and a `humansim.<param>` launch arg sets the same engine param for the whole
+run. At every episode reset `_configure_impl` sends the staged `humansim.*` names of
+`QueueEpisode.human_params` to the engine node as one `set_parameters_atomically` batch and then calls the
+engine's `reset` with `soft: true`. The batch applies as a whole or not at all, so an episode never runs on
+half of a stage's human config. The reset call is the engine's episode boundary, where it applies the params,
+moves the live agents onto them, and prunes unused planners. See
+[Runtime reconfiguration](../../../../humansim/README.md#runtime-reconfiguration). The engine rejects a batch
+that holds a param it cannot reconfigure. A rejected batch logs an error with the engine's reason and stays
+out of `EpisodeRecord.human_params`, and the episode continues.
+
+A new backend with episode-level params adds its namespace to `Constants.HUMAN_PARAM_NAMESPACES`, sets
+`PARAM_NAMESPACE` from it, and implements `_configure_impl`. The `human.` prefix is reserved for params every
+backend honors. None are defined, so `queue_episode` rejects it.
 
 The engine runs in the world frame (authored coordinates, levels laid out, no env offset). The adapter owns
 the env offset on both sides: spawn poses, waypoints, walls, world objects, regions, robot and possessed poses

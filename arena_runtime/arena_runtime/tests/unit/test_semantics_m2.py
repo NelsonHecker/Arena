@@ -507,14 +507,14 @@ def _attach_sound(mech, cfgs, entity="snd"):
     return SoundSemantics.attach(mech, entity, cfgs)
 
 
-def test_sound_attach_defaults_silent_and_volume_80():
+def test_sound_attach_defaults_silent_and_volume_unset():
     mech = _Mech()
     _manager(mech)
     inst = _attach_sound(mech, _sound_cfgs())
     snap = inst.snapshot()
     assert snap.kind == "sound"
     assert snap.predicates["sounding"] is False
-    assert snap.continuous["volume_db"] == pytest.approx(80.0)
+    assert "volume_db" not in snap.continuous
 
 
 def test_sound_initial_sounding_value_plays_and_survives_reset():

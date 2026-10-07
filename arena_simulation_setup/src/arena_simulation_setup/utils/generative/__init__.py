@@ -20,6 +20,7 @@ class WorldGeneratorType(enum.Enum):
     BARN = "barn"
     SKETCH = "sketch"
     LETTER = "letter"
+    BARN_CYLINDER = "barn_cylinder"
 
 
 class BaseConfiguration(pydantic.BaseModel):
@@ -174,3 +175,10 @@ def lazy_Letter() -> type[WorldGeneratorImpl]:
     from .letter import WorldGeneratorLetter
 
     return WorldGeneratorLetter
+
+
+@WorldGenerator.register(WorldGeneratorType.BARN_CYLINDER)
+def lazy_BarnCylinder() -> type[WorldGeneratorImpl]:
+    from .barn_cylinder import WorldGeneratorBarnCylinder
+
+    return WorldGeneratorBarnCylinder

@@ -12,7 +12,8 @@ import math
 
 import rclpy
 from arena_people_msgs.msg import Pedestrian, Pedestrians
-from arena_rclpy_mixins.spin import spin_node
+from arena_rclpy_mixins.lazy import LazyPublisher, LazySubscription
+from arena_rclpy_mixins.spin import create_executor, spin_node
 from geometry_msgs.msg import TransformStamped
 from hri_msgs.msg import EngagementLevel, IdsList
 from rclpy.node import Node
@@ -25,7 +26,7 @@ from rclpy.qos import (
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Float32, String
 from task_generator.simulators.human.gait import GaitGenerator
-from tf2_ros import TransformBroadcaster
+from tf2_msgs.msg import TFMessage
 
 from rviz_utils.hri import BodyPool
 from rviz_utils.hri.rig import semantic_to_rig
@@ -81,7 +82,7 @@ class HriProducer(Node):
         max_bodies: int = self.get_parameter("max_bodies").value
         self._humans_ns = f"{self._ns}/humans"
 
-        self._tf_broadcaster = TransformBroadcaster(self)
+        self._tf_pub: LazyPublisher[TFMessage] = LazyPublisher(self.create_publisher(TFMessage, f"{self._humans_ns}/tf", 100))
         self._pool = BodyPool(self, self._humans_ns, max_bodies=max_bodies)
         self._gait = GaitGenerator()
         self._prev_stamp_sec: dict[str, float] = {}
@@ -100,7 +101,9 @@ class HriProducer(Node):
         self._person_conf_pub: dict[str, rclpy.publisher.Publisher] = {}
         self._person_eng_pub: dict[str, rclpy.publisher.Publisher] = {}
 
-        self.create_subscription(
+        self._peds_sub = LazySubscription(
+            self,
+            self._tf_pub,
             Pedestrians,
             f"{self._ns}/arena_peds",
             self._on_peds,
@@ -182,6 +185,8 @@ class HriProducer(Node):
         self._bodies_tracked_pub.publish(ids_list)
         self._persons_tracked_pub.publish(ids_list)
 
+        transforms: list[TransformStamped] = []
+
         for ped in msg.pedestrians:
             bid = self._body_id(ped.id)
 
@@ -196,7 +201,7 @@ class HriProducer(Node):
             tf.transform.translation.y = ped.pose.position.y
             tf.transform.translation.z = ped.pose.position.z + self._pool.foot_offset(bid)
             tf.transform.rotation = ped.pose.orientation
-            self._tf_broadcaster.sendTransform(tf)
+            transforms.append(tf)
 
             if ped.name:
                 alias = TransformStamped()
@@ -204,7 +209,7 @@ class HriProducer(Node):
                 alias.header.frame_id = f"body_{bid}"
                 alias.child_frame_id = ped.name
                 alias.transform.rotation.w = 1.0
-                self._tf_broadcaster.sendTransform(alias)
+                transforms.append(alias)
 
             if ped.joint_state.name:
                 js = JointState()
@@ -232,6 +237,8 @@ class HriProducer(Node):
             self._person_conf_pub[bid].publish(Float32(data=1.0))
             self._person_eng_pub[bid].publish(_engagement_level(ped.animation_state))
 
+        self._tf_pub.publish(lambda: TFMessage(transforms=transforms))
+
     def destroy_node(self) -> None:
         self._pool.teardown()
         super().destroy_node()
@@ -239,7 +246,7 @@ class HriProducer(Node):
 
 def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
-    spin_node(HriProducer())
+    spin_node(HriProducer(), executor=create_executor())
 
 
 if __name__ == "__main__":

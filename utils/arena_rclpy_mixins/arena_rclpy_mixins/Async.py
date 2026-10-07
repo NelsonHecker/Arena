@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import functools
 import inspect
 import traceback
@@ -8,15 +9,24 @@ import typing
 import warnings
 
 import launch
+import launch_ros.actions
 import rclpy.action
 import rclpy.action.client
 import rclpy.client
 import rclpy.node
 import rclpy.qos
+import rclpy.task
 
 from arena_rclpy_mixins.Time import TimeNode
 
 T = typing.TypeVar('T')
+
+TF_TOPICS = ('/tf', '/tf_static')
+
+
+def tf_remaps(node: rclpy.node.Node) -> list[tuple[str, str]]:
+    """The node's /tf and /tf_static remaps that change the topic."""
+    return [(topic, resolved) for topic in TF_TOPICS if (resolved := node.resolve_topic_name(topic)) != topic]
 
 
 class LaunchHandle:
@@ -95,16 +105,19 @@ class AsyncNode(TimeNode, rclpy.node.Node):
                     return False
             await asyncio.sleep(interval)
 
+    def _inherit_tf(self, launch_description: launch.LaunchDescription) -> launch.LaunchDescription:
+        return launch.LaunchDescription([*(launch_ros.actions.SetRemap(src, dst) for src, dst in tf_remaps(self)), launch_description])
+
     async def do_launch(self, launch_description: launch.LaunchDescription) -> None:
         async def _launcher():
-            await self._launch_manager.launch_description(launch_description)
+            await self._launch_manager.launch_description(self._inherit_tf(launch_description))
 
         asyncio.run_coroutine_threadsafe(_launcher(), self.__loop)
 
     async def do_launch_tracked(self, launch_description: launch.LaunchDescription) -> LaunchHandle:
         """Like do_launch, but returns a handle so the caller can gracefully shut down just
         this launch group (terminating its child processes) on demand."""
-        return await self._launch_manager.launch_description(launch_description)
+        return await self._launch_manager.launch_description(self._inherit_tf(launch_description))
 
     async def kill_launches(self) -> None:
         await self._launch_manager.kill_all()
@@ -134,9 +147,33 @@ class AsyncNode(TimeNode, rclpy.node.Node):
 
         return sync_fn
 
-    def syncify(self, fn: typing.Callable[..., T] | typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., T]:
+    def loop_future(self, awaitable: typing.Awaitable[T]) -> rclpy.task.Future:
+        """rclpy Future resolved once awaitable completes on the event loop."""
+        ros_future = rclpy.task.Future()
+
+        async def coro() -> T:
+            return await awaitable
+
+        def on_loop_done(done: concurrent.futures.Future[T]) -> None:
+            if done.cancelled():
+                ros_future.set_exception(asyncio.CancelledError())
+            elif (exc := done.exception()) is not None:
+                ros_future.set_exception(exc)
+            else:
+                ros_future.set_result(done.result())
+
+        asyncio.run_coroutine_threadsafe(coro(), self.event_loop).add_done_callback(on_loop_done)
+        return ros_future
+
+    def ros_callback(self, fn: typing.Callable[..., T] | typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., T] | typing.Callable[..., typing.Coroutine[typing.Any, typing.Any, T]]:
+        """Executor-ready callback: coroutine functions run on the event loop without holding an executor thread."""
         if inspect.iscoroutinefunction(fn):
-            return self.sync_wrap(fn)
+
+            @functools.wraps(fn)
+            async def ros_fn(*args: object, **kwargs: object) -> T:
+                return await self.loop_future(fn(*args, **kwargs))
+
+            return ros_fn
 
         @functools.wraps(fn)
         def sync_fn(*args: object, **kwargs: object) -> T:
@@ -177,7 +214,7 @@ class AsyncNode(TimeNode, rclpy.node.Node):
         qos_overriding_options: rclpy.node.QoSOverridingOptions | None = None,
         raw: bool = False,
     ) -> rclpy.node.Subscription:
-        callback = self.syncify(callback)
+        callback = self.ros_callback(callback)
         return super().create_subscription(msg_type, topic, callback, qos_profile, callback_group=callback_group, event_callbacks=event_callbacks, qos_overriding_options=qos_overriding_options, raw=raw)
 
     def create_service(
@@ -189,7 +226,7 @@ class AsyncNode(TimeNode, rclpy.node.Node):
         qos_profile: rclpy.client.QoSProfile = rclpy.qos.qos_profile_services_default,
         callback_group: rclpy.client.CallbackGroup | None = None,
     ) -> rclpy.node.Service:
-        callback = self.syncify(callback)
+        callback = self.ros_callback(callback)
         return super().create_service(srv_type, srv_name, callback, qos_profile=qos_profile, callback_group=callback_group)
 
     def create_client_wrapper(self, srv_type: type, srv_name: str, timeout: float = 60.0, *, qos_profile: rclpy.client.QoSProfile = rclpy.qos.qos_profile_services_default, callback_group: rclpy.client.CallbackGroup | None = None) -> ClientWrapper:

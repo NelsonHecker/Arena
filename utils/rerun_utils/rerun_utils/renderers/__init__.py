@@ -8,6 +8,7 @@ from rerun_utils.renderers import (  # noqa: F401 -- import to trigger @register
     foot_contact,
     image,
     imu,
+    interactive_markers,
     laser_scan,
     map,
     marker_array,

@@ -10,6 +10,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     git \
     wget \
     curl \
+    ffmpeg \
     python-is-python3 \
     python3-pip \
     pipx \
@@ -19,8 +20,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libncursesw5-dev \
     sudo \
     ros-jazzy-rmw-cyclonedds-cpp \
-    libportaudio2 \
-    portaudio19-dev \
     libasound2-dev \
     libasound2-plugins \
     alsa-utils \
@@ -82,6 +81,7 @@ RUN (getent passwd ${uid} && userdel -rf $(getent passwd ${uid} | cut -d: -f1)) 
     (getent group ${gid} && groupdel -f $(getent group ${gid} | cut -d: -f1)) 2>/dev/null || true && \
     groupadd -g ${gid} ${group} && \
     useradd -m -u ${uid} -g ${gid} -s /bin/bash ${username} && \
+    touch /home/${username}/.hushlogin && \
     passwd -d ${username} && \
     passwd -d root && \
     groupadd -r sudo || true && \

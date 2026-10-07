@@ -13,6 +13,15 @@ per-body `joint_states`, URDF latched on `bodies/<id>/urdf`, and TF
 ([`hri/body_pool.py`](rviz_utils/hri/body_pool.py)) so `hri_rviz/Skeletons3D`
 can render animated skeletons.
 
+Body and joint frames are published on `<env_ns>/humans/tf`. Nodes that
+listen only to the env's `/tf` never receive them. `hri_producer` subscribes
+to `arena_peds` only while that topic has a subscriber (checked once per
+second), so an unwatched env costs it no roster work and no `joint_states`
+traffic. A consumer that needs pedestrians in the world tree subscribes
+both: `rviz_config` relays the env `/tf` and `<env_ns>/humans/tf` into
+`<env_ns>/viewer/tf` for rviz, and the evaluation recorder merges both into
+`/tf` in the bag.
+
 **Relay mode (primary path).** When `arena_peds.joint_state.name` is non-empty,
 `hri_producer` re-suffixes each bare semantic joint name with the body ID
 (`<joint>_<body_id>`) and publishes directly.  The joint data originates from

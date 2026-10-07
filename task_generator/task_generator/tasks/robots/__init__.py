@@ -29,6 +29,10 @@ class TM_Robots(TaskMode):
     async def teardown(self) -> None:
         """Release everything this mode drives; called when the mode is replaced or the task ends."""
 
+    def goal_editing_robots(self) -> frozenset[str]:
+        """Names of robots whose goals this mode already exposes an editor for."""
+        return frozenset()
+
     async def set_position(self, pose: Pose):
         """Handle an external pose-estimate override for the robots in this mode.
 

@@ -15,8 +15,8 @@ import rcl_interfaces.srv
 import rclpy
 import rclpy.parameter
 import yaml
-from ament_index_python.packages import get_package_share_directory
-from arena_rclpy_mixins import ArenaMixinNode
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
+from arena_rclpy_mixins import ArenaMixinNode, ClientWrapper
 from arena_rclpy_mixins.shared import FrameNamespace
 from arena_robots.moveit_factory import build_moveit_params
 from arena_robots.Robot import RobotIdentifier
@@ -34,6 +34,7 @@ class ConfigFileGenerator(ArenaMixinNode):
     _display_set_pub: rclpy.publisher.Publisher
     _frame_prefix: str
     _env_id: int
+    _tf_namespace: str
 
     def __init__(self, TASKGEN_NODE: str = '/task_generator_node'):
         super().__init__('rviz_config_generator')
@@ -44,19 +45,20 @@ class ConfigFileGenerator(ArenaMixinNode):
 
     async def _await_param(
         self,
-        client: rclpy.client.Client,
+        client: ClientWrapper,
         param_name: str,
         test_fn: Callable[[rcl_interfaces.msg.ParameterValue], bool] | None = None,
         interval: float = 1.0,
+        call_timeout: float = 2.0,
     ) -> rcl_interfaces.msg.ParameterValue:
-        """Block until parameter passes test function."""
+        """Poll until the parameter is set and passes test_fn, re-sending calls whose response never arrives."""
         while True:
             self.get_logger().info(f'waiting for {param_name} to be set')
             req = rcl_interfaces.srv.GetParameters.Request(names=[param_name])
-            params = await self.await_ros(client.call_async(req))
-            if params and params.values:
+            params = await client.call_timeout(req, timeout_sec=call_timeout)
+            if params is not None and params.values:
                 value = params.values[0]
-                if (not test_fn) or test_fn(value):
+                if value.type != rcl_interfaces.msg.ParameterType.PARAMETER_NOT_SET and ((not test_fn) or test_fn(value)):
                     self.get_logger().info(f'param {param_name} is set')
                     return value
             await asyncio.sleep(interval)
@@ -64,13 +66,14 @@ class ConfigFileGenerator(ArenaMixinNode):
     async def setup(self) -> None:
         TASKGEN_PARAM_SRV = os.path.join(self._TASKGEN_NODE, 'get_parameters')
 
-        get_parameters_cli = self.create_client(rcl_interfaces.srv.GetParameters, TASKGEN_PARAM_SRV)
+        get_parameters_cli = self.create_client_wrapper(rcl_interfaces.srv.GetParameters, TASKGEN_PARAM_SRV)
         self.get_logger().info(f'waiting for service {TASKGEN_PARAM_SRV} to become available')
-        await self.wait_for_service_async(get_parameters_cli)
+        await self.wait_for_service_async(get_parameters_cli.client)
         self.get_logger().info(f'service {TASKGEN_PARAM_SRV} is available')
 
         self._frame_prefix = (await self._await_param(get_parameters_cli, 'prefix')).string_value
         self._env_id = (await self._await_param(get_parameters_cli, 'env_id')).integer_value
+        self._tf_namespace = (await self._await_param(get_parameters_cli, 'tf_namespace')).string_value
         self._robots = []
         self._viz_manifest = None
         self._node_params = []
@@ -95,10 +98,25 @@ class ConfigFileGenerator(ArenaMixinNode):
 
         rviz_parameters: list[dict[str, object]] = [{"use_sim_time": True}]
 
+        env_ns = os.path.dirname(self._TASKGEN_NODE)
+        viewer_tf = f"{env_ns}/viewer/tf"
+
         launch_task = await self._launch_manager.launch_description(
             launch.LaunchDescription(
                 [
                     NodeLogLevelExtension.SetGlobalLogLevelAction(rclpy.logging.get_logger_effective_level(self.get_logger().name).name.lower()),
+                    *(
+                        launch_ros.actions.Node(
+                            package="topic_tools",
+                            executable="relay",
+                            name=f"viewer_tf_{name}",
+                            namespace=self._TASKGEN_NODE,
+                            parameters=[{"input_topic": source, "output_topic": viewer_tf, "lazy": True}],
+                            sigterm_timeout='2',
+                            sigkill_timeout='2',
+                        )
+                        for name, source in (("world", self._tf_namespace + "/tf"), ("humans", f"{env_ns}/humans/tf"))
+                    ),
                     launch_ros.actions.Node(
                         package="rviz2",
                         executable="rviz2",
@@ -106,12 +124,19 @@ class ConfigFileGenerator(ArenaMixinNode):
                         namespace=self._TASKGEN_NODE,
                         arguments=['-d', config_file],
                         parameters=rviz_parameters,
+                        remappings=[('/tf', viewer_tf), ('/tf_static', self._tf_namespace + '/tf_static')],
                         output="screen",
+                        sigterm_timeout='2',
+                        sigkill_timeout='2',
                     ),
                 ]
             )
         )
-        await launch_task
+        try:
+            await asyncio.shield(launch_task.task)
+        except asyncio.CancelledError:
+            await launch_task.shutdown()
+            raise
         self.get_logger().info('rviz2 exited, shutting down supervisor')
         os.kill(os.getpid(), signal.SIGINT)
 
@@ -211,9 +236,35 @@ class ConfigFileGenerator(ArenaMixinNode):
     def create_config(self) -> str:
         skeleton = self._read_default_file()
         skeleton["Visualization Manager"]["Views"]["Current"] = self._build_view()
+        self._add_auditory_plugins(skeleton)
         file_path = self._tmp_config_file(skeleton, prefix=f"env{self._env_id}_")
         self.get_logger().info(f'created config file at {file_path}')
         return file_path
+
+    def _add_auditory_plugins(self, skeleton: dict[str, object]) -> None:
+        """Append the arena_auditory_viz panel and tools when that package is installed."""
+        try:
+            get_package_share_directory("arena_auditory_viz")
+        except PackageNotFoundError:
+            return
+        skeleton["Panels"].append({"Class": "arena_auditory_viz::AuditoryPanel", "Name": "AuditoryPanel", "Target": self._TASKGEN_NODE})
+        skeleton["Visualization Manager"]["Tools"].extend(
+            [
+                {"Class": "arena_auditory_viz::SpawnMicrophoneTool", "Target": self._TASKGEN_NODE, "Height": 1.5, "Attach TF Frame": ""},
+                {
+                    "Class": "arena_auditory_viz::SpawnSoundTool",
+                    "Target": self._TASKGEN_NODE,
+                    "Kind": "music",
+                    "Height": 1.2,
+                    "Custom Playback": False,
+                    "Asset ID": "",
+                    "Source Volume": 62.0,
+                    "Loop": True,
+                    "Start Immediately": True,
+                },
+            ]
+        )
+        skeleton["Window Geometry"]["AuditoryPanel"] = {"collapsed": False}
 
     def _target_robot_frame(self) -> str | None:
         if not self._robots:

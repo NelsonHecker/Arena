@@ -73,6 +73,7 @@ class AdapterDisplayHint:
     topic_type: str = ""
     style_json: str = ""
     topic_must_exist: bool = False
+    robot_colored: bool = False
 
 
 @attrs.frozen

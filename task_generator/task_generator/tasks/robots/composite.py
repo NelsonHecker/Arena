@@ -72,6 +72,9 @@ class TM_Composite(TM_Robots):
         results = await asyncio.gather(*(m.done for m in self._sub_modes))
         return all(results)
 
+    def goal_editing_robots(self) -> frozenset[str]:
+        return frozenset().union(*(m.goal_editing_robots() for m in self._sub_modes))
+
     async def set_position(self, pose: Pose):
         robots = self._ctx.robots
         if not robots:

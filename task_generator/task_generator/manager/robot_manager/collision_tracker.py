@@ -13,6 +13,7 @@ import rclpy.time
 import shapely
 import shapely.affinity
 import std_msgs.msg
+from arena_rclpy_mixins.lazy import LazyPublisher
 from arena_rclpy_mixins.shared import Namespace
 from arena_robots.caps import PolygonSpec
 from rclpy.parameter import Parameter
@@ -43,7 +44,7 @@ class CollisionTrackerNode(rclpy.node.Node):
 
     Reads RobotManager.pose + EnvironmentManager.collision_grid. The footprint
     defines a collision: it feeds `collision_events` and, under
-    `fail_on_collision`, the episode outcome. The cap polygons only feed
+    `task.episode.fail_on_collision`, the episode outcome. The cap polygons only feed
     `collision_monitor_state`. Tick timer uses sim time, so it is gated during
     pauses.
     """
@@ -94,7 +95,7 @@ class CollisionTrackerNode(rclpy.node.Node):
         # None while a reset is in flight
         self._valid_after: rclpy.time.Time | None = None
 
-        self._pub_state = self.create_publisher(nav2_msgs.msg.CollisionMonitorState, 'collision_monitor_state', 10)
+        self._pub_state: LazyPublisher[nav2_msgs.msg.CollisionMonitorState] = LazyPublisher(self.create_publisher(nav2_msgs.msg.CollisionMonitorState, 'collision_monitor_state', 10))
         self._pub_events = None if self._footprint_base is None else self.create_publisher(arena_robots_msgs.msg.CollisionEvents, 'collision_events', 10)
         env_ns = Namespace(robot_manager.node.get_namespace())
         self._sub_peds = self.create_subscription(
@@ -123,19 +124,8 @@ class CollisionTrackerNode(rclpy.node.Node):
             return shapely.affinity.translate(poly, xoff=rx, yoff=ry)
         return shapely.Point(rx, ry).buffer(entry['R_c'])
 
-    def _tick(self):
-        stamped = self._rm.pose_stamped
-        if stamped is None:
-            return
-        pose, stamp = stamped
-        if self._valid_after is None or stamp <= self._valid_after:
-            return
-
-        rx, ry, rth = pose.to_2d()
-
+    def _monitor_state(self, rx: float, ry: float, rth: float) -> nav2_msgs.msg.CollisionMonitorState:
         grid = self._env.collision_grid
-        statics = self._env.static_polygons
-
         polygons_hit: dict[str, int] = {}
         for name, entry in self._poly_cache.items():
             robot_poly = self._robot_polygon(entry, rx, ry, rth)
@@ -150,7 +140,22 @@ class CollisionTrackerNode(rclpy.node.Node):
         else:
             state.polygon_name = ''
             state.action_type = 0
-        self._pub_state.publish(state)
+        return state
+
+    def _tick(self):
+        stamped = self._rm.pose_stamped
+        if stamped is None:
+            return
+        pose, stamp = stamped
+        if self._valid_after is None or stamp <= self._valid_after:
+            return
+
+        rx, ry, rth = pose.to_2d()
+
+        grid = self._env.collision_grid
+        statics = self._env.static_polygons
+
+        self._pub_state.publish(lambda: self._monitor_state(rx, ry, rth))
 
         if self._footprint_base is None or self._pub_events is None:
             return
@@ -189,7 +194,7 @@ class CollisionTrackerNode(rclpy.node.Node):
         evmsg.events = events
         self._pub_events.publish(evmsg)
 
-        if events and self._rm.node.rosparam[bool].get_unsafe('fail_on_collision'):
+        if events and self._rm.node.rosparam[bool].get_unsafe('task.episode.fail_on_collision'):
             self._rm.node.fail_episode('collision')
 
     def _pedestrians(self) -> list[tuple[arena_people_msgs.msg.Pedestrian, float, float]]:

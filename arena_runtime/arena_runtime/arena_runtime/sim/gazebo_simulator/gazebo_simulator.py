@@ -81,6 +81,7 @@ _ENTITY_ID_POLL = 0.25
 _RTF_BOOST = 1e6
 _SET_PHYSICS_TIMEOUT_MS = 5000
 _SET_PHYSICS_ATTEMPTS = 3
+_CLEANUP_ATTEMPTS = 5
 
 _LATCHED_QOS = QoSProfile(
     depth=1,
@@ -246,24 +247,34 @@ class GazeboHost(SimLifecycle):
                 raise RuntimeError(f"step_seconds({seconds}) service call failed")
 
     async def cleanup_namespace(self, prefix: str) -> int:
-        names = await self._list_models()
-        targets = [n for n in names if n.startswith(prefix)]
-        if not targets:
-            return 0
+        removed = 0
+        for attempt in range(_CLEANUP_ATTEMPTS + 1):
+            try:
+                names = await self._list_models()
+            except SimUnavailable:
+                if attempt == _CLEANUP_ATTEMPTS:
+                    raise
+                await asyncio.sleep(1.0 + attempt)
+                continue
+            targets = [n for n in names if n.startswith(prefix)]
+            if not targets:
+                return removed
+            if attempt == _CLEANUP_ATTEMPTS:
+                break
+            results = await asyncio.gather(*(self._delete_model(n) for n in targets))
+            removed += sum(1 for r in results if r)
+        raise SimUnavailable(f"cleanup_namespace {prefix!r}: {len(targets)} model(s) left after {_CLEANUP_ATTEMPTS} attempts")
 
-        async def _del(name: str) -> bool:
-            req = DeleteEntity.Request()
-            req.entity = EntityMsg(name=name, type=EntityMsg.MODEL)
-            async with self._semaphore:
-                try:
-                    res = await self._service_delete_entity.call_timeout(req)
-                except Exception as e:
-                    self._logger.warning(f"cleanup_namespace: delete {name} raised: {e!r}")
-                    return False
-            return bool(res) and res.success
-
-        results = await asyncio.gather(*(_del(n) for n in targets))
-        return sum(1 for r in results if r)
+    async def _delete_model(self, name: str) -> bool:
+        req = DeleteEntity.Request()
+        req.entity = EntityMsg(name=name, type=EntityMsg.MODEL)
+        async with self._semaphore:
+            try:
+                res = await self._service_delete_entity.call_timeout(req)
+            except Exception as e:
+                self._logger.warning(f"cleanup_namespace: delete {name} raised: {e!r}")
+                return False
+        return bool(res) and res.success
 
     async def _list_models(self) -> list[str]:
         proc = await asyncio.create_subprocess_exec(
@@ -274,10 +285,11 @@ class GazeboHost(SimLifecycle):
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            raise SimUnavailable(f"gz model --list failed: {stderr.decode().strip()}")
+        out = stdout.decode()
+        if proc.returncode != 0 or 'Available models:' not in out:
+            raise SimUnavailable(f"gz model --list failed: {(stderr.decode() or out).strip()}")
         names: list[str] = []
-        for line in stdout.decode().splitlines():
+        for line in out.splitlines():
             stripped = line.strip()
             if stripped.startswith('- '):
                 names.append(stripped[2:].strip())
@@ -444,7 +456,8 @@ class GazeboSimulator(BaseSim):
             textures = await self._resolve_wall_textures(floor.material)
             floor_sdf = _generate_floor_sdf(name, floor, textures)
             async with self._semaphore:
-                await self._spawn_sdf(name, floor_sdf, Pose())
+                if not await self._spawn_sdf(name, floor_sdf, Pose()):
+                    raise RuntimeError(f"spawn_floors: {name} did not spawn")
             self._walls_entities.append(name)
         return True
 
@@ -454,7 +467,8 @@ class GazeboSimulator(BaseSim):
             textures = await self._resolve_wall_textures(ceiling.material)
             ceiling_sdf = _generate_ceiling_sdf(name, ceiling, textures)
             async with self._semaphore:
-                await self._spawn_sdf(name, ceiling_sdf, Pose())
+                if not await self._spawn_sdf(name, ceiling_sdf, Pose()):
+                    raise RuntimeError(f"spawn_ceilings: {name} did not spawn")
             self._walls_entities.append(name)
         return True
 
@@ -703,12 +717,19 @@ class GazeboSimulator(BaseSim):
             self._logger.error(f"Spawn service call raised for {name}: {e}")
             return False
 
-        if result is None:
-            raise SimUnavailable(f"spawn_sdf({name}) timed out")
-
-        if result.success:
+        if result is not None and result.success:
             self._spawned_names.add(name)
-        return result.success
+            return True
+
+        if name in await self._list_models():
+            self._spawned_names.add(name)
+            return True
+
+        self._logger.error(f"Failed to spawn {name}: {'timed out' if result is None else 'rejected'}")
+        req = DeleteEntity.Request()
+        req.entity = EntityMsg(name=name, type=EntityMsg.MODEL)
+        await self._service_delete_entity.call_timeout(req)
+        return False
 
     async def _delete_entity(self, sim_path: str, entity_type: int = EntityMsg.MODEL) -> bool:
         async with self._semaphore:
@@ -843,7 +864,8 @@ class GazeboSimulator(BaseSim):
                 wall_sdf = _generate_wall_sdf(wall_name, boxes)
                 if wall_sdf:
                     async with self._semaphore:
-                        await self._spawn_sdf(wall_name, wall_sdf, Pose())
+                        if not await self._spawn_sdf(wall_name, wall_sdf, Pose()):
+                            raise RuntimeError(f"spawn_walls: {wall_name} ({wall.name}) did not spawn")
                     self._walls_entities.append(wall_name)
             for obstacle, model in obstacles:
                 obstacle.sim_path = self._realizer.realize(f"wall_obj_{next(self._wall_counter)}")

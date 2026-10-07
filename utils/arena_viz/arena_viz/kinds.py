@@ -22,3 +22,4 @@ class DisplayKind(enum.StrEnum):
     POLYGON = "polygon"
     TRAJECTORY = "trajectory"
     PLANNING_SCENE = "planning_scene"
+    INTERACTIVE_MARKERS = "interactive_markers"

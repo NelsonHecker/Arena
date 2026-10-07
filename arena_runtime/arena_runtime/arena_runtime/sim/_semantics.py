@@ -717,7 +717,7 @@ class SoundSemantics(SemanticKind):
         sound_on: str | None,
         regime: str | None,
         initial_sounding: bool,
-        initial_volume: float,
+        initial_volume: float | None,
         discrete: tuple[str, ...],
         continuous: tuple[str, ...],
         predicates: tuple[str, ...],
@@ -741,7 +741,7 @@ class SoundSemantics(SemanticKind):
         if sound_on is not None and sound_on == regime:
             raise ValueError(f"sound {entity!r}: sound_on cannot equal regime (self-latch)")
         initial_sounding = False
-        initial_volume = 80.0
+        initial_volume: float | None = None
         for cfg in cfgs:
             if cfg.value is None:
                 continue
@@ -773,6 +773,8 @@ class SoundSemantics(SemanticKind):
     def set_value(self, field: str, value: str) -> None:
         if field not in self.WRITABLE:
             raise ValueError('field not writable')
+        if field == 'volume_db' and field not in self._continuous:
+            raise ValueError('volume_db not declared on this sound')
         coerced = _coerce(self, field, value)
         if field == 'sounding':
             self._override_sounding = bool(coerced)
@@ -787,7 +789,7 @@ class SoundSemantics(SemanticKind):
         predicates: dict[str, bool] = {}
         if 'sounding' in self._predicates:
             predicates['sounding'] = self._live_sounding()
-        if 'volume_db' in self._continuous:
+        if 'volume_db' in self._continuous and self._volume is not None:
             continuous['volume_db'] = self._volume
         return SemanticEntitySnapshot(self._entity, self.KIND, {}, continuous, predicates)
 

@@ -30,6 +30,7 @@ def render_path(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict[str, o
             "Durability Policy": "Volatile",
         },
         "Color": color,
+        "Alpha": style.alpha,
         "Line Width": style.line_width,
     }
     result.update(style.extra.get("rviz", {}))

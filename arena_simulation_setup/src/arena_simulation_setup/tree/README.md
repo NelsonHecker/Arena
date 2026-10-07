@@ -58,7 +58,7 @@ walks it calling `destination()`.
 |---|---|---|
 | `SimplePathResolver` | [tree/__init__.py:177](__init__.py#L177) | Fixed `Path`; checks `path / identifier.relpath()`. `locate()` uses the same existence check |
 | `DynamicPathResolver` | [tree/__init__.py:191](__init__.py#L191) | `DynamicPath` whose value can change at runtime (e.g. `DynamicPaths.WORLD`); optional transform `fn` |
-| `NetResolver` | [tree/__init__.py:212](__init__.py#L212) | Batches same-tick `resolve()` requests; calls `ros2 run arena_models arena_models -s net <provider> fetch`. `locate()` instead runs a non-fetching `... exists` check. Constructor takes `formats=` (defaults to the `ARENA_MODELS_FORMATS` env filter; pass `formats=()` to opt out) and `ttl=` (defaults to `ARENA_MODELS_TTL`, seconds). `listall(network=True)` caches the bucket listing at `ARENA_ASSETS_DIR/<provider>/.listing` for `ARENA_MODELS_TTL` regardless of the payload `ttl=`, and `listall_async` shares one in-flight fetch per provider. `NetResolver.all(_T, providers=NETWORK_PROVIDERS, ...)` builds one instance per bucket name |
+| `NetResolver` | [tree/__init__.py:212](__init__.py#L212) | Batches same-tick `resolve()` requests; calls `ros2 run arena_assets arena_assets -s net <provider> fetch`. `locate()` instead runs a non-fetching `... exists` check. Constructor takes `formats=` (defaults to the `ARENA_MODELS_FORMATS` env filter; pass `formats=()` to opt out) and `ttl=` (defaults to `ARENA_MODELS_TTL`, seconds). `listall(network=True)` caches the bucket listing at `ARENA_ASSETS_DIR/<provider>/.listing` for `ARENA_MODELS_TTL` regardless of the payload `ttl=`, and `listall_async` shares one in-flight fetch per provider. `NetResolver.all(_T, providers=NETWORK_PROVIDERS, ...)` builds one instance per bucket name |
 | `FallbackResolver` | [tree/__init__.py:406](__init__.py#L406) | Write target only: implements `destination()` and nothing else, so `resolve()`/`locate()` always return `None` and it can never shadow a real source |
 
 ### `DynamicPaths` singleton
@@ -80,6 +80,7 @@ given `Identifier` type: one pointing at `WORLD / 'assets'` and one at `ARENA`.
 | `ObjectIdentifier` | [tree/assets/Object.py](assets/Object.py) | `DomainAssetIdentifier[ObjectView]` | `Object` | DynamicPaths (world/assets + local), then NetResolver |
 | `HumanIdentifier` | [tree/assets/Human.py](assets/Human.py) | `DomainAssetIdentifier[HumanView]` | `Human` | DynamicPaths (world/assets + local), then NetResolver |
 | `MaterialIdentifier` | [tree/assets/Material.py](assets/Material.py) | `ModifiersDomainAssetIdentifier[Material]` | `Material` | DynamicPaths (world/assets + local), then NetResolver |
+| `SoundIdentifier` | [tree/assets/Sound.py](assets/Sound.py) | `DomainAssetIdentifier[SoundView]` | `Sound` | DynamicPaths (world/assets + local), then the bundled `arena_auditory` share `sounds/`, then NetResolver (`formats=()`, listed by `--children` under `Common/Sound`) |
 | `WallIdentifier` | [tree/Wall.py](Wall.py) | `DomainAssetIdentifier[WallDescription]` | `Wall` | DynamicPaths (world/assets + local), then NetResolver |
 | `WorldIdentifier` | [tree/World/World.py](World/World.py) | `Identifier[MultiLevelWorldView]` | - | `ARENA_WORLD_PATH` roots, then `ASS_DIR / 'worlds'` (existence-checked), then a `NetResolver` per `WORLD_BUCKETS` provider, then `FallbackResolver` (write target only) |
 | `EnvironmentIdentifier` | [tree/configs/environment.py](configs/environment.py) | `Identifier[EnvironmentDescription]` | - | `EnvironmentResolver` → `ASS_DIR / 'configs' / 'environment'` |
@@ -101,6 +102,13 @@ tints every diffuse texture before returning.
 Default materials per context: `wall` → `Marble`, `floor` → `Porcelain_Tile_4`,
 `door` → `Aluminum_Anodized`
 ([tree/assets/Material.py:69](assets/Material.py#L69)).
+
+### `SoundIdentifier`
+
+Resolves `domain/Sound/name/` and wraps it in a `SoundView` whose `.manifest`
+is the parsed `name.yaml` beside the wav files. The package copy shipped by
+`arena_auditory` resolves after world-local and shared-local assets and before
+the network. `arena_auditory.assets.SoundLibrary` parses the manifest.
 
 ### `WallIdentifier`
 

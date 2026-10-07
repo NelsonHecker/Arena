@@ -568,6 +568,7 @@ class WorldDescription:
 
     def identifiers(self) -> typing.Iterable[Identifier]:
         """Every asset this world references, for preloading and publish preflight."""
+        from arena_simulation_setup.tree.assets.Sound import SoundIdentifier
         from arena_simulation_setup.tree.Wall import WallIdentifier
 
         for level in self.all_levels:
@@ -588,6 +589,8 @@ class WorldDescription:
                     yield entity.model
                 for entity in zone.entities.dynamic:
                     yield entity.model
+                for sound in zone.sounds:
+                    yield SoundIdentifier.parse(sound.asset_id)
 
     def compact_world(self, origins: dict[str, tuple[float, float]]) -> LevelDescription:
         """Return a single LevelDescription that has all the levels but with shifted origins so that they don't stack with each other."""

@@ -1,0 +1,5 @@
+string entity                     # handle from a runtime spawn, or a robot name
+geometry_msgs/PoseStamped pose    # map frame
+---
+bool success
+string error_msg

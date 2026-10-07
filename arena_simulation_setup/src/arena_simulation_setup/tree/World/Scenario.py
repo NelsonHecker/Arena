@@ -153,9 +153,13 @@ class ScenarioView(PathView):
     def identifiers(self, converter: ArenaConverter = converter) -> Iterable[Identifier]:
         """Every asset this scenario references. Pass the world's zone converter to read a
         scenario that addresses zones by name."""
+        from arena_simulation_setup.tree.assets.Sound import SoundIdentifier
+
         scenario = self.load(converter=converter)
         for obstacle in itertools.chain(scenario.static, scenario.dynamic):
             yield obstacle.model
+        for sound in scenario.sounds:
+            yield SoundIdentifier.parse(sound.asset_id)
 
     def load(self, converter: ArenaConverter = converter) -> Scenario:
         raw: object = None

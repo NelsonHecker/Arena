@@ -39,9 +39,6 @@ Panels:
   - Class: task_generator_gui::FleetPanel
     Name: FleetPanel
     Target: {task_generator_node}
-  - Class: task_generator_gui::AuditoryPanel
-    Name: AuditoryPanel
-    Target: {task_generator_node}
 Visualization Manager:
   Class: ""
   Displays: []
@@ -87,19 +84,6 @@ Visualization Manager:
     - Class: task_generator_gui::SpawnPedestrianTool
       Target: {task_generator_node}
       Model: arenian
-    - Class: task_generator_gui::SpawnMicrophoneTool
-      Target: {task_generator_node}
-      Height: 1.5
-      Attach TF Frame: ""
-    - Class: task_generator_gui::SpawnSoundTool
-      Target: {task_generator_node}
-      Mode: Music
-      Height: 1.2
-      Custom Playback: false
-      Asset ID: ""
-      Source Volume: 62.0
-      Loop: true
-      Start Immediately: true
   Transformation:
     Current:
       Class: rviz_default_plugins/TF
@@ -143,8 +127,6 @@ Visualization Manager:
         X: 0
         Y: 0
 Window Geometry:
-  AuditoryPanel:
-    collapsed: false
   DisplayControl:
     collapsed: false
   Displays:

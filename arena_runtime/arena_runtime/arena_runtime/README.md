@@ -109,6 +109,7 @@ the lockstep scheduler. Restarting the runtime is the benchmark runner's job.
 4. **Heartbeat**: env publishes [`Heartbeat.msg`](../../arena_runtime_msgs/msg/Heartbeat.msg)
    on `<ns>/state/heartbeat`; `arena_node` resets the timeout clock on each tick.
    The clock starts at `reserve()` time, so an env is covered from registration.
+   The env beats from its own thread, so the beat shows a live process, not a responsive executor.
 5. **Despawn**: caller sends `despawn_env`; `arena_node` publishes a
    `ShutdownRequest` the env observes and acts on via its own lifecycle.
 6. **Eviction**: on a `sweep_verdict` reason or lifecycle FINALIZED,

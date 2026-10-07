@@ -37,8 +37,8 @@
       "path": "src/Arena/arena_evaluation"
     },
     {
-      "name": "arena_models",
-      "path": "src/deps/arena_models"
+      "name": "arena_assets",
+      "path": "src/Arena/arena_assets"
     },
     {
       "name": "robots",

@@ -1,0 +1,6 @@
+services:
+  arena:
+    volumes:
+      - "${HOST_SSH_AGENT_DIR}:/run/ssh-agent:ro"
+    environment:
+      - HOST_SSH_AGENT_DIR

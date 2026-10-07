@@ -95,7 +95,10 @@ value; each visualizer ships a renderer per kind. `style_json` is a
 serialized [`StyleSpec`](../../../../../utils/arena_viz/arena_viz/style.py),
 viz-neutral fields (color, alpha, line_width, enabled) plus an `extra`
 escape hatch keyed by visualizer (`extra={"rviz": {"Color Scheme": "costmap"}}`)
-for the rare per-viz nudge.
+for the rare per-viz nudge. `robot_colored=True` replaces the style's color with
+the robot's own color from
+[`interactive/colors.py`](../../../interactive/colors.py), which its handles
+share, so one robot's paths and handles read as one color.
 
 ## Opting into the collision tracker
 

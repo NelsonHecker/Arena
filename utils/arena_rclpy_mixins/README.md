@@ -20,11 +20,13 @@ Sourced from `__init__.py` plus the submodules it re-exports.
 | `ServiceNamespace` | mixin | `service_namespace(*parts)`: node-FQN-prefixed `Namespace` | Correct service/topic prefixing (rclpy ignores node namespace for services) |
 | `TimeNode` | mixin | `.sim_time`, `.wall_time`, `.time`, `.wall_clock`, `.wall_timer()`, `.sim_time_rate()` | Any node that needs clock utilities |
 | `Time` | class | Arithmetic, comparable, converts between `rclpy.time.Time`, `builtin_interfaces.msg.Time`, `rosgraph_msgs.msg.Clock`, and `float` | Time math without rclpy churn |
-| `AsyncNode` | class | `await_ros()`, `wait_for()`, `sync_wrap()`, `syncify()`, `create_client_wrapper()`, `create_action_client_wrapper()`, `do_launch()` | Nodes mixing async and sync code |
+| `AsyncNode` | class | `await_ros()`, `loop_future()`, `wait_for()`, `sync_wrap()`, `ros_callback()`, `create_client_wrapper()`, `create_action_client_wrapper()`, `do_launch()` | Nodes mixing async and sync code |
 | `ClientWrapper` | class | Async `call_timeout()` / sync `call_timeout_sync()` around a service client | Service calls with timeout logging |
 | `ActionClientWrapper` | class | `send_goal()`, `send_goal_timeout()`, `await_result()`, `send_and_await()`, `cancel()`, `ensure()` | Action client with timeout wrappers |
 | `AsyncUtil` | class | `AsyncUtil.timeout(coro, sec)`: `asyncio.wait_for` that returns `None` on timeout | One-off timeout wrapper |
 | `AsyncLaunchManager` / `LaunchHandle` | class | `launch_description()` returns a `LaunchHandle` (awaitable to completion; `shutdown()` gracefully terminates child processes); `kill_all()` shuts down all | Nodes that programmatically launch sub-processes |
+| `LazyPublisher` | class | Wraps a volatile publisher: `.wanted` and `.publish(build)` build and send only while the topic has a subscriber. A latched publisher is wrapped with a warning and always sends | Viewer and debug topics whose messages are costly to build. Never lockstep channels, heartbeats or control topics |
+| `LazySubscription` | class | Subscribes only while the `LazyPublisher` it feeds is wanted, checked once per second of wall time, so the upstream publisher sees no subscriber either | Relays and converters whose only output is a lazy topic |
 | `Namespace` | class | `str` subclass with `/`-join `__call__`, `.simulation_ns`, `.robot_ns`, `.remove_double_slash()` | Building topic / service paths |
 | `FrameNamespace` | class | `Namespace` subclass with `.sanitize()` (replaces non-alphanumeric with `_`) | TF frame name construction |
 | `ParamNamespace` | class | `Namespace` with `.`-join `__call__`, converts to/from slash namespaces | ROS param key construction |
@@ -55,12 +57,18 @@ built on top of it) instead of `asyncio.wrap_future` or hand-rolled
 handle thread-safety and timeout logging correctly).
 
 `create_subscription` and `create_service` on `AsyncNode` transparently accept
-`async def` callbacks via `syncify()`, so callers never need to bridge those
-manually.
+`async def` callbacks via `ros_callback()`, so callers never need to bridge those
+manually. The callback runs on the event loop while the executor holds only an
+rclpy task awaiting `loop_future()`, so it may await ROS futures (service
+calls, `/clock`) even on a single-threaded executor. Under `EventsExecutor`,
+callback groups do not serialize these coroutines: a slow handler overlaps the
+next message's.
 
 `wait_for(future)` submits a coroutine to the node's event loop and blocks the
 calling thread until done. It warns if called from the event loop thread itself
-(would deadlock).
+(would deadlock). Called from an executor callback it holds that executor
+thread, so on a single-threaded executor the awaited coroutine must not need
+ROS callbacks.
 
 ## Time and params
 
@@ -84,12 +92,14 @@ representations.
 `spin.py` owns process-level startup and teardown.
 
 `run_main(node_cls, *args, **kwargs)` calls `asyncio.run(async_main(...))`.
-`async_main` initialises rclpy, creates a `MultiThreadedExecutor`, spins it in
-a thread-pool worker, installs `SIGINT`/`SIGTERM` handlers, calls `node.setup()`,
-and on shutdown awaits `node.teardown()` (5 s timeout), cancels pending tasks,
-drains launches, and calls `rclpy.try_shutdown()`.
+`async_main` initializes rclpy, creates the executor from `create_executor()`
+(`rclpy.experimental.EventsExecutor`), spins it in a thread-pool worker,
+installs `SIGINT`/`SIGTERM` handlers, calls `node.setup()`, and on shutdown
+awaits `node.teardown()` (5 s timeout), cancels pending tasks, drains launches,
+and calls `rclpy.try_shutdown()`.
 
-`spin_node(node)` is the simpler sync equivalent for non-async nodes.
+`spin_node(node)` is the simpler sync equivalent for non-async nodes, and
+`spin_node(node, executor=create_executor())` runs one on the events executor.
 `spin_context()` is a context manager that suppresses `KeyboardInterrupt` /
 `ExternalShutdownException` and shuts down the executor and rclpy on exit.
 

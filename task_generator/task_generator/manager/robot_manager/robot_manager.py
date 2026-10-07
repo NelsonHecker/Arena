@@ -170,6 +170,7 @@ class RobotManager(NodeInterface):
         self._robot.extra.setdefault('namespace', self.namespace)
 
         self._publish_goal_task: asyncio.Task | None = None
+        self._watchers: list[Callable[[RobotManager], None]] = []
         self._launch_handle: LaunchHandle | None = None
 
         # Deferred to break the import cycle between this module and
@@ -245,7 +246,7 @@ class RobotManager(NodeInterface):
         for key, param in self.node.get_parameters_by_prefix(f"robot.{cap}").items():
             kwargs[key] = param.value
         if cap == 'mobile':
-            kwargs.setdefault('train_mode', self.node.rosparam[bool].get('train_mode', False))
+            kwargs.setdefault('train_mode', self.node.rosparam[bool].get('robot.train', False))
         return kwargs
 
     async def set_up_robot(self):
@@ -421,6 +422,7 @@ class RobotManager(NodeInterface):
 
         self._current_request = request
         self._phase_index = 0
+        self._notify()
 
         phase0 = request.phases[0]
         adapter = self._adapters.get(phase0.kind)
@@ -527,6 +529,15 @@ class RobotManager(NodeInterface):
         """Teleport the robot to ``pose``. Positioning only, no task dispatch."""
         self._start_pos = pose
         await self._apply_pose(pose)
+        self._notify()
+
+    def watch(self, fn: Callable[[RobotManager], None]) -> None:
+        """Calls fn after every teleport and every dispatched task."""
+        self._watchers.append(fn)
+
+    def _notify(self) -> None:
+        for fn in self._watchers:
+            fn(self)
 
     async def _launch_robot(self, node_paths: set[str]):
         """Launch the robot's navstack via the bound adapters."""

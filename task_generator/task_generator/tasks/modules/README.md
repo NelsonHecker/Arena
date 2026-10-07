@@ -39,7 +39,8 @@ Parameters live under `task.<mode>.<leaf>`.
 | --- | --- | --- | --- | --- |
 | `clear_forbidden_zones` | `Mod_ClearForbiddenZones` | [`clear_forbidden_zones/`](clear_forbidden_zones/) | calls `world_manager.forbid_clear()` | - |
 | `sounds` | `Mod_Sounds` | [`sounds/`](sounds/) | - | renders world-, scenario- and launch-declared `sound` semantic entities |
-| `rviz_ui` | `Mod_OverrideRobot` | [`rviz_ui/`](rviz_ui/) | - | - |
+| `rviz_ui` | `Mod_OverrideRobot` | [`rviz_ui/`](rviz_ui/) | - | puts the robot and goal handles |
+| `zone_edit` | `Mod_ZoneEdit` | [`zone_edit/`](zone_edit/) | - | puts one drag handle per zone corner |
 | `staged` | `Mod_Staged` | [`staged/`](staged/) | loads new stage config when stage index changes; publishes `goal_radius` and obstacle counts | - |
 
 ### `Mod_ClearForbiddenZones`
@@ -57,7 +58,7 @@ semantics that clears all per-level forbidden zones.
 
 ### `Mod_Sounds`
 
-[`sounds/impl.py:149`](sounds/impl.py#L149)
+[`sounds/impl.py:154`](sounds/impl.py#L154)
 
 A pure renderer, not an owner of state. After each reset it resolves every
 `sound` entity from the loaded world, the active scenario's episode-scoped
@@ -67,7 +68,9 @@ through the task generator realizer, and publishes
 `sounding`/`volume_db` semantics the engine already tracks. It serves
 `runtime/spawn_sound` and `runtime/remove_sound` for
 RViz-driven runtime sources. Toggling a declared sound is a `SetSemantic`
-write, not a module service.
+write, not a module service. A runtime sound not attached to a TF frame gets a
+drag handle with a Remove menu. Dragging moves the source in place while the
+handle moves, so it keeps its entity name and keeps playing.
 
 ### `Mod_OverrideRobot`
 
@@ -80,6 +83,35 @@ the task_generator node so multiple instances do not cross-talk. Forwards
 set-position and set-goal calls to `Task.set_robot_position` /
 `set_robot_goal`; a clicked point calls `task.force_reset()`. Provides
 interactive RViz-based control without modifying the active task mode.
+
+It also puts drag handles on the node's marker server (the Handles display).
+Every robot gets a `robot/<robot>` handle in its base TF frame, so rviz
+carries it along with the robot. Dropping it teleports the robot there and the
+handle snaps back onto it. Robots whose task mode has no goal editor of its own
+(see `TM_Robots.goal_editing_robots`) also get a `goal/<robot>` handle at the
+first go-to of their current task. On release it sends that robot alone a
+single go-to through `Task.submit_task`. The goal handle moves through
+`RobotManager.watch`, which fires after every teleport and every dispatched
+task. Handles are rebuilt after every reset and on every fleet change. Each
+robot keeps one palette color ([`interactive/colors.py`](../../interactive/colors.py))
+for its robot and goal handles, its guided waypoints and its Plan and Trail
+displays.
+
+### `Mod_ZoneEdit`
+
+[`zone_edit/impl.py`](zone_edit/impl.py)
+
+Off unless listed in `task.modules`. After every reset it puts one handle per
+zone corner of every loaded level. Dragging a corner rewrites it in the world
+description the world manager holds, so placement by zone name follows at
+once, and republishes the world overlay (the World display, off by default).
+Floors are not respawned, they catch up when the world reloads. Each corner's
+menu has "Save world to <dir>", which rewrites only the changed corner
+coordinates in each loaded level's `world.yaml` and leaves every other byte
+untouched ([`utils/zone_corners.py`](../../utils/zone_corners.py)). The next
+reset that applies the world reloads it, because the world manager compares
+`world.yaml` mtimes. A world resolved from a download cache is saved into
+that cache.
 
 ### `Mod_Staged`
 

@@ -22,6 +22,9 @@ Old flat names (`tm_robots`, `mobile`, `env_n`, ...) still work with a warning, 
 | `robot.arm` | string | `moveit` | Arm adapter kind |
 | `robot.planner` | string | `` (empty) | Top-level planner selector; resolves to `robot.mobile:=<adapter> robot.mobile.<selector>:=<name>` via `arena_planners.resolver` |
 | `robot.train` | bool string | `false` | Training mode: robot adapters route `cmd_vel` from the RL agent |
+| `robot.hearing` | `none` \| `bus` \| `srp` \| `seld` | `none` | Robot-side hearing layer ([arena_auditory.hearing](../../arena_auditory/README.md)): belief grid and a Nav2 speed-filter mask per fleet robot, merged into each robot's nav2 params, RViz displays. `bus` consumes simulator bus events, `srp` runs the untrained energy-onset + GCC-PHAT front-end on any array, `seld` runs the SELDnet front-end on the array its weights were trained on. Needs `auditory:=arena`. |
+| `robot.hearing.policy` | `belief` \| `listen` \| `full` | `full` | Hearing mask layers: belief only, plus the corner listen cap, plus creep-yield at blind bends ([arena_auditory.hearing](../../arena_auditory/README.md)). |
+| `robot.hearing.<param>` | node param | node default | Every other `robot.hearing.<param>:=<val>` reaches the hearing nodes as ROS param `<param>`. Declared: `robot.hearing.seld.device`, `robot.hearing.seld.lookahead_frames`, `robot.hearing.seld.bearing_source`, `robot.hearing.srp.hop_s`, `robot.hearing.srp.floor_window_s`, `robot.hearing.srp.onset_db`, all empty (node default). Never forwarded to the robot adapters. |
 | `robot.mobile.<key>:=<val>` | adapter-scoped | - | Override any kwarg the bound mobile adapter accepts. Lands as ROS param `robot.mobile.<key>` and overlays the cap-file YAML. Examples: `robot.mobile.local_planner:=teb`, `robot.mobile.global_planner:=smac`, `robot.mobile.agent:=jackal_pretrained`. |
 | `robot.arm.<key>:=<val>` | adapter-scoped | - | Same shape for the arm cap. |
 | `sim` | string | `gazebo` | Physics simulator: `dummy`, `gazebo`, or `isaac`. `dummy` must be explicit. Standalone `arena env` may omit it (adopts the runtime's sim); if given explicitly it must match the running runtime. |
@@ -35,25 +38,36 @@ Old flat names (`tm_robots`, `mobile`, `env_n`, ...) still work with a warning, 
 | `task.config` | string | `` (empty) | Path to a [TaskModeSpec YAML](../configs/tasks/README.md); empty -> synthesize from `task.robots` (wins if both set) |
 | `task.obstacles` | string | `random` | Obstacle task mode |
 | `task.modules` | string | `rviz_ui` | Comma-separated task modules to load |
-| `task.scenario` | string | `` (empty) | Sets the `task.scenario.file` ROS param (empty = use the `task.params` default) |
+| `task.scenario.file` | string | `` (empty) | Scenario for the `scenario` task modes (empty = use the `task.params` default) |
 | `task.params` | string | `configs/task_generator.yaml` | Task-generator ROS parameter YAML |
-| `task.episodes` | int string | `-1` | Stop the env after N episodes (`-1` = run forever) |
-| `task.fail_on_collision` | bool string | `false` | Abort the episode as FAILED on robot footprint contact |
+| `task.episode.count` | int string | `-1` | Stop the env after N episodes (`-1` = run forever) |
+| `task.episode.fail_on_collision` | bool string | `false` | Abort the episode as FAILED on robot footprint contact |
 | `world` | string | `map_empty` | World name; resolved under `arena_simulation_setup/worlds/` |
-| `auditory` | `none` \| `arena` | `none` | Auditory pipeline: sound propagation, robot hearing, robot and human sound emission. Sub-keys below take effect only when not `none`; see [auditory/README.md](../../task_generator/launch/human/auditory/README.md). |
-| `auditory.playback` | string | `auto` | PortAudio output device for workstation playback; `auto` tries `pulse`, `pipewire`, `default`, then the PortAudio default, `none` starts no playback nodes. |
-| `auditory.viz` | bool string | `false` | Publish propagation markers. |
-| `auditory.ped_hearing` | bool string | `true` | Pedestrians are propagation listeners and receive sound stimuli through the human simulator. |
-| `auditory.static_sounds` | YAML string | `[]` | World-independent `sound` entities (radios, alarms), as a flat list of the same `Sound` schema used in `world.yaml`. Non-empty adds `sounds` to `task.modules` (already on whenever `auditory` is not `none`). |
-| `auditory.motor` | `off` \| `wav` \| `procedural` | `procedural` | Robot motor audio source. |
-| `auditory.environment_playback` | bool string | `true` | Play propagated environment audio locally without disabling simulated emission. |
-| `auditory.block_size` | int string | `2048` | PortAudio callback size; raise to `4096` on repeated underflows. |
-| `auditory.assets` / `auditory.sound_dir` | paths | bundled files | Asset catalog and WAV directory shared by all playback nodes. |
+| `auditory` | `none` \| `arena` | `none` | Auditory pipeline: sound propagation, robot hearing, robot and human sound emission. Sub-keys below take effect only when not `none`, see [arena_auditory/README.md](../../arena_auditory/README.md). Needs the auditory feature (`arena feature auditory install`). |
+| `auditory.<param>` | node param | node default | Every `auditory.<param>:=<val>` reaches each auditory node as ROS param `<param>`, coerced to the type of its default in `arena_auditory/params.py`. The rows below are declared, an empty value keeps the node default shown. |
+| `auditory.output.device` | string | `auto` | PortAudio output device for workstation playback. `auto` tries `pulse`, `pipewire`, `default`, then the PortAudio default. `none` starts no listener renderer. |
+| `auditory.output.block_size` | int string | `512` | Workstation audio callback block size. |
+| `auditory.output.buffer_s` | float string | `0.04` | Workstation jitter buffer target, raise it on repeated underflows. |
+| `auditory.output.motor.enabled` / `auditory.output.ambient.enabled` | bool string | `true` | Play robot motor or environment audio on the workstation. Emission, propagation and robot hearing continue when false. |
+| `auditory.viz.enabled` | bool string | `false` | Start the propagation visualizer and publish its markers. |
+| `auditory.propagation.backend` | `pyroomacoustics` \| `level3` \| `legacy` | `pyroomacoustics` | Propagation backend. |
+| `auditory.portal.multi_hop.enabled` | bool string | `true` | Allow pyroomacoustics RIRs across multi-hop portal routes. |
+| `auditory.rir.max_order` | int string | `3` | Image-source reflection order of every RIR. |
+| `auditory.pedestrian_listeners.enabled` | bool string | `false` | Pedestrians are propagation listeners and receive sound stimuli through the human simulator. |
+| `auditory.motor.enabled` | bool string | `true` | Robots emit drivetrain audio. |
+| `auditory.motor.model` | `procedural` \| `wav` | `procedural` | Robot motor audio source. |
+| `auditory.motor.trim_db` | float string | `0.0` | Live offset on the motor asset `level_db`, which sets the motor level everywhere (the procedural drivetrain at 1 m/s). |
+| `auditory.listener.id` | string | `` (empty) | Microphone listener id of the listener renderer, the RViz auditory panel switches it at run time. |
+| `auditory.viewport.height_m` | float string | `1.6` | Listening height of the viewport down-projection microphone. |
+| `auditory.array.spec` | `stereo` \| `four_mic` \| `mono` \| path | `stereo`, `four_mic` when `robot.hearing` is `srp` or `seld` | Robot microphone array rendered by `array_renderer`. |
+| `auditory.array.mount_frame` | string | `` (empty) | TF frame the robot microphone array is mounted on, `{prefix}` and `{base_frame}` expand, a bare leaf joins the robot prefix, empty uses the robot base frame. |
+| `auditory.microphones` | YAML string | `[]` | Robot microphone mappings (owner, robot, placement, frame, index). |
+| `auditory.static_sounds` | YAML string | `[]` | World-independent `sound` entities (radios, alarms), as a flat list of the same `Sound` schema used in `world.yaml`. Non-empty adds `sounds` to `task.modules` (already on whenever `auditory` is not `none`), which needs the auditory feature. |
 | `use_sim_time` | bool string | `true` | Use sim clock instead of wall clock |
 | `env.n` | int string | `1` | Number of task-generator environments `arena launch` will spawn this invocation. Additive: if the runtime already has envs, these add to them rather than replace. |
 | `env_d` | float string | `50` | Spacing (metres) between environments on the snail grid |
 | `debug` | bool string | `False` | Enable debug features |
-| `task.auto_reset` | bool expression | `true` | `true` = standalone: node auto-advances episodes; `false` = managed: external controller drives resets via `lifecycle/reset_episode` |
+| `task.episode.auto_reset` | bool expression | `true` | `true` = standalone: node auto-advances episodes; `false` = managed: external controller drives resets via `lifecycle/reset_episode` |
 | `optim` | comma-separated tokens | `$ARENA_OPTIM` or `` (empty) | Strip matching `<sensor>` blocks from each robot's URDF after xacro expansion (affects both Gazebo and Isaac via [`urdf.py`](../../arena_simulation_setup/src/arena_simulation_setup/utils/models/urdf.py)). Tokens: `no_camera` (strips `camera`/`depth`/`rgbd_camera`), `no_lidar` (strips `ray`/`gpu_lidar`). Unknown tokens warn and are ignored. Default reads `$ARENA_OPTIM` so you can set `export ARENA_OPTIM=no_camera,no_lidar` once per shell; CLI `optim:=...` overrides. |
 
 ## Log level

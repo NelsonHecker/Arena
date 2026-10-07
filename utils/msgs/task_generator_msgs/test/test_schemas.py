@@ -31,6 +31,7 @@ def test_episode_record_fields():
     p.value.integer_value = 4
     r.obstacles_params = [p]
     r.robots_params = []
+    r.human_params = [p]
 
     assert r.episode_id == 7
     assert r.world == "map1"
@@ -47,6 +48,7 @@ def test_episode_record_fields():
     assert r.obstacles_params[0].name == "static.n"
     assert r.obstacles_params[0].value.integer_value == 4
     assert list(r.robots_params) == []
+    assert [q.name for q in r.human_params] == ["static.n"]
 
     assert EpisodeRecord.QUEUED == 0
     assert EpisodeRecord.RUNNING == 1
@@ -156,6 +158,7 @@ def test_queue_episode_srv():
     p.value.integer_value = 5
     req.obstacles_params = [p]
     req.robots_params = []
+    req.human_params = [p]
 
     assert req.action == QueueEpisode.Request.MERGE
     assert QueueEpisode.Request.MERGE == 0
@@ -166,6 +169,7 @@ def test_queue_episode_srv():
     assert req.world == "maze"
     assert len(req.obstacles_params) == 1
     assert req.obstacles_params[0].name == "static.n"
+    assert [q.name for q in req.human_params] == ["static.n"]
 
     res = QueueEpisode.Response()
     res.success = True
@@ -184,29 +188,6 @@ def test_get_task_modes_srv():
     assert res.tm_robots == "random"
     assert res.tm_obstacles == "scenario"
     assert res.tm_modules == ["benchmark"]
-
-
-def test_spawn_sound_srv():
-    from task_generator_msgs.srv import SpawnSound
-
-    req = SpawnSound.Request()
-    req.pose.header.frame_id = "map"
-    req.mode = "music"
-    req.customize_playback = True
-    req.asset_id = "custom_radio"
-    req.source_volume_db = 70.0
-    req.loop = True
-    req.initially_active = False
-    assert req.pose.header.frame_id == "map"
-    assert req.mode == "music"
-    assert req.asset_id == "custom_radio"
-    assert req.initially_active is False
-
-    res = SpawnSound.Response()
-    res.entity = "runtime_music_1"
-    res.success = True
-    assert res.entity == "runtime_music_1"
-    assert res.success is True
 
 
 def test_spawn_static_srv():
@@ -248,61 +229,6 @@ def test_spawn_dynamic_srv():
     res.error_msg = ""
 
     assert res.id == "ped_0"
-
-
-def test_spawn_microphone_srv():
-    from geometry_msgs.msg import PointStamped
-    from task_generator_msgs.srv import SpawnMicrophone
-
-    req = SpawnMicrophone.Request()
-    req.position = PointStamped()
-    req.position.header.frame_id = "map"
-    req.position.point.x = 2.0
-    req.position.point.y = 3.0
-    req.position.point.z = 1.5
-    req.placement = "placed"
-    req.attached_frame = "robot/base_link"
-
-    assert req.position.header.frame_id == "map"
-    assert req.position.point.z == 1.5
-    assert req.placement == "placed"
-    assert req.attached_frame == "robot/base_link"
-
-    res = SpawnMicrophone.Response()
-    res.listener_id = "microphone1"
-    res.zone = "reception"
-    res.attached_frame = "robot/base_link"
-    res.success = True
-    res.error_msg = ""
-
-    assert res.listener_id == "microphone1"
-    assert res.zone == "reception"
-    assert res.attached_frame == "robot/base_link"
-    assert res.success is True
-
-
-def test_remove_sound_srv():
-    from task_generator_msgs.srv import RemoveSound
-
-    req = RemoveSound.Request()
-    req.entity = "runtime_music_1"
-    res = RemoveSound.Response()
-    res.success = True
-
-    assert req.entity == "runtime_music_1"
-    assert res.success is True
-
-
-def test_remove_microphone_srv():
-    from task_generator_msgs.srv import RemoveMicrophone
-
-    req = RemoveMicrophone.Request()
-    req.listener_id = "microphone:map:placed:1"
-    res = RemoveMicrophone.Response()
-    res.success = True
-
-    assert req.listener_id == "microphone:map:placed:1"
-    assert res.success is True
 
 
 def test_spawn_robot_srv():

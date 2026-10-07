@@ -272,7 +272,7 @@ action list of `{entity, field, value}` writes against exactly one trigger:
 | trigger | meaning |
 | --- | --- |
 | `at: <seconds>` | fire once at episode second `t` |
-| `every: <seconds>` | fire each period, optional `offset`/`until` |
+| `every: <seconds>` | fire at `offset` (default: one period in), then each period, optional `until` |
 | `when: {entity, field, is}` | fire on the false-to-true edge of a semantic value |
 
 ```yaml
@@ -378,7 +378,7 @@ top-level key.
 Assets placed under `worlds/$WORLD/assets/<domain>/<Type>/<name>/` are
 resolved before shared-local (`$ARENA_ASSETS_DIR_LOCAL`) and network-fetched
 assets. `<domain>` defaults to `Common` if you have no reason to scope the
-asset further. Four asset kinds can be shipped this way:
+asset further. Five asset kinds can be shipped this way:
 
 | Type | Directory contents | Referenced as |
 |---|---|---|
@@ -386,6 +386,7 @@ asset further. Four asset kinds can be shipped this way:
 | `Human` | 3D model files (SDF) | `model:` on a HumanSim pedestrian entry |
 | `Material` | `<name>.mdl` plus its texture files | `material:` on a zone or wall entry |
 | `Wall` | `<name>.yaml`, a `WallDescription` (see [configs/walls/README.md](configs/walls/README.md)) | `kind:` on a `walls:` entry |
+| `Sound` | `<name>.yaml` (a sound manifest) plus its wav files | `asset_id:` on a `sounds:` entry |
 
 To ship a custom wall style:
 
@@ -394,9 +395,10 @@ mkdir -p worlds/$WORLD/assets/Common/Wall/my_style
 # create worlds/$WORLD/assets/Common/Wall/my_style/my_style.yaml
 ```
 
-Then reference it in `world.yaml` walls as `kind: my_style`. The other three
-kinds follow the same `assets/<domain>/<Type>/<name>/` layout, just with
-model/material files instead of a preset YAML.
+Then reference it in `world.yaml` walls as `kind: my_style`. The other four
+kinds follow the same `assets/<domain>/<Type>/<name>/` layout. Objects, humans
+and materials carry model or material files instead of a preset YAML, a sound
+carries its `<name>.yaml` manifest beside the wav files.
 
 ## 6. Generate with the AI pipeline (alternative)
 

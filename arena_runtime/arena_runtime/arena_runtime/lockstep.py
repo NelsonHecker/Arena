@@ -6,6 +6,7 @@ import dataclasses
 import typing
 
 import arena_runtime_msgs.msg
+import arena_runtime_msgs.srv
 import rclpy.qos
 import rclpy.subscription
 import rosgraph_msgs.msg
@@ -15,6 +16,8 @@ from rosidl_runtime_py.utilities import get_message
 from arena_runtime.lockstep_gates import Channel, ChannelRegistry, ChannelSpec, GateLedger, parse_channel_entry, step_slice
 
 if typing.TYPE_CHECKING:
+    from arena_rclpy_mixins.Async import AsyncNode
+
     from arena_runtime.arena_node import ArenaNode
 
 _LOCKSTEP_REASON = "lockstep"
@@ -33,6 +36,39 @@ _LATCHED = rclpy.qos.QoSProfile(
     depth=1,
     durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
 )
+
+
+LOCKSTEP_REGISTER_SERVICE = "/arena/sim_lifecycle/lockstep/register"
+
+
+async def register_channels(
+    node: AsyncNode,
+    channels: typing.Sequence[arena_runtime_msgs.msg.LockstepChannel],
+    *,
+    env: str,
+    caller: str | None = None,
+    timeout: float = 3.0,
+) -> bool:
+    """Fire-once, best-effort lockstep channel registration under caller (default the node's fully qualified name), empty channels clears it. True when accepted."""
+    client = node.create_client_wrapper(arena_runtime_msgs.srv.LockstepRegister, LOCKSTEP_REGISTER_SERVICE, timeout=timeout)
+    try:
+        if not await client.ensure(timeout_sec=timeout):
+            node.get_logger().info("lockstep register service not available, skipping channel registration")
+            return False
+        registration = arena_runtime_msgs.msg.LockstepRegistration(
+            caller=caller if caller is not None else node.get_fully_qualified_name(),
+            env=env,
+            channels=list(channels),
+        )
+        response = await client.call_timeout(arena_runtime_msgs.srv.LockstepRegister.Request(registration=registration))
+    finally:
+        node.destroy_client(client.client)
+    if response is None:
+        return False
+    if not response.success:
+        node.get_logger().warning(f"lockstep channel registration rejected: {response.error_msg}")
+        return False
+    return True
 
 
 def spec_from_msg(msg: arena_runtime_msgs.msg.LockstepChannel) -> ChannelSpec:

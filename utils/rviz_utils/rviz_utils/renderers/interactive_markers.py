@@ -1,0 +1,26 @@
+"""Renderer for DisplayKind.INTERACTIVE_MARKERS: the topic is the marker server namespace."""
+
+from __future__ import annotations
+
+from arena_viz import DisplayKind, StyleSpec
+from task_generator_msgs.msg import AdapterDisplay, RobotDescriptor
+
+from rviz_utils.renderers._registry import register
+
+
+@register(DisplayKind.INTERACTIVE_MARKERS)
+def render_interactive_markers(d: AdapterDisplay, robot: RobotDescriptor | None) -> dict[str, object] | None:
+    style = StyleSpec.from_json(d.style_json)
+    result: dict[str, object] = {
+        "Class": "rviz_default_plugins/InteractiveMarkers",
+        "Name": d.name,
+        "Enabled": style.enabled,
+        "Interactive Markers Namespace": d.topic,
+        "Show Descriptions": True,
+        "Show Axes": False,
+        "Show Visual Aids": False,
+        "Enable Transparency": True,
+        "Value": True,
+    }
+    result.update(style.extra.get("rviz", {}))
+    return result

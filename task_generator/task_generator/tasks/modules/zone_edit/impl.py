@@ -1,0 +1,69 @@
+import asyncio
+from collections.abc import Awaitable, Callable
+
+import attrs
+import geometry_msgs.msg as geometry_msgs
+from visualization_msgs.msg import Marker
+
+from task_generator.interactive import Apply, Menu, planar_marker, visual
+from task_generator.shared import Position
+from task_generator.tasks.modules import TM_Module
+from task_generator.utils.zone_corners import write_zone_corners
+
+_PREFIX = "zone/"
+_HANDLE_SCALE = 0.6
+_HANDLE_COLOR = (1.0, 0.85, 0.1, 1.0)
+_HANDLE_Z = 0.05
+
+
+class Mod_ZoneEdit(TM_Module):
+    def after_reset(self):
+        hub = self.node.markers
+        manager = self._ctx.world_manager
+        root = manager.loaded_world_path
+        menu = [Menu(f"Save world to {root}", self._save)] if root.parts else []
+        for level_id, level in manager.world.levels.items():
+            offset = self.node._realizer.realize(Position(x=0.0, y=0.0), level_id)
+            for zone in level.zones:
+                for index, corner in enumerate(zone.corners):
+                    pose = geometry_msgs.Pose()
+                    pose.position.x = corner.x + offset.x
+                    pose.position.y = corner.y + offset.y
+                    pose.position.z = _HANDLE_Z
+                    pose.orientation.w = 1.0
+                    hub.put(
+                        planar_marker(
+                            f"{_PREFIX}{level_id}/{zone.name}/{index}",
+                            pose,
+                            description=zone.name if index == 0 else "",
+                            scale=_HANDLE_SCALE,
+                            rotate=False,
+                            visuals=[visual(Marker.SPHERE, (0.25, 0.25, 0.25), _HANDLE_COLOR)],
+                        ),
+                        on_pose=self._mover(level_id, zone.name, index),
+                        apply=Apply.LIVE,
+                        menu=menu,
+                    )
+
+    def _mover(self, level_id: str, zone_name: str, index: int) -> Callable[[geometry_msgs.Pose], Awaitable[None]]:
+        async def move(pose: geometry_msgs.Pose) -> None:
+            manager = self._ctx.world_manager
+            level = manager.world.levels[level_id]
+            zone = next(z for z in level.zones if z.name == zone_name)
+            offset = self.node._realizer.realize(Position(x=0.0, y=0.0), level_id)
+            zone.corners[index] = attrs.evolve(zone.corners[index], x=pose.position.x - offset.x, y=pose.position.y - offset.y)
+            manager.refresh_world_markers(self.node._simulator.semantics_snapshot())
+
+        return move
+
+    async def _save(self) -> None:
+        manager = self._ctx.world_manager
+        root = manager.loaded_world_path
+        changed = 0
+        for level_id, level in manager.world.levels.items():
+            path = root / level_id / "world.yaml"
+            if not path.is_file():
+                raise FileNotFoundError(f"cannot save level {level_id!r}: {path} does not exist")
+            corners = {zone.name: [(c.x, c.y) for c in zone.corners] for zone in level.zones}
+            changed += await asyncio.to_thread(write_zone_corners, path, corners)
+        self._logger.info(f"saved {changed} corner coordinates to {root}")

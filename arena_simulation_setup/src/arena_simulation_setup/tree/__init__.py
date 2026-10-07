@@ -395,8 +395,8 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
                 [
                     'ros2',
                     'run',
-                    'arena_models',
-                    'arena_models',
+                    'arena_assets',
+                    'arena_assets',
                     '-s',
                     'net',
                     self._provider,
@@ -470,8 +470,8 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
                 [
                     'ros2',
                     'run',
-                    'arena_models',
-                    'arena_models',
+                    'arena_assets',
+                    'arena_assets',
                     '-s',
                     'net',
                     self._provider,
@@ -498,7 +498,7 @@ class NetResolver(SimplePathResolver[IdentifierT], ResolverBase[IdentifierT], ty
     def _listing_args(self) -> list[str]:
         """Remote listing command. Annotated payloads are found by sentinel scan, everything
         else by listing the children of the prefix its identifiers live under."""
-        argv = ['ros2', 'run', 'arena_models', 'arena_models', '-s', 'net', self._provider, 'list']
+        argv = ['ros2', 'run', 'arena_assets', 'arena_assets', '-s', 'net', self._provider, 'list']
         if self._annotated:
             return argv
         return [*argv, '--children', *((self._list_prefix,) if self._list_prefix else ())]

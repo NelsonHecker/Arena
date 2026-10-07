@@ -2,7 +2,7 @@ import typing
 
 from task_generator.tasks.mode import TaskMode
 
-from . import clear_forbidden_zones, rviz_ui, sounds, staged
+from . import clear_forbidden_zones, rviz_ui, sounds, staged, zone_edit
 
 if typing.TYPE_CHECKING:
     from task_generator.tasks.task import Task
@@ -26,4 +26,5 @@ __all__ = [
     "rviz_ui",
     "sounds",
     "staged",
+    "zone_edit",
 ]

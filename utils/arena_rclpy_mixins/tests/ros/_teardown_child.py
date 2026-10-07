@@ -8,9 +8,11 @@ import sys
 import time
 
 import rclpy
+import rclpy.node
 from arena_rclpy_mixins.node import ArenaMixinNode
-from arena_rclpy_mixins.spin import spin_context, start_loop_watchdog
+from arena_rclpy_mixins.spin import create_executor, spin_context, spin_node, start_loop_watchdog
 from std_msgs.msg import String
+from std_srvs.srv import SetBool
 
 _STALL_S = 12.0
 _DEADLINE_BLOCK_S = 5.0
@@ -59,6 +61,34 @@ class Deadline(ArenaMixinNode):
         time.sleep(_DEADLINE_BLOCK_S)
 
 
+class Failing(ArenaMixinNode):
+    """An async timer callback raises once the executor spins."""
+
+    async def setup(self) -> None:
+        self._timer = self.create_timer(0.05, self._fail)
+
+    async def _fail(self) -> None:
+        raise RuntimeError("callback failed")
+
+
+class Plain(rclpy.node.Node):
+    """Plain node with a timer, publishers and a service, spun on the events executor."""
+
+    def __init__(self) -> None:
+        super().__init__("teardown_plain")
+        self._pubs = [self.create_publisher(String, f"teardown_plain_{i}", 10) for i in range(40)]
+        self.create_service(SetBool, "teardown_plain_flag", lambda req, res: res)
+        self._ready = False
+        self.create_timer(0.05, self._tick)
+
+    def _tick(self) -> None:
+        for pub in self._pubs:
+            pub.publish(String(data="tick"))
+        if not self._ready:
+            self._ready = True
+            print("READY", flush=True)
+
+
 def main() -> None:
     mode = sys.argv[1]
     if mode == "async_storm":
@@ -67,6 +97,11 @@ def main() -> None:
         Stall.run_main("teardown_stall")
     elif mode == "watchdog_deadline":
         Deadline.run_main("teardown_deadline")
+    elif mode == "callback_failure":
+        Failing.run_main("teardown_callback_failure")
+    elif mode == "sync_events":
+        rclpy.init()
+        spin_node(Plain(), executor=create_executor())
     elif mode == "sync_late":
         rclpy.init()
         with spin_context():

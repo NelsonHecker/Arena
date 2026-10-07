@@ -1,4 +1,0 @@
-string listener_id
----
-bool success
-string error_msg

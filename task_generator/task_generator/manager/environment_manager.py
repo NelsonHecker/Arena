@@ -10,6 +10,7 @@ from arena_runtime.sim._semantics import _SEMANTIC_KINDS
 from arena_simulation_setup.shared import Ceiling
 from arena_simulation_setup.tree.World import LevelDescription, WorldDescription
 from arena_simulation_setup.tree.World.World import _render_door_polygons, _render_elevator_polygons
+from rcl_interfaces.msg import Parameter as ParameterMsg
 
 from task_generator.manager.collision_grid import CollisionGrid
 from task_generator.manager.realizer import Realizer
@@ -280,6 +281,11 @@ class EnvironmentManager(NodeInterface):
         await self._cache_polygons(realized)
         await self._human_simulator.spawn_obstacles(realized)
 
+    async def move_obstacles(self, setups: Collection[Obstacle]):
+        """Moves already spawned static obstacles and rebuilds the collision grid without their old footprints."""
+        await self.spawn_obstacles(setups)
+        self._sync_static_polygons()
+
     async def spawn_robot(self, robots: Sequence[Robot]) -> Sequence[Robot]:
         """
         Loads given robot into the simulator
@@ -329,6 +335,12 @@ class EnvironmentManager(NodeInterface):
         Configure regions (sources/sinks) on the human simulator.
         """
         return await self._human_simulator.setup_regions(regions)
+
+    async def configure_humans(self, params: Sequence[ParameterMsg]) -> list[ParameterMsg]:
+        """
+        Apply episode-level params on the human simulator and return the accepted ones.
+        """
+        return await self._human_simulator.configure(params)
 
     async def remove_all_regions(self) -> bool:
         """

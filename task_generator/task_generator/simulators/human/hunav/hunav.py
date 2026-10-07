@@ -13,7 +13,6 @@ import rclpy.client
 import rclpy.node
 import rclpy.qos
 import rclpy.time
-import tf2_ros
 from arena_people_msgs.msg import Pedestrian, Pedestrians
 from arena_rclpy_mixins.Async import ClientWrapper
 from arena_rclpy_mixins.shared import Namespace
@@ -31,12 +30,10 @@ from task_generator.shared import (
     DynamicObstacle,
     Obstacle,
     Orientation,
-    Pose,
     Position,
-    Robot,
     Wall,
 )
-from task_generator.simulators.human import BaseHumanSimulator
+from task_generator.simulators.human import BaseHumanSimulator, TrackedRobot
 from task_generator.simulators.human.noop import NoopHumanSimulator
 
 from . import HunavDynamicObstacle
@@ -48,15 +45,6 @@ _FLEET_QOS = rclpy.qos.QoSProfile(
     depth=1,
     durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
 )
-
-
-@attrs.define
-class _TrackedRobot:
-    robot: Robot
-    tf_frame: str | None
-    pose: Pose
-    velocity: tuple[float, float] = (0.0, 0.0)
-    stamp: float | None = None
 
 
 class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else NoopHumanSimulator):
@@ -111,7 +99,6 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else NoopHu
         self._wall_segments: dict[str, WallSegment] = {}
         self._wall_points: dict[str, list[Point]] = {}
         self._agents_lock: asyncio.Lock = asyncio.Lock()
-        self._robots: dict[str, _TrackedRobot] = {}
         self._fleet_order: list[str] = []
         self._agents_container: Agents = Agents()  # Container to hold all registered agents
         self._get_agents_container: Agents = Agents()  # Container specifically just to send the Agent attributes to Hunavsystemplugin
@@ -232,64 +219,13 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else NoopHu
     def _on_robot_fleet(self, msg: RobotFleet) -> None:
         self._fleet_order = [state.descriptor.name for state in msg.robots]
 
-    async def _spawn_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
-        for robot in robots:
-            tf_frame: str | None = None
-            try:
-                view = await robot.model.resolve()
-                tf_frame = robot.frame(view.model_params.base_frame).raw()
-            except Exception as e:
-                self._logger.warning(f"robot {robot.name!r}: base frame unresolved ({e}), using spawn pose only")
-            self._robots[robot.name] = _TrackedRobot(
-                robot=robot,
-                tf_frame=tf_frame,
-                pose=copy.deepcopy(robot.pose),
-            )
-        return (True,) * len(robots)
-
-    async def _move_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
-        for robot in robots:
-            tracked = self._robots.get(robot.name)
-            if tracked is None:
-                continue
-            tracked.pose = copy.deepcopy(robot.pose)
-            tracked.velocity = (0.0, 0.0)
-            tracked.stamp = None
-        return (True,) * len(robots)
-
-    async def _remove_robot_impl(self, robots: Sequence[Robot]) -> Sequence[bool]:
-        for robot in robots:
-            self._robots.pop(robot.name, None)
-        return (True,) * len(robots)
-
-    def _primary_robot(self) -> _TrackedRobot | None:
+    def _primary_robot(self) -> TrackedRobot | None:
         """First fleet-order robot present in the roster."""
         for name in self._fleet_order:
             tracked = self._robots.get(name)
             if tracked is not None:
                 return tracked
         return next(iter(self._robots.values()), None)
-
-    def _refresh_robot(self, tracked: _TrackedRobot) -> None:
-        """Update cached pose and finite-difference velocity from the map->base TF."""
-        if tracked.tf_frame is None:
-            return
-        try:
-            t = self.node.tf_buffer.lookup_transform('map', tracked.tf_frame, rclpy.time.Time())
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-            return
-        stamp = t.header.stamp.sec + t.header.stamp.nanosec * 1e-9
-        if tracked.stamp is not None and stamp <= tracked.stamp:
-            return
-        position = Position(x=t.transform.translation.x, y=t.transform.translation.y)
-        if tracked.stamp is not None:
-            dt = stamp - tracked.stamp
-            tracked.velocity = (
-                (position.x - tracked.pose.position.x) / dt,
-                (position.y - tracked.pose.position.y) / dt,
-            )
-        tracked.pose = Pose(position, Orientation.from_msg(t.transform.rotation))
-        tracked.stamp = stamp
 
     def _robot_agent_msg(self) -> Agent:
         msg = Agent()
@@ -302,7 +238,7 @@ class HunavHumanSimulator(BaseHumanSimulator if typing.TYPE_CHECKING else NoopHu
             msg.position.position.x = _ROBOT_PARK_XY
             msg.position.position.y = _ROBOT_PARK_XY
             return msg
-        self._refresh_robot(tracked)
+        tracked.refresh(self.node.tf_buffer)
         msg.name = tracked.robot.name
         msg.radius = self.node.rosparam[float].get('robot_radius', msg.radius)
         msg.position.position.x = tracked.pose.position.x
