@@ -447,19 +447,23 @@ class CamNode(ArenaMixinNode):
             msg.clip_near = float(self.clip_near)
             endpoint.cmd_view.publish(msg)
 
-    async def drive(self, duration: float, world_orientation: bool, frame_at: Frame) -> None:
-        """Play one segment by sampling `frame_at(t)` over t in [0, 1].
+    async def _pace_to(self, start_wall: float, frame_index: int) -> None:
+        """Sleep until the frame at `frame_index` is due on the wall clock."""
+        if self._lockstep or self._follower:
+            return
+        delay = start_wall + frame_index / self._fps - asyncio.get_running_loop().time()
+        if delay > 0.001:
+            await asyncio.sleep(delay)
 
-        Record mode walks a fixed `duration * fps` frames and captures each one
-        synchronously, so timing is exact. Live mode streams on `cmd_view` paced by
-        wall-clock, so a starved step jumps to the right point rather than running
-        the whole move in slow motion.
-        """
+    async def drive(self, duration: float, world_orientation: bool, frame_at: Frame) -> None:
+        """Play one segment by sampling `frame_at(t)` over t in [0, 1]."""
         if self._record is not None:
             frames = max(1, round(duration * self._fps))
+            start_wall = asyncio.get_running_loop().time()
             for i in range(frames):
                 if not rclpy.ok():
                     return
+                await self._pace_to(start_wall, i)
                 pos, quat, fov = frame_at((i + 1) / frames)
                 if not await self._record_frame(pos, quat, world_orientation, fov):
                     return
@@ -481,7 +485,12 @@ class CamNode(ArenaMixinNode):
 
     async def steer(self, next_frame: Callable[[float], Steered | None]) -> None:
         """Record an open-ended segment: `next_frame(dt)` advances the live input one frame period, None ends it."""
+        loop = asyncio.get_running_loop()
+        start_wall = loop.time()
+        frame_idx = 0
         while rclpy.ok():
+            await self._pace_to(start_wall, frame_idx)
+            frame_idx += 1
             frame = next_frame(1.0 / self._fps)
             if frame is None:
                 return
