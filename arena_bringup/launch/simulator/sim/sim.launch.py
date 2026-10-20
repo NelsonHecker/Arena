@@ -36,6 +36,12 @@ def generate_launch_description():
         choices=['physx', 'newton'],
     )
 
+    isaac_rtf = LaunchArgument(
+        name='sim.isaac.rtf',
+        default_value='0',
+        description='Isaac Sim target Real-Time Factor (0 = unthrottled, the default; 1.0 = real time)',
+    )
+
     world = LaunchArgument(
         name='world'
     )
@@ -120,6 +126,8 @@ def generate_launch_description():
                 launch.substitutions.LaunchConfiguration('log_level', default='debug'),
                 launch.substitutions.TextSubstitution(text=' physics:='),
                 physics.substitution,
+                launch.substitutions.TextSubstitution(text=' rtf:='),
+                isaac_rtf.substitution,
                 *(
                     sub
                     for key, arg in viewport.items()
