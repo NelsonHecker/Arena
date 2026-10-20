@@ -135,6 +135,18 @@ class Nav2Adapter(MobileAdapter):
             return
         bt_node_path = str(robot.namespace("bt_navigator"))
         await robot.node.poll(lambda: bt_node_path in node_paths, f"node {bt_node_path}", interval=0.01)
+        ready: bool | None
+        try:
+            ready = await robot.node.wait_for_lifecycle_state_async(
+                bt_node_path,
+                lifecycle_msgs.msg.State.PRIMARY_STATE_ACTIVE,
+                timeout=20.0,
+            )
+        except Exception as exc:  # discovery/transport faults only
+            ready = None
+            robot.node.get_logger().warning(f"bt_navigator readiness check failed: {exc}")
+        if ready is False:
+            robot.node.get_logger().warning("bt_navigator did not reach ACTIVE within 20 s; navigation may fail on the first goal")
         await super().wait_until_ready(robot, node_paths)
 
     async def on_reset(self, robot: RobotManager, ctx: ResetContext) -> None:
