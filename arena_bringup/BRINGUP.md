@@ -431,6 +431,20 @@ Contestant args in benchmark YAMLs use the same shapes and the same forwarding
 rules (see
 [benchmark README](../arena_evaluation/arena_evaluation/configs/benchmark/README.md#contestant-args)).
 
+### Nav2 kinematic overrides
+
+Nav2's derived envelope is overridable per run with `robot.mobile.<key>:=<value>`:
+the twelve `max`/`min` velocity and `acc`/`decel` keys (linear, angular,
+lateral), plus `v_linear_min`, `v_linear_max`, `v_angular_max`,
+`v_angular_min_in_place` (`graceful`) and `rotate_to_heading_angular_vel`,
+`max_angular_accel` (`rotation_shim`). These are not fields of
+`caps/mobile.yaml`; they override what the launch derives from it and from the
+controller configs. One side of a symmetric pair derives the other as
+`-abs(value)` unless given explicitly; unknown or non-finite values fail at
+startup. The overrides bind the Nav2 chain only, and controller keys apply only
+when the active controller references them. In benchmark YAMLs, place them under
+the contestant's `mobile:` dict (`max_linear_vel: 0.35`, ...).
+
 ### robot:=auto
 
 The `robot` argument defaults to `auto`. Instead of selecting a robot
