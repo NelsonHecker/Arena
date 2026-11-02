@@ -473,7 +473,7 @@ With `human.robots.visible:=false` the loop leaves every robot out of the feed
 and publishes the possessed peds alone. The engine then holds no robot agent,
 its pedestrians neither avoid a robot nor resolve a `robot:` attention ref.
 
-A stage sets the same switch per episode with `robots_visible` (`true` or `false`) in its `config.humansim` block. `_configure_impl` consumes `humansim.robots_visible` instead of sending it to the engine, lists it among the accepted params in `EpisodeRecord.human_params`, and keeps it until a later episode sets it again. A value that is not a bool is logged and not accepted.
+A stage sets the same switch per episode with `robots_visible` (`true` or `false`) in its `config.humansim` block. `_configure_impl` consumes `robots_visible` instead of sending it to the engine, lists it among the accepted params in `EpisodeRecord.human_params`, and keeps it until a later episode sets it again. A value that is not a bool is logged and not accepted.
 
 `PARAM_NAMESPACE` is `humansim`, and a `humansim.<param>` launch arg sets the same engine param for the whole
 run. At every episode reset `_configure_impl` sends the staged `humansim.*` names other than `robots_visible` of
@@ -482,8 +482,9 @@ engine's `reset` with `soft: true`. The batch applies as a whole or not at all, 
 half of a stage's human config. The reset call is the engine's episode boundary, where it applies the params,
 moves the live agents onto them, and prunes unused planners. See
 [Runtime reconfiguration](../../../../humansim/README.md#runtime-reconfiguration). The engine rejects a batch
-that holds a param it cannot reconfigure. A rejected batch logs an error with the engine's reason and stays
-out of `EpisodeRecord.human_params`, and the episode continues.
+that holds a param it cannot reconfigure. A rejected or timed-out batch logs an error with the engine's reason, or
+`timeout` when the engine does not answer. It stays out of `EpisodeRecord.human_params`, and so does `robots_visible`,
+which is not applied. The stage's visibility does not take effect. The episode continues.
 
 A new backend with episode-level params adds its namespace to `Constants.HUMAN_PARAM_NAMESPACES`, sets
 `PARAM_NAMESPACE` from it, and implements `_configure_impl`. The `human.` prefix is reserved for params every
