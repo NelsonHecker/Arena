@@ -473,8 +473,10 @@ With `human.robots.visible:=false` the loop leaves every robot out of the feed
 and publishes the possessed peds alone. The engine then holds no robot agent,
 its pedestrians neither avoid a robot nor resolve a `robot:` attention ref.
 
+A stage sets the same switch per episode with `robots_visible` (`true` or `false`) in its `config.humansim` block. `_configure_impl` consumes `humansim.robots_visible` instead of sending it to the engine, lists it among the accepted params in `EpisodeRecord.human_params`, and keeps it until a later episode sets it again. A value that is not a bool is logged and not accepted.
+
 `PARAM_NAMESPACE` is `humansim`, and a `humansim.<param>` launch arg sets the same engine param for the whole
-run. At every episode reset `_configure_impl` sends the staged `humansim.*` names of
+run. At every episode reset `_configure_impl` sends the staged `humansim.*` names other than `robots_visible` of
 `QueueEpisode.human_params` to the engine node as one `set_parameters_atomically` batch and then calls the
 engine's `reset` with `soft: true`. The batch applies as a whole or not at all, so an episode never runs on
 half of a stage's human config. The reset call is the engine's episode boundary, where it applies the params,

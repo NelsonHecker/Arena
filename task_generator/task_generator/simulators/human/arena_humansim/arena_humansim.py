@@ -304,6 +304,24 @@ def reach_radius(bounding_box: Sequence[Sequence[float]]) -> float:
     return max(math.hypot(x, y) for x in (x_min, x_max) for y in (y_min, y_max)) + PED_RADIUS
 
 
+ROBOTS_VISIBLE = "robots_visible"
+
+
+def split_robots_visible(params: Sequence[ParameterMsg]) -> tuple[bool | None, list[ParameterMsg], list[str]]:
+    """The robots_visible flag among this backend's params, the params left for the engine, and names rejected for a non-bool value."""
+    visible: bool | None = None
+    rest: list[ParameterMsg] = []
+    rejected: list[str] = []
+    for p in params:
+        if p.name != ROBOTS_VISIBLE:
+            rest.append(p)
+        elif p.value.type == ParameterType.PARAMETER_BOOL:
+            visible = bool(p.value.bool_value)
+        else:
+            rejected.append(p.name)
+    return visible, rest, rejected
+
+
 class ArenaHumanSimulator(BaseHumanSimulator):
     PARAM_NAMESPACE = Constants.HUMAN_PARAM_NAMESPACES[Constants.HumanSimulator.ARENA]
 
@@ -778,13 +796,19 @@ class ArenaHumanSimulator(BaseHumanSimulator):
         self._logger.info(f"gesture_mode={mode}")
 
     async def _configure_impl(self, params: Sequence[ParameterMsg]) -> set[str]:
+        visible, engine_params, rejected = split_robots_visible(params)
         accepted: set[str] = set()
-        if params:
-            response = await self._set_params_client.call_timeout(SetParametersAtomically.Request(parameters=list(params)))
+        if visible is not None:
+            self._robots_visible = visible
+            accepted.add(ROBOTS_VISIBLE)
+        if rejected:
+            self._logger.error(f"human param {ROBOTS_VISIBLE!r} must be true or false, ignoring it")
+        if engine_params:
+            response = await self._set_params_client.call_timeout(SetParametersAtomically.Request(parameters=engine_params))
             if response is not None and response.result.successful:
-                accepted = {p.name for p in params}
+                accepted |= {p.name for p in engine_params}
             elif response is not None:
-                self._logger.error(f"engine rejected human params {[p.name for p in params]}: {response.result.reason}")
+                self._logger.error(f"engine rejected human params {[p.name for p in engine_params]}: {response.result.reason}")
         await self._reset_client.call_timeout(ResetSimulation.Request(soft=True))
         return accepted
 
