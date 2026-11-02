@@ -46,3 +46,8 @@ def test_other_namespace_is_skipped():
 def test_backend_without_namespace_takes_nothing():
     seen, accepted = _configure(None, {"a.b"}, ["humansim.a.b"])
     assert seen == [] and accepted == []
+
+
+def test_robots_visible_is_recorded_under_its_humansim_name():
+    _, accepted = _configure("humansim", {"robots_visible"}, ["humansim.robots_visible"])
+    assert accepted == ["humansim.robots_visible"]

@@ -798,17 +798,20 @@ class ArenaHumanSimulator(BaseHumanSimulator):
     async def _configure_impl(self, params: Sequence[ParameterMsg]) -> set[str]:
         visible, engine_params, rejected = split_robots_visible(params)
         accepted: set[str] = set()
-        if visible is not None:
-            self._robots_visible = visible
-            accepted.add(ROBOTS_VISIBLE)
         if rejected:
             self._logger.error(f"human param {ROBOTS_VISIBLE!r} must be true or false, ignoring it")
+        batch_ok = True
         if engine_params:
             response = await self._set_params_client.call_timeout(SetParametersAtomically.Request(parameters=engine_params))
-            if response is not None and response.result.successful:
+            batch_ok = response is not None and response.result.successful
+            if batch_ok:
                 accepted |= {p.name for p in engine_params}
-            elif response is not None:
-                self._logger.error(f"engine rejected human params {[p.name for p in engine_params]}: {response.result.reason}")
+            else:
+                reason = response.result.reason if response is not None else "timeout"
+                self._logger.error(f"engine rejected human params {[p.name for p in engine_params]}: {reason}")
+        if batch_ok and visible is not None:
+            self._robots_visible = visible
+            accepted.add(ROBOTS_VISIBLE)
         await self._reset_client.call_timeout(ResetSimulation.Request(soft=True))
         return accepted
 

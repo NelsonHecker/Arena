@@ -85,7 +85,7 @@ Adapter-specific tunables (planners, RL agent, ...) live in `caps/<cap>.yaml` an
 
 | Attribute | ROS param | Default | Notes |
 | --- | --- | --- | --- |
-| `ROBOTS_VISIBLE` | `human.robots.visible` | `True` | `False` = the human backend leaves the robots out of what it tells its pedestrians, honored by `ArenaHumanSimulator`, read once when the backend is built |
+| `ROBOTS_VISIBLE` | `human.robots.visible` | `True` | `False` = the human backend leaves the robots out of what it tells its pedestrians, honored by `ArenaHumanSimulator`, read once when the backend is built; the backend's flag can change per episode through `humansim.robots_visible` (see `simulators/human/README.md`) |
 
 ### Node-level runtime params (declared with `ParameterDescriptor`)
 
