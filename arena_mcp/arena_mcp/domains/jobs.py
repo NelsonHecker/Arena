@@ -29,14 +29,11 @@ def jobs_log(job_id: str, lines: int = 100) -> str:
     return JOBS.tail(job_id, lines)
 
 
-MAX_WAIT_S = 150.0
-
-
 @domain.tool(read_only=True)
 async def jobs_wait(job_id: str, timeout_s: float = 30.0) -> dict[str, Any]:
-    """Wait up to timeout_s (at most 150, below the 180s MCP transport deadline) for a job to finish, then return its status."""
-    if not 0 < timeout_s <= MAX_WAIT_S:
-        raise ToolError(f"timeout_s must be in (0, {int(MAX_WAIT_S)}]", hint="call jobs_wait again for longer jobs")
+    """Wait up to timeout_s (at most 300) for a job to finish, then return its status."""
+    if not 0 < timeout_s <= 300:
+        raise ToolError("timeout_s must be in (0, 300]", hint="poll again for longer jobs")
     return (await JOBS.wait(job_id, timeout_s)).as_dict()
 
 

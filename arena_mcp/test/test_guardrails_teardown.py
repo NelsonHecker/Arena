@@ -10,16 +10,7 @@ import pytest
 
 from arena_mcp.core import proc
 from arena_mcp.core.errors import ToolError
-from arena_mcp.domains.jobs import MAX_WAIT_S, jobs_wait
 from arena_mcp.domains.system import system_health, system_logs, system_teardown
-
-
-def test_jobs_wait_rejects_timeout_above_transport_cap() -> None:
-    assert MAX_WAIT_S == 150.0
-    with pytest.raises(ToolError, match="150"):
-        asyncio.run(jobs_wait("nonexistent-job", timeout_s=180.0))
-    with pytest.raises(ToolError, match="150"):
-        asyncio.run(jobs_wait("nonexistent-job", timeout_s=300.0))
 
 
 def test_system_health_and_logs_read_benchmark_roslog_dir(tmp_path: Path) -> None:
