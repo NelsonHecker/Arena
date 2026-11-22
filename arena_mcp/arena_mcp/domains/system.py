@@ -346,6 +346,47 @@ def system_health(
     }
 
 
+def _protected_pgids(excluded_pids: set[int]) -> set[int]:
+    """Process groups containing this server, its ancestors, or any live arena_mcp process."""
+    pgids: set[int] = set()
+    for pid in excluded_pids:
+        try:
+            pgids.add(os.getpgid(pid))
+        except ProcessLookupError:
+            pass
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if MCP_PROC_RE.search(proc.cmdline(pid)):
+            try:
+                pgids.add(os.getpgid(pid))
+            except ProcessLookupError:
+                pass
+    return pgids
+
+
+def _signal_target(pid: int, sig: signal.Signals, protected_pgids: set[int]) -> None:
+    """Signal pid's process group unless that group is protected, falling back to single-pid kill."""
+    try:
+        pgid = os.getpgid(pid)
+    except ProcessLookupError:
+        return
+    if pgid in protected_pgids:
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+        return
+    try:
+        proc.signal_group(pid, sig)
+    except proc.ProtectedProcess:
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+
+
 @domain.tool(destructive=True)
 async def system_teardown(
     grace_s: Annotated[float, Field(description="seconds to wait per signal escalation rung (SIGINT -> SIGTERM -> SIGKILL), at most 60")] = 10.0,
@@ -365,6 +406,7 @@ async def system_teardown(
             pass
 
     excluded = set(proc.ancestry())
+    protected_pgids = _protected_pgids(excluded)
     initial = _arena_processes(excluded)
     targets = _stamped([entry["pid"] for entry in initial])
     terminated_pids: list[int] = []
@@ -375,7 +417,7 @@ async def system_teardown(
             if not live:
                 break
             for pid, _ in live:
-                proc.signal_group(pid, sig)
+                _signal_target(pid, sig, protected_pgids)
             deadline = loop.time() + grace_s
             while _live(live) and loop.time() < deadline:
                 await asyncio.sleep(0.25)
