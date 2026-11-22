@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import signal
 from collections.abc import Callable
@@ -14,13 +15,19 @@ from arena_mcp.core.jobs import tail_file
 
 domain = Domain(
     "system",
-    """Stack lifecycle through the arena CLI: launch a simulation or a bare runtime, stop gracefully, list stacks, read logs, build, test, install deps, preload worlds.
+    """Stack lifecycle through the arena CLI: launch a simulation or a bare runtime, stop gracefully, tear down stale Arena/Gazebo processes, list stacks, read logs, build, test, install deps, preload worlds.
     Launches, builds and tests are process jobs (jobs_status, jobs_log), they keep running when the server exits.
     A launch takes what `arena launch` takes, rviz included unless headless, and like it adds envs to a runtime that is already up.""",
 )
 
 LAUNCH_KINDS = ("launch", "runtime")
 LAUNCH_RE = re.compile(r"arena_bringup[./]supervisor|(^|[/\s])ros2 (launch|run) ")
+ARENA_PROC_RE = re.compile(
+    r"arena_bringup|arena_runtime|arena_env_node|arena_humansim|hri_producer|"
+    r"parameter_bridge|(^|[/\s])gz (sim|server)|gzserver|ruby.*gz\b|"
+    r"(^|[/\s])ros2 (launch|run) |bt_navigator|controller_server|planner_server|rviz2"
+)
+MCP_PROC_RE = re.compile(r"\barena_mcp\b")
 STACK_GRACE_S = proc.GRACE_INT_S + proc.GRACE_TERM_S + proc.GRACE_KILL_S
 
 ArgValue = str | int | float | bool
@@ -198,6 +205,109 @@ def _foreign(exclude: set[int]) -> list[dict[str, Any]]:
         if LAUNCH_RE.search(line):
             matched[int(entry.name)] = line
     return [{"pid": pid, "cmdline": line} for pid, line in sorted(matched.items()) if proc.parent_of(pid) not in matched]
+
+
+def _arena_processes(exclude: set[int]) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid in exclude:
+            continue
+        line = proc.cmdline(pid)
+        if not line or MCP_PROC_RE.search(line):
+            continue
+        if ARENA_PROC_RE.search(line):
+            found.append({"pid": pid, "cmdline": line})
+    return sorted(found, key=lambda item: item["pid"])
+
+
+def _protected_pgids(excluded_pids: set[int]) -> set[int]:
+    """Process groups containing this server, its ancestors, or any live arena_mcp process."""
+    pgids: set[int] = set()
+    for pid in excluded_pids:
+        try:
+            pgids.add(os.getpgid(pid))
+        except ProcessLookupError:
+            pass
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if MCP_PROC_RE.search(proc.cmdline(pid)):
+            try:
+                pgids.add(os.getpgid(pid))
+            except ProcessLookupError:
+                pass
+    return pgids
+
+
+def _signal_target(pid: int, sig: signal.Signals, protected_pgids: set[int]) -> None:
+    """Signal pid's process group unless that group is protected, falling back to single-pid kill."""
+    try:
+        pgid = os.getpgid(pid)
+    except ProcessLookupError:
+        return
+    if pgid in protected_pgids:
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+        return
+    try:
+        proc.signal_group(pid, sig)
+    except proc.ProtectedProcess:
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+
+
+@domain.tool(destructive=True)
+async def system_teardown(
+    grace_s: Annotated[float, Field(description="seconds to wait per signal escalation rung (SIGINT -> SIGTERM -> SIGKILL), at most 60")] = 10.0,
+) -> dict[str, Any]:
+    """Cancel all tracked running Arena jobs and terminate all remaining Arena, Gazebo, and ROS 2 processes while preserving the arena_mcp server."""
+    if not 0 < grace_s <= 60:
+        raise ToolError("grace_s must be in (0, 60]")
+    cancelled_jobs: list[str] = []
+    to_cancel = {job.id: job for job in JOBS.list(state="running")}
+    for job in _stoppable():
+        to_cancel.setdefault(job.id, job)
+    for job_id in to_cancel:
+        try:
+            await JOBS.cancel(job_id)
+            cancelled_jobs.append(job_id)
+        except ToolError:
+            pass
+
+    excluded = set(proc.ancestry())
+    protected_pgids = _protected_pgids(excluded)
+    initial = _arena_processes(excluded)
+    targets = _stamped([entry["pid"] for entry in initial])
+    terminated_pids: list[int] = []
+    if targets:
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
+            live = _live(targets)
+            if not live:
+                break
+            for pid, _ in live:
+                _signal_target(pid, sig, protected_pgids)
+            deadline = loop.time() + grace_s
+            while _live(live) and loop.time() < deadline:
+                await asyncio.sleep(0.25)
+        still_live_pids = {pid for pid, _ in _live(targets)}
+        terminated_pids = [pid for pid, _ in targets if pid not in still_live_pids]
+
+    survivors = _arena_processes(excluded)
+    return {
+        "cancelled_jobs": cancelled_jobs,
+        "terminated_pids": terminated_pids,
+        "stopped": not survivors,
+        "survivors": survivors,
+    }
 
 
 @domain.tool(read_only=True)
