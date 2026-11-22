@@ -332,10 +332,7 @@ def system_health(
     roslog = _roslog_dir(run_id)
     recent_logs: list[str] = []
     if roslog is not None:
-        recent_logs = [
-            p.name
-            for p in sorted(roslog.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)[:15]
-        ]
+        recent_logs = [p.name for p in sorted(roslog.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)[:15]]
     return {
         "arena_processes": processes,
         "process_count": len(processes),
